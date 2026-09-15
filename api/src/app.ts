@@ -7,6 +7,7 @@ import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -25,7 +26,7 @@ export function createApp(): Express {
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", db: "connected", uptime: process.uptime() });
   });
-
+  app.use("/api/auth", authRouter);
   app.use(notFound);
   app.use(errorHandler);
 
