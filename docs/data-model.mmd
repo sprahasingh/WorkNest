@@ -1,0 +1,82 @@
+erDiagram
+    ORGANIZATION ||--o{ MEMBERSHIP : "has"
+    ORGANIZATION ||--o{ INVITE : "has"
+    ORGANIZATION ||--o{ PROJECT : "has"
+    ORGANIZATION ||--o{ TASK : "has"
+    ORGANIZATION ||--o{ AUDIT_LOG : "has"
+    USER ||--o{ MEMBERSHIP : "belongs via"
+    USER ||--o{ SESSION : "has"
+    PROJECT ||--o{ TASK : "contains"
+
+    ORGANIZATION {
+        ObjectId id PK
+        string name
+        string slug
+        string plan
+        number seatLimit
+        number seatsUsed
+        number projectLimit
+        number projectCount
+        number adminCount
+        ObjectId createdBy
+    }
+    USER {
+        ObjectId id PK
+        string email
+        string name
+        string passwordHash
+    }
+    SESSION {
+        ObjectId id PK
+        ObjectId userId FK
+        string familyId
+        string tokenHash
+        date expiresAt
+        date revokedAt
+        ObjectId replacedBy
+    }
+    MEMBERSHIP {
+        ObjectId id PK
+        ObjectId tenantId FK
+        ObjectId userId FK
+        string role
+    }
+    INVITE {
+        ObjectId id PK
+        ObjectId tenantId FK
+        string email
+        string role
+        string tokenHash
+        ObjectId invitedBy FK
+        date expiresAt
+        string status
+    }
+    PROJECT {
+        ObjectId id PK
+        ObjectId tenantId FK
+        string name
+        string key
+        string description
+        date archivedAt
+        ObjectId createdBy FK
+    }
+    TASK {
+        ObjectId id PK
+        ObjectId tenantId FK
+        ObjectId projectId FK
+        string title
+        string description
+        string status
+        string priority
+        ObjectId assigneeId FK
+        date dueDate
+        ObjectId createdBy FK
+    }
+    AUDIT_LOG {
+        ObjectId id PK
+        ObjectId tenantId FK
+        ObjectId actorId FK
+        string action
+        string entityType
+        ObjectId entityId
+    }
