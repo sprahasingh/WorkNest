@@ -5,6 +5,8 @@ import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
+import { notFound } from "./middleware/notFound.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 
 export function createApp(): Express {
   const app = express();
@@ -23,6 +25,9 @@ export function createApp(): Express {
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", db: "connected", uptime: process.uptime() });
   });
+
+  app.use(notFound);
+  app.use(errorHandler);
 
   return app;
 }
