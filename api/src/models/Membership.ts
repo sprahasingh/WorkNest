@@ -1,5 +1,6 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
 import { ROLES } from "../constants/roles.js";
+import { tenantPlugin } from "../tenancy/plugin.js";
 
 const membershipSchema = new Schema(
   {
@@ -21,6 +22,8 @@ const membershipSchema = new Schema(
 
 membershipSchema.index({ tenantId: 1, userId: 1 }, { unique: true });
 membershipSchema.index({ userId: 1 });
+
+membershipSchema.plugin(tenantPlugin);
 
 export type MembershipDocument = InferSchemaType<typeof membershipSchema>;
 export const Membership = model("Membership", membershipSchema);

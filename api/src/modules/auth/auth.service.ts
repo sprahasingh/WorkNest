@@ -77,16 +77,13 @@ export async function register(input: RegisterInput) {
         { session: dbSession },
       );
 
-      await Membership.create(
-        [
-          {
-            tenantId: organization._id,
-            userId: user._id,
-            role: "admin",
-          },
-        ],
-        { session: dbSession },
-      );
+      const membershipDoc = new Membership({
+        tenantId: organization._id,
+        userId: user._id,
+        role: "admin",
+      });
+      membershipDoc.$locals.skipTenant = true;
+      await membershipDoc.save({ session: dbSession });
 
       userId = user._id;
       organizationId = organization._id;

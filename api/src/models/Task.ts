@@ -1,4 +1,5 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
+import { tenantPlugin } from "../tenancy/plugin.js";
 
 const taskSchema = new Schema(
   {
@@ -30,6 +31,8 @@ const taskSchema = new Schema(
 
 taskSchema.index({ tenantId: 1, projectId: 1, status: 1, _id: -1 });
 taskSchema.index({ tenantId: 1, assigneeId: 1, status: 1 });
+
+taskSchema.plugin(tenantPlugin);
 
 export type TaskDocument = InferSchemaType<typeof taskSchema>;
 export const Task = model("Task", taskSchema);
