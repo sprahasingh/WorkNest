@@ -1,0 +1,40 @@
+@baseUrl = http://localhost:4000/api/auth
+
+### Register
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "email": "test@example.com",
+  "password": "password123",
+  "orgName": "Test Org"
+}
+
+### Login
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### Login with wrong password
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "wrongpassword"
+}
+
+### Get current user (replace TOKEN with a real access token from a login response above)
+GET {{baseUrl}}/me
+Authorization: Bearer TOKEN
+
+### Refresh (requires the browser/REST Client to have the refreshToken cookie from a prior login)
+POST {{baseUrl}}/refresh
+
+### Logout
+POST {{baseUrl}}/logout
