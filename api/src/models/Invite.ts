@@ -1,4 +1,5 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
+import { tenantPlugin } from "../tenancy/plugin.js";
 
 const inviteSchema = new Schema(
   {
@@ -30,6 +31,12 @@ inviteSchema.index(
   { tenantId: 1, email: 1 },
   { unique: true, partialFilterExpression: { status: "pending" } },
 );
+inviteSchema.index(
+  { tenantId: 1, email: 1 },
+  { unique: true, partialFilterExpression: { status: "pending" } },
+);
+
+inviteSchema.plugin(tenantPlugin);
 
 export type InviteDocument = InferSchemaType<typeof inviteSchema>;
 export const Invite = model("Invite", inviteSchema);

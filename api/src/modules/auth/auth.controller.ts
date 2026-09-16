@@ -15,6 +15,7 @@ import { signAccessToken } from "../../lib/jwt.js";
 import { AppError } from "../../lib/errors.js";
 import { User } from "../../models/User.js";
 import type { RegisterInput, LoginInput } from "./auth.schemas.js";
+import { Membership } from "../../models/Membership.js";
 
 export async function registerController(
   req: Request,
@@ -89,5 +90,9 @@ export async function meController(req: Request, res: Response): Promise<void> {
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
 
-  res.status(200).json({ user });
+  const memberships = await Membership.find({ userId: req.auth!.userId })
+    .setOptions({ skipTenant: true })
+    .populate("tenantId", "name slug plan");
+
+  res.status(200).json({ user, memberships });
 }
