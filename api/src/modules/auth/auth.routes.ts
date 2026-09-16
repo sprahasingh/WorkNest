@@ -1,9 +1,15 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { validate } from "../../middleware/validate.js";
-import { registerSchema } from "./auth.schemas.js";
-import { registerController, loginController } from "./auth.controller.js";
-import { loginSchema } from "./auth.schemas.js";
+import { authenticate } from "../../auth/authenticate.js";
+import { registerSchema, loginSchema } from "./auth.schemas.js";
+import {
+  registerController,
+  loginController,
+  refreshController,
+  logoutController,
+  meController,
+} from "./auth.controller.js";
 
 const router = Router();
 
@@ -27,5 +33,9 @@ router.post(
   validate({ body: loginSchema }),
   loginController,
 );
+
+router.post("/refresh", authLimiter, refreshController);
+router.post("/logout", logoutController);
+router.get("/me", authenticate, meController);
 
 export { router as authRouter };
