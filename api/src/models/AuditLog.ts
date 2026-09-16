@@ -1,4 +1,5 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
+import { tenantPlugin } from "../tenancy/plugin.js";
 
 const auditLogSchema = new Schema(
   {
@@ -18,6 +19,8 @@ const auditLogSchema = new Schema(
 );
 
 auditLogSchema.index({ tenantId: 1, _id: -1 });
+
+auditLogSchema.plugin(tenantPlugin);
 
 export type AuditLogDocument = InferSchemaType<typeof auditLogSchema>;
 export const AuditLog = model("AuditLog", auditLogSchema);
