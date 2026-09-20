@@ -13,7 +13,18 @@ const organizationSchema = new Schema(
     adminCount: { type: Number, required: true, default: 1 },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    toJSON: {
+      transform: (_doc, ret) => {
+        const obj = ret as Record<string, unknown>;
+        delete obj.__v;
+        obj.id = obj._id;
+        delete obj._id;
+        return obj;
+      },
+    },
+  },
 );
 
 export type OrganizationDocument = InferSchemaType<typeof organizationSchema>;
