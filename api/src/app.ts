@@ -10,6 +10,8 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { authenticate } from "./auth/authenticate.js";
 import { resolveTenant } from "./tenancy/resolveTenant.js";
+import { membersRouter } from "./modules/members/members.routes.js";
+import { orgsRouter } from "./modules/orgs/orgs.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -29,7 +31,10 @@ export function createApp(): Express {
     res.json({ status: "ok", db: "connected", uptime: process.uptime() });
   });
   app.use("/api/auth", authRouter);
-  app.use("/api/orgs/:orgId", authenticate, resolveTenant);
+  const orgRouter = express.Router({ mergeParams: true });
+  orgRouter.use("/members", membersRouter);
+  orgRouter.use("/", orgsRouter);
+  app.use("/api/orgs/:orgId", authenticate, resolveTenant, orgRouter);
   app.use(notFound);
   app.use(errorHandler);
 
