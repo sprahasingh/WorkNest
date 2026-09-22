@@ -12,6 +12,8 @@ import { authenticate } from "./auth/authenticate.js";
 import { resolveTenant } from "./tenancy/resolveTenant.js";
 import { membersRouter } from "./modules/members/members.routes.js";
 import { orgsRouter } from "./modules/orgs/orgs.routes.js";
+import { invitesRouter } from "./modules/invites/invites.routes.js";
+import { invitesPublicRouter } from "./modules/invites/invitesPublic.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -30,11 +32,16 @@ export function createApp(): Express {
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", db: "connected", uptime: process.uptime() });
   });
+
   app.use("/api/auth", authRouter);
+  app.use("/api/invites", invitesPublicRouter);
+
   const orgRouter = express.Router({ mergeParams: true });
   orgRouter.use("/members", membersRouter);
   orgRouter.use("/", orgsRouter);
+  orgRouter.use("/invites", invitesRouter);
   app.use("/api/orgs/:orgId", authenticate, resolveTenant, orgRouter);
+
   app.use(notFound);
   app.use(errorHandler);
 
