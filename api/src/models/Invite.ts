@@ -31,10 +31,6 @@ inviteSchema.index(
   { tenantId: 1, email: 1 },
   { unique: true, partialFilterExpression: { status: "pending" } },
 );
-inviteSchema.index(
-  { tenantId: 1, email: 1 },
-  { unique: true, partialFilterExpression: { status: "pending" } },
-);
 
 inviteSchema.plugin(tenantPlugin);
 
