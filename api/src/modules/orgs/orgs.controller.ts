@@ -2,7 +2,8 @@ import type { Request, Response } from "express";
 import { Organization } from "../../models/Organization.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
-import type { UpdateOrgInput } from "./orgs.schemas.js";
+import { changePlan } from "./orgs.service.js";
+import type { UpdateOrgInput, ChangePlanInput } from "./orgs.schemas.js";
 
 export async function getOrgController(
   req: Request,
@@ -37,5 +38,14 @@ export async function updateOrgController(
     throw new AppError(404, "NOT_FOUND", "Organization not found");
   }
 
+  res.status(200).json({ organization: org });
+}
+
+export async function changePlanController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as ChangePlanInput;
+  const org = await changePlan(input.plan);
   res.status(200).json({ organization: org });
 }
