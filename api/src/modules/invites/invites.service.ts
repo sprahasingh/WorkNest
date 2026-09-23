@@ -5,11 +5,14 @@ import { Organization } from "../../models/Organization.js";
 import { requireTenantId, getTenantContext } from "../../tenancy/context.js";
 import { randomToken, sha256 } from "../../lib/crypto.js";
 import { AppError } from "../../lib/errors.js";
-import type { CreateInviteInput } from "./invites.schemas.js";
+import { recordAudit } from "../audit/audit.service.js";
 import bcrypt from "bcryptjs";
 import { User } from "../../models/User.js";
 import { env } from "../../config/env.js";
-import type { InviteSignupInput } from "./invites.schemas.js";
+import type {
+  CreateInviteInput,
+  InviteSignupInput,
+} from "./invites.schemas.js";
 
 export async function reserveSeat(
   tenantId: string,
@@ -113,6 +116,16 @@ export async function createInvite(input: CreateInviteInput) {
         { session: dbSession },
       );
 
+      await recordAudit(
+        {
+          action: "invite.created",
+          entityType: "Invite",
+          entityId: created._id,
+          metadata: { email: input.email, role: input.role },
+        },
+        dbSession,
+      );
+
       invite = created;
     });
 
@@ -157,34 +170,20 @@ export async function revokeInvite(inviteId: string) {
       }
 
       await releaseSeat(tenantId, dbSession);
+
+      await recordAudit(
+        {
+          action: "invite.revoked",
+          entityType: "Invite",
+          entityId: inviteId,
+          metadata: { email: invite.email },
+        },
+        dbSession,
+      );
     });
   } finally {
     await dbSession.endSession();
   }
-}
-
-export async function getInviteByToken(rawToken: string) {
-  const tokenHash = sha256(rawToken);
-
-  const invite = await Invite.findOne({ tokenHash })
-    .setOptions({ skipTenant: true })
-    .populate<{ tenantId: { name: string } }>("tenantId", "name");
-
-  if (!invite) {
-    throw new AppError(404, "NOT_FOUND", "Invite not found");
-  }
-
-  const isExpired =
-    invite.status === "expired" ||
-    (invite.status === "pending" && invite.expiresAt < new Date());
-
-  return {
-    organizationName: invite.tenantId.name,
-    email: invite.email,
-    role: invite.role,
-    expired: isExpired,
-    status: invite.status,
-  };
 }
 
 export async function acceptInvite(
@@ -252,6 +251,18 @@ export async function acceptInvite(
           { session: dbSession },
         ).setOptions({ skipTenant: true });
       }
+
+      await recordAudit(
+        {
+          action: "invite.accepted",
+          entityType: "Invite",
+          entityId: invite._id,
+          metadata: { email: invite.email, role: invite.role },
+          tenantId: invite.tenantId,
+          actorId: userId,
+        },
+        dbSession,
+      );
 
       membershipResult = membership;
     });
@@ -338,6 +349,18 @@ export async function signupViaInvite(
         ).setOptions({ skipTenant: true });
       }
 
+      await recordAudit(
+        {
+          action: "invite.accepted",
+          entityType: "Invite",
+          entityId: invite._id,
+          metadata: { email: invite.email, role: invite.role, viaSignup: true },
+          tenantId: invite.tenantId,
+          actorId: user._id,
+        },
+        dbSession,
+      );
+
       result = { userId: user._id };
     });
 
@@ -345,4 +368,28 @@ export async function signupViaInvite(
   } finally {
     await dbSession.endSession();
   }
+}
+
+export async function getInviteByToken(rawToken: string) {
+  const tokenHash = sha256(rawToken);
+
+  const invite = await Invite.findOne({ tokenHash })
+    .setOptions({ skipTenant: true })
+    .populate<{ tenantId: { name: string } }>("tenantId", "name");
+
+  if (!invite) {
+    throw new AppError(404, "NOT_FOUND", "Invite not found");
+  }
+
+  const isExpired =
+    invite.status === "expired" ||
+    (invite.status === "pending" && invite.expiresAt < new Date());
+
+  return {
+    organizationName: invite.tenantId.name,
+    email: invite.email,
+    role: invite.role,
+    expired: isExpired,
+    status: invite.status,
+  };
 }
