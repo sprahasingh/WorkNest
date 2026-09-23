@@ -7,6 +7,7 @@ import {
   reserveProjectSlot,
   releaseProjectSlot,
 } from "../orgs/orgs.service.js";
+import { recordAudit } from "../audit/audit.service.js";
 import type {
   CreateProjectInput,
   UpdateProjectInput,
@@ -51,6 +52,16 @@ export async function createProject(
         { session: dbSession },
       );
 
+      await recordAudit(
+        {
+          action: "project.created",
+          entityType: "Project",
+          entityId: created._id,
+          metadata: { name: input.name, key: input.key },
+        },
+        dbSession,
+      );
+
       project = created;
     });
 
@@ -80,30 +91,91 @@ export async function updateProject(
   projectId: string,
   input: UpdateProjectInput,
 ) {
-  const project = await Project.findByIdAndUpdate(projectId, input, {
-    new: true,
-    runValidators: true,
-  });
+  const dbSession = await mongoose.startSession();
 
-  if (!project) {
-    throw new AppError(404, "NOT_FOUND", "Project not found");
+  try {
+    let project;
+
+    await dbSession.withTransaction(async () => {
+      const before = await Project.findById(projectId).session(dbSession);
+
+      if (!before) {
+        throw new AppError(404, "NOT_FOUND", "Project not found");
+      }
+
+      const changes: Record<string, { from: unknown; to: unknown }> = {};
+      if (input.name !== undefined && input.name !== before.name) {
+        changes.name = { from: before.name, to: input.name };
+      }
+      if (
+        input.description !== undefined &&
+        input.description !== before.description
+      ) {
+        changes.description = {
+          from: before.description,
+          to: input.description,
+        };
+      }
+
+      const updated = await Project.findByIdAndUpdate(projectId, input, {
+        new: true,
+        runValidators: true,
+        session: dbSession,
+      });
+
+      await recordAudit(
+        {
+          action: "project.updated",
+          entityType: "Project",
+          entityId: projectId,
+          metadata: changes,
+        },
+        dbSession,
+      );
+
+      project = updated;
+    });
+
+    return project!;
+  } finally {
+    await dbSession.endSession();
   }
-
-  return project;
 }
 
 export async function archiveProject(projectId: string) {
-  const project = await Project.findByIdAndUpdate(
-    projectId,
-    { archivedAt: new Date() },
-    { new: true },
-  );
+  const dbSession = await mongoose.startSession();
 
-  if (!project) {
-    throw new AppError(404, "NOT_FOUND", "Project not found");
+  try {
+    let project;
+
+    await dbSession.withTransaction(async () => {
+      const updated = await Project.findByIdAndUpdate(
+        projectId,
+        { archivedAt: new Date() },
+        { new: true, session: dbSession },
+      );
+
+      if (!updated) {
+        throw new AppError(404, "NOT_FOUND", "Project not found");
+      }
+
+      await recordAudit(
+        {
+          action: "project.archived",
+          entityType: "Project",
+          entityId: projectId,
+          metadata: {},
+        },
+        dbSession,
+      );
+
+      project = updated;
+    });
+
+    return project!;
+  } finally {
+    await dbSession.endSession();
   }
-
-  return project;
 }
 
 export async function deleteProject(projectId: string) {
@@ -121,6 +193,16 @@ export async function deleteProject(projectId: string) {
       await Task.deleteMany({ projectId }).session(dbSession);
       await Project.deleteOne({ _id: projectId }).session(dbSession);
       await releaseProjectSlot(tenantId, dbSession);
+
+      await recordAudit(
+        {
+          action: "project.deleted",
+          entityType: "Project",
+          entityId: projectId,
+          metadata: { name: project.name, key: project.key },
+        },
+        dbSession,
+      );
     });
   } finally {
     await dbSession.endSession();
