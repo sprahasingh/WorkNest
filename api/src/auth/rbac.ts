@@ -1,4 +1,4 @@
-import { ROLES, type Role } from "../constants/roles.js";
+import type { Role } from "../constants/roles.js";
 
 export const PERMISSIONS = [
   "org:update",
