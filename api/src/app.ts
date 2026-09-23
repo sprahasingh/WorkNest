@@ -14,6 +14,11 @@ import { membersRouter } from "./modules/members/members.routes.js";
 import { orgsRouter } from "./modules/orgs/orgs.routes.js";
 import { invitesRouter } from "./modules/invites/invites.routes.js";
 import { invitesPublicRouter } from "./modules/invites/invitesPublic.routes.js";
+import { projectsRouter } from "./modules/projects/projects.routes.js";
+import {
+  projectTasksRouter,
+  tasksRouter,
+} from "./modules/tasks/tasks.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -40,6 +45,9 @@ export function createApp(): Express {
   orgRouter.use("/members", membersRouter);
   orgRouter.use("/", orgsRouter);
   orgRouter.use("/invites", invitesRouter);
+  orgRouter.use("/projects", projectsRouter);
+  orgRouter.use("/projects/:projectId/tasks", projectTasksRouter);
+  orgRouter.use("/tasks", tasksRouter);
   app.use("/api/orgs/:orgId", authenticate, resolveTenant, orgRouter);
 
   app.use(notFound);
