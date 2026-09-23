@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { canUpdateTask } from "../src/auth/ownership.js";
+import type { TaskUpdateChanges } from "../src/auth/ownership.js";
 
 const userId = "user-1";
 const otherUserId = "user-2";
@@ -33,7 +34,7 @@ describe("canUpdateTask", () => {
     const task = makeTask({ createdBy: userId, assigneeId: null });
     const result = canUpdateTask({ userId, role: "member" }, task, {
       title: "New title",
-    } as any);
+    } as unknown as TaskUpdateChanges);
     expect(result).toBe(true);
   });
 
@@ -41,7 +42,7 @@ describe("canUpdateTask", () => {
     const task = makeTask({ createdBy: otherUserId, assigneeId: userId });
     const result = canUpdateTask({ userId, role: "member" }, task, {
       status: "done",
-    } as any);
+    } as unknown as TaskUpdateChanges);
     expect(result).toBe(true);
   });
 
