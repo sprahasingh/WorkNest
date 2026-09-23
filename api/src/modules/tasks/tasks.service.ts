@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Task } from "../../models/Task.js";
 import { Project } from "../../models/Project.js";
 import { Membership } from "../../models/Membership.js";
@@ -5,6 +6,7 @@ import { requireTenantId, getTenantContext } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { can } from "../../auth/rbac.js";
 import { canUpdateTask } from "../../auth/ownership.js";
+import { recordAudit } from "../audit/audit.service.js";
 import type { Role } from "../../constants/roles.js";
 import type {
   CreateTaskInput,
@@ -47,15 +49,44 @@ export async function createTask(
     }
   }
 
-  return Task.create({
-    projectId,
-    title: input.title,
-    description: input.description,
-    priority: input.priority,
-    assigneeId: input.assigneeId,
-    dueDate: input.dueDate,
-    createdBy,
-  });
+  const dbSession = await mongoose.startSession();
+
+  try {
+    let task;
+
+    await dbSession.withTransaction(async () => {
+      const [created] = await Task.create(
+        [
+          {
+            projectId,
+            title: input.title,
+            description: input.description,
+            priority: input.priority,
+            assigneeId: input.assigneeId,
+            dueDate: input.dueDate,
+            createdBy,
+          },
+        ],
+        { session: dbSession },
+      );
+
+      await recordAudit(
+        {
+          action: "task.created",
+          entityType: "Task",
+          entityId: created._id,
+          metadata: { title: input.title, projectId },
+        },
+        dbSession,
+      );
+
+      task = created;
+    });
+
+    return task!;
+  } finally {
+    await dbSession.endSession();
+  }
 }
 
 export async function listTasks(projectId: string, query: ListTasksQuery) {
@@ -148,10 +179,50 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
     }
   }
 
-  Object.assign(task, input);
-  await task.save();
+  const dbSession = await mongoose.startSession();
 
-  return task;
+  try {
+    await dbSession.withTransaction(async () => {
+      const changes: Record<string, { from: unknown; to: unknown }> = {};
+      const trackedFields = [
+        "title",
+        "description",
+        "status",
+        "priority",
+        "assigneeId",
+        "dueDate",
+      ] as const;
+
+      for (const field of trackedFields) {
+        if (
+          Object.prototype.hasOwnProperty.call(input, field) &&
+          input[field] !== (task as unknown as Record<string, unknown>)[field]
+        ) {
+          changes[field] = {
+            from: (task as unknown as Record<string, unknown>)[field],
+            to: input[field],
+          };
+        }
+      }
+
+      Object.assign(task, input);
+      await task.save({ session: dbSession });
+
+      await recordAudit(
+        {
+          action: "task.updated",
+          entityType: "Task",
+          entityId: taskId,
+          metadata: changes,
+        },
+        dbSession,
+      );
+    });
+
+    return task;
+  } finally {
+    await dbSession.endSession();
+  }
 }
 
 export async function deleteTask(taskId: string) {
@@ -170,5 +241,23 @@ export async function deleteTask(taskId: string) {
     );
   }
 
-  await Task.deleteOne({ _id: taskId });
+  const dbSession = await mongoose.startSession();
+
+  try {
+    await dbSession.withTransaction(async () => {
+      await Task.deleteOne({ _id: taskId }).session(dbSession);
+
+      await recordAudit(
+        {
+          action: "task.deleted",
+          entityType: "Task",
+          entityId: taskId,
+          metadata: { title: task.title },
+        },
+        dbSession,
+      );
+    });
+  } finally {
+    await dbSession.endSession();
+  }
 }

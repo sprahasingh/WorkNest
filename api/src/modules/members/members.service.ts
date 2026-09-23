@@ -3,6 +3,7 @@ import { Membership } from "../../models/Membership.js";
 import { Organization } from "../../models/Organization.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
+import { recordAudit } from "../audit/audit.service.js";
 import type { Role } from "../../constants/roles.js";
 
 async function guardLastAdmin(
@@ -38,6 +39,7 @@ export async function changeMemberRole(memberId: string, newRole: Role) {
         throw new AppError(404, "NOT_FOUND", "Member not found");
       }
 
+      const previousRole = membership.role;
       const wasAdmin = membership.role === "admin";
       const willBeAdmin = newRole === "admin";
 
@@ -53,6 +55,17 @@ export async function changeMemberRole(memberId: string, newRole: Role) {
 
       membership.role = newRole;
       await membership.save({ session: dbSession });
+
+      await recordAudit(
+        {
+          action: "member.role_changed",
+          entityType: "Membership",
+          entityId: membership._id,
+          metadata: { role: { from: previousRole, to: newRole } },
+        },
+        dbSession,
+      );
+
       result = membership;
     });
 
@@ -85,6 +98,16 @@ export async function removeMember(memberId: string) {
         { $inc: { seatsUsed: -1 } },
         { session: dbSession },
       ).setOptions({ skipTenant: true });
+
+      await recordAudit(
+        {
+          action: "member.removed",
+          entityType: "Membership",
+          entityId: memberId,
+          metadata: { role: membership.role, userId: membership.userId },
+        },
+        dbSession,
+      );
     });
   } finally {
     await dbSession.endSession();
