@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { Organization } from "../../models/Organization.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
+import { recordAudit } from "../audit/audit.service.js";
 import type { Plan } from "../../constants/plans.js";
 
 const PLAN_LIMITS: Record<Plan, { seatLimit: number; projectLimit: number }> = {
@@ -18,6 +19,10 @@ export async function changePlan(newPlan: Plan) {
     let org;
 
     await dbSession.withTransaction(async () => {
+      const previous = await Organization.findById(tenantId)
+        .session(dbSession)
+        .setOptions({ skipTenant: true });
+
       const updated = await Organization.findOneAndUpdate(
         {
           _id: tenantId,
@@ -37,24 +42,30 @@ export async function changePlan(newPlan: Plan) {
       ).setOptions({ skipTenant: true });
 
       if (!updated) {
-        const current = await Organization.findById(tenantId)
-          .session(dbSession)
-          .setOptions({ skipTenant: true });
-
         throw new AppError(
           409,
           "PLAN_DOWNGRADE_BLOCKED",
           "Current usage exceeds the limits of the target plan",
           [
             {
-              seatsUsed: current?.seatsUsed,
-              projectCount: current?.projectCount,
+              seatsUsed: previous?.seatsUsed,
+              projectCount: previous?.projectCount,
               targetSeatLimit: limits.seatLimit,
               targetProjectLimit: limits.projectLimit,
             },
           ],
         );
       }
+
+      await recordAudit(
+        {
+          action: "plan.changed",
+          entityType: "Organization",
+          entityId: tenantId,
+          metadata: { plan: { from: previous?.plan, to: newPlan } },
+        },
+        dbSession,
+      );
 
       org = updated;
     });
