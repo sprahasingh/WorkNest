@@ -19,6 +19,8 @@ import {
   projectTasksRouter,
   tasksRouter,
 } from "./modules/tasks/tasks.routes.js";
+import { auditRouter } from "./modules/audit/audit.routes.js";
+import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -48,6 +50,8 @@ export function createApp(): Express {
   orgRouter.use("/projects", projectsRouter);
   orgRouter.use("/projects/:projectId/tasks", projectTasksRouter);
   orgRouter.use("/tasks", tasksRouter);
+  orgRouter.use("/audit-logs", auditRouter);
+  orgRouter.use("/dashboard", dashboardRouter);
   app.use("/api/orgs/:orgId", authenticate, resolveTenant, orgRouter);
 
   app.use(notFound);
