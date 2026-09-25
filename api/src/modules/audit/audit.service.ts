@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { AuditLog } from "../../models/AuditLog.js";
 import { getTenantContext } from "../../tenancy/context.js";
+import { AppError } from "../../lib/errors.js";
 
 export interface RecordAuditInput {
   action: string;
@@ -20,7 +21,9 @@ export async function recordAudit(
   const actorId = input.actorId ?? context?.userId;
 
   if (!tenantId || !actorId) {
-    throw new Error(
+    throw new AppError(
+      500,
+      "TENANT_CONTEXT_MISSING",
       "recordAudit requires a tenant context or an explicit tenantId/actorId override",
     );
   }
