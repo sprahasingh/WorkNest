@@ -10,16 +10,7 @@ import { randomToken, sha256 } from "../../lib/crypto.js";
 import { Session } from "../../models/Session.js";
 import { randomUUID } from "node:crypto";
 import type { LoginInput } from "./auth.schemas.js";
-
-function generateSlug(orgName: string): string {
-  const base = orgName
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  const suffix = Math.random().toString(36).slice(2, 8);
-  return `${base}-${suffix}`;
-}
+import { generateSlug } from "../orgs/orgs.service.js";
 
 export async function createSession(userId: mongoose.Types.ObjectId | string) {
   const rawToken = randomToken();
