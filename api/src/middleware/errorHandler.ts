@@ -9,6 +9,12 @@ interface MongoServerError extends Error {
   keyValue?: Record<string, unknown>;
 }
 
+interface MongooseCastError extends Error {
+  name: "CastError";
+  path?: string;
+  value?: unknown;
+}
+
 export function errorHandler(
   err: unknown,
   req: Request,
@@ -31,6 +37,18 @@ export function errorHandler(
         code: "VALIDATION_ERROR",
         message: "Request validation failed",
         details: err.issues,
+      },
+    });
+    return;
+  }
+
+  const castErr = err as MongooseCastError;
+  if (castErr.name === "CastError") {
+    res.status(404).json({
+      error: {
+        code: "NOT_FOUND",
+        message: "Resource not found",
+        details: [],
       },
     });
     return;
