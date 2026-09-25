@@ -10,7 +10,7 @@ import {
 
 const router = Router({ mergeParams: true });
 
-router.get("/", requirePermission("project:read"), getOrgController);
+router.get("/", requirePermission("org:read"), getOrgController);
 
 router.patch(
   "/",
