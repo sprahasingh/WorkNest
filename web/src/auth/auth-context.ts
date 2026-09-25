@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 import type {
   LoginInput,
+  MeResponse,
   OrgMembership,
   RegisterInput,
   User,
@@ -15,6 +16,8 @@ export type AuthContextValue = AuthState & {
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  refreshMemberships: () => Promise<void>;
+  establishSession: (accessToken: string) => Promise<MeResponse>;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(

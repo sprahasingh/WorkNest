@@ -56,26 +56,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [queryClient]);
 
-  const login = useCallback(
-    async (input: LoginInput) => {
-      const { accessToken } = await loginRequest(input);
+  const establishSession = useCallback(
+    async (accessToken: string): Promise<MeResponse> => {
       setAccessToken(accessToken);
       const me = await fetchMe();
       queryClient.setQueryData<MeResponse>(SESSION_QUERY_KEY, me);
       setSignedOut(false);
+      return me;
     },
     [queryClient],
+  );
+
+  const login = useCallback(
+    async (input: LoginInput) => {
+      const { accessToken } = await loginRequest(input);
+      await establishSession(accessToken);
+    },
+    [establishSession],
   );
 
   const register = useCallback(
     async (input: RegisterInput) => {
       const { accessToken } = await registerRequest(input);
-      setAccessToken(accessToken);
-      const me = await fetchMe();
-      queryClient.setQueryData<MeResponse>(SESSION_QUERY_KEY, me);
-      setSignedOut(false);
+      await establishSession(accessToken);
     },
-    [queryClient],
+    [establishSession],
   );
 
   const logout = useCallback(async () => {
@@ -86,6 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSignedOut(true);
       queryClient.clear();
     }
+  }, [queryClient]);
+
+  const refreshMemberships = useCallback(async () => {
+    const me = await fetchMe();
+    queryClient.setQueryData<MeResponse>(SESSION_QUERY_KEY, me);
   }, [queryClient]);
 
   const state: AuthState = signedOut
@@ -100,7 +110,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         : UNAUTHENTICATED_STATE;
 
-  const value: AuthContextValue = { ...state, login, register, logout };
+  const value: AuthContextValue = {
+    ...state,
+    login,
+    register,
+    logout,
+    refreshMemberships,
+    establishSession,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
