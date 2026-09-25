@@ -2,8 +2,21 @@ import type { Request, Response } from "express";
 import { Organization } from "../../models/Organization.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
-import { changePlan } from "./orgs.service.js";
-import type { UpdateOrgInput, ChangePlanInput } from "./orgs.schemas.js";
+import { changePlan, createOrg } from "./orgs.service.js";
+import type {
+  UpdateOrgInput,
+  ChangePlanInput,
+  CreateOrgInput,
+} from "./orgs.schemas.js";
+
+export async function createOrgController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as CreateOrgInput;
+  const organization = await createOrg(req.auth!.userId, input.name);
+  res.status(201).json({ organization });
+}
 
 export async function getOrgController(
   req: Request,
