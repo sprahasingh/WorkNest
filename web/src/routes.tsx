@@ -7,6 +7,7 @@ import { InviteAccept } from "@/pages/InviteAccept";
 import { OrgPicker } from "@/pages/OrgPicker";
 import { OrgHome } from "@/pages/OrgHome";
 import { ProjectsPage } from "@/features/projects/ProjectsPage";
+import { ProjectBoard } from "@/features/tasks/ProjectBoard";
 import { NotFound } from "@/pages/NotFound";
 
 export function AppRoutes() {
@@ -22,6 +23,7 @@ export function AppRoutes() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<OrgHome />} />
           <Route path="projects" element={<ProjectsPage />} />
+          <Route path="projects/:projectId" element={<ProjectBoard />} />
         </Route>
       </Route>
 
