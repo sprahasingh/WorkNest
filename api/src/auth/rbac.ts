@@ -1,6 +1,7 @@
 import type { Role } from "../constants/roles.js";
 
 export const PERMISSIONS = [
+  "org:read",
   "org:update",
   "plan:change",
   "member:read",
@@ -22,6 +23,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   admin: new Set<Permission>([
+    "org:read",
     "org:update",
     "plan:change",
     "member:read",
@@ -39,6 +41,7 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "dashboard:read",
   ]),
   manager: new Set<Permission>([
+    "org:read",
     "member:read",
     "project:read",
     "project:write",
@@ -51,6 +54,7 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "dashboard:read",
   ]),
   member: new Set<Permission>([
+    "org:read",
     "member:read",
     "project:read",
     "task:read",
