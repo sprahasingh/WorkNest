@@ -68,7 +68,7 @@ export function tenantPlugin(schema: Schema): void {
     }
   });
 
-  schema.pre("insertMany", function (_next, docs: unknown) {
+  schema.pre("insertMany", function (docs: unknown) {
     const context = getTenantContext();
 
     if (!context) {
@@ -79,7 +79,10 @@ export function tenantPlugin(schema: Schema): void {
       );
     }
 
-    const documents = docs as Array<{ tenantId?: unknown }>;
+    const documents = Array.isArray(docs)
+      ? (docs as Array<{ tenantId?: unknown }>)
+      : [docs as { tenantId?: unknown }];
+
     for (const doc of documents) {
       doc.tenantId = context.tenantId;
     }

@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import rateLimit from "express-rate-limit";
 import { pinoHttp } from "pino-http";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
@@ -25,6 +26,10 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 export function createApp(): Express {
   const app = express();
 
+  if (env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   app.use(helmet());
   app.use(
     cors({
@@ -35,6 +40,14 @@ export function createApp(): Express {
   app.use(express.json({ limit: "100kb" }));
   app.use(cookieParser());
   app.use(pinoHttp({ logger }));
+
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use(globalLimiter);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", db: "connected", uptime: process.uptime() });
