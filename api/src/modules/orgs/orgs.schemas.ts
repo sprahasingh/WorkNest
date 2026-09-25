@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { PLANS } from "../../constants/plans.js";
 
+export const createOrgSchema = z
+  .object({
+    name: z.string().trim().min(2).max(80),
+  })
+  .strict();
+
+export type CreateOrgInput = z.infer<typeof createOrgSchema>;
+
 export const updateOrgSchema = z
   .object({
     name: z.string().trim().min(2).max(80),

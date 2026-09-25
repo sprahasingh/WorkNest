@@ -13,6 +13,9 @@ import { authenticate } from "./auth/authenticate.js";
 import { resolveTenant } from "./tenancy/resolveTenant.js";
 import { membersRouter } from "./modules/members/members.routes.js";
 import { orgsRouter } from "./modules/orgs/orgs.routes.js";
+import { createOrgController } from "./modules/orgs/orgs.controller.js";
+import { createOrgSchema } from "./modules/orgs/orgs.schemas.js";
+import { validate } from "./middleware/validate.js";
 import { invitesRouter } from "./modules/invites/invites.routes.js";
 import { invitesPublicRouter } from "./modules/invites/invitesPublic.routes.js";
 import { projectsRouter } from "./modules/projects/projects.routes.js";
@@ -55,6 +58,13 @@ export function createApp(): Express {
 
   app.use("/api/auth", authRouter);
   app.use("/api/invites", invitesPublicRouter);
+
+  app.post(
+    "/api/orgs",
+    authenticate,
+    validate({ body: createOrgSchema }),
+    createOrgController,
+  );
 
   const orgRouter = express.Router({ mergeParams: true });
   orgRouter.use("/members", membersRouter);
