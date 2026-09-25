@@ -6,6 +6,7 @@ const EXPECTED_MATRIX: Record<
   Permission,
   { admin: boolean; manager: boolean; member: boolean }
 > = {
+  "org:read": { admin: true, manager: true, member: true },
   "org:update": { admin: true, manager: false, member: false },
   "plan:change": { admin: true, manager: false, member: false },
   "member:read": { admin: true, manager: true, member: true },
