@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "sync-indexes": "tsx src/scripts/syncIndexes.ts"
+    "sync-indexes": "tsx src/scripts/syncIndexes.ts",
+    "seed": "tsx src/scripts/seed.ts"
   },
   "keywords": [],
   "author": "",
