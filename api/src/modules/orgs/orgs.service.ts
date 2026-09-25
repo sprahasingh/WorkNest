@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Organization } from "../../models/Organization.js";
+import { Membership } from "../../models/Membership.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
@@ -9,6 +10,59 @@ const PLAN_LIMITS: Record<Plan, { seatLimit: number; projectLimit: number }> = {
   free: { seatLimit: 5, projectLimit: 3 },
   pro: { seatLimit: 25, projectLimit: 50 },
 };
+
+export function generateSlug(orgName: string): string {
+  const base = orgName
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `${base}-${suffix}`;
+}
+
+export async function createOrg(userId: string, name: string) {
+  const dbSession = await mongoose.startSession();
+
+  try {
+    let organizationId: mongoose.Types.ObjectId;
+
+    await dbSession.withTransaction(async () => {
+      const [organization] = await Organization.create(
+        [
+          {
+            name,
+            slug: generateSlug(name),
+            plan: "free",
+            seatLimit: 5,
+            seatsUsed: 1,
+            projectLimit: 3,
+            projectCount: 0,
+            adminCount: 1,
+            createdBy: userId,
+          },
+        ],
+        { session: dbSession },
+      );
+
+      const membershipDoc = new Membership({
+        tenantId: organization._id,
+        userId,
+        role: "admin",
+      });
+      membershipDoc.$locals.skipTenant = true;
+      await membershipDoc.save({ session: dbSession });
+
+      organizationId = organization._id;
+    });
+
+    return await Organization.findById(organizationId!).setOptions({
+      skipTenant: true,
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+}
 
 export async function changePlan(newPlan: Plan) {
   const tenantId = requireTenantId();
