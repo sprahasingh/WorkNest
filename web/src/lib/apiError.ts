@@ -10,7 +10,11 @@ export interface ApiErrorBody {
   error?: {
     code?: string;
     message?: string;
-    details?: ApiErrorDetail[];
+    // Polymorphic depending on `code` -- Zod issues for VALIDATION_ERROR,
+    // but a completely different custom payload for codes like
+    // PLAN_DOWNGRADE_BLOCKED or CONFLICT. Kept loose here on purpose;
+    // narrowed by callers that know a specific code's real shape.
+    details?: unknown[];
   };
 }
 
@@ -18,20 +22,26 @@ export interface ParsedApiError {
   code: string | undefined;
   message: string;
   fieldErrors: Record<string, string>;
+  details: unknown[];
 }
 
 const DEFAULT_ERROR_MESSAGE = "Something went wrong. Please try again.";
 
 export function parseApiError(error: unknown): ParsedApiError {
   if (!isAxiosError<ApiErrorBody>(error)) {
-    return { code: undefined, message: DEFAULT_ERROR_MESSAGE, fieldErrors: {} };
+    return {
+      code: undefined,
+      message: DEFAULT_ERROR_MESSAGE,
+      fieldErrors: {},
+      details: [],
+    };
   }
 
   const body = error.response?.data?.error;
   const fieldErrors: Record<string, string> = {};
 
   if (body?.code === "VALIDATION_ERROR" && body.details) {
-    for (const issue of body.details) {
+    for (const issue of body.details as ApiErrorDetail[]) {
       const field = issue.path?.join(".");
       if (field) {
         fieldErrors[field] = issue.message;
@@ -43,6 +53,7 @@ export function parseApiError(error: unknown): ParsedApiError {
     code: body?.code,
     message: body?.message ?? DEFAULT_ERROR_MESSAGE,
     fieldErrors,
+    details: body?.details ?? [],
   };
 }
 
