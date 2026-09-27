@@ -20,3 +20,18 @@ export async function listMembers(orgId: string): Promise<Member[]> {
   );
   return response.data.members;
 }
+
+export async function changeMemberRole(
+  orgId: string,
+  memberId: string,
+  role: Role,
+): Promise<void> {
+  await apiClient.patch(`/orgs/${orgId}/members/${memberId}`, { role });
+}
+
+export async function removeMember(
+  orgId: string,
+  memberId: string,
+): Promise<void> {
+  await apiClient.delete(`/orgs/${orgId}/members/${memberId}`);
+}
