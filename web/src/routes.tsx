@@ -8,6 +8,7 @@ import { OrgPicker } from "@/pages/OrgPicker";
 import { OrgHome } from "@/pages/OrgHome";
 import { ProjectsPage } from "@/features/projects/ProjectsPage";
 import { ProjectBoard } from "@/features/tasks/ProjectBoard";
+import { MembersPage } from "@/features/members/MembersPage";
 import { NotFound } from "@/pages/NotFound";
 
 export function AppRoutes() {
@@ -24,6 +25,7 @@ export function AppRoutes() {
           <Route path="dashboard" element={<OrgHome />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/:projectId" element={<ProjectBoard />} />
+          <Route path="members" element={<MembersPage />} />
         </Route>
       </Route>
 
