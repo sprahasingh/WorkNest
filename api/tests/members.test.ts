@@ -26,6 +26,32 @@ async function registerAndGetOrg(email: string, orgName: string) {
   return { accessToken, orgId, userId };
 }
 
+async function inviteAndSignup(
+  orgId: string,
+  adminToken: string,
+  email: string,
+  role: "manager" | "member",
+) {
+  const inviteRes = await request(app)
+    .post(`/api/orgs/${orgId}/invites`)
+    .set("Authorization", `Bearer ${adminToken}`)
+    .send({ email, role });
+
+  const token = (inviteRes.body.inviteUrl as string).split("/invite/")[1];
+
+  const signupRes = await request(app)
+    .post(`/api/invites/${token}/signup`)
+    .send({ name: "Invited User", password: "password123" });
+
+  const accessToken = signupRes.body.accessToken as string;
+
+  const meRes = await request(app)
+    .get("/api/auth/me")
+    .set("Authorization", `Bearer ${accessToken}`);
+
+  return { accessToken, userId: meRes.body.user.id as string };
+}
+
 describe("member role changes and the last-admin rule", () => {
   it("rejects the sole admin demoting themselves", async () => {
     const { accessToken, orgId, userId } = await registerAndGetOrg(
@@ -113,5 +139,88 @@ describe("member role changes and the last-admin rule", () => {
       role: "admin",
     }).setOptions({ skipTenant: true });
     expect(adminCount).toBe(1);
+  });
+});
+
+describe("leaving an organization", () => {
+  it("lets a non-admin member remove themselves and releases their seat", async () => {
+    const admin = await registerAndGetOrg("leave-admin@example.com", "Leave Org");
+    const member = await inviteAndSignup(
+      admin.orgId,
+      admin.accessToken,
+      "leaving-member@example.com",
+      "member",
+    );
+
+    const membership = await Membership.findOne({
+      userId: member.userId,
+      tenantId: admin.orgId,
+    }).setOptions({ skipTenant: true });
+
+    const orgBefore = await Organization.findById(admin.orgId);
+    const seatsBefore = orgBefore!.seatsUsed as number;
+
+    const res = await request(app)
+      .delete(`/api/orgs/${admin.orgId}/members/${membership!._id}`)
+      .set("Authorization", `Bearer ${member.accessToken}`);
+
+    expect(res.status).toBe(204);
+
+    const orgAfter = await Organization.findById(admin.orgId);
+    expect(orgAfter!.seatsUsed).toBe(seatsBefore - 1);
+
+    const stillExists = await Membership.findById(membership!._id).setOptions({
+      skipTenant: true,
+    });
+    expect(stillExists).toBeNull();
+  });
+
+  it("rejects a member removing someone else", async () => {
+    const admin = await registerAndGetOrg(
+      "leave-admin-2@example.com",
+      "Leave Org 2",
+    );
+    const memberA = await inviteAndSignup(
+      admin.orgId,
+      admin.accessToken,
+      "member-a@example.com",
+      "member",
+    );
+    const memberB = await inviteAndSignup(
+      admin.orgId,
+      admin.accessToken,
+      "member-b@example.com",
+      "member",
+    );
+
+    const membershipB = await Membership.findOne({
+      userId: memberB.userId,
+      tenantId: admin.orgId,
+    }).setOptions({ skipTenant: true });
+
+    const res = await request(app)
+      .delete(`/api/orgs/${admin.orgId}/members/${membershipB!._id}`)
+      .set("Authorization", `Bearer ${memberA.accessToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects the sole admin leaving", async () => {
+    const admin = await registerAndGetOrg(
+      "leave-sole-admin@example.com",
+      "Sole Admin Org",
+    );
+
+    const membership = await Membership.findOne({
+      userId: admin.userId,
+      tenantId: admin.orgId,
+    }).setOptions({ skipTenant: true });
+
+    const res = await request(app)
+      .delete(`/api/orgs/${admin.orgId}/members/${membership!._id}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("LAST_ADMIN");
   });
 });
