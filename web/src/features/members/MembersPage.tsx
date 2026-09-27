@@ -9,6 +9,7 @@ import { parseApiError } from "@/lib/apiError";
 import type { Role } from "@/api/auth";
 import type { Member } from "./api";
 import { useChangeMemberRole, useMembers, useRemoveMember } from "./queries";
+import { InvitesPanel } from "@/features/invites/InvitesPanel";
 
 const ROLE_OPTIONS: Role[] = ["admin", "manager", "member"];
 
@@ -173,6 +174,10 @@ export function MembersPage() {
               </tbody>
             </table>
           )}
+        </div>
+
+        <div className="mt-10">
+          <InvitesPanel />
         </div>
       </div>
 
