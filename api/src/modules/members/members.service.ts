@@ -1,9 +1,10 @@
 import mongoose from "mongoose";
 import { Membership } from "../../models/Membership.js";
 import { Organization } from "../../models/Organization.js";
-import { requireTenantId } from "../../tenancy/context.js";
+import { getTenantContext, requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
+import { can } from "../../auth/rbac.js";
 import type { Role } from "../../constants/roles.js";
 
 async function guardLastAdmin(
@@ -77,6 +78,7 @@ export async function changeMemberRole(memberId: string, newRole: Role) {
 
 export async function removeMember(memberId: string) {
   const tenantId = requireTenantId();
+  const context = getTenantContext()!;
   const dbSession = await mongoose.startSession();
 
   try {
@@ -85,6 +87,17 @@ export async function removeMember(memberId: string) {
 
       if (!membership) {
         throw new AppError(404, "NOT_FOUND", "Member not found");
+      }
+
+      const isSelf = membership.userId.toString() === context.userId;
+      const canManageOthers = can(context.role as Role, "member:manage");
+
+      if (!isSelf && !canManageOthers) {
+        throw new AppError(
+          403,
+          "FORBIDDEN",
+          "You do not have permission to remove this member",
+        );
       }
 
       if (membership.role === "admin") {
