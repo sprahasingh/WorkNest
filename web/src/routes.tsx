@@ -10,6 +10,7 @@ import { ProjectsPage } from "@/features/projects/ProjectsPage";
 import { ProjectBoard } from "@/features/tasks/ProjectBoard";
 import { MembersPage } from "@/features/members/MembersPage";
 import { AuditPage } from "@/features/audit/AuditPage";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 import { NotFound } from "@/pages/NotFound";
 
 export function AppRoutes() {
@@ -28,6 +29,7 @@ export function AppRoutes() {
           <Route path="projects/:projectId" element={<ProjectBoard />} />
           <Route path="members" element={<MembersPage />} />
           <Route path="audit" element={<AuditPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Route>
 
