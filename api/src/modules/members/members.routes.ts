@@ -18,9 +18,5 @@ router.patch(
   changeMemberRoleController,
 );
 
-router.delete(
-  "/:memberId",
-  requirePermission("member:manage"),
-  removeMemberController,
-);
+router.delete("/:memberId", removeMemberController);
 export { router as membersRouter };
