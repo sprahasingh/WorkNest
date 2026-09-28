@@ -26,8 +26,8 @@ export async function getDashboard() {
   const tenantObjectId = new mongoose.Types.ObjectId(tenantId);
 
   const fourteenDaysAgo = new Date();
-  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
-  fourteenDaysAgo.setHours(0, 0, 0, 0);
+  fourteenDaysAgo.setUTCDate(fourteenDaysAgo.getUTCDate() - 13);
+  fourteenDaysAgo.setUTCHours(0, 0, 0, 0);
 
   const [
     byStatus,
@@ -100,7 +100,7 @@ export async function getDashboard() {
 
   for (let i = 0; i < 14; i++) {
     const date = new Date(fourteenDaysAgo);
-    date.setDate(date.getDate() + i);
+    date.setUTCDate(date.getUTCDate() + i);
     const dateKey = date.toISOString().slice(0, 10);
     createdPerDay.push({
       date: dateKey,
