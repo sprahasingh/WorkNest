@@ -49,8 +49,13 @@ export function ProjectsPage() {
     null,
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [view, setView] = useState<"active" | "archived">("active");
 
-  const { data: projects, isPending, isError } = useProjects(orgId);
+  const {
+    data: projects,
+    isPending,
+    isError,
+  } = useProjects(orgId, { archived: view === "archived" });
   const createProject = useCreateProject(orgId);
   const archiveProject = useArchiveProject(orgId);
   const deleteProject = useDeleteProject(orgId);
@@ -141,6 +146,31 @@ export function ProjectsPage() {
           )}
         </div>
 
+        <div className="mt-4 flex gap-1 border-b border-slate-200">
+          <button
+            type="button"
+            onClick={() => setView("active")}
+            className={`px-3 py-2 text-sm font-medium ${
+              view === "active"
+                ? "border-b-2 border-slate-800 text-slate-800"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Active
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("archived")}
+            className={`px-3 py-2 text-sm font-medium ${
+              view === "archived"
+                ? "border-b-2 border-slate-800 text-slate-800"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Archived
+          </button>
+        </div>
+
         <div className="mt-6">
           {isPending && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -161,8 +191,10 @@ export function ProjectsPage() {
 
           {!isPending && !isError && projects?.length === 0 && (
             <div className="rounded-lg bg-white p-8 text-center shadow">
-              <p className="text-slate-600">No projects yet.</p>
-              {canWrite && (
+              <p className="text-slate-600">
+                {view === "archived" ? "No archived projects." : "No projects yet."}
+              </p>
+              {view === "active" && canWrite && (
                 <p className="mt-1 text-sm text-slate-500">
                   Create your first project to start tracking tasks.
                 </p>
@@ -197,15 +229,17 @@ export function ProjectsPage() {
                   )}
                   {canWrite && (
                     <div className="mt-3 flex gap-3 text-sm">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setConfirmTarget({ project, action: "archive" })
-                        }
-                        className="text-slate-500 hover:underline"
-                      >
-                        Archive
-                      </button>
+                      {view === "active" && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConfirmTarget({ project, action: "archive" })
+                          }
+                          className="text-slate-500 hover:underline"
+                        >
+                          Archive
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() =>
