@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import mongoose from "mongoose";
 import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -53,7 +54,12 @@ export function createApp(): Express {
   app.use(globalLimiter);
 
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", db: "connected", uptime: process.uptime() });
+    const dbConnected = mongoose.connection.readyState === 1;
+    res.status(dbConnected ? 200 : 503).json({
+      status: dbConnected ? "ok" : "degraded",
+      db: dbConnected ? "connected" : "disconnected",
+      uptime: process.uptime(),
+    });
   });
 
   app.use("/api/auth", authRouter);
