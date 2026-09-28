@@ -22,7 +22,7 @@ A multi-tenant project and task management SaaS where organizations can invite m
 
 ## Why I Built This
 
-I wanted a project that went past CRUD and forced me to solve the parts of a real B2B SaaS that actually matter: how you guarantee one customer's data can never leak into another's, how you enforce who can do what without trusting the client, how two requests racing for the same limited resource resolve without either overselling it or serializing everything, and how all of that stays auditable after the fact. WorkNest is those four problems — multi-tenancy, RBAC, concurrent resource allocation, and auditability — built end to end, not mocked.
+I wanted a project that went past CRUD and forced me to solve the parts of a real B2B SaaS that actually matter: how you guarantee one customer's data can never leak into another's, how you enforce who can do what without trusting the client, how two requests racing for the same limited resource resolve without either overselling it or serializing everything, and how all of that stays auditable after the fact. WorkNest is those four problems, built end to end rather than mocked: multi-tenancy, RBAC, concurrent resource allocation, and auditability.
 
 ## Tech Stack
 
@@ -51,7 +51,7 @@ flowchart TD
     K --> L["Response"]
 ```
 
-A caller who isn't a member of the target org gets a 404 regardless of whether that org actually exists — cross-tenant access and a nonexistent org are indistinguishable from the outside, so the API never confirms or denies an org's existence to someone who doesn't belong to it.
+A caller who isn't a member of the target org gets a 404 regardless of whether that org actually exists. Cross-tenant access and a nonexistent org are indistinguishable from the outside, so the API never confirms or denies an org's existence to someone who doesn't belong to it.
 
 ### Tenancy
 
@@ -62,7 +62,7 @@ Every organization's data lives in the same MongoDB database and collections, di
 - `tenantId` is `immutable` in every schema, so no update can move a document to another tenant.
 - If a query runs with no tenant context and isn't explicitly marked to skip tenant scoping, it throws rather than returning unscoped (i.e., all-tenants) data.
 
-The tenant ID itself always comes from the URL (`/api/orgs/:orgId/...`), is validated against the caller's actual membership, and is then attached to an `AsyncLocalStorage` context for the rest of that request — no need to thread it through every function call by hand.
+The tenant ID itself always comes from the URL (`/api/orgs/:orgId/...`), is validated against the caller's actual membership, and is then attached to an `AsyncLocalStorage` context for the rest of that request, rather than threaded through every function call by hand.
 
 ### RBAC
 
@@ -85,18 +85,18 @@ RBAC and ownership are checked separately: RBAC answers "can this role do this k
 
 ### Concurrency
 
-Seat and project-slot limits are enforced with atomic, condition-guarded MongoDB updates (`findOneAndUpdate` with an `$expr` condition) inside transactions, not a check-then-write pattern — so concurrent requests racing for the last available seat or project slot can't overshoot the limit.
+Seat and project-slot limits are enforced with atomic, condition-guarded MongoDB updates (`findOneAndUpdate` with an `$expr` condition) inside transactions, not a check-then-write pattern, so concurrent requests racing for the last available seat or project slot can't overshoot the limit.
 
 ## Features
 
-- **Multi-tenant isolation** — a single Mongoose plugin enforces tenant scoping on every query, write, and aggregation across all tenant-owned collections, propagated via `AsyncLocalStorage` request context. Fails closed: a query with no tenant context throws rather than silently returning data.
-- **Authentication** — JWT access tokens (15 min) plus rotating refresh tokens; only refresh-token hashes are ever stored server-side. Reuse of an already-rotated refresh token — a sign of a stolen token — revokes the entire token family and forces re-login.
-- **Role-based access control** — three roles (admin, manager, member) across a fixed permission set, enforced server-side on every request. The frontend hides controls a role can't use, but the API is the actual authority.
-- **Organizations and plans** — free and pro plans with seat and project limits. Upgrading is simulated; downgrading is blocked if current usage exceeds the target plan's limits, with the exact excess reported back.
-- **Invites** — one-time-reveal invite links (only the token's hash is ever stored), with seat reservation that holds correctly under concurrent invite requests.
-- **Projects and tasks** — cursor-paginated task boards with status, priority, assignee, and due-date filters; ownership rules on top of RBAC (a member can edit a task they created or are assigned to, but can't reassign it); optimistic status updates on the board with rollback on failure.
-- **Audit log** — every mutating action (org, member, invite, project, task, and plan changes) is recorded inside the same transaction as the change itself, so a rolled-back action never leaves a log entry. Rendered as human-readable rows with filters and cursor pagination.
-- **Dashboard** — task counts by status and priority, a 14-day task-creation trend, top assignees by open task count, overdue count, and plan usage, gated to roles with dashboard access.
+- **Multi-tenant isolation**: a single Mongoose plugin enforces tenant scoping on every query, write, and aggregation across all tenant-owned collections, propagated via `AsyncLocalStorage` request context. Fails closed: a query with no tenant context throws rather than silently returning data.
+- **Authentication**: JWT access tokens (15 min) plus rotating refresh tokens; only refresh-token hashes are ever stored server-side. Reuse of an already-rotated refresh token (a sign of a stolen token) revokes the entire token family and forces re-login.
+- **Role-based access control**: three roles (admin, manager, member) across a fixed permission set, enforced server-side on every request. The frontend hides controls a role can't use, but the API is the actual authority.
+- **Organizations and plans**: free and pro plans with seat and project limits. Upgrading is simulated; downgrading is blocked if current usage exceeds the target plan's limits, with the exact excess reported back.
+- **Invites**: one-time-reveal invite links (only the token's hash is ever stored), with seat reservation that holds correctly under concurrent invite requests.
+- **Projects and tasks**: cursor-paginated task boards with status, priority, assignee, and due-date filters; ownership rules on top of RBAC (a member can edit a task they created or are assigned to, but can't reassign it); optimistic status updates on the board with rollback on failure.
+- **Audit log**: every mutating action (org, member, invite, project, task, and plan changes) is recorded inside the same transaction as the change itself, so a rolled-back action never leaves a log entry. Rendered as human-readable rows with filters and cursor pagination.
+- **Dashboard**: task counts by status and priority, a 14-day task-creation trend, top assignees by open task count, overdue count, and plan usage, gated to roles with dashboard access.
 
 ## API Example
 
@@ -122,7 +122,7 @@ POST /api/orgs/:orgId/plan
 
 ## Local Setup
 
-Requires Node 24 (see `.nvmrc`) and a MongoDB Atlas cluster (the free M0 tier works — it's a replica set, which transactions require).
+Requires Node 24 (see `.nvmrc`) and a MongoDB Atlas cluster (the free M0 tier works; it's a replica set, which transactions require).
 
 ```bash
 git clone https://github.com/sprahasingh/WorkNest.git
@@ -157,8 +157,8 @@ npm run seed
 
 Creates two demo organizations (password `password123` for all accounts):
 
-- **Acme Corp** (free plan) — `admin@acme.demo`, `manager@acme.demo`, `member@acme.demo`
-- **Globex Corporation** (pro plan) — `admin@globex.demo`
+- **Acme Corp** (free plan): `admin@acme.demo`, `manager@acme.demo`, `member@acme.demo`
+- **Globex Corporation** (pro plan): `admin@globex.demo`
 
 ## Testing
 
