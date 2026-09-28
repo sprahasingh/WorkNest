@@ -128,6 +128,16 @@ export async function getTask(taskId: string) {
   return task;
 }
 
+function comparableValue(field: string, value: unknown): unknown {
+  if (field === "dueDate") {
+    return value instanceof Date ? value.getTime() : value;
+  }
+  if (field === "assigneeId") {
+    return value === null || value === undefined ? value : String(value);
+  }
+  return value;
+}
+
 export async function updateTask(taskId: string, input: UpdateTaskInput) {
   const context = getTenantContext()!;
   const task = await Task.findById(taskId);
@@ -194,14 +204,15 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
       ] as const;
 
       for (const field of trackedFields) {
+        if (!Object.prototype.hasOwnProperty.call(input, field)) continue;
+
+        const oldValue = (task as unknown as Record<string, unknown>)[field];
+        const newValue = input[field];
+
         if (
-          Object.prototype.hasOwnProperty.call(input, field) &&
-          input[field] !== (task as unknown as Record<string, unknown>)[field]
+          comparableValue(field, oldValue) !== comparableValue(field, newValue)
         ) {
-          changes[field] = {
-            from: (task as unknown as Record<string, unknown>)[field],
-            to: input[field],
-          };
+          changes[field] = { from: oldValue, to: newValue };
         }
       }
 
