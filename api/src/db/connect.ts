@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
 
 mongoose.set("strictQuery", true);
+mongoose.set("sanitizeFilter", true);
 
 export async function connectDB(): Promise<void> {
   mongoose.set("autoIndex", env.NODE_ENV !== "production");
