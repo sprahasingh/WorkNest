@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { Organization } from "../src/models/Organization.js";
 
 const app = createApp();
 
@@ -59,6 +60,32 @@ describe("project limits", () => {
 
     const afterDelete = await createProject(org.orgId, org.accessToken, "PE");
     expect(afterDelete.status).toBe(201);
+  });
+
+  it("allows exactly one success when 10 concurrent creates compete for 1 remaining project slot", async () => {
+    const org = await registerOrg(
+      "proj-race-admin@example.com",
+      "Project Race Org",
+    );
+
+    await Organization.findByIdAndUpdate(org.orgId, { projectLimit: 1 });
+
+    const keys = ["AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ"];
+    const results = await Promise.all(
+      keys.map((key) => createProject(org.orgId, org.accessToken, key)),
+    );
+
+    const successes = results.filter((r) => r.status === 201);
+    const failures = results.filter((r) => r.status === 409);
+
+    expect(successes).toHaveLength(1);
+    expect(failures).toHaveLength(9);
+    expect(
+      failures.every((r) => r.body.error.code === "PROJECT_LIMIT_REACHED"),
+    ).toBe(true);
+
+    const orgAfter = await Organization.findById(org.orgId);
+    expect(orgAfter!.projectCount).toBe(orgAfter!.projectLimit);
   });
 
   it("rejects a duplicate project key within the same tenant", async () => {
