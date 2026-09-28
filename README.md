@@ -164,7 +164,7 @@ Creates two demo organizations (password `password123` for all accounts):
 
 ```bash
 cd api
-npm test          # 43 tests across 11 files, run against an in-memory MongoDB replica set
+npm test          # 44 tests across 11 files, run against an in-memory MongoDB replica set
 npm run typecheck
 npm run lint
 ```
