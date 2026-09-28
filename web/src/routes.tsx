@@ -5,6 +5,7 @@ import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
 import { InviteAccept } from "@/pages/InviteAccept";
 import { OrgPicker } from "@/pages/OrgPicker";
+import { AppLayout } from "@/components/AppLayout";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { ProjectsPage } from "@/features/projects/ProjectsPage";
 import { ProjectBoard } from "@/features/tasks/ProjectBoard";
@@ -23,13 +24,15 @@ export function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/orgs" element={<OrgPicker />} />
         <Route path="/orgs/:orgId" element={<OrgRoute />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="projects" element={<ProjectsPage />} />
-          <Route path="projects/:projectId" element={<ProjectBoard />} />
-          <Route path="members" element={<MembersPage />} />
-          <Route path="audit" element={<AuditPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route element={<AppLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="projects" element={<ProjectsPage />} />
+            <Route path="projects/:projectId" element={<ProjectBoard />} />
+            <Route path="members" element={<MembersPage />} />
+            <Route path="audit" element={<AuditPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
         </Route>
       </Route>
 
