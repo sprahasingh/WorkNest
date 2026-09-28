@@ -64,6 +64,47 @@ export async function createOrg(userId: string, name: string) {
   }
 }
 
+export async function updateOrg(name: string) {
+  const tenantId = requireTenantId();
+  const dbSession = await mongoose.startSession();
+
+  try {
+    let org;
+
+    await dbSession.withTransaction(async () => {
+      const before = await Organization.findById(tenantId)
+        .session(dbSession)
+        .setOptions({ skipTenant: true });
+
+      if (!before) {
+        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      }
+
+      const updated = await Organization.findByIdAndUpdate(
+        tenantId,
+        { name },
+        { new: true, runValidators: true, session: dbSession },
+      ).setOptions({ skipTenant: true });
+
+      await recordAudit(
+        {
+          action: "org.renamed",
+          entityType: "Organization",
+          entityId: tenantId,
+          metadata: { name: { from: before.name, to: name } },
+        },
+        dbSession,
+      );
+
+      org = updated;
+    });
+
+    return org!;
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
 export async function changePlan(newPlan: Plan) {
   const tenantId = requireTenantId();
   const limits = PLAN_LIMITS[newPlan];
