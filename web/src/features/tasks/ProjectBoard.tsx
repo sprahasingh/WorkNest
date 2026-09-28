@@ -71,6 +71,7 @@ export function ProjectBoard() {
   };
 
   const currentUserId = auth.user?.id ?? "";
+  const isArchived = projectQuery.data?.archivedAt != null;
 
   return (
     <div className="min-h-screen bg-slate-100 px-6 py-10">
@@ -87,7 +88,7 @@ export function ProjectBoard() {
               {projectQuery.data?.name ?? "Loading…"}
             </h1>
           </div>
-          {canCreate && (
+          {canCreate && !isArchived && (
             <button
               type="button"
               onClick={() => setDrawerState({ mode: "create" })}
@@ -97,6 +98,13 @@ export function ProjectBoard() {
             </button>
           )}
         </div>
+
+        {isArchived && (
+          <p className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            This project is archived. Existing tasks are still visible, but
+            new tasks can&apos;t be created here.
+          </p>
+        )}
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <select
