@@ -9,13 +9,14 @@ A multi-tenant project and task management SaaS. Organizations sign up, invite m
 | 01 | [Tech Stack](#tech-stack) |
 | 02 | [Features](#features) |
 | 03 | [Architecture](#architecture) |
-| 04 | [Tenancy](#tenancy) |
-| 05 | [RBAC](#rbac) |
-| 06 | [Concurrency](#concurrency) |
-| 07 | [Local Setup](#local-setup) |
-| 08 | [Seed Demo Data](#seed-demo-data) |
-| 09 | [Testing](#testing) |
-| 10 | [Project Structure](#project-structure) |
+| 04 | [Request Flow](#request-flow) |
+| 05 | [Tenancy](#tenancy) |
+| 06 | [RBAC](#rbac) |
+| 07 | [Concurrency](#concurrency) |
+| 08 | [Local Setup](#local-setup) |
+| 09 | [Seed Demo Data](#seed-demo-data) |
+| 10 | [Testing](#testing) |
+| 11 | [Project Structure](#project-structure) |
 
 ## Tech stack
 
@@ -35,6 +36,27 @@ A multi-tenant project and task management SaaS. Organizations sign up, invite m
 - **Dashboard** — task counts by status and priority, a 14-day task-creation trend, top assignees by open task count, overdue count, and plan usage, gated to roles with dashboard access.
 
 ## Architecture
+
+### Request Flow
+
+How a request to a tenant-scoped endpoint (e.g. `PATCH /api/orgs/:orgId/tasks/:taskId`) actually moves through the system, from the middleware chain in `app.ts` down to the query that finally hits MongoDB:
+
+```mermaid
+flowchart TD
+    A["Client request<br/>/api/orgs/:orgId/..."] --> B["authenticate<br/>verify JWT access token"]
+    B --> C["resolveTenant<br/>validate :orgId, look up Membership"]
+    C --> D{"Membership found?"}
+    D -->|no| E["404 Not Found"]
+    D -->|yes| F["runWithTenant<br/>AsyncLocalStorage context"]
+    F --> G["requirePermission<br/>RBAC check"]
+    G -->|denied| H["403 Forbidden"]
+    G -->|allowed| I["Route handler<br/>controller / service"]
+    I --> J["Mongoose tenant plugin<br/>injects tenantId into the<br/>query, write, or aggregate"]
+    J --> K[("MongoDB<br/>tenant-scoped read/write")]
+    K --> L["Response"]
+```
+
+Cross-tenant access (a real membership, but for the wrong org) is indistinguishable from a nonexistent org at this layer — both return 404, so the API never confirms or denies whether an org ID exists to a caller who isn't a member of it.
 
 ### Tenancy
 
