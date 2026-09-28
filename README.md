@@ -2,6 +2,21 @@
 
 A multi-tenant project and task management SaaS. Organizations sign up, invite members, assign roles, and manage projects and tasks within plan limits. Admins get an audit log and a usage dashboard. Every organization's data is isolated, and that isolation is enforced centrally in one place.
 
+## Table of Contents
+
+| | Section |
+|---|---|
+| 01 | [Tech Stack](#tech-stack) |
+| 02 | [Features](#features) |
+| 03 | [Architecture](#architecture) |
+| 04 | [Tenancy](#tenancy) |
+| 05 | [RBAC](#rbac) |
+| 06 | [Concurrency](#concurrency) |
+| 07 | [Local Setup](#local-setup) |
+| 08 | [Seed Demo Data](#seed-demo-data) |
+| 09 | [Testing](#testing) |
+| 10 | [Project Structure](#project-structure) |
+
 ## Tech stack
 
 **Backend:** Node.js, TypeScript (strict), Express 5, MongoDB Atlas, Mongoose, Zod, JWT + bcrypt, Vitest + Supertest
