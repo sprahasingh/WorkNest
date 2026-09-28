@@ -1,39 +1,34 @@
 # WorkNest
 
-A multi-tenant project and task management SaaS. Organizations sign up, invite members, assign roles, and manage projects and tasks within plan limits. Admins get an audit log and a usage dashboard. Every organization's data is isolated, and that isolation is enforced centrally in one place.
+A multi-tenant project and task management SaaS where organizations can invite members, assign roles, manage projects and tasks, and enforce plan limits. Every organization's data is isolated, and that isolation is enforced centrally in one place, not scattered across every query by hand.
 
 ## Table of Contents
 
 | | Section |
 |---|---|
-| 01 | [Tech Stack](#tech-stack) |
-| 02 | [Features](#features) |
+| 01 | [Why I Built This](#why-i-built-this) |
+| 02 | [Tech Stack](#tech-stack) |
 | 03 | [Architecture](#architecture) |
 | 04 | [Request Flow](#request-flow) |
 | 05 | [Tenancy](#tenancy) |
 | 06 | [RBAC](#rbac) |
 | 07 | [Concurrency](#concurrency) |
-| 08 | [Local Setup](#local-setup) |
-| 09 | [Seed Demo Data](#seed-demo-data) |
-| 10 | [Testing](#testing) |
-| 11 | [Project Structure](#project-structure) |
+| 08 | [Features](#features) |
+| 09 | [API Example](#api-example) |
+| 10 | [Local Setup](#local-setup) |
+| 11 | [Seed Demo Data](#seed-demo-data) |
+| 12 | [Testing](#testing) |
+| 13 | [Project Structure](#project-structure) |
 
-## Tech stack
+## Why I Built This
+
+I wanted a project that went past CRUD and forced me to solve the parts of a real B2B SaaS that actually matter: how you guarantee one customer's data can never leak into another's, how you enforce who can do what without trusting the client, how two requests racing for the same limited resource resolve without either overselling it or serializing everything, and how all of that stays auditable after the fact. WorkNest is those four problems — multi-tenancy, RBAC, concurrent resource allocation, and auditability — built end to end, not mocked.
+
+## Tech Stack
 
 **Backend:** Node.js, TypeScript (strict), Express 5, MongoDB Atlas, Mongoose, Zod, JWT + bcrypt, Vitest + Supertest
 
 **Frontend:** React 19, Vite, TypeScript (strict), React Router, TanStack Query, React Hook Form + Zod, Axios, Tailwind CSS v4, Recharts
-
-## Features
-
-- **Multi-tenant isolation** — a single Mongoose plugin enforces tenant scoping on every query, write, and aggregation across all tenant-owned collections, propagated via `AsyncLocalStorage` request context. Fails closed: a query with no tenant context throws rather than silently returning data.
-- **Authentication** — JWT access tokens (15 min) plus rotating opaque refresh tokens. Refresh token reuse (a sign of a stolen token) revokes the entire token family and forces re-login.
-- **Role-based access control** — three roles (admin, manager, member) across a fixed permission set, enforced server-side on every request. The frontend hides controls a role can't use, but the API is the actual authority.
-- **Organizations and plans** — free and pro plans with seat and project limits. Upgrading is simulated; downgrading is blocked if current usage exceeds the target plan's limits, with the exact excess reported back.
-- **Invites** — one-time-reveal invite links (only the token's hash is ever stored), with seat reservation that holds correctly under concurrent invite requests.
-- **Projects and tasks** — cursor-paginated task boards with status, priority, assignee, and due-date filters; ownership rules on top of RBAC (a member can edit a task they created or are assigned to, but can't reassign it); optimistic status updates on the board with rollback on failure.
-- **Audit log** — every mutating action (role changes, invites, project and task changes, plan changes) is recorded inside the same transaction as the change itself, so a rolled-back action never leaves a log entry. Rendered as human-readable rows with filters and cursor pagination.
-- **Dashboard** — task counts by status and priority, a 14-day task-creation trend, top assignees by open task count, overdue count, and plan usage, gated to roles with dashboard access.
 
 ## Architecture
 
@@ -56,7 +51,7 @@ flowchart TD
     K --> L["Response"]
 ```
 
-Cross-tenant access (a real membership, but for the wrong org) is indistinguishable from a nonexistent org at this layer — both return 404, so the API never confirms or denies whether an org ID exists to a caller who isn't a member of it.
+A caller who isn't a member of the target org gets a 404 regardless of whether that org actually exists — cross-tenant access and a nonexistent org are indistinguishable from the outside, so the API never confirms or denies an org's existence to someone who doesn't belong to it.
 
 ### Tenancy
 
@@ -92,7 +87,40 @@ RBAC and ownership are checked separately: RBAC answers "can this role do this k
 
 Seat and project-slot limits are enforced with atomic, condition-guarded MongoDB updates (`findOneAndUpdate` with an `$expr` condition) inside transactions, not a check-then-write pattern — so concurrent requests racing for the last available seat or project slot can't overshoot the limit.
 
-## Local setup
+## Features
+
+- **Multi-tenant isolation** — a single Mongoose plugin enforces tenant scoping on every query, write, and aggregation across all tenant-owned collections, propagated via `AsyncLocalStorage` request context. Fails closed: a query with no tenant context throws rather than silently returning data.
+- **Authentication** — JWT access tokens (15 min) plus rotating refresh tokens; only refresh-token hashes are ever stored server-side. Reuse of an already-rotated refresh token — a sign of a stolen token — revokes the entire token family and forces re-login.
+- **Role-based access control** — three roles (admin, manager, member) across a fixed permission set, enforced server-side on every request. The frontend hides controls a role can't use, but the API is the actual authority.
+- **Organizations and plans** — free and pro plans with seat and project limits. Upgrading is simulated; downgrading is blocked if current usage exceeds the target plan's limits, with the exact excess reported back.
+- **Invites** — one-time-reveal invite links (only the token's hash is ever stored), with seat reservation that holds correctly under concurrent invite requests.
+- **Projects and tasks** — cursor-paginated task boards with status, priority, assignee, and due-date filters; ownership rules on top of RBAC (a member can edit a task they created or are assigned to, but can't reassign it); optimistic status updates on the board with rollback on failure.
+- **Audit log** — every mutating action (org, member, invite, project, task, and plan changes) is recorded inside the same transaction as the change itself, so a rolled-back action never leaves a log entry. Rendered as human-readable rows with filters and cursor pagination.
+- **Dashboard** — task counts by status and priority, a 14-day task-creation trend, top assignees by open task count, overdue count, and plan usage, gated to roles with dashboard access.
+
+## API Example
+
+Every error follows the same envelope, with a `details` array whose shape depends on the error code. Downgrading a plan while usage exceeds the target plan's limits, for example:
+
+```
+POST /api/orgs/:orgId/plan
+{ "plan": "free" }
+```
+
+```json
+409 Conflict
+{
+  "error": {
+    "code": "PLAN_DOWNGRADE_BLOCKED",
+    "message": "Current usage exceeds the limits of the target plan",
+    "details": [
+      { "seatsUsed": 6, "projectCount": 4, "targetSeatLimit": 5, "targetProjectLimit": 3 }
+    ]
+  }
+}
+```
+
+## Local Setup
 
 Requires Node 24 (see `.nvmrc`) and a MongoDB Atlas cluster (the free M0 tier works — it's a replica set, which transactions require).
 
@@ -120,7 +148,7 @@ npm run dev             # runs on http://localhost:5173, proxies /api to localho
 
 Open `http://localhost:5173` and register a new account, or seed demo data first (see below).
 
-### Seed demo data
+### Seed Demo Data
 
 ```bash
 cd api
@@ -136,7 +164,7 @@ Creates two demo organizations (password `password123` for all accounts):
 
 ```bash
 cd api
-npm test          # 43 tests across 11 files, run against an in-memory MongoDB replica set
+npm test          # 44 tests across 11 files, run against an in-memory MongoDB replica set
 npm run typecheck
 npm run lint
 ```
@@ -147,9 +175,9 @@ npm run build      # includes a full TypeScript build
 npm run lint
 ```
 
-The backend test suite covers tenant isolation (including that the plugin fails closed with no context, and that cross-tenant reads/writes/aggregates are correctly scoped), the full RBAC permission matrix, concurrent seat/project-slot allocation, the last-admin invariant under concurrent demotion, and refresh-token rotation with reuse detection.
+The backend test suite covers tenant isolation (including that the plugin fails closed with no context, and that cross-tenant reads/writes/aggregates are correctly scoped), the full RBAC permission matrix (every role × every permission), concurrent seat/project-slot allocation, the last-admin invariant under concurrent demotion, and refresh-token rotation with reuse detection.
 
-## Project structure
+## Project Structure
 
 ```
 api/
