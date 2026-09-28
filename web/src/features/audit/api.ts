@@ -1,6 +1,7 @@
 import { apiClient } from "@/api/client";
 
 export type AuditAction =
+  | "org.renamed"
   | "member.role_changed"
   | "member.removed"
   | "invite.created"
@@ -16,6 +17,7 @@ export type AuditAction =
   | "plan.changed";
 
 export const AUDIT_ACTIONS: AuditAction[] = [
+  "org.renamed",
   "member.role_changed",
   "member.removed",
   "invite.created",
