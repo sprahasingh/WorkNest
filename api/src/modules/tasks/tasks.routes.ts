@@ -43,7 +43,7 @@ tasksRouter.patch(
 
 tasksRouter.delete(
   "/:taskId",
-  requirePermission("task:update:own"),
+  requirePermission("task:delete"),
   deleteTaskController,
 );
 
