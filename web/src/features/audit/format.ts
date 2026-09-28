@@ -22,6 +22,10 @@ export function describeAuditEntry(entry: AuditLogEntry): string {
   const m = entry.metadata;
 
   switch (entry.action) {
+    case "org.renamed": {
+      const name = m.name as { from: string; to: string };
+      return `${actor} renamed the organization from "${name.from}" to "${name.to}"`;
+    }
     case "member.role_changed": {
       const role = m.role as { from: string; to: string };
       return `${actor} changed a member's role from ${role.from} to ${role.to}`;

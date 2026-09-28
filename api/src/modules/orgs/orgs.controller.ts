@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { Organization } from "../../models/Organization.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
-import { changePlan, createOrg } from "./orgs.service.js";
+import { changePlan, createOrg, updateOrg } from "./orgs.service.js";
 import type {
   UpdateOrgInput,
   ChangePlanInput,
@@ -39,18 +39,7 @@ export async function updateOrgController(
   res: Response,
 ): Promise<void> {
   const input = req.validated!.body as UpdateOrgInput;
-  const tenantId = requireTenantId();
-
-  const org = await Organization.findByIdAndUpdate(
-    tenantId,
-    { name: input.name },
-    { new: true, runValidators: true },
-  ).setOptions({ skipTenant: true });
-
-  if (!org) {
-    throw new AppError(404, "NOT_FOUND", "Organization not found");
-  }
-
+  const org = await updateOrg(input.name);
   res.status(200).json({ organization: org });
 }
 
