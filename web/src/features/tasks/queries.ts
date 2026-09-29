@@ -1,11 +1,22 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { InfiniteData } from "@tanstack/query-core";
 import { dashboardKeys } from "@/features/dashboard/queries";
 import {
   createTask,
   deleteTask,
+  getTask,
+  getTaskStats,
   listTasks,
   updateTask,
+  listActivities,
+  createActivity,
+  type ActivityScope,
+  type CreateActivityInput,
   type CreateTaskInput,
   type ListTasksResponse,
   type Task,
@@ -29,7 +40,30 @@ export const taskKeys = {
     status: TaskStatus,
     filters: TaskFilters,
   ) => [...taskKeys.all(orgId, projectId), "list", status, filters] as const,
+  stats: (orgId: string, projectId: string) =>
+    [...taskKeys.all(orgId, projectId), "stats"] as const,
+  detail: (orgId: string, taskId: string) =>
+    ["orgs", orgId, "tasks", taskId] as const,
+  activity: (orgId: string, scope: ActivityScope) =>
+    ["orgs", orgId, scope.kind, scope.id, "activity"] as const,
 };
+
+export function useTaskStats(orgId: string, projectId: string) {
+  return useQuery({
+    queryKey: taskKeys.stats(orgId, projectId),
+    queryFn: () => getTaskStats(orgId, projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useTask(orgId: string, taskId: string | null) {
+  return useQuery({
+    queryKey: taskKeys.detail(orgId, taskId ?? ""),
+    queryFn: () => getTask(orgId, taskId!),
+    enabled: !!taskId,
+    retry: false,
+  });
+}
 
 export function useTaskColumn(
   orgId: string,
@@ -65,7 +99,10 @@ export function useCreateTask(
         queryKey: taskKeys.list(orgId, projectId, "todo", filters),
       });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: taskKeys.stats(orgId, projectId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.all(orgId),
       });
     },
   });
@@ -87,7 +124,7 @@ export function useUpdateTask(orgId: string, projectId: string) {
         queryKey: taskKeys.all(orgId, projectId),
       });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: dashboardKeys.all(orgId),
       });
     },
   });
@@ -103,7 +140,7 @@ export function useDeleteTask(orgId: string, projectId: string) {
         queryKey: taskKeys.all(orgId, projectId),
       });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: dashboardKeys.all(orgId),
       });
     },
   });
@@ -197,7 +234,32 @@ export function useUpdateTaskStatus(
       void queryClient.invalidateQueries({ queryKey: context.sourceKey });
       void queryClient.invalidateQueries({ queryKey: context.targetKey });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: taskKeys.stats(orgId, projectId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.all(orgId),
+      });
+    },
+  });
+}
+
+export function useActivity(orgId: string, scope: ActivityScope | null) {
+  return useQuery({
+    queryKey: taskKeys.activity(orgId, scope ?? { kind: "task", id: "" }),
+    queryFn: () => listActivities(orgId, scope!),
+    enabled: !!scope,
+  });
+}
+
+export function useCreateActivity(orgId: string, scope: ActivityScope) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreateActivityInput) =>
+      createActivity(orgId, scope, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.activity(orgId, scope),
       });
     },
   });

@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { User } from "../../models/User.js";
 import { Organization } from "../../models/Organization.js";
 import { Membership } from "../../models/Membership.js";
+import { Task } from "../../models/Task.js";
 import { env } from "../../config/env.js";
 import { AppError } from "../../lib/errors.js";
 import type { RegisterInput } from "./auth.schemas.js";
@@ -116,6 +117,46 @@ export async function deleteAccount(userId: string): Promise<void> {
 
   try {
     await dbSession.withTransaction(async () => {
+      const memberships = await Membership.find({ userId })
+        .setOptions({ skipTenant: true })
+        .lean()
+        .session(dbSession);
+
+      for (const m of memberships) {
+        const org = await Organization.findById(m.tenantId).session(dbSession);
+        if (!org) continue;
+
+        if (m.role === "admin") {
+          const othersInOrg = await Membership.countDocuments({
+            tenantId: m.tenantId,
+            userId: { $ne: userId },
+          })
+            .setOptions({ skipTenant: true })
+            .session(dbSession);
+
+          if (othersInOrg > 0 && Number(org.adminCount) <= 1) {
+            throw new AppError(
+              409,
+              "SOLE_ADMIN",
+              `You're the only admin of "${org.name}". Make someone else an admin before deleting your account.`,
+            );
+          }
+        }
+
+        await Organization.updateOne(
+          { _id: m.tenantId },
+          {
+            $inc: {
+              seatsUsed: -1,
+              ...(m.role === "admin" ? { adminCount: -1 } : {}),
+            },
+          },
+          { session: dbSession },
+        );
+      }
+
+      // The account is kept (marked deleted) so history still shows who did
+      // what, but the email is released so the person can sign up again.
       await User.updateOne(
         { _id: userId },
         {
@@ -132,18 +173,12 @@ export async function deleteAccount(userId: string): Promise<void> {
         { session: dbSession },
       );
 
-      const memberships = await Membership.find({ userId })
+      await Task.updateMany(
+        { assigneeIds: userId },
+        { $pull: { assigneeIds: userId } },
+      )
         .setOptions({ skipTenant: true })
-        .lean()
         .session(dbSession);
-
-      for (const m of memberships) {
-        await Organization.updateOne(
-          { _id: m.tenantId },
-          { $inc: { seatsUsed: -1 } },
-          { session: dbSession },
-        ).setOptions({ skipTenant: true });
-      }
 
       await Membership.deleteMany({ userId })
         .setOptions({ skipTenant: true })

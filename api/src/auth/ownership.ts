@@ -7,14 +7,22 @@ export interface OwnershipContext {
 }
 
 export interface TaskOwnershipFields {
-  createdBy: { toString(): string };
-  assigneeIds: Array<{ toString(): string }> | null | undefined;
+  assigneeIds?: Array<{ toString(): string }> | null;
 }
 
 export interface TaskUpdateChanges {
   assigneeIds?: unknown;
 }
 
+export function isTaskAssignee(
+  task: TaskOwnershipFields,
+  userId: string,
+): boolean {
+  return task.assigneeIds?.some((id) => id.toString() === userId) ?? false;
+}
+
+// Admins and managers can edit any task; members only the tasks they are
+// assigned to, and never the assignee list itself.
 export function canUpdateTask(
   ctx: OwnershipContext,
   task: TaskOwnershipFields,
@@ -28,18 +36,9 @@ export function canUpdateTask(
     return false;
   }
 
-  const isReassigning = Object.prototype.hasOwnProperty.call(
-    changes,
-    "assigneeIds",
-  );
-
-  if (isReassigning) {
+  if (Object.prototype.hasOwnProperty.call(changes, "assigneeIds")) {
     return false;
   }
 
-  const isCreator = task.createdBy.toString() === ctx.userId;
-  const isAssignee =
-    task.assigneeIds?.some((id) => id.toString() === ctx.userId) ?? false;
-
-  return isCreator || isAssignee;
+  return isTaskAssignee(task, ctx.userId);
 }

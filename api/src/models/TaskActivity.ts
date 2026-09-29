@@ -10,11 +10,13 @@ const taskActivitySchema = new Schema(
       immutable: true,
     },
     projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true },
-    taskId: { type: Schema.Types.ObjectId, ref: "Task", required: true },
+    // null for project-wide activity, e.g. an update request sent to every
+    // assignee in the project.
+    taskId: { type: Schema.Types.ObjectId, ref: "Task", default: null },
     authorId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     type: {
       type: String,
-      enum: ["update_request", "update", "question"],
+      enum: ["update_request", "update", "question", "reply"],
       required: true,
     },
     content: { type: String, trim: true, maxlength: 2000 },
@@ -23,6 +25,7 @@ const taskActivitySchema = new Schema(
 );
 
 taskActivitySchema.index({ tenantId: 1, taskId: 1, _id: -1 });
+taskActivitySchema.index({ tenantId: 1, projectId: 1, taskId: 1, _id: -1 });
 taskActivitySchema.plugin(tenantPlugin);
 
 export type TaskActivityDocument = InferSchemaType<typeof taskActivitySchema>;
