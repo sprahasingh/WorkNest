@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { Link, Navigate } from "react-router";
 import {
   Bar,
@@ -18,6 +18,14 @@ import { useTheme } from "@/theme/theme-context";
 import { Card } from "@/components/ui/Card";
 import { useDashboard } from "./queries";
 import type { StatusCount } from "./api";
+
+const DATE_RANGE_OPTIONS = [
+  { value: 7, label: "7 days" },
+  { value: 14, label: "14 days" },
+  { value: 30, label: "30 days" },
+  { value: 60, label: "60 days" },
+  { value: 90, label: "90 days" },
+] as const;
 
 const STATUS_ORDER = ["todo", "in_progress", "done"];
 const STATUS_LABELS: Record<string, string> = {
@@ -64,7 +72,8 @@ function formatShortDate(isoDate: string): string {
 export function DashboardPage() {
   const { orgId } = useOrg();
   const canViewDashboard = useCan("dashboard:read");
-  const { data, isPending, isError } = useDashboard(orgId);
+  const [days, setDays] = useState(14);
+  const { data, isPending, isError } = useDashboard(orgId, days);
 
   if (!canViewDashboard) {
     return <Navigate to={`/orgs/${orgId}/projects`} replace />;
@@ -119,9 +128,22 @@ export function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-          Dashboard
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+            Dashboard
+          </h1>
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          >
+            {DATE_RANGE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                Last {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {isNewOrg && (
           <GettingStarted
@@ -142,7 +164,7 @@ export function DashboardPage() {
             value={`${data.usage.projectCount} / ${data.usage.projectLimit}`}
           />
           <StatCard
-            label="Tasks created (14d)"
+            label={`Tasks created (${days}d)`}
             value={trendData.reduce((sum, entry) => sum + entry.count, 0)}
           />
         </div>
@@ -187,7 +209,7 @@ export function DashboardPage() {
           </ChartCard>
         </div>
 
-        <ChartCard title="Tasks created, last 14 days">
+        <ChartCard title={`Tasks created, last ${days} days`}>
           {({ gridColor, tickColor, tooltipStyle }) => (
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />

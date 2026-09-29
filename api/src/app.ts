@@ -22,6 +22,7 @@ import { invitesPublicRouter } from "./modules/invites/invitesPublic.routes.js";
 import { projectsRouter } from "./modules/projects/projects.routes.js";
 import {
   projectTasksRouter,
+  projectActivityRouter,
   tasksRouter,
 } from "./modules/tasks/tasks.routes.js";
 import { auditRouter } from "./modules/audit/audit.routes.js";
@@ -79,6 +80,7 @@ export function createApp(): Express {
   orgRouter.use("/invites", invitesRouter);
   orgRouter.use("/projects", projectsRouter);
   orgRouter.use("/projects/:projectId/tasks", projectTasksRouter);
+  orgRouter.use("/projects/:projectId/activity", projectActivityRouter);
   orgRouter.use("/tasks", tasksRouter);
   orgRouter.use("/audit-logs", auditRouter);
   orgRouter.use("/dashboard", dashboardRouter);

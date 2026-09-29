@@ -128,7 +128,7 @@ async function seedOrg(
           description: "Seeded demo task",
           status: statuses[i % statuses.length],
           priority: priorities[i % priorities.length],
-          assigneeId: assignee._id,
+          assigneeIds: [assignee._id],
           dueDate:
             i % 4 === 0
               ? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)

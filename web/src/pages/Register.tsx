@@ -54,6 +54,13 @@ export function Register() {
       navigate(resolvePostAuthPath(me.memberships), { replace: true });
     } catch (error) {
       const parsed = parseApiError(error);
+      if (parsed.code === "EMAIL_ALREADY_REGISTERED") {
+        setError("email", {
+          type: "exists",
+          message: "You already have an account with this email.",
+        });
+        return;
+      }
       if (Object.keys(parsed.fieldErrors).length === 0) {
         setFormError(parsed.message);
         return;
@@ -97,7 +104,13 @@ export function Register() {
           />
         </Field>
 
-        <Field label="Email" htmlFor="email" error={errors.email?.message}>
+        <Field
+          label="Email"
+          htmlFor="email"
+          error={
+            errors.email?.type === "exists" ? undefined : errors.email?.message
+          }
+        >
           <input
             id="email"
             type="email"
@@ -105,6 +118,17 @@ export function Register() {
             {...register("email")}
             className={inputStyles}
           />
+          {errors.email?.type === "exists" && (
+            <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
+              {errors.email.message}{" "}
+              <Link
+                to="/login"
+                className="font-medium text-teal-700 underline dark:text-teal-400"
+              >
+                Log in instead
+              </Link>
+            </p>
+          )}
         </Field>
 
         <Field

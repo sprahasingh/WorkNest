@@ -3,6 +3,7 @@ import {
   getUnreadNotifications,
   markNotificationsRead,
 } from "./notifications.service.js";
+import type { MarkReadInput } from "./notifications.schemas.js";
 
 export async function listNotificationsController(
   req: Request,
@@ -16,7 +17,7 @@ export async function markReadController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const ids = req.body?.ids as string[] | undefined;
+  const { ids } = req.validated!.body as MarkReadInput;
   await markNotificationsRead(ids);
   res.status(204).send();
 }

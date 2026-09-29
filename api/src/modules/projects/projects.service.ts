@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import { Project } from "../../models/Project.js";
 import { Task } from "../../models/Task.js";
+import { TaskActivity } from "../../models/TaskActivity.js";
+import { Notification } from "../../models/Notification.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import {
@@ -191,6 +193,8 @@ export async function deleteProject(projectId: string) {
       }
 
       await Task.deleteMany({ projectId }).session(dbSession);
+      await TaskActivity.deleteMany({ projectId }).session(dbSession);
+      await Notification.deleteMany({ tenantId, projectId }).session(dbSession);
       await Project.deleteOne({ _id: projectId }).session(dbSession);
       await releaseProjectSlot(tenantId, dbSession);
 
