@@ -234,9 +234,10 @@ export function TaskDrawer({
               <button
                 type="button"
                 onClick={() => void handleDelete()}
-                className="text-sm font-medium text-red-600 hover:underline"
+                disabled={deleteTask.isPending}
+                className="text-sm font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
               >
-                Delete task
+                {deleteTask.isPending ? "Deleting…" : "Delete task"}
               </button>
             )}
           </div>
@@ -244,7 +245,7 @@ export function TaskDrawer({
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} loading={isSubmitting}>
               {isSubmitting
                 ? "Saving…"
                 : isEditing

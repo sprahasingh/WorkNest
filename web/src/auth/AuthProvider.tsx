@@ -30,6 +30,7 @@ const UNAUTHENTICATED_STATE: AuthState = {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [signedOut, setSignedOut] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const sessionQuery = useQuery({
     queryKey: SESSION_QUERY_KEY,
@@ -84,12 +85,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    setIsLoggingOut(true);
     try {
       await logoutRequest();
     } finally {
       setAccessToken(null);
       setSignedOut(true);
       queryClient.clear();
+      setIsLoggingOut(false);
     }
   }, [queryClient]);
 
@@ -115,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     register,
     logout,
+    isLoggingOut,
     refreshMemberships,
     establishSession,
   };

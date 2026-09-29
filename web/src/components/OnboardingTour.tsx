@@ -53,7 +53,7 @@ export function OnboardingTour({ onClose }: OnboardingTourProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800">
         <div className="flex items-start justify-between">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">
             W
@@ -61,26 +61,26 @@ export function OnboardingTour({ onClose }: OnboardingTourProps) {
           <button
             type="button"
             onClick={finish}
-            className="text-sm font-medium text-slate-400 hover:text-slate-600"
+            className="text-sm font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
           >
             Skip
           </button>
         </div>
 
-        <h2 className="mt-4 text-xl font-bold text-slate-900">
+        <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-50">
           {step.title}
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+        <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           {step.description}
         </p>
 
         {isLastStep && (
-          <p className="mt-3 text-sm text-slate-500">
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
             Want the full picture? See the{" "}
             <Link
               to="/how-to-use"
               target="_blank"
-              className="font-medium text-teal-700 hover:underline"
+              className="font-medium text-teal-700 hover:underline dark:text-teal-400"
             >
               how-to-use guide
             </Link>{" "}
@@ -95,7 +95,9 @@ export function OnboardingTour({ onClose }: OnboardingTourProps) {
                 key={s.title}
                 className={cn(
                   "h-1.5 w-6 rounded-full transition-colors",
-                  index === stepIndex ? "bg-teal-600" : "bg-slate-200",
+                  index === stepIndex
+                    ? "bg-teal-600"
+                    : "bg-slate-200 dark:bg-slate-700",
                 )}
               />
             ))}

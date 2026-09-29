@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { dashboardKeys } from "@/features/dashboard/queries";
 import {
   archiveProject,
   createProject,
@@ -38,6 +39,9 @@ export function useCreateProject(orgId: string) {
     mutationFn: (input: CreateProjectInput) => createProject(orgId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
     },
   });
 }
@@ -49,6 +53,9 @@ export function useArchiveProject(orgId: string) {
     mutationFn: (projectId: string) => archiveProject(orgId, projectId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
     },
   });
 }
@@ -60,6 +67,9 @@ export function useDeleteProject(orgId: string) {
     mutationFn: (projectId: string) => deleteProject(orgId, projectId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
     },
   });
 }
