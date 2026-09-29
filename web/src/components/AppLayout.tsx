@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, NavLink, Outlet } from "react-router";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
@@ -249,6 +249,7 @@ function HeaderControls({
 }
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const location = useLocation();
   const canViewDashboard = useCan("dashboard:read");
   const canViewAudit = useCan("audit:read");
 
@@ -287,7 +288,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="border-t border-slate-200 p-2 dark:border-slate-700">
         <Link
           to="/how-to-use"
-          target="_blank"
+          state={{ from: `${location.pathname}${location.search}` }}
+          onClick={onNavigate}
           className="flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
         >
           <span className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold dark:border-slate-600">
