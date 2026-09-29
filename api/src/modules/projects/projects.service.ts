@@ -74,9 +74,45 @@ export async function createProject(
 }
 
 export async function listProjects(archived: boolean) {
-  return Project.find(
-    archived ? { archivedAt: { $ne: null } } : { archivedAt: null },
-  ).sort({ createdAt: -1 });
+  const [projects, activeCount, archivedCount] = await Promise.all([
+    Project.find(
+      archived ? { archivedAt: { $ne: null } } : { archivedAt: null },
+    ).sort({ createdAt: -1 }),
+    Project.countDocuments({ archivedAt: null }),
+    Project.countDocuments({ archivedAt: { $ne: null } }),
+  ]);
+
+  // Per-project task totals. Active means not done, the same count the
+  // plan's per-project task limit is measured against.
+  const taskCounts = await Task.aggregate<{
+    _id: mongoose.Types.ObjectId;
+    total: number;
+    active: number;
+  }>([
+    { $match: { projectId: { $in: projects.map((p) => p._id) } } },
+    {
+      $group: {
+        _id: "$projectId",
+        total: { $sum: 1 },
+        active: { $sum: { $cond: [{ $ne: ["$status", "done"] }, 1, 0] } },
+      },
+    },
+  ]);
+  const countsByProject = new Map(
+    taskCounts.map((row) => [String(row._id), row]),
+  );
+
+  return {
+    projects: projects.map((project) => {
+      const counts = countsByProject.get(String(project._id));
+      return {
+        ...project.toJSON(),
+        activeTaskCount: counts?.active ?? 0,
+        taskCount: counts?.total ?? 0,
+      };
+    }),
+    counts: { active: activeCount, archived: archivedCount },
+  };
 }
 
 export async function getProject(projectId: string) {

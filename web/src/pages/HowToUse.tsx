@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/auth/auth-context";
@@ -179,10 +179,30 @@ function BrandMark() {
   );
 }
 
+// Where the back link goes: the page you came from inside the app, else your
+// workspace if you're signed in, else the home page.
+function useBackLink(): { to: string; label: string } {
+  const location = useLocation();
+  const auth = useAuth();
+  const from = (location.state as { from?: unknown } | null)?.from;
+
+  if (typeof from === "string" && from.startsWith("/") && !from.startsWith("//")) {
+    return { to: from, label: "Back" };
+  }
+  if (auth.status === "authenticated") {
+    return {
+      to: resolvePostAuthPath(auth.memberships ?? []),
+      label: "Back to your workspace",
+    };
+  }
+  return { to: "/", label: "Back to home" };
+}
+
 export function HowToUse() {
   const auth = useAuth();
   const isAuthenticated = auth.status === "authenticated";
   const workspacePath = resolvePostAuthPath(auth.memberships ?? []);
+  const back = useBackLink();
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -192,10 +212,11 @@ export function HowToUse() {
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <Link
-              to="/"
+              to={back.to}
               className="text-sm font-medium text-slate-500 hover:text-teal-700 dark:text-slate-400 dark:hover:text-teal-400"
             >
-              Back to home
+              <span aria-hidden="true">← </span>
+              {back.label}
             </Link>
           </div>
         </div>

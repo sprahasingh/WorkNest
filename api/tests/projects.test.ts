@@ -132,6 +132,62 @@ describe("project archive and delete", () => {
     ).toBe(true);
   });
 
+  it("lists each project's active and total task counts, and how many projects are active or archived", async () => {
+    const org = await registerOrg("proj-counts@example.com", "Counts Org");
+    const busy = await createProject(org.orgId, org.accessToken, "BSY");
+    const idle = await createProject(org.orgId, org.accessToken, "IDL");
+    const old = await createProject(org.orgId, org.accessToken, "OLD");
+    const busyId = busy.body.project._id as string;
+    const auth = { Authorization: `Bearer ${org.accessToken}` };
+
+    const taskIds: string[] = [];
+    for (const title of ["One", "Two", "Three"]) {
+      const res = await request(app)
+        .post(`/api/orgs/${org.orgId}/projects/${busyId}/tasks`)
+        .set(auth)
+        .send({ title });
+      taskIds.push(res.body.task._id as string);
+    }
+    await request(app)
+      .patch(`/api/orgs/${org.orgId}/tasks/${taskIds[0]}`)
+      .set(auth)
+      .send({ status: "done" });
+    await request(app)
+      .post(`/api/orgs/${org.orgId}/projects/${old.body.project._id}/archive`)
+      .set(auth);
+
+    const list = await request(app)
+      .get(`/api/orgs/${org.orgId}/projects`)
+      .set(auth);
+    expect(list.status).toBe(200);
+    expect(list.body.counts).toEqual({ active: 2, archived: 1 });
+
+    const byId = new Map(
+      (
+        list.body.projects as Array<{
+          _id: string;
+          activeTaskCount: number;
+          taskCount: number;
+        }>
+      ).map((p) => [p._id, p]),
+    );
+    expect(byId.get(busyId)).toMatchObject({
+      activeTaskCount: 2,
+      taskCount: 3,
+    });
+    expect(byId.get(idle.body.project._id as string)).toMatchObject({
+      activeTaskCount: 0,
+      taskCount: 0,
+    });
+
+    const archivedList = await request(app)
+      .get(`/api/orgs/${org.orgId}/projects`)
+      .query({ archived: "true" })
+      .set(auth);
+    expect(archivedList.body.counts).toEqual({ active: 2, archived: 1 });
+    expect(archivedList.body.projects).toHaveLength(1);
+  });
+
   it("deleting a project also deletes its tasks", async () => {
     const org = await registerOrg("proj-cascade@example.com", "Cascade Org");
     const created = await createProject(org.orgId, org.accessToken, "CAS");
