@@ -11,6 +11,10 @@ import {
   signupViaInvite,
 } from "@/api/invites";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
+import { AuthShell } from "@/components/AuthShell";
+import { Field, inputStyles } from "@/components/ui/Field";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { Button } from "@/components/ui/Button";
 
 const signupFormSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
@@ -49,17 +53,19 @@ export function InviteAccept() {
 
   if (!token || previewQuery.isPending) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p className="text-slate-500">Loading…</p>
-      </div>
+      <AuthShell>
+        <p className="text-center text-sm text-slate-500">Loading…</p>
+      </AuthShell>
     );
   }
 
   if (previewQuery.isError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p className="text-slate-600">This invite doesn&apos;t exist.</p>
-      </div>
+      <AuthShell>
+        <p className="text-center text-sm text-slate-600">
+          This invite doesn&apos;t exist.
+        </p>
+      </AuthShell>
     );
   }
 
@@ -67,12 +73,12 @@ export function InviteAccept() {
 
   if (preview.expired) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p className="max-w-sm text-center text-slate-600">
+      <AuthShell>
+        <p className="text-center text-sm text-slate-600">
           This invite has expired or was revoked. Ask an admin to send a new
           one.
         </p>
-      </div>
+      </AuthShell>
     );
   }
 
@@ -121,104 +127,82 @@ export function InviteAccept() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100">
-      <div className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow">
+    <AuthShell>
+      <div className="space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">
+          <h1 className="text-2xl font-bold text-slate-900">
             You&apos;re invited
           </h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-500">
             Join{" "}
-            <span className="font-medium">{preview.organizationName}</span>{" "}
+            <span className="font-medium text-slate-700">
+              {preview.organizationName}
+            </span>{" "}
             as <span className="font-mono">{preview.role}</span>
           </p>
         </div>
 
-        {formError && (
-          <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-            {formError}
-          </p>
-        )}
+        <ErrorBanner message={formError} />
 
         {isMatchingUser ? (
-          <button
+          <Button
             type="button"
             onClick={() => void handleAccept()}
             disabled={isAccepting}
-            className="w-full rounded bg-slate-800 px-4 py-2 text-white disabled:opacity-50"
+            className="w-full"
           >
             {isAccepting ? "Joining…" : `Accept as ${preview.email}`}
-          </button>
+          </Button>
         ) : (
           <form
             onSubmit={(event) => void handleSubmit(onSubmit)(event)}
             noValidate
             className="space-y-4"
           >
-            <div>
-              <label className="block text-sm font-medium text-slate-700">
-                Email
-              </label>
+            <Field label="Email" htmlFor="invite-email">
               <input
+                id="invite-email"
                 type="email"
                 value={preview.email}
                 disabled
-                className="mt-1 w-full rounded border border-slate-300 bg-slate-100 px-3 py-2 text-slate-500"
+                className={inputStyles}
               />
-            </div>
+            </Field>
 
-            <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Your name
-              </label>
+            <Field
+              label="Your name"
+              htmlFor="name"
+              error={errors.name?.message}
+            >
               <input
                 id="name"
                 type="text"
                 autoComplete="name"
                 {...register("name")}
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                className={inputStyles}
               />
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.name.message}
-                </p>
-              )}
-            </div>
+            </Field>
 
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Password
-              </label>
+            <Field
+              label="Password"
+              htmlFor="password"
+              error={errors.password?.message}
+            >
               <input
                 id="password"
                 type="password"
                 autoComplete="new-password"
                 {...register("password")}
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                className={inputStyles}
               />
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
+            </Field>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full rounded bg-slate-800 px-4 py-2 text-white disabled:opacity-50"
-            >
+            <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? "Creating account…" : "Create account & join"}
-            </button>
+            </Button>
           </form>
         )}
       </div>
-    </div>
+    </AuthShell>
   );
 }

@@ -6,6 +6,10 @@ import { Link, useNavigate } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { createOrg } from "@/api/orgs";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
+import { Field, inputStyles } from "@/components/ui/Field";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
 const createOrgFormSchema = z.object({
   name: z
@@ -59,19 +63,33 @@ export function OrgPicker() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-12">
+    <div className="min-h-screen bg-slate-50 px-4 py-12 sm:px-6">
       <div className="mx-auto max-w-lg space-y-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-800">
-            Your organizations
-          </h1>
+          <Link to="/" className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">
+              W
+            </span>
+            <span className="text-lg font-bold text-slate-900">
+              WorkNest
+            </span>
+          </Link>
           <button
             type="button"
             onClick={() => void logout()}
-            className="text-sm font-medium text-slate-600 underline"
+            className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:underline"
           >
             Log out
           </button>
+        </div>
+
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Your organizations
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Pick a workspace to continue, or create a new one below.
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -80,66 +98,52 @@ export function OrgPicker() {
               <Link
                 key={membership._id}
                 to={`/orgs/${membership.tenantId.id}/dashboard`}
-                className="block rounded-lg bg-white p-4 shadow hover:bg-slate-50"
+                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-teal-50/40"
               >
-                <p className="font-medium text-slate-800">
-                  {membership.tenantId.name}
-                </p>
-                <p className="text-sm text-slate-500">
-                  {membership.role} · {membership.tenantId.plan}
-                </p>
+                <div>
+                  <p className="font-medium text-slate-800">
+                    {membership.tenantId.name}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    {membership.role} · {membership.tenantId.plan}
+                  </p>
+                </div>
+                <span className="text-slate-300">&rarr;</span>
               </Link>
             ))
           ) : (
-            <p className="rounded-lg bg-white p-4 text-sm text-slate-500 shadow">
+            <Card className="text-center text-sm text-slate-500 shadow-sm">
               You&apos;re not a member of any organization yet.
-            </p>
+            </Card>
           )}
         </div>
 
-        <form
-          onSubmit={(event) => void handleSubmit(onSubmit)(event)}
-          noValidate
-          className="space-y-4 rounded-lg bg-white p-6 shadow"
-        >
-          <h2 className="font-medium text-slate-800">
-            Create a new organization
-          </h2>
-
-          {formError && (
-            <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-              {formError}
-            </p>
-          )}
-
-          <div>
-            <label
-              htmlFor="name"
-              className="block text-sm font-medium text-slate-700"
-            >
-              Organization name
-            </label>
-            <input
-              id="name"
-              type="text"
-              {...register("name")}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            />
-            {errors.name && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.name.message}
-              </p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded bg-slate-800 px-4 py-2 text-white disabled:opacity-50"
+        <Card className="shadow-sm">
+          <form
+            onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+            noValidate
+            className="space-y-4"
           >
-            {isSubmitting ? "Creating…" : "Create organization"}
-          </button>
-        </form>
+            <h2 className="font-medium text-slate-800">
+              Create a new organization
+            </h2>
+
+            <ErrorBanner message={formError} />
+
+            <Field label="Organization name" htmlFor="name" error={errors.name?.message}>
+              <input
+                id="name"
+                type="text"
+                {...register("name")}
+                className={inputStyles}
+              />
+            </Field>
+
+            <Button type="submit" disabled={isSubmitting} className="w-full">
+              {isSubmitting ? "Creating…" : "Create organization"}
+            </Button>
+          </form>
+        </Card>
       </div>
     </div>
   );
