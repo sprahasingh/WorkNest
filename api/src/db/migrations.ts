@@ -1,5 +1,33 @@
 import { Task } from "../models/Task.js";
+import { Organization } from "../models/Organization.js";
+import { PLAN_LIMITS, PLANS } from "../constants/plans.js";
 import { logger } from "../lib/logger.js";
+
+// Each organization stores its seat and project limits. When a plan's limits
+// change, bring existing organizations on that plan up to date. Anyone
+// already above a lowered limit keeps everything they have; they just can't
+// add more until they're back under it.
+export async function syncPlanLimits(): Promise<void> {
+  for (const plan of PLANS) {
+    const { seatLimit, projectLimit } = PLAN_LIMITS[plan];
+    const result = await Organization.collection.updateMany(
+      {
+        plan,
+        $or: [
+          { seatLimit: { $ne: seatLimit } },
+          { projectLimit: { $ne: projectLimit } },
+        ],
+      },
+      { $set: { seatLimit, projectLimit } },
+    );
+    if (result.modifiedCount > 0) {
+      logger.info(
+        { plan, updated: result.modifiedCount },
+        "Synced organization plan limits",
+      );
+    }
+  }
+}
 
 // Tasks created before multi-assignee support stored a single `assigneeId`.
 // Move it into `assigneeIds` so old tasks keep their assignee, stay editable

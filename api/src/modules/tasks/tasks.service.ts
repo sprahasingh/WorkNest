@@ -13,7 +13,7 @@ import {
   isTaskAssignee,
   type TaskOwnershipFields,
 } from "../../auth/ownership.js";
-import { FREE_PLAN_ACTIVE_TASK_LIMIT } from "../../constants/plans.js";
+import { PLAN_LIMITS, PLAN_NAMES, type Plan } from "../../constants/plans.js";
 import { recordAudit } from "../audit/audit.service.js";
 import type { Role } from "../../constants/roles.js";
 import type {
@@ -78,15 +78,40 @@ export async function assertTaskVisible(
   }
 }
 
-async function getActiveTaskLimit(tenantId: string): Promise<number | null> {
+async function getPlan(tenantId: string): Promise<Plan> {
   const org = await Organization.findById(tenantId).setOptions({
     skipTenant: true,
   });
-  return org?.plan === "free" ? FREE_PLAN_ACTIVE_TASK_LIMIT : null;
+  return (org?.plan as Plan | undefined) ?? "free";
 }
 
 function countActiveTasks(projectId: string) {
   return Task.countDocuments({ projectId, status: { $ne: "done" } });
+}
+
+// Creating a task or reopening a finished one adds an active task, so both
+// must fit within the plan's per-project limit.
+async function assertRoomForActiveTask(
+  tenantId: string,
+  projectId: string,
+  action: "create" | "reopen",
+): Promise<void> {
+  const plan = await getPlan(tenantId);
+  const limit = PLAN_LIMITS[plan].activeTaskLimit;
+  if (limit === null) return;
+
+  const activeCount = await countActiveTasks(projectId);
+  if (activeCount < limit) return;
+
+  const nextStep =
+    action === "create"
+      ? "Mark a task as done"
+      : "Finish another task before reopening this one";
+  throw new AppError(
+    400,
+    "TASK_LIMIT_REACHED",
+    `${PLAN_NAMES[plan]} plan projects are limited to ${limit} active tasks. ${nextStep}, or upgrade your plan.`,
+  );
 }
 
 export async function getTaskStats(projectId: string) {
@@ -97,16 +122,21 @@ export async function getTaskStats(projectId: string) {
     throw new AppError(404, "NOT_FOUND", "Project not found");
   }
 
-  const [activeCount, activeLimit, assignedTask] = await Promise.all([
+  const [activeCount, plan, assignedTask] = await Promise.all([
     countActiveTasks(projectId),
-    getActiveTaskLimit(tenantId),
+    getPlan(tenantId),
     Task.exists({
       projectId,
       assigneeIds: new mongoose.Types.ObjectId(context.userId),
     }),
   ]);
 
-  return { activeCount, activeLimit, assignedToMe: assignedTask !== null };
+  return {
+    activeCount,
+    activeLimit: PLAN_LIMITS[plan].activeTaskLimit,
+    plan,
+    assignedToMe: assignedTask !== null,
+  };
 }
 
 export async function createTask(
@@ -130,17 +160,7 @@ export async function createTask(
     );
   }
 
-  const activeLimit = await getActiveTaskLimit(tenantId);
-  if (activeLimit !== null) {
-    const activeCount = await countActiveTasks(projectId);
-    if (activeCount >= activeLimit) {
-      throw new AppError(
-        400,
-        "TASK_LIMIT_REACHED",
-        `Free plan projects are limited to ${activeLimit} active tasks. Mark tasks as done or upgrade to Pro.`,
-      );
-    }
-  }
+  await assertRoomForActiveTask(tenantId, projectId, "create");
 
   // Members can't assign work to others; a task a member creates is theirs.
   let assigneeIds = [...new Set(input.assigneeIds ?? [])];
@@ -219,6 +239,10 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
     filter.$and = [await memberVisibilityFilter(userId)];
   }
 
+  // Total for the whole list (every page), so a column can show its real size
+  // rather than just the cards loaded so far.
+  const total = await Task.countDocuments(filter);
+
   if (query.cursor) {
     filter._id = { $lt: query.cursor };
   }
@@ -232,7 +256,7 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
   const items = hasMore ? tasks.slice(0, limit) : tasks;
   const nextCursor = hasMore ? String(items[items.length - 1]?._id) : null;
 
-  return { items, nextCursor };
+  return { items, nextCursor, total };
 }
 
 export async function getTask(taskId: string) {
@@ -298,6 +322,12 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
       "FORBIDDEN",
       "You can only edit tasks that are assigned to you",
     );
+  }
+
+  const reopening =
+    task.status === "done" && !!input.status && input.status !== "done";
+  if (reopening) {
+    await assertRoomForActiveTask(tenantId, String(task.projectId), "reopen");
   }
 
   const changes = { ...input };

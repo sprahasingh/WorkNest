@@ -13,7 +13,13 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { Plan } from "@/api/auth";
-import { FREE_PLAN_ACTIVE_TASK_LIMIT } from "@/features/tasks/api";
+import { cn } from "@/lib/cn";
+import {
+  PLAN_LIMITS,
+  PLAN_NAMES,
+  PLAN_ORDER,
+  formatTaskLimit,
+} from "@/lib/plans";
 
 const DELETE_CONFIRMATION_TEXT = "delete my account";
 
@@ -32,25 +38,11 @@ const RENAME_FIELDS = ["name"] as const;
 interface DowngradeBlockedDetail {
   seatsUsed: number;
   projectCount: number;
+  projectsOverTaskLimit?: number;
   targetSeatLimit: number;
   targetProjectLimit: number;
+  targetActiveTaskLimit?: number | null;
 }
-
-const PLAN_LIMITS: Record<
-  Plan,
-  { seatLimit: number; projectLimit: number; activeTaskLabel: string }
-> = {
-  free: {
-    seatLimit: 5,
-    projectLimit: 3,
-    activeTaskLabel: `${FREE_PLAN_ACTIVE_TASK_LIMIT} active tasks per project`,
-  },
-  pro: {
-    seatLimit: 25,
-    projectLimit: 50,
-    activeTaskLabel: "unlimited tasks",
-  },
-};
 
 export function SettingsPage() {
   const { orgId } = useOrg();
@@ -99,9 +91,10 @@ export function SettingsPage() {
   };
 
   const handlePlanChange = async (newPlan: Plan) => {
+    const name = PLAN_NAMES[newPlan];
     try {
       await changePlan.mutateAsync(newPlan);
-      toast.success(`Plan changed to ${newPlan}`);
+      toast.success(`You're now on the ${name} plan`);
     } catch (error) {
       const parsed = parseApiError(error);
 
@@ -110,16 +103,22 @@ export function SettingsPage() {
         const reasons: string[] = [];
         if (detail.seatsUsed > detail.targetSeatLimit) {
           reasons.push(
-            `${detail.seatsUsed} seats used (${newPlan} allows ${detail.targetSeatLimit})`,
+            `${detail.seatsUsed} seats in use (${name} allows ${detail.targetSeatLimit})`,
           );
         }
         if (detail.projectCount > detail.targetProjectLimit) {
           reasons.push(
-            `${detail.projectCount} projects (${newPlan} allows ${detail.targetProjectLimit})`,
+            `${detail.projectCount} projects (${name} allows ${detail.targetProjectLimit})`,
           );
         }
-        toast.error("Can't downgrade yet", {
-          description: `${reasons.join(" and ")} — reduce usage first.`,
+        if (detail.projectsOverTaskLimit && detail.targetActiveTaskLimit) {
+          const count = detail.projectsOverTaskLimit;
+          reasons.push(
+            `${count} ${count === 1 ? "project has" : "projects have"} more than ${detail.targetActiveTaskLimit} active tasks`,
+          );
+        }
+        toast.error(`Can't switch to ${name} yet`, {
+          description: `${reasons.join("; ")}. Reduce usage first.`,
         });
         return;
       }
@@ -158,8 +157,9 @@ export function SettingsPage() {
     );
   }
 
-  const otherPlan: Plan = org.plan === "free" ? "pro" : "free";
-  const isDowngrade = otherPlan === "free";
+  const currentPlan = org.plan as Plan;
+  const currentRank = PLAN_ORDER.indexOf(currentPlan);
+  const pendingPlan = changePlan.isPending ? changePlan.variables : null;
 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
@@ -207,8 +207,8 @@ export function SettingsPage() {
             <h2 className="font-medium text-slate-800 dark:text-slate-100">
               Plan
             </h2>
-            <span className="rounded-full bg-teal-50 px-2.5 py-0.5 font-mono text-sm text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
-              {org.plan}
+            <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-sm font-medium text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+              {PLAN_NAMES[currentPlan]}
             </span>
           </div>
 
@@ -230,26 +230,71 @@ export function SettingsPage() {
                 Active tasks per project
               </dt>
               <dd className="text-slate-700 dark:text-slate-300">
-                {org.plan === "free"
-                  ? `Up to ${FREE_PLAN_ACTIVE_TASK_LIMIT}`
-                  : "Unlimited"}
+                {formatTaskLimit(PLAN_LIMITS[currentPlan].activeTaskLimit)}
               </dd>
             </div>
           </dl>
 
-          {canChangePlan && (
-            <Button
-              onClick={() => void handlePlanChange(otherPlan)}
-              disabled={changePlan.isPending}
-              loading={changePlan.isPending}
-              className="mt-4 w-full sm:w-auto"
-            >
-              {changePlan.isPending
-                ? "Changing…"
-                : isDowngrade
-                  ? `Downgrade to ${otherPlan} (${PLAN_LIMITS[otherPlan].seatLimit} seats, ${PLAN_LIMITS[otherPlan].projectLimit} projects, ${PLAN_LIMITS[otherPlan].activeTaskLabel})`
-                  : `Upgrade to ${otherPlan} (${PLAN_LIMITS[otherPlan].seatLimit} seats, ${PLAN_LIMITS[otherPlan].projectLimit} projects, ${PLAN_LIMITS[otherPlan].activeTaskLabel})`}
-            </Button>
+          <ul
+            aria-label="Plans"
+            className="mt-5 grid gap-3 sm:grid-cols-3"
+          >
+            {PLAN_ORDER.map((plan, rank) => {
+              const limits = PLAN_LIMITS[plan];
+              const isCurrent = plan === currentPlan;
+              const isUpgrade = rank > currentRank;
+              return (
+                <li
+                  key={plan}
+                  className={cn(
+                    "flex flex-col rounded-xl border p-4",
+                    isCurrent
+                      ? "border-teal-500 bg-teal-50/50 dark:border-teal-500/70 dark:bg-teal-900/10"
+                      : "border-slate-200 dark:border-slate-700",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-slate-900 dark:text-slate-50">
+                      {PLAN_NAMES[plan]}
+                    </p>
+                    {isCurrent && (
+                      <span className="rounded-full bg-teal-600 px-2 py-0.5 text-xs font-medium text-white">
+                        Current
+                      </span>
+                    )}
+                  </div>
+                  <ul className="mt-3 flex-1 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                    <li>{limits.seatLimit} seats</li>
+                    <li>{limits.projectLimit} projects</li>
+                    <li>
+                      {limits.activeTaskLimit === null
+                        ? "Unlimited active tasks"
+                        : `${limits.activeTaskLimit} active tasks per project`}
+                    </li>
+                  </ul>
+                  {canChangePlan && !isCurrent && (
+                    <Button
+                      size="sm"
+                      variant={isUpgrade ? "primary" : "secondary"}
+                      onClick={() => void handlePlanChange(plan)}
+                      disabled={changePlan.isPending}
+                      loading={pendingPlan === plan}
+                      className="mt-4 w-full"
+                    >
+                      {isUpgrade
+                        ? `Upgrade to ${PLAN_NAMES[plan]}`
+                        : `Switch to ${PLAN_NAMES[plan]}`}
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          {!canChangePlan && (
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Only admins can change the plan.
+            </p>
           )}
         </Card>
 

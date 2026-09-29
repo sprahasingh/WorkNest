@@ -41,12 +41,13 @@ export function TaskColumn({
   } = useTaskColumn(orgId, projectId, status, filters);
 
   const tasks = data?.pages.flatMap((page) => page.items) ?? [];
+  const total = data?.pages[0]?.total ?? tasks.length;
 
   return (
     <div className="flex w-[85vw] shrink-0 snap-start flex-col rounded-xl bg-slate-50 p-3 dark:bg-slate-900 sm:w-72">
       <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
         {COLUMN_LABELS[status]}{" "}
-        <span className="font-normal text-slate-400">({tasks.length})</span>
+        <span className="font-normal text-slate-400">({total})</span>
       </h2>
 
       <div className="mt-3 space-y-2">

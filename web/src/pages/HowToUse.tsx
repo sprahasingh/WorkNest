@@ -28,7 +28,7 @@ const STEPS: GuideStep[] = [
   {
     title: "Create and assign a task",
     description:
-      "Open a project and click New task. Set a title, priority, optional due date, and tick one or more assignees. Admins and managers can assign anyone; a task a member creates is assigned to them. On the free plan a project can hold up to 10 active (not done) tasks.",
+      "Open a project and click New task. Set a title, priority, optional due date, and tick one or more assignees. Admins and managers can assign anyone; a task a member creates is assigned to them. Each plan caps how many active (not done) tasks a project can hold: 10 on Free, 50 on Pro, unlimited on Premium.",
   },
   {
     title: "Move a task through its board",
@@ -53,7 +53,7 @@ const STEPS: GuideStep[] = [
   {
     title: "Manage your plan",
     description:
-      "Settings → Plan shows your seat and project usage. Admins can upgrade or downgrade between the free and pro plans as your team grows; pro removes the per-project task limit.",
+      "Settings → Plan shows your usage and all three plans side by side. Free: 5 seats, 3 projects, 10 active tasks per project. Pro: 30 seats, 25 projects, 50 active tasks per project. Premium: 100 seats, 50 projects, unlimited tasks. Admins can switch plans any time; a downgrade waits until your usage fits the smaller plan.",
   },
 ];
 

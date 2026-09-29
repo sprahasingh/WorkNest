@@ -1,10 +1,9 @@
 import { apiClient } from "@/api/client";
+import type { Plan } from "@/api/auth";
 
 export type TaskStatus = "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "medium" | "high";
 export type ActivityType = "update_request" | "update" | "question" | "reply";
-
-export const FREE_PLAN_ACTIVE_TASK_LIMIT = 10;
 
 export interface Task {
   _id: string;
@@ -24,6 +23,7 @@ export interface Task {
 export interface TaskStats {
   activeCount: number;
   activeLimit: number | null;
+  plan: Plan;
   assignedToMe: boolean;
 }
 
@@ -74,6 +74,8 @@ export interface ListTasksParams {
 export interface ListTasksResponse {
   items: Task[];
   nextCursor: string | null;
+  // How many tasks match across every page, not just this one.
+  total: number;
 }
 
 export async function listTasks(
