@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router'
 import { Toaster } from 'sonner'
 import { AuthProvider } from './auth/AuthProvider.tsx'
+import { ThemeProvider } from './theme/ThemeProvider.tsx'
 import { AppRoutes } from './routes.tsx'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary.tsx'
 import './index.css'
@@ -20,14 +21,16 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <RouteErrorBoundary>
-            <AppRoutes />
-          </RouteErrorBoundary>
-          <Toaster richColors position="top-right" />
-        </AuthProvider>
-      </BrowserRouter>
+      <ThemeProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <RouteErrorBoundary>
+              <AppRoutes />
+            </RouteErrorBoundary>
+            <Toaster richColors position="top-right" />
+          </AuthProvider>
+        </BrowserRouter>
+      </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

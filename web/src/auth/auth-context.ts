@@ -16,6 +16,7 @@ export type AuthContextValue = AuthState & {
   login: (input: LoginInput) => Promise<MeResponse>;
   register: (input: RegisterInput) => Promise<MeResponse>;
   logout: () => Promise<void>;
+  isLoggingOut: boolean;
   refreshMemberships: () => Promise<void>;
   establishSession: (accessToken: string) => Promise<MeResponse>;
 };
