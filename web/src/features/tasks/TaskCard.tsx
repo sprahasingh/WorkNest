@@ -2,9 +2,10 @@ import type { Member } from "@/features/members/api";
 import type { Task, TaskStatus } from "./api";
 
 const PRIORITY_STYLES: Record<Task["priority"], string> = {
-  low: "bg-slate-100 text-slate-600",
-  medium: "bg-amber-100 text-amber-700",
-  high: "bg-red-100 text-red-700",
+  low: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
+  medium:
+    "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  high: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 };
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
@@ -48,10 +49,12 @@ export function TaskCard({
   return (
     <div
       onClick={onClick}
-      className="cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md"
+      className="cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-medium text-slate-800">{task.title}</p>
+        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+          {task.title}
+        </p>
         {assignee && (
           <span
             title={assignee.userId.name}
@@ -70,7 +73,7 @@ export function TaskCard({
         </span>
         {task.dueDate && (
           <span
-            className={`text-xs ${overdue ? "font-medium text-red-600" : "text-slate-500"}`}
+            className={`text-xs ${overdue ? "font-medium text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}
           >
             {new Date(task.dueDate).toLocaleDateString()}
           </span>
@@ -87,7 +90,7 @@ export function TaskCard({
               onStatusChange(task, newStatus);
             }
           }}
-          className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30"
+          className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
         >
           {STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>

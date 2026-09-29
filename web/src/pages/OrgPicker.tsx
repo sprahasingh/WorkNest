@@ -10,6 +10,7 @@ import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const createOrgFormSchema = z.object({
   name: z
@@ -24,7 +25,7 @@ type CreateOrgFormValues = z.infer<typeof createOrgFormSchema>;
 const CREATE_ORG_FIELDS = ["name"] as const;
 
 export function OrgPicker() {
-  const { memberships, logout, refreshMemberships } = useAuth();
+  const { memberships, logout, isLoggingOut, refreshMemberships } = useAuth();
   const navigate = useNavigate();
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -63,31 +64,35 @@ export function OrgPicker() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-12 sm:px-6">
+    <div className="min-h-screen bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-6">
       <div className="mx-auto max-w-lg space-y-8">
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">
               W
             </span>
-            <span className="text-lg font-bold text-slate-900">
+            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
               WorkNest
             </span>
           </Link>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:underline"
-          >
-            Log out
-          </button>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => void logout()}
+              disabled={isLoggingOut}
+              className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:underline disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
+            >
+              {isLoggingOut ? "Logging out…" : "Log out"}
+            </button>
+          </div>
         </div>
 
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
             Your organizations
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Pick a workspace to continue, or create a new one below.
           </p>
         </div>
@@ -98,21 +103,23 @@ export function OrgPicker() {
               <Link
                 key={membership._id}
                 to={`/orgs/${membership.tenantId.id}/dashboard`}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-teal-50/40"
+                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-teal-50/40 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-teal-700 dark:hover:bg-slate-800/60"
               >
                 <div>
-                  <p className="font-medium text-slate-800">
+                  <p className="font-medium text-slate-800 dark:text-slate-100">
                     {membership.tenantId.name}
                   </p>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     {membership.role} · {membership.tenantId.plan}
                   </p>
                 </div>
-                <span className="text-slate-300">&rarr;</span>
+                <span className="text-slate-300 dark:text-slate-600">
+                  &rarr;
+                </span>
               </Link>
             ))
           ) : (
-            <Card className="text-center text-sm text-slate-500 shadow-sm">
+            <Card className="text-center text-sm text-slate-500 shadow-sm dark:text-slate-400">
               You&apos;re not a member of any organization yet.
             </Card>
           )}
@@ -124,7 +131,7 @@ export function OrgPicker() {
             noValidate
             className="space-y-4"
           >
-            <h2 className="font-medium text-slate-800">
+            <h2 className="font-medium text-slate-800 dark:text-slate-100">
               Create a new organization
             </h2>
 
@@ -139,7 +146,12 @@ export function OrgPicker() {
               />
             </Field>
 
-            <Button type="submit" disabled={isSubmitting} className="w-full">
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              loading={isSubmitting}
+              className="w-full"
+            >
               {isSubmitting ? "Creating…" : "Create organization"}
             </Button>
           </form>

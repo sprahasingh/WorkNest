@@ -32,10 +32,10 @@ export function AuthShell({ children }: AuthShellProps) {
         </p>
       </div>
 
-      <div className="relative flex flex-1 flex-col items-center justify-center bg-slate-50 px-4 py-12 lg:bg-white">
+      <div className="relative flex flex-1 flex-col items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950 lg:bg-white lg:dark:bg-slate-950">
         <Link
           to="/"
-          className="absolute left-4 top-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-teal-700 sm:left-6 sm:top-6"
+          className="absolute left-4 top-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-teal-700 sm:left-6 sm:top-6 dark:text-slate-400 dark:hover:text-teal-400"
         >
           <svg
             viewBox="0 0 24 24"
@@ -54,7 +54,7 @@ export function AuthShell({ children }: AuthShellProps) {
 
         <Link
           to="/"
-          className="mb-8 flex items-center gap-2 text-lg font-bold text-slate-800 lg:hidden"
+          className="mb-8 flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-slate-100 lg:hidden"
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white">
             W

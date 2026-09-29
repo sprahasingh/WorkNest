@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { Card } from "@/components/ui/Card";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface GuideStep {
   title: string;
@@ -129,11 +130,11 @@ const PERMISSIONS: PermissionRow[] = [
 
 function Check({ value }: { value: boolean }) {
   return value ? (
-    <span className="text-teal-600" aria-label="Yes">
+    <span className="text-teal-600 dark:text-teal-400" aria-label="Yes">
       &#10003;
     </span>
   ) : (
-    <span className="text-slate-300" aria-label="No">
+    <span className="text-slate-300 dark:text-slate-600" aria-label="No">
       &mdash;
     </span>
   );
@@ -141,7 +142,10 @@ function Check({ value }: { value: boolean }) {
 
 function BrandMark() {
   return (
-    <Link to="/" className="flex items-center gap-2 text-lg font-bold text-slate-900">
+    <Link
+      to="/"
+      className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100"
+    >
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white">
         W
       </span>
@@ -152,63 +156,74 @@ function BrandMark() {
 
 export function HowToUse() {
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-slate-100">
+    <div className="min-h-screen bg-white dark:bg-slate-950">
+      <header className="border-b border-slate-100 dark:border-slate-800">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4 sm:px-6">
           <BrandMark />
-          <Link
-            to="/"
-            className="text-sm font-medium text-slate-500 hover:text-teal-700"
-          >
-            Back to home
-          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Link
+              to="/"
+              className="text-sm font-medium text-slate-500 hover:text-teal-700 dark:text-slate-400 dark:hover:text-teal-400"
+            >
+              Back to home
+            </Link>
+          </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
-        <span className="inline-flex items-center rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700">
+        <span className="inline-flex items-center rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
           Guide
         </span>
-        <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+        <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl dark:text-slate-50">
           How to use WorkNest
         </h1>
-        <p className="mt-3 max-w-2xl text-slate-600">
+        <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-400">
           Everything you need to get a team up and running: the core
           concepts, the common tasks, and exactly who&apos;s allowed to do
           what.
         </p>
 
         <section className="mt-12">
-          <h2 className="text-xl font-bold text-slate-900">Core concepts</h2>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+            Core concepts
+          </h2>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <Card className="shadow-none">
-              <h3 className="font-semibold text-slate-800">Organization</h3>
-              <p className="mt-1.5 text-sm text-slate-600">
+            <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">
+                Organization
+              </h3>
+              <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                 Your team&apos;s workspace. Its data, projects, and members
                 are completely isolated from every other organization on
                 WorkNest.
               </p>
             </Card>
-            <Card className="shadow-none">
-              <h3 className="font-semibold text-slate-800">Project</h3>
-              <p className="mt-1.5 text-sm text-slate-600">
+            <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">
+                Project
+              </h3>
+              <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                 A container for related tasks, identified by a short key
                 (e.g. ENG-12). Projects can be archived once they&apos;re
                 done, without deleting their history.
               </p>
             </Card>
-            <Card className="shadow-none">
-              <h3 className="font-semibold text-slate-800">Task</h3>
-              <p className="mt-1.5 text-sm text-slate-600">
+            <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">
+                Task
+              </h3>
+              <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                 A single unit of work with a status, priority, optional due
                 date, and assignee, tracked on its project&apos;s board.
               </p>
             </Card>
-            <Card className="shadow-none">
-              <h3 className="font-semibold text-slate-800">
+            <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">
                 Members &amp; roles
               </h3>
-              <p className="mt-1.5 text-sm text-slate-600">
+              <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                 Every person in an organization is an Admin, Manager, or
                 Member. Roles decide exactly what they can see and do — see
                 the table below.
@@ -218,7 +233,7 @@ export function HowToUse() {
         </section>
 
         <section className="mt-12">
-          <h2 className="text-xl font-bold text-slate-900">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
             Common tasks, step by step
           </h2>
           <ol className="mt-5 space-y-4">
@@ -228,8 +243,10 @@ export function HowToUse() {
                   {index + 1}
                 </span>
                 <div>
-                  <p className="font-medium text-slate-800">{step.title}</p>
-                  <p className="mt-0.5 text-sm text-slate-600">
+                  <p className="font-medium text-slate-800 dark:text-slate-100">
+                    {step.title}
+                  </p>
+                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
                     {step.description}
                   </p>
                 </div>
@@ -239,18 +256,18 @@ export function HowToUse() {
         </section>
 
         <section className="mt-12">
-          <h2 className="text-xl font-bold text-slate-900">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
             Who can do what
           </h2>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             Roles are enforced on the server, not just hidden in the UI — a
             Member can&apos;t do an Admin-only action even by calling the API
             directly.
           </p>
 
-          <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+          <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
+              <thead className="border-b border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3 font-medium">Capability</th>
                   <th className="px-4 py-3 text-center font-medium">Admin</th>
@@ -266,9 +283,9 @@ export function HowToUse() {
                 {PERMISSIONS.map((row) => (
                   <tr
                     key={row.capability}
-                    className="border-b border-slate-100 last:border-0"
+                    className="border-b border-slate-100 last:border-0 dark:border-slate-800 dark:bg-slate-800/40"
                   >
-                    <td className="px-4 py-3 text-slate-700">
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                       {row.capability}
                     </td>
                     <td className="px-4 py-3 text-center">

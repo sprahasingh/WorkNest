@@ -54,7 +54,9 @@ export function InviteAccept() {
   if (!token || previewQuery.isPending) {
     return (
       <AuthShell>
-        <p className="text-center text-sm text-slate-500">Loading…</p>
+        <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+          Loading…
+        </p>
       </AuthShell>
     );
   }
@@ -62,7 +64,7 @@ export function InviteAccept() {
   if (previewQuery.isError) {
     return (
       <AuthShell>
-        <p className="text-center text-sm text-slate-600">
+        <p className="text-center text-sm text-slate-600 dark:text-slate-400">
           This invite doesn&apos;t exist.
         </p>
       </AuthShell>
@@ -74,7 +76,7 @@ export function InviteAccept() {
   if (preview.expired) {
     return (
       <AuthShell>
-        <p className="text-center text-sm text-slate-600">
+        <p className="text-center text-sm text-slate-600 dark:text-slate-400">
           This invite has expired or was revoked. Ask an admin to send a new
           one.
         </p>
@@ -130,12 +132,12 @@ export function InviteAccept() {
     <AuthShell>
       <div className="space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
             You&apos;re invited
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Join{" "}
-            <span className="font-medium text-slate-700">
+            <span className="font-medium text-slate-700 dark:text-slate-200">
               {preview.organizationName}
             </span>{" "}
             as <span className="font-mono">{preview.role}</span>
@@ -149,6 +151,7 @@ export function InviteAccept() {
             type="button"
             onClick={() => void handleAccept()}
             disabled={isAccepting}
+            loading={isAccepting}
             className="w-full"
           >
             {isAccepting ? "Joining…" : `Accept as ${preview.email}`}
@@ -197,7 +200,12 @@ export function InviteAccept() {
               />
             </Field>
 
-            <Button type="submit" disabled={isSubmitting} className="w-full">
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              loading={isSubmitting}
+              className="w-full"
+            >
               {isSubmitting ? "Creating account…" : "Create account & join"}
             </Button>
           </form>

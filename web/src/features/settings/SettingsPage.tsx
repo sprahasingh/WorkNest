@@ -40,7 +40,7 @@ const PLAN_LIMITS: Record<Plan, { seatLimit: number; projectLimit: number }> = {
 
 export function SettingsPage() {
   const { orgId } = useOrg();
-  const { logout } = useAuth();
+  const { logout, isLoggingOut } = useAuth();
   const canUpdateOrg = useCan("org:update");
   const canChangePlan = useCan("plan:change");
 
@@ -114,10 +114,10 @@ export function SettingsPage() {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
+      <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-2xl space-y-4">
-          <div className="h-8 w-48 animate-pulse rounded bg-slate-200" />
-          <div className="h-32 animate-pulse rounded-xl bg-slate-200" />
+          <div className="h-8 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+          <div className="h-32 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
         </div>
       </div>
     );
@@ -125,8 +125,8 @@ export function SettingsPage() {
 
   if (isError || !org) {
     return (
-      <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
-        <p className="mx-auto max-w-2xl text-sm text-red-600">
+      <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
+        <p className="mx-auto max-w-2xl text-sm text-red-600 dark:text-red-400">
           Couldn&apos;t load organization settings.
         </p>
       </div>
@@ -137,12 +137,16 @@ export function SettingsPage() {
   const isDowngrade = otherPlan === "free";
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-2xl space-y-6">
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+          Settings
+        </h1>
 
         <Card>
-          <h2 className="font-medium text-slate-800">Organization name</h2>
+          <h2 className="font-medium text-slate-800 dark:text-slate-100">
+            Organization name
+          </h2>
 
           <div className="mt-3">
             <ErrorBanner message={formError} />
@@ -166,7 +170,7 @@ export function SettingsPage() {
             </div>
 
             {canUpdateOrg && (
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting} loading={isSubmitting}>
                 {isSubmitting ? "Saving…" : "Save"}
               </Button>
             )}
@@ -175,22 +179,24 @@ export function SettingsPage() {
 
         <Card>
           <div className="flex items-center justify-between">
-            <h2 className="font-medium text-slate-800">Plan</h2>
-            <span className="rounded-full bg-teal-50 px-2.5 py-0.5 font-mono text-sm text-teal-700">
+            <h2 className="font-medium text-slate-800 dark:text-slate-100">
+              Plan
+            </h2>
+            <span className="rounded-full bg-teal-50 px-2.5 py-0.5 font-mono text-sm text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
               {org.plan}
             </span>
           </div>
 
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-slate-500">Seats</dt>
-              <dd className="text-slate-700">
+              <dt className="text-slate-500 dark:text-slate-400">Seats</dt>
+              <dd className="text-slate-700 dark:text-slate-300">
                 {org.seatsUsed} / {org.seatLimit}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500">Projects</dt>
-              <dd className="text-slate-700">
+              <dt className="text-slate-500 dark:text-slate-400">Projects</dt>
+              <dd className="text-slate-700 dark:text-slate-300">
                 {org.projectCount} / {org.projectLimit}
               </dd>
             </div>
@@ -200,6 +206,7 @@ export function SettingsPage() {
             <Button
               onClick={() => void handlePlanChange(otherPlan)}
               disabled={changePlan.isPending}
+              loading={changePlan.isPending}
               className="mt-4 w-full sm:w-auto"
             >
               {changePlan.isPending
@@ -212,16 +219,19 @@ export function SettingsPage() {
         </Card>
 
         <Card>
-          <h2 className="font-medium text-slate-800">Session</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <h2 className="font-medium text-slate-800 dark:text-slate-100">
+            Session
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Sign out of WorkNest on this device.
           </p>
           <Button
             variant="secondary"
             onClick={() => void logout()}
+            loading={isLoggingOut}
             className="mt-4"
           >
-            Log out
+            {isLoggingOut ? "Logging out…" : "Log out"}
           </Button>
         </Card>
       </div>
