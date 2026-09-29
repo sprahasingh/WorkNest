@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Role } from "@/api/auth";
+import { dashboardKeys } from "@/features/dashboard/queries";
+import { orgKeys } from "@/features/org/queries";
 import { changeMemberRole, listMembers, removeMember } from "./api";
 
 export const memberKeys = {
@@ -32,6 +34,12 @@ export function useRemoveMember(orgId: string) {
     mutationFn: (memberId: string) => removeMember(orgId, memberId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: memberKeys.all(orgId) });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: orgKeys.detail(orgId),
+      });
     },
   });
 }

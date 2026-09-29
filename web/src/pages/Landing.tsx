@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 import { Link } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { Card } from "@/components/ui/Card";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Feature {
   title: string;
@@ -100,7 +101,7 @@ const SOCIAL_LINKS: SocialLink[] = [
 
 function BrandMark() {
   return (
-    <span className="flex items-center gap-2 text-lg font-bold text-slate-900">
+    <span className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white">
         W
       </span>
@@ -111,9 +112,9 @@ function BrandMark() {
 
 function ProductPreview() {
   return (
-    <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/60">
+    <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/60 dark:border-slate-700 dark:bg-slate-800 dark:shadow-none">
       <div className="flex items-center justify-between">
-        <div className="h-3 w-24 rounded-full bg-slate-200" />
+        <div className="h-3 w-24 rounded-full bg-slate-200 dark:bg-slate-700" />
         <div className="flex gap-1.5">
           <div className="h-2.5 w-2.5 rounded-full bg-red-300" />
           <div className="h-2.5 w-2.5 rounded-full bg-amber-300" />
@@ -127,18 +128,21 @@ function ProductPreview() {
           { label: "Members", value: "3/5" },
           { label: "Projects", value: "3/3" },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-lg bg-slate-50 p-3">
+          <div
+            key={stat.label}
+            className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/60"
+          >
             <p className="text-[11px] font-medium text-slate-400">
               {stat.label}
             </p>
-            <p className="mt-1 text-lg font-bold text-slate-800">
+            <p className="mt-1 text-lg font-bold text-slate-800 dark:text-slate-100">
               {stat.value}
             </p>
           </div>
         ))}
       </div>
 
-      <div className="mt-4 flex items-end gap-2 rounded-lg bg-slate-50 p-3">
+      <div className="mt-4 flex items-end gap-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-900/60">
         {[60, 85, 45, 95, 70, 55, 80].map((height, index) => (
           <div
             key={index}
@@ -152,12 +156,12 @@ function ProductPreview() {
         {["Ship onboarding flow", "Fix billing webhook"].map((title) => (
           <div
             key={title}
-            className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2"
+            className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 dark:border-slate-700"
           >
-            <span className="text-xs font-medium text-slate-700">
+            <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
               {title}
             </span>
-            <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700">
+            <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
               in progress
             </span>
           </div>
@@ -172,17 +176,18 @@ export function Landing() {
   const isAuthenticated = auth.status === "authenticated";
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/80 backdrop-blur">
+    <div className="min-h-screen bg-white dark:bg-slate-950">
+      <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <BrandMark />
           <div className="flex items-center gap-2 sm:gap-4">
             <Link
               to="/how-to-use"
-              className="hidden text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-block"
+              className="hidden text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-block dark:text-slate-300 dark:hover:text-teal-400"
             >
               How it works
             </Link>
+            <ThemeToggle />
             {isAuthenticated ? (
               <Link
                 to="/orgs"
@@ -194,7 +199,7 @@ export function Landing() {
               <>
                 <Link
                   to="/login"
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 sm:px-4"
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 sm:px-4 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Log in
                 </Link>
@@ -214,13 +219,13 @@ export function Landing() {
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pt-20 lg:pt-24">
           <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
             <div>
-              <span className="inline-flex items-center rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700">
+              <span className="inline-flex items-center rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
                 Multi-tenant project management
               </span>
-              <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
+              <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-slate-50">
                 One workspace, every team, properly isolated.
               </h1>
-              <p className="mt-5 max-w-xl text-lg text-slate-600">
+              <p className="mt-5 max-w-xl text-lg text-slate-600 dark:text-slate-400">
                 WorkNest is a project and task management workspace built for
                 organizations that need real tenant isolation, role-based
                 permissions, and a full audit trail, not just a shared todo
@@ -235,12 +240,12 @@ export function Landing() {
                 </Link>
                 <Link
                   to="/login"
-                  className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   Log in
                 </Link>
               </div>
-              <p className="mt-4 text-sm text-slate-400">
+              <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">
                 No credit card required. Free plan included.
               </p>
             </div>
@@ -251,14 +256,14 @@ export function Landing() {
           </div>
         </section>
 
-        <section className="border-t border-slate-100 bg-slate-50">
+        <section className="border-t border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
             <div className="max-w-2xl">
-              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-50">
                 Everything a growing team needs, nothing it has to build
                 itself.
               </h2>
-              <p className="mt-3 text-slate-600">
+              <p className="mt-3 text-slate-600 dark:text-slate-400">
                 Tenant isolation and access control are enforced at the data
                 layer, so your team can move fast without worrying about
                 permission bugs or data leaking across organizations.
@@ -267,11 +272,14 @@ export function Landing() {
 
             <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURES.map((feature) => (
-                <Card key={feature.title} className="shadow-none">
-                  <h3 className="font-semibold text-slate-800">
+                <Card
+                  key={feature.title}
+                  className="shadow-none dark:border-slate-700 dark:bg-slate-800"
+                >
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-100">
                     {feature.title}
                   </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                     {feature.description}
                   </p>
                 </Card>
@@ -299,8 +307,8 @@ export function Landing() {
         </section>
       </main>
 
-      <footer className="border-t border-slate-100">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-8 text-sm text-slate-500 sm:flex-row sm:justify-between sm:px-6">
+      <footer className="border-t border-slate-100 dark:border-slate-800">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-8 text-sm text-slate-500 sm:flex-row sm:justify-between sm:px-6 dark:text-slate-400">
           <BrandMark />
 
           <div className="flex items-center gap-4">

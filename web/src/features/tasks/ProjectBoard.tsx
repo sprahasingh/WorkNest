@@ -18,7 +18,7 @@ import type { Task, TaskStatus, TaskPriority } from "./api";
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
 
 const selectStyles =
-  "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30";
+  "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
 
 export function ProjectBoard() {
   const { orgId } = useOrg();
@@ -78,17 +78,17 @@ export function ProjectBoard() {
   const isArchived = projectQuery.data?.archivedAt != null;
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Link
               to={`/orgs/${orgId}/projects`}
-              className="text-sm text-slate-500 hover:text-teal-700 hover:underline"
+              className="text-sm text-slate-500 hover:text-teal-700 hover:underline dark:text-slate-400 dark:hover:text-teal-400"
             >
               ← Projects
             </Link>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
+            <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">
               {projectQuery.data?.name ?? "Loading…"}
             </h1>
           </div>
@@ -100,7 +100,7 @@ export function ProjectBoard() {
         </div>
 
         {isArchived && (
-          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
             This project is archived. Existing tasks are still visible, but
             new tasks can&apos;t be created here.
           </p>
@@ -135,7 +135,7 @@ export function ProjectBoard() {
             ))}
           </select>
 
-          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+          <label className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
             <input
               type="checkbox"
               checked={filters.mine ?? false}

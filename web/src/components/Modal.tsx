@@ -33,9 +33,9 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
         aria-modal="true"
         aria-labelledby="modal-title"
         onClick={(event) => event.stopPropagation()}
-        className="flex max-h-[90vh] w-full flex-col rounded-t-2xl bg-white p-6 shadow-xl sm:max-w-md sm:rounded-2xl"
+        className="flex max-h-[90vh] w-full flex-col rounded-t-2xl bg-white p-6 shadow-xl sm:max-w-md sm:rounded-2xl dark:bg-slate-800"
       >
-        <h2 id="modal-title" className="text-lg font-semibold text-slate-900">
+        <h2 id="modal-title" className="text-lg font-semibold text-slate-900 dark:text-slate-50">
           {title}
         </h2>
         <div className="mt-4 overflow-y-auto">{children}</div>

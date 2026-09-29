@@ -116,17 +116,21 @@ export function InvitesPanel() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-slate-900">Invites</h2>
+      <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+        Invites
+      </h2>
 
       {org && (
         <Card className="p-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-slate-700">Seats used</span>
-            <span className="text-slate-500">
+            <span className="font-medium text-slate-700 dark:text-slate-200">
+              Seats used
+            </span>
+            <span className="text-slate-500 dark:text-slate-400">
               {org.seatsUsed} / {org.seatLimit}
             </span>
           </div>
-          <div className="mt-2 h-2 rounded-full bg-slate-200">
+          <div className="mt-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700">
             <div
               className="h-2 rounded-full bg-teal-600"
               style={{
@@ -144,7 +148,9 @@ export function InvitesPanel() {
             noValidate
             className="space-y-4"
           >
-            <h2 className="font-medium text-slate-800">Invite someone</h2>
+            <h2 className="font-medium text-slate-800 dark:text-slate-100">
+              Invite someone
+            </h2>
 
             <ErrorBanner message={formError} />
 
@@ -179,16 +185,16 @@ export function InvitesPanel() {
               </div>
             </div>
 
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} loading={isSubmitting}>
               {isSubmitting ? "Sending…" : "Send invite"}
             </Button>
 
             {revealed && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <p className="text-sm font-medium text-amber-800">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-900/10">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
                   Invite link for {revealed.email}
                 </p>
-                <p className="mt-1 text-xs text-amber-700">
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                   This link is shown once. Only its hash is stored, so it
                   can&apos;t be displayed again — copy it now, or revoke and
                   send a new invite later if it&apos;s lost.
@@ -197,7 +203,7 @@ export function InvitesPanel() {
                   <input
                     readOnly
                     value={revealed.url}
-                    className="flex-1 rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs"
+                    className="flex-1 rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs dark:border-amber-900/40 dark:bg-slate-800 dark:text-slate-200"
                     onFocus={(event) => event.target.select()}
                   />
                   <button
@@ -215,38 +221,45 @@ export function InvitesPanel() {
       )}
 
       <Card className="p-0">
-        <h2 className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">
+        <h2 className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800 dark:border-slate-700 dark:text-slate-100">
           Pending invites
         </h2>
 
         {isPending && (
           <div className="space-y-2 p-4">
             {[0, 1].map((i) => (
-              <div key={i} className="h-8 animate-pulse rounded bg-slate-200" />
+              <div
+                key={i}
+                className="h-8 animate-pulse rounded bg-slate-200 dark:bg-slate-700"
+              />
             ))}
           </div>
         )}
 
         {isError && (
-          <p className="p-4 text-sm text-red-600">
+          <p className="p-4 text-sm text-red-600 dark:text-red-400">
             Couldn&apos;t load invites.
           </p>
         )}
 
         {!isPending && !isError && invites?.length === 0 && (
-          <p className="p-4 text-sm text-slate-500">No pending invites.</p>
+          <p className="p-4 text-sm text-slate-500 dark:text-slate-400">
+            No pending invites.
+          </p>
         )}
 
         {!isPending && !isError && invites && invites.length > 0 && (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-slate-100 dark:divide-slate-700">
             {invites.map((invite) => (
               <li
                 key={invite._id}
                 className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-slate-800">{invite.email}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="truncate text-slate-800 dark:text-slate-100">
+                    {invite.email}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     <span className="font-mono">{invite.role}</span> ·
                     Expires{" "}
                     {new Date(invite.expiresAt).toLocaleDateString()}
@@ -256,9 +269,16 @@ export function InvitesPanel() {
                   <button
                     type="button"
                     onClick={() => void handleRevoke(invite._id)}
-                    className="self-start text-sm font-medium text-red-600 hover:underline sm:self-auto"
+                    disabled={
+                      revokeInvite.isPending &&
+                      revokeInvite.variables === invite._id
+                    }
+                    className="self-start text-sm font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400 sm:self-auto"
                   >
-                    Revoke
+                    {revokeInvite.isPending &&
+                    revokeInvite.variables === invite._id
+                      ? "Revoking…"
+                      : "Revoke"}
                   </button>
                 )}
               </li>

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Plan } from "@/api/auth";
+import { dashboardKeys } from "@/features/dashboard/queries";
 import { changePlan, getOrg, updateOrg, type UpdateOrgInput } from "./api";
 
 export const orgKeys = {
@@ -31,6 +32,9 @@ export function useChangePlan(orgId: string) {
     mutationFn: (plan: Plan) => changePlan(orgId, plan),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: orgKeys.detail(orgId) });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
     },
   });
 }

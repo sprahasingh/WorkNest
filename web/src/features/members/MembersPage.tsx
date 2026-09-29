@@ -84,7 +84,7 @@ export function MembersPage() {
         onChange={(event) =>
           handleRoleChange(member, event.target.value as Role)
         }
-        className="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30"
+        className="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
       >
         {ROLE_OPTIONS.map((role) => (
           <option key={role} value={role}>
@@ -93,27 +93,31 @@ export function MembersPage() {
         ))}
       </select>
     ) : (
-      <span className="font-mono text-slate-600">{member.role}</span>
+      <span className="font-mono text-slate-600 dark:text-slate-300">
+        {member.role}
+      </span>
     );
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-2xl font-bold text-slate-900">Members</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+          Members
+        </h1>
 
         {isPending && (
           <div className="mt-6 space-y-2">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="h-14 animate-pulse rounded-xl bg-slate-200"
+                className="h-14 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800"
               />
             ))}
           </div>
         )}
 
         {isError && (
-          <p className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
             Couldn&apos;t load members.
           </p>
         )}
@@ -128,7 +132,7 @@ export function MembersPage() {
                   <Card key={member._id} className="p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-slate-800">
+                        <p className="truncate font-medium text-slate-800 dark:text-slate-100">
                           {member.userId.name}
                           {isSelf && (
                             <span className="ml-2 text-xs text-slate-400">
@@ -136,7 +140,7 @@ export function MembersPage() {
                             </span>
                           )}
                         </p>
-                        <p className="truncate text-sm text-slate-500">
+                        <p className="truncate text-sm text-slate-500 dark:text-slate-400">
                           {member.userId.email}
                         </p>
                       </div>
@@ -146,8 +150,8 @@ export function MembersPage() {
                           onClick={() => setRemoveTarget({ member, isSelf })}
                           className={
                             isSelf
-                              ? "shrink-0 text-sm font-medium text-slate-600 hover:underline"
-                              : "shrink-0 text-sm font-medium text-red-600 hover:underline"
+                              ? "shrink-0 text-sm font-medium text-slate-600 hover:underline dark:text-slate-300"
+                              : "shrink-0 text-sm font-medium text-red-600 hover:underline dark:text-red-400"
                           }
                         >
                           {isSelf ? "Leave" : "Remove"}
@@ -167,9 +171,9 @@ export function MembersPage() {
             </div>
 
             {/* Desktop: table */}
-            <div className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm sm:block">
+            <div className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:block">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 text-slate-500">
+                <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Email</th>
@@ -185,9 +189,9 @@ export function MembersPage() {
                     return (
                       <tr
                         key={member._id}
-                        className="border-b border-slate-100 last:border-0"
+                        className="border-b border-slate-100 last:border-0 dark:border-slate-700"
                       >
-                        <td className="px-4 py-3 text-slate-800">
+                        <td className="px-4 py-3 text-slate-800 dark:text-slate-100">
                           {member.userId.name}
                           {isSelf && (
                             <span className="ml-2 text-xs text-slate-400">
@@ -195,11 +199,11 @@ export function MembersPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                           {member.userId.email}
                         </td>
                         <td className="px-4 py-3">{roleSelect(member)}</td>
-                        <td className="px-4 py-3 text-slate-500">
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                           {new Date(member.createdAt).toLocaleDateString()}
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -211,8 +215,8 @@ export function MembersPage() {
                               }
                               className={
                                 isSelf
-                                  ? "text-sm font-medium text-slate-600 hover:underline"
-                                  : "text-sm font-medium text-red-600 hover:underline"
+                                  ? "text-sm font-medium text-slate-600 hover:underline dark:text-slate-300"
+                                  : "text-sm font-medium text-red-600 hover:underline dark:text-red-400"
                               }
                             >
                               {isSelf ? "Leave" : "Remove"}
@@ -238,7 +242,7 @@ export function MembersPage() {
         onClose={() => setRemoveTarget(null)}
         title={removeTarget?.isSelf ? "Leave organization?" : "Remove member?"}
       >
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
           {removeTarget?.isSelf
             ? "You'll lose access to this organization immediately. You can only rejoin if someone invites you again."
             : `"${removeTarget?.member.userId.name}" will lose access to this organization immediately.`}
@@ -255,6 +259,7 @@ export function MembersPage() {
             type="button"
             variant="danger"
             onClick={() => void handleRemoveConfirm()}
+            loading={removeMemberMutation.isPending}
           >
             {removeTarget?.isSelf ? "Leave" : "Remove"}
           </Button>
