@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { InfiniteData } from "@tanstack/query-core";
+import { dashboardKeys } from "@/features/dashboard/queries";
 import {
   createTask,
   deleteTask,
@@ -63,6 +64,9 @@ export function useCreateTask(
       void queryClient.invalidateQueries({
         queryKey: taskKeys.list(orgId, projectId, "todo", filters),
       });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
     },
   });
 }
@@ -82,6 +86,9 @@ export function useUpdateTask(orgId: string, projectId: string) {
       void queryClient.invalidateQueries({
         queryKey: taskKeys.all(orgId, projectId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
     },
   });
 }
@@ -94,6 +101,9 @@ export function useDeleteTask(orgId: string, projectId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: taskKeys.all(orgId, projectId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
       });
     },
   });
@@ -186,6 +196,9 @@ export function useUpdateTaskStatus(
       if (!context) return;
       void queryClient.invalidateQueries({ queryKey: context.sourceKey });
       void queryClient.invalidateQueries({ queryKey: context.targetKey });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
     },
   });
 }

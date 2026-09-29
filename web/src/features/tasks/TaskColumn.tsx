@@ -43,8 +43,8 @@ export function TaskColumn({
   const tasks = data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
-    <div className="flex w-[85vw] shrink-0 snap-start flex-col rounded-xl bg-slate-50 p-3 sm:w-72">
-      <h2 className="text-sm font-semibold text-slate-700">
+    <div className="flex w-[85vw] shrink-0 snap-start flex-col rounded-xl bg-slate-50 p-3 dark:bg-slate-900 sm:w-72">
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
         {COLUMN_LABELS[status]}{" "}
         <span className="font-normal text-slate-400">({tasks.length})</span>
       </h2>
@@ -54,12 +54,14 @@ export function TaskColumn({
           [0, 1, 2].map((i) => (
             <div
               key={i}
-              className="h-20 animate-pulse rounded-lg bg-slate-200"
+              className="h-20 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800"
             />
           ))}
 
         {isError && (
-          <p className="text-sm text-red-600">Couldn&apos;t load tasks.</p>
+          <p className="text-sm text-red-600 dark:text-red-400">
+            Couldn&apos;t load tasks.
+          </p>
         )}
 
         {!isPending &&

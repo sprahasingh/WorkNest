@@ -6,6 +6,7 @@ import { useAuth } from "@/auth/auth-context";
 import { cn } from "@/lib/cn";
 import { hasSeenOnboarding } from "@/lib/onboarding";
 import { OnboardingTour } from "@/components/OnboardingTour";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface NavItem {
   to: string;
@@ -30,7 +31,7 @@ function ChevronDownIcon({ className }: { className?: string }) {
 
 function WorkspaceSwitcher() {
   const { orgId, orgName, role } = useOrg();
-  const { memberships, logout } = useAuth();
+  const { memberships, logout, isLoggingOut } = useAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -60,18 +61,21 @@ function WorkspaceSwitcher() {
   );
 
   return (
-    <div ref={containerRef} className="relative border-b border-slate-200 p-2">
+    <div
+      ref={containerRef}
+      className="relative border-b border-slate-200 p-2 dark:border-slate-700"
+    >
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-100"
+        className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-600 text-xs font-bold text-white">
           W
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold text-slate-800">
+          <span className="block truncate font-semibold text-slate-800 dark:text-slate-100">
             {orgName}
           </span>
           <span className="block font-mono text-xs text-slate-400">
@@ -87,7 +91,7 @@ function WorkspaceSwitcher() {
       </button>
 
       {open && (
-        <div className="absolute left-2 right-2 top-full z-20 mt-1 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute left-2 right-2 top-full z-20 mt-1 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
           {otherMemberships.length > 0 && (
             <>
               <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -98,7 +102,7 @@ function WorkspaceSwitcher() {
                   key={membership._id}
                   to={`/orgs/${membership.tenantId.id}/dashboard`}
                   onClick={() => setOpen(false)}
-                  className="block truncate px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  className="block truncate px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   {membership.tenantId.name}
                   <span className="ml-1.5 text-xs text-slate-400">
@@ -106,26 +110,49 @@ function WorkspaceSwitcher() {
                   </span>
                 </Link>
               ))}
-              <div className="my-1 border-t border-slate-100" />
+              <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
             </>
           )}
 
           <Link
             to="/orgs"
             onClick={() => setOpen(false)}
-            className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             All organizations
           </Link>
 
-          <div className="my-1 border-t border-slate-100" />
+          <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
 
           <button
             type="button"
             onClick={() => void logout()}
-            className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            disabled={isLoggingOut}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700"
           >
-            Log out
+            {isLoggingOut && (
+              <svg
+                className="h-3.5 w-3.5 animate-spin text-slate-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                />
+              </svg>
+            )}
+            {isLoggingOut ? "Logging out…" : "Log out"}
           </button>
         </div>
       )}
@@ -160,7 +187,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 "block rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 isActive
                   ? "bg-teal-600 text-white"
-                  : "text-slate-600 hover:bg-slate-100",
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
               )
             }
           >
@@ -169,17 +196,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      <div className="border-t border-slate-200 p-2">
+      <div className="flex items-center justify-between gap-2 border-t border-slate-200 p-2 dark:border-slate-700">
         <Link
           to="/how-to-use"
           target="_blank"
-          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
         >
-          <span className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold">
+          <span className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold dark:border-slate-600">
             ?
           </span>
-          How to use WorkNest
+          How to use
         </Link>
+        <ThemeToggle />
       </div>
     </div>
   );
@@ -199,18 +227,18 @@ export function AppLayout() {
   }, [mobileNavOpen]);
 
   return (
-    <div className="min-h-screen bg-slate-100 md:flex">
-      <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white md:block">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 md:flex">
+      <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:block">
         <SidebarContent />
       </aside>
 
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 md:hidden">
+      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 md:hidden">
         <button
           type="button"
           onClick={() => setMobileNavOpen(true)}
           aria-label="Open menu"
           aria-expanded={mobileNavOpen}
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -228,12 +256,15 @@ export function AppLayout() {
             <line x1="4" y1="18" x2="20" y2="18" />
           </svg>
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-teal-600 text-xs font-bold text-white">
             W
           </span>
-          <span className="font-semibold text-slate-800">WorkNest</span>
+          <span className="font-semibold text-slate-800 dark:text-slate-100">
+            WorkNest
+          </span>
         </div>
+        <ThemeToggle />
       </header>
 
       {mobileNavOpen && (
@@ -242,14 +273,16 @@ export function AppLayout() {
             className="absolute inset-0 bg-black/40"
             onClick={() => setMobileNavOpen(false)}
           />
-          <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <span className="font-semibold text-slate-800">Menu</span>
+          <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-xl dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+              <span className="font-semibold text-slate-800 dark:text-slate-100">
+                Menu
+              </span>
               <button
                 type="button"
                 onClick={() => setMobileNavOpen(false)}
                 aria-label="Close menu"
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
