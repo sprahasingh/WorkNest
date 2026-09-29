@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
+import { Card } from "@/components/ui/Card";
 import { useDashboard } from "./queries";
 import type { StatusCount } from "./api";
 
@@ -58,18 +59,18 @@ export function DashboardPage() {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-slate-100 px-6 py-10">
+      <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-5xl space-y-4">
           <div className="h-8 w-48 animate-pulse rounded bg-slate-200" />
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-24 animate-pulse rounded-lg bg-slate-200"
+                className="h-24 animate-pulse rounded-xl bg-slate-200"
               />
             ))}
           </div>
-          <div className="h-64 animate-pulse rounded-lg bg-slate-200" />
+          <div className="h-64 animate-pulse rounded-xl bg-slate-200" />
         </div>
       </div>
     );
@@ -77,7 +78,7 @@ export function DashboardPage() {
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen bg-slate-100 px-6 py-10">
+      <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
         <p className="mx-auto max-w-5xl text-sm text-red-600">
           Couldn&apos;t load the dashboard.
         </p>
@@ -101,9 +102,9 @@ export function DashboardPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
-        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard label="Overdue tasks" value={data.overdueCount} />
@@ -129,7 +130,7 @@ export function DashboardPage() {
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#1e293b" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="#0d9488" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ChartCard>
 
@@ -139,7 +140,7 @@ export function DashboardPage() {
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#475569" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="#134e4a" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ChartCard>
         </div>
@@ -153,14 +154,14 @@ export function DashboardPage() {
             <Line
               type="monotone"
               dataKey="count"
-              stroke="#1e293b"
+              stroke="#0d9488"
               strokeWidth={2}
               dot={false}
             />
           </LineChart>
         </ChartCard>
 
-        <div className="rounded-lg bg-white p-6 shadow">
+        <Card>
           <h2 className="font-medium text-slate-800">Top assignees</h2>
           {data.topAssignees.length === 0 ? (
             <p className="mt-3 text-sm text-slate-500">
@@ -184,7 +185,7 @@ export function DashboardPage() {
               ))}
             </ul>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );
@@ -200,11 +201,11 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-lg bg-white p-4 shadow">
+    <Card className="p-4">
       <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-slate-800">{value}</p>
+      <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
       {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
-    </div>
+    </Card>
   );
 }
 
@@ -216,13 +217,13 @@ function ChartCard({
   children: ReactElement;
 }) {
   return (
-    <div className="rounded-lg bg-white p-6 shadow">
+    <Card>
       <h2 className="font-medium text-slate-800">{title}</h2>
       <div className="mt-4 h-56">
         <ResponsiveContainer width="100%" height="100%">
           {children}
         </ResponsiveContainer>
       </div>
-    </div>
+    </Card>
   );
 }

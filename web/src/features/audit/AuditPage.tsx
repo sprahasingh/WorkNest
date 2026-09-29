@@ -1,9 +1,14 @@
 import { useSearchParams } from "react-router";
 import { useOrg } from "@/hooks/useOrg";
 import { useMembers } from "@/features/members/queries";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, type AuditAction } from "./api";
 import { useAuditLog, type AuditFilters } from "./queries";
 import { describeAuditEntry } from "./format";
+
+const selectStyles =
+  "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30";
 
 export function AuditPage() {
   const { orgId } = useOrg();
@@ -42,9 +47,9 @@ export function AuditPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-bold text-slate-800">Audit log</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Audit log</h1>
 
         <div className="mt-4 flex flex-wrap gap-3">
           <select
@@ -52,7 +57,7 @@ export function AuditPage() {
             onChange={(event) =>
               setFilter("action", event.target.value || null)
             }
-            className="rounded border border-slate-300 px-2 py-1 text-sm"
+            className={selectStyles}
           >
             <option value="">All actions</option>
             {AUDIT_ACTIONS.map((action) => (
@@ -67,7 +72,7 @@ export function AuditPage() {
             onChange={(event) =>
               setFilter("entityType", event.target.value || null)
             }
-            className="rounded border border-slate-300 px-2 py-1 text-sm"
+            className={selectStyles}
           >
             <option value="">All types</option>
             {AUDIT_ENTITY_TYPES.map((type) => (
@@ -82,7 +87,7 @@ export function AuditPage() {
             onChange={(event) =>
               setFilter("actorId", event.target.value || null)
             }
-            className="rounded border border-slate-300 px-2 py-1 text-sm"
+            className={selectStyles}
           >
             <option value="">Everyone</option>
             {members.map((member) => (
@@ -98,44 +103,44 @@ export function AuditPage() {
             [0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="h-12 animate-pulse rounded-lg bg-slate-200"
+                className="h-12 animate-pulse rounded-xl bg-slate-200"
               />
             ))}
 
           {isError && (
-            <p className="rounded bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
               Couldn&apos;t load the audit log.
             </p>
           )}
 
           {!isPending && !isError && entries.length === 0 && (
-            <p className="rounded-lg bg-white p-6 text-center text-sm text-slate-500 shadow">
+            <Card className="text-center text-sm text-slate-500">
               No matching activity yet.
-            </p>
+            </Card>
           )}
 
           {!isPending &&
             !isError &&
             entries.map((entry) => (
-              <div key={entry._id} className="rounded-lg bg-white p-3 shadow">
+              <Card key={entry._id} className="p-3">
                 <p className="text-sm text-slate-800">
                   {describeAuditEntry(entry)}
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
                   {new Date(entry.createdAt).toLocaleString()}
                 </p>
-              </div>
+              </Card>
             ))}
 
           {hasNextPage && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => void fetchNextPage()}
               disabled={isFetchingNextPage}
-              className="w-full rounded border border-slate-300 py-2 text-sm font-medium text-slate-600 disabled:opacity-50"
+              className="w-full"
             >
               {isFetchingNextPage ? "Loading…" : "Load more"}
-            </button>
+            </Button>
           )}
         </div>
       </div>

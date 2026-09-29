@@ -5,6 +5,9 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { Modal } from "@/components/Modal";
 import { useCan } from "@/hooks/useCan";
+import { Field, inputStyles } from "@/components/ui/Field";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { Button } from "@/components/ui/Button";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import type { Member } from "@/features/members/api";
 import type { CreateTaskInput, Task, UpdateTaskInput } from "./api";
@@ -148,86 +151,63 @@ export function TaskDrawer({
         noValidate
         className="space-y-4"
       >
-        {formError && (
-          <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-            {formError}
-          </p>
-        )}
+        <ErrorBanner message={formError} />
 
-        <div>
-          <label htmlFor="title" className="block text-sm font-medium text-slate-700">
-            Title
-          </label>
+        <Field label="Title" htmlFor="title" error={errors.title?.message}>
           <input
             id="title"
             type="text"
             {...register("title")}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            className={inputStyles}
           />
-          {errors.title && (
-            <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
-          )}
-        </div>
+        </Field>
 
-        <div>
-          <label
-            htmlFor="description"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Description
-          </label>
+        <Field label="Description" htmlFor="description">
           <textarea
             id="description"
             rows={3}
             {...register("description")}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            className={inputStyles}
           />
-        </div>
+        </Field>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="priority"
-              className="block text-sm font-medium text-slate-700"
-            >
-              Priority
-            </label>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Priority" htmlFor="priority">
             <select
               id="priority"
               {...register("priority")}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              className={inputStyles}
             >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
             </select>
-          </div>
+          </Field>
 
-          <div>
-            <label htmlFor="dueDate" className="block text-sm font-medium text-slate-700">
-              Due date
-            </label>
+          <Field label="Due date" htmlFor="dueDate">
             <input
               id="dueDate"
               type="date"
               {...register("dueDate")}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              className={inputStyles}
             />
-          </div>
+          </Field>
         </div>
 
-        <div>
-          <label
-            htmlFor="assigneeId"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Assignee
-          </label>
+        <Field
+          label="Assignee"
+          htmlFor="assigneeId"
+          hint={
+            assigneeSelectDisabled
+              ? "Only managers and admins can reassign tasks."
+              : undefined
+          }
+        >
           <select
             id="assigneeId"
             disabled={assigneeSelectDisabled}
             {...register("assigneeId")}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 disabled:bg-slate-100 disabled:text-slate-400"
+            className={inputStyles}
           >
             <option value="">Unassigned</option>
             {members.map((member) => (
@@ -236,57 +216,41 @@ export function TaskDrawer({
               </option>
             ))}
           </select>
-          {assigneeSelectDisabled && (
-            <p className="mt-1 text-xs text-slate-400">
-              Only managers and admins can reassign tasks.
-            </p>
-          )}
-        </div>
+        </Field>
 
         {isEditing && (
-          <div>
-            <label htmlFor="status" className="block text-sm font-medium text-slate-700">
-              Status
-            </label>
-            <select
-              id="status"
-              {...register("status")}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            >
+          <Field label="Status" htmlFor="status">
+            <select id="status" {...register("status")} className={inputStyles}>
               <option value="todo">To do</option>
               <option value="in_progress">In progress</option>
               <option value="done">Done</option>
             </select>
-          </div>
+          </Field>
         )}
 
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
           <div>
             {isEditing && canDelete && (
               <button
                 type="button"
                 onClick={() => void handleDelete()}
-                className="text-sm font-medium text-red-600"
+                className="text-sm font-medium text-red-600 hover:underline"
               >
                 Delete task
               </button>
             )}
           </div>
           <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded px-4 py-2 text-sm font-medium text-slate-600"
-            >
+            <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {isSubmitting ? "Saving…" : isEditing ? "Save changes" : "Create task"}
-            </button>
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting
+                ? "Saving…"
+                : isEditing
+                  ? "Save changes"
+                  : "Create task"}
+            </Button>
           </div>
         </div>
       </form>

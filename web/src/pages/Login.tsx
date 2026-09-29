@@ -5,6 +5,10 @@ import { z } from "zod";
 import { Link, useLocation, useNavigate, type Location } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
+import { AuthShell } from "@/components/AuthShell";
+import { Field, inputStyles } from "@/components/ui/Field";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { Button } from "@/components/ui/Button";
 
 const loginFormSchema = z.object({
   email: z
@@ -64,75 +68,59 @@ export function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100">
+    <AuthShell>
       <form
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         noValidate
-        className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow"
+        className="space-y-4"
       >
-        <h1 className="text-2xl font-bold text-slate-800">Log in</h1>
-
-        {formError && (
-          <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-            {formError}
-          </p>
-        )}
-
         <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Email
-          </label>
+          <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Log in to continue to your workspace.
+          </p>
+        </div>
+
+        <ErrorBanner message={formError} />
+
+        <Field label="Email" htmlFor="email" error={errors.email?.message}>
           <input
             id="email"
             type="email"
             autoComplete="email"
             {...register("email")}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            className={inputStyles}
           />
-          {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-          )}
-        </div>
+        </Field>
 
-        <div>
-          <label
-            htmlFor="password"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Password
-          </label>
+        <Field
+          label="Password"
+          htmlFor="password"
+          error={errors.password?.message}
+        >
           <input
             id="password"
             type="password"
             autoComplete="current-password"
             {...register("password")}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            className={inputStyles}
           />
-          {errors.password && (
-            <p className="mt-1 text-sm text-red-600">
-              {errors.password.message}
-            </p>
-          )}
-        </div>
+        </Field>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded bg-slate-800 px-4 py-2 text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? "Logging in…" : "Log in"}
-        </button>
+        </Button>
 
         <p className="text-center text-sm text-slate-600">
           Don&apos;t have an account?{" "}
-          <Link to="/register" className="font-medium text-slate-800 underline">
+          <Link
+            to="/register"
+            className="font-medium text-teal-700 hover:underline"
+          >
             Register
           </Link>
         </p>
       </form>
-    </div>
+    </AuthShell>
   );
 }
