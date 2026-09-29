@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (input: LoginInput) => {
       const { accessToken } = await loginRequest(input);
-      await establishSession(accessToken);
+      return establishSession(accessToken);
     },
     [establishSession],
   );
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(
     async (input: RegisterInput) => {
       const { accessToken } = await registerRequest(input);
-      await establishSession(accessToken);
+      return establishSession(accessToken);
     },
     [establishSession],
   );

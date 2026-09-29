@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { Navigate } from "react-router";
+import { Link, Navigate } from "react-router";
 import {
   Bar,
   BarChart,
@@ -113,10 +113,19 @@ export function DashboardPage() {
     count: entry.count,
   }));
 
+  const isNewOrg = data.usage.projectCount === 0;
+
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+
+        {isNewOrg && (
+          <GettingStarted
+            orgId={orgId}
+            hasMultipleMembers={data.usage.memberCount > 1}
+          />
+        )}
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatCard label="Overdue tasks" value={data.overdueCount} />
@@ -244,6 +253,85 @@ function ChartCard({
           {children}
         </ResponsiveContainer>
       </div>
+    </Card>
+  );
+}
+
+function GettingStarted({
+  orgId,
+  hasMultipleMembers,
+}: {
+  orgId: string;
+  hasMultipleMembers: boolean;
+}) {
+  const steps = [
+    {
+      done: false,
+      title: "Create a project",
+      description: "Projects group related tasks together.",
+      to: `/orgs/${orgId}/projects`,
+      cta: "Create project",
+    },
+    {
+      done: hasMultipleMembers,
+      title: "Invite your team",
+      description: "Add teammates and assign them a role.",
+      to: `/orgs/${orgId}/members`,
+      cta: "Invite people",
+    },
+    {
+      done: false,
+      title: "Create a task",
+      description: "Open a project to add your first task.",
+      to: `/orgs/${orgId}/projects`,
+      cta: "Go to projects",
+    },
+  ];
+
+  return (
+    <Card className="border-teal-100 bg-teal-50/40">
+      <h2 className="font-semibold text-slate-800">
+        Getting started with{" "}
+        <span className="text-teal-700">WorkNest</span>
+      </h2>
+      <p className="mt-1 text-sm text-slate-600">
+        A few steps to get your workspace up and running.
+      </p>
+
+      <ol className="mt-4 space-y-3">
+        {steps.map((step, index) => (
+          <li
+            key={step.title}
+            className="flex flex-col gap-2 rounded-lg bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex items-start gap-3">
+              <span
+                className={
+                  step.done
+                    ? "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-white"
+                    : "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500"
+                }
+              >
+                {step.done ? "✓" : index + 1}
+              </span>
+              <div>
+                <p className="text-sm font-medium text-slate-800">
+                  {step.title}
+                </p>
+                <p className="text-xs text-slate-500">{step.description}</p>
+              </div>
+            </div>
+            {!step.done && (
+              <Link
+                to={step.to}
+                className="shrink-0 self-start rounded-lg border border-teal-200 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50 sm:self-auto"
+              >
+                {step.cta}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ol>
     </Card>
   );
 }
