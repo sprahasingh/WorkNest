@@ -5,6 +5,7 @@ import {
   refresh,
   logout,
   createSession,
+  deleteAccount,
 } from "./auth.service.js";
 import {
   setRefreshCookie,
@@ -95,4 +96,13 @@ export async function meController(req: Request, res: Response): Promise<void> {
     .populate("tenantId", "name slug plan");
 
   res.status(200).json({ user, memberships });
+}
+
+export async function deleteAccountController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await deleteAccount(req.auth!.userId);
+  clearRefreshCookie(res);
+  res.status(204).send();
 }

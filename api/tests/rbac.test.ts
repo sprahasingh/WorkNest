@@ -20,6 +20,8 @@ const EXPECTED_MATRIX: Record<
   "task:delete": { admin: true, manager: true, member: false },
   "task:assign": { admin: true, manager: true, member: false },
   "task:update:own": { admin: true, manager: true, member: true },
+  "task:request-update": { admin: true, manager: true, member: false },
+  "task:comment": { admin: true, manager: true, member: true },
   "audit:read": { admin: true, manager: false, member: false },
   "dashboard:read": { admin: true, manager: true, member: false },
 };

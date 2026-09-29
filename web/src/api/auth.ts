@@ -79,3 +79,7 @@ export async function fetchMe(): Promise<MeResponse> {
   const response = await apiClient.get<MeResponse>("/auth/me");
   return response.data;
 }
+
+export async function deleteAccount(): Promise<void> {
+  await apiClient.delete("/auth/me");
+}

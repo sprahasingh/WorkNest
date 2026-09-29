@@ -11,6 +11,13 @@ const userSchema = new Schema(
     },
     name: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
+    status: {
+      type: String,
+      enum: ["active", "deleted"],
+      default: "active",
+      select: false,
+    },
+    deletedAt: { type: Date, default: null, select: false },
   },
   {
     timestamps: true,
