@@ -21,12 +21,13 @@ interface TopAssignee {
   openTaskCount: number;
 }
 
-export async function getDashboard() {
+export async function getDashboard(days: number = 14) {
+  const clampedDays = Math.min(Math.max(days, 7), 90);
   const tenantId = requireTenantId();
   const tenantObjectId = new mongoose.Types.ObjectId(tenantId);
 
   const fourteenDaysAgo = new Date();
-  fourteenDaysAgo.setUTCDate(fourteenDaysAgo.getUTCDate() - 13);
+  fourteenDaysAgo.setUTCDate(fourteenDaysAgo.getUTCDate() - (clampedDays - 1));
   fourteenDaysAgo.setUTCHours(0, 0, 0, 0);
 
   const [
@@ -61,8 +62,14 @@ export async function getDashboard() {
       name: string;
       email: string;
     }>([
-      { $match: { status: { $ne: "done" }, assigneeId: { $ne: null } } },
-      { $group: { _id: "$assigneeId", openTaskCount: { $sum: 1 } } },
+      {
+        $match: {
+          status: { $ne: "done" },
+          assigneeIds: { $not: { $size: 0 } },
+        },
+      },
+      { $unwind: "$assigneeIds" },
+      { $group: { _id: "$assigneeIds", openTaskCount: { $sum: 1 } } },
       { $sort: { openTaskCount: -1 } },
       { $limit: 5 },
       {
@@ -98,7 +105,7 @@ export async function getDashboard() {
     createdPerDayRaw.map((entry) => [entry._id, entry.count]),
   );
 
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < clampedDays; i++) {
     const date = new Date(fourteenDaysAgo);
     date.setUTCDate(date.getUTCDate() + i);
     const dateKey = date.toISOString().slice(0, 10);

@@ -88,10 +88,14 @@ export async function register(input: RegisterInput) {
 
 export async function login(input: LoginInput) {
   const user = await User.findOne({ email: input.email }).select(
-    "+passwordHash",
+    "+passwordHash +status",
   );
 
   if (!user) {
+    throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
+  }
+
+  if ((user as unknown as Record<string, unknown>).status === "deleted") {
     throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
   }
 
@@ -105,6 +109,49 @@ export async function login(input: LoginInput) {
   }
 
   return { userId: user._id };
+}
+
+export async function deleteAccount(userId: string): Promise<void> {
+  const dbSession = await mongoose.startSession();
+
+  try {
+    await dbSession.withTransaction(async () => {
+      await User.updateOne(
+        { _id: userId },
+        {
+          email: `deleted_${userId}@deleted`,
+          status: "deleted",
+          deletedAt: new Date(),
+        },
+        { session: dbSession },
+      );
+
+      await Session.updateMany(
+        { userId, revokedAt: null },
+        { revokedAt: new Date() },
+        { session: dbSession },
+      );
+
+      const memberships = await Membership.find({ userId })
+        .setOptions({ skipTenant: true })
+        .lean()
+        .session(dbSession);
+
+      for (const m of memberships) {
+        await Organization.updateOne(
+          { _id: m.tenantId },
+          { $inc: { seatsUsed: -1 } },
+          { session: dbSession },
+        ).setOptions({ skipTenant: true });
+      }
+
+      await Membership.deleteMany({ userId })
+        .setOptions({ skipTenant: true })
+        .session(dbSession);
+    });
+  } finally {
+    await dbSession.endSession();
+  }
 }
 
 export async function refresh(rawToken: string) {

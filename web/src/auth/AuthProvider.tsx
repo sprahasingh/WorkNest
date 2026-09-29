@@ -6,12 +6,17 @@ import {
   logout as logoutRequest,
   refresh as refreshRequest,
   register as registerRequest,
+  deleteAccount as deleteAccountRequest,
   type LoginInput,
   type MeResponse,
   type RegisterInput,
 } from "@/api/auth";
 import { setAccessToken, setAuthFailureHandler } from "@/api/client";
-import { AuthContext, type AuthContextValue, type AuthState } from "./auth-context";
+import {
+  AuthContext,
+  type AuthContextValue,
+  type AuthState,
+} from "./auth-context";
 
 const SESSION_QUERY_KEY = ["auth", "session"] as const;
 
@@ -31,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [signedOut, setSignedOut] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const sessionQuery = useQuery({
     queryKey: SESSION_QUERY_KEY,
@@ -96,6 +102,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [queryClient]);
 
+  const deleteAccount = useCallback(async () => {
+    setIsDeletingAccount(true);
+    try {
+      await deleteAccountRequest();
+    } finally {
+      setAccessToken(null);
+      setSignedOut(true);
+      queryClient.clear();
+      setIsDeletingAccount(false);
+    }
+  }, [queryClient]);
+
   const refreshMemberships = useCallback(async () => {
     const me = await fetchMe();
     queryClient.setQueryData<MeResponse>(SESSION_QUERY_KEY, me);
@@ -119,6 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     isLoggingOut,
+    deleteAccount,
+    isDeletingAccount,
     refreshMemberships,
     establishSession,
   };
