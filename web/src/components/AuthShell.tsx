@@ -32,7 +32,26 @@ export function AuthShell({ children }: AuthShellProps) {
         </p>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center bg-slate-50 px-4 py-12 lg:bg-white">
+      <div className="relative flex flex-1 flex-col items-center justify-center bg-slate-50 px-4 py-12 lg:bg-white">
+        <Link
+          to="/"
+          className="absolute left-4 top-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-teal-700 sm:left-6 sm:top-6"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+          >
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
+          </svg>
+          Back to home
+        </Link>
+
         <Link
           to="/"
           className="mb-8 flex items-center gap-2 text-lg font-bold text-slate-800 lg:hidden"
