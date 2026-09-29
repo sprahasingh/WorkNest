@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { OrgRoute } from "@/auth/OrgRoute";
 import { Landing } from "@/pages/Landing";
+import { HowToUse } from "@/pages/HowToUse";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
 import { InviteAccept } from "@/pages/InviteAccept";
@@ -19,6 +20,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/how-to-use" element={<HowToUse />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/invite/:token" element={<InviteAccept />} />

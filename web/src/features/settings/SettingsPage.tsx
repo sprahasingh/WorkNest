@@ -5,6 +5,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
+import { useAuth } from "@/auth/auth-context";
 import { useOrgDetails, useUpdateOrg, useChangePlan } from "@/features/org/queries";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import { Field, inputStyles } from "@/components/ui/Field";
@@ -39,6 +40,7 @@ const PLAN_LIMITS: Record<Plan, { seatLimit: number; projectLimit: number }> = {
 
 export function SettingsPage() {
   const { orgId } = useOrg();
+  const { logout } = useAuth();
   const canUpdateOrg = useCan("org:update");
   const canChangePlan = useCan("plan:change");
 
@@ -207,6 +209,20 @@ export function SettingsPage() {
                   : `Upgrade to ${otherPlan} (${PLAN_LIMITS[otherPlan].seatLimit} seats, ${PLAN_LIMITS[otherPlan].projectLimit} projects)`}
             </Button>
           )}
+        </Card>
+
+        <Card>
+          <h2 className="font-medium text-slate-800">Session</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Sign out of WorkNest on this device.
+          </p>
+          <Button
+            variant="secondary"
+            onClick={() => void logout()}
+            className="mt-4"
+          >
+            Log out
+          </Button>
         </Card>
       </div>
     </div>
