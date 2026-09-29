@@ -4,6 +4,7 @@ import { User } from "../../models/User.js";
 import { Organization } from "../../models/Organization.js";
 import { Membership } from "../../models/Membership.js";
 import { Task } from "../../models/Task.js";
+import { PLAN_LIMITS } from "../../constants/plans.js";
 import { env } from "../../config/env.js";
 import { AppError } from "../../lib/errors.js";
 import type { RegisterInput } from "./auth.schemas.js";
@@ -58,9 +59,9 @@ export async function register(input: RegisterInput) {
             name: input.orgName,
             slug: generateSlug(input.orgName),
             plan: "free",
-            seatLimit: 5,
+            seatLimit: PLAN_LIMITS.free.seatLimit,
             seatsUsed: 1,
-            projectLimit: 3,
+            projectLimit: PLAN_LIMITS.free.projectLimit,
             projectCount: 0,
             adminCount: 1,
             createdBy: user._id,

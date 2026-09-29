@@ -21,6 +21,7 @@ import {
 } from "./queries";
 import { canChangeTaskStatus } from "./ownership";
 import { useMarkReadWhenViewed } from "@/features/notifications/queries";
+import { PLAN_NAMES } from "@/lib/plans";
 import type { Task, TaskStatus, TaskPriority } from "./api";
 
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
@@ -126,6 +127,7 @@ export function ProjectBoard() {
   const atTaskLimit =
     stats?.activeLimit != null && stats.activeCount >= stats.activeLimit;
   const canPostProjectUpdates = canLead || (stats?.assignedToMe ?? false);
+  const planName = stats ? PLAN_NAMES[stats.plan] : "";
 
   // A linked task (from a notification or the project feed) wins over one
   // opened from the board, so following a link always shows what it points to.
@@ -159,7 +161,7 @@ export function ProjectBoard() {
                 disabled={atTaskLimit}
                 title={
                   atTaskLimit
-                    ? "This project has reached the free plan's active task limit"
+                    ? `This project has reached the ${planName} plan's active task limit`
                     : undefined
                 }
               >
@@ -182,8 +184,8 @@ export function ProjectBoard() {
             </span>
             <span className="text-slate-500 dark:text-slate-400">
               {atTaskLimit
-                ? "Free plan limit reached. Mark a task as done to add another"
-                : "Free plan"}
+                ? `${planName} plan limit reached. Finish a task to add or reopen another`
+                : `${planName} plan limit for this project`}
               {atTaskLimit && role === "admin" && (
                 <>
                   {", or "}
@@ -191,12 +193,14 @@ export function ProjectBoard() {
                     to={`/orgs/${orgId}/settings`}
                     className="font-medium text-teal-700 hover:underline dark:text-teal-400"
                   >
-                    upgrade to Pro
+                    upgrade your plan
                   </Link>
-                  {" for unlimited tasks"}
+                  {" for more"}
                 </>
               )}
-              {atTaskLimit && "."}
+              .
+              {role === "member" &&
+                " Counts every active task here, including ones assigned to others."}
             </span>
           </div>
         )}
@@ -293,7 +297,6 @@ export function ProjectBoard() {
         onClose={closeDrawer}
         orgId={orgId}
         projectId={projectId}
-        filters={filters}
         members={members}
         task={openDrawer?.mode === "edit" ? openDrawer.task : null}
         initialTab={openDrawer?.mode === "edit" ? openDrawer.tab : undefined}

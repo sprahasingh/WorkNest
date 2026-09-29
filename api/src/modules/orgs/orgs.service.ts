@@ -1,15 +1,11 @@
 import mongoose from "mongoose";
 import { Organization } from "../../models/Organization.js";
 import { Membership } from "../../models/Membership.js";
+import { Task } from "../../models/Task.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
-import type { Plan } from "../../constants/plans.js";
-
-const PLAN_LIMITS: Record<Plan, { seatLimit: number; projectLimit: number }> = {
-  free: { seatLimit: 5, projectLimit: 3 },
-  pro: { seatLimit: 25, projectLimit: 50 },
-};
+import { PLAN_LIMITS, type Plan } from "../../constants/plans.js";
 
 export function generateSlug(orgName: string): string {
   const base = orgName
@@ -34,9 +30,9 @@ export async function createOrg(userId: string, name: string) {
             name,
             slug: generateSlug(name),
             plan: "free",
-            seatLimit: 5,
+            seatLimit: PLAN_LIMITS.free.seatLimit,
             seatsUsed: 1,
-            projectLimit: 3,
+            projectLimit: PLAN_LIMITS.free.projectLimit,
             projectCount: 0,
             adminCount: 1,
             createdBy: userId,
@@ -118,6 +114,38 @@ export async function changePlan(newPlan: Plan) {
         .session(dbSession)
         .setOptions({ skipTenant: true });
 
+      // Projects already holding more active tasks than the new plan allows.
+      const projectsOverTaskLimit =
+        limits.activeTaskLimit === null
+          ? 0
+          : (
+              await Task.aggregate<{ _id: unknown }>([
+                { $match: { status: { $ne: "done" } } },
+                { $group: { _id: "$projectId", active: { $sum: 1 } } },
+                { $match: { active: { $gt: limits.activeTaskLimit } } },
+              ]).session(dbSession)
+            ).length;
+
+      const blocked = (): never => {
+        throw new AppError(
+          409,
+          "PLAN_DOWNGRADE_BLOCKED",
+          "Current usage exceeds the limits of the target plan",
+          [
+            {
+              seatsUsed: previous?.seatsUsed,
+              projectCount: previous?.projectCount,
+              projectsOverTaskLimit,
+              targetSeatLimit: limits.seatLimit,
+              targetProjectLimit: limits.projectLimit,
+              targetActiveTaskLimit: limits.activeTaskLimit,
+            },
+          ],
+        );
+      };
+
+      if (projectsOverTaskLimit > 0) blocked();
+
       const updated = await Organization.findOneAndUpdate(
         {
           _id: tenantId,
@@ -136,21 +164,7 @@ export async function changePlan(newPlan: Plan) {
         { returnDocument: "after", session: dbSession },
       ).setOptions({ skipTenant: true });
 
-      if (!updated) {
-        throw new AppError(
-          409,
-          "PLAN_DOWNGRADE_BLOCKED",
-          "Current usage exceeds the limits of the target plan",
-          [
-            {
-              seatsUsed: previous?.seatsUsed,
-              projectCount: previous?.projectCount,
-              targetSeatLimit: limits.seatLimit,
-              targetProjectLimit: limits.projectLimit,
-            },
-          ],
-        );
-      }
+      if (!updated) blocked();
 
       await recordAudit(
         {
