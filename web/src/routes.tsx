@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { OrgRoute } from "@/auth/OrgRoute";
+import { Landing } from "@/pages/Landing";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
 import { InviteAccept } from "@/pages/InviteAccept";
@@ -17,6 +18,7 @@ import { NotFound } from "@/pages/NotFound";
 export function AppRoutes() {
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/invite/:token" element={<InviteAccept />} />
@@ -36,7 +38,6 @@ export function AppRoutes() {
         </Route>
       </Route>
 
-      <Route path="/" element={<Navigate to="/orgs" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

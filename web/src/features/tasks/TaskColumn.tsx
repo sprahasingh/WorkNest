@@ -1,4 +1,5 @@
 import type { Member } from "@/features/members/api";
+import { Button } from "@/components/ui/Button";
 import { TaskCard } from "./TaskCard";
 import { useTaskColumn, type TaskFilters } from "./queries";
 import type { Task, TaskStatus } from "./api";
@@ -42,7 +43,7 @@ export function TaskColumn({
   const tasks = data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
-    <div className="flex min-w-72 flex-1 flex-col rounded-lg bg-slate-50 p-3">
+    <div className="flex w-[85vw] shrink-0 snap-start flex-col rounded-xl bg-slate-50 p-3 sm:w-72">
       <h2 className="text-sm font-semibold text-slate-700">
         {COLUMN_LABELS[status]}{" "}
         <span className="font-normal text-slate-400">({tasks.length})</span>
@@ -79,14 +80,15 @@ export function TaskColumn({
         )}
 
         {hasNextPage && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => void fetchNextPage()}
             disabled={isFetchingNextPage}
-            className="w-full rounded border border-slate-200 py-1.5 text-xs font-medium text-slate-500 disabled:opacity-50"
+            className="w-full"
           >
             {isFetchingNextPage ? "Loading…" : "Load more"}
-          </button>
+          </Button>
         )}
       </div>
     </div>

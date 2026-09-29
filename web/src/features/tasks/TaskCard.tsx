@@ -48,14 +48,14 @@ export function TaskCard({
   return (
     <div
       onClick={onClick}
-      className="cursor-pointer rounded-lg bg-white p-3 shadow hover:shadow-md"
+      className="cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-slate-800">{task.title}</p>
         {assignee && (
           <span
             title={assignee.userId.name}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-700 text-xs font-medium text-white"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-medium text-white"
           >
             {getInitials(assignee.userId.name)}
           </span>
@@ -87,7 +87,7 @@ export function TaskCard({
               onStatusChange(task, newStatus);
             }
           }}
-          className="mt-2 w-full rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs"
+          className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30"
         >
           {STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
