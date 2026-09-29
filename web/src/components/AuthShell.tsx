@@ -1,0 +1,49 @@
+import type { ReactNode } from "react";
+import { Link } from "react-router";
+
+interface AuthShellProps {
+  children: ReactNode;
+}
+
+export function AuthShell({ children }: AuthShellProps) {
+  return (
+    <div className="flex min-h-screen bg-white">
+      <div className="hidden w-1/2 flex-col justify-between bg-gradient-to-br from-teal-600 to-teal-800 p-12 text-white lg:flex">
+        <Link to="/" className="flex items-center gap-2 text-lg font-bold">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white">
+            W
+          </span>
+          WorkNest
+        </Link>
+
+        <div className="max-w-sm">
+          <p className="text-2xl font-semibold leading-snug">
+            &ldquo;Real tenant isolation and role-based access, without
+            building it yourself.&rdquo;
+          </p>
+          <p className="mt-4 text-sm text-teal-100">
+            Every organization&apos;s data is scoped at the database layer,
+            and every action is enforced by role, on the server, every time.
+          </p>
+        </div>
+
+        <p className="text-xs text-teal-100">
+          &copy; {new Date().getFullYear()} WorkNest
+        </p>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center bg-slate-50 px-4 py-12 lg:bg-white">
+        <Link
+          to="/"
+          className="mb-8 flex items-center gap-2 text-lg font-bold text-slate-800 lg:hidden"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white">
+            W
+          </span>
+          WorkNest
+        </Link>
+        <div className="w-full max-w-sm">{children}</div>
+      </div>
+    </div>
+  );
+}

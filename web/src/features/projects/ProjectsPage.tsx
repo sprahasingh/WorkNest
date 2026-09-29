@@ -7,6 +7,11 @@ import { toast } from "sonner";
 import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { Modal } from "@/components/Modal";
+import { Field, inputStyles } from "@/components/ui/Field";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { cn } from "@/lib/cn";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import type { Project } from "./api";
 import {
@@ -131,18 +136,12 @@ export function ProjectsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-4xl">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-800">Projects</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-slate-900">Projects</h1>
           {canWrite && (
-            <button
-              type="button"
-              onClick={() => setIsCreateOpen(true)}
-              className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white"
-            >
-              New project
-            </button>
+            <Button onClick={() => setIsCreateOpen(true)}>New project</Button>
           )}
         </div>
 
@@ -150,22 +149,24 @@ export function ProjectsPage() {
           <button
             type="button"
             onClick={() => setView("active")}
-            className={`px-3 py-2 text-sm font-medium ${
+            className={cn(
+              "px-3 py-2 text-sm font-medium transition-colors",
               view === "active"
-                ? "border-b-2 border-slate-800 text-slate-800"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
+                ? "border-b-2 border-teal-600 text-teal-700"
+                : "text-slate-500 hover:text-slate-700",
+            )}
           >
             Active
           </button>
           <button
             type="button"
             onClick={() => setView("archived")}
-            className={`px-3 py-2 text-sm font-medium ${
+            className={cn(
+              "px-3 py-2 text-sm font-medium transition-colors",
               view === "archived"
-                ? "border-b-2 border-slate-800 text-slate-800"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
+                ? "border-b-2 border-teal-600 text-teal-700"
+                : "text-slate-500 hover:text-slate-700",
+            )}
           >
             Archived
           </button>
@@ -177,43 +178,42 @@ export function ProjectsPage() {
               {[0, 1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="h-24 animate-pulse rounded-lg bg-slate-200"
+                  className="h-24 animate-pulse rounded-xl bg-slate-200"
                 />
               ))}
             </div>
           )}
 
           {isError && (
-            <p className="rounded bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
               Couldn&apos;t load projects. Try reloading the page.
             </p>
           )}
 
           {!isPending && !isError && projects?.length === 0 && (
-            <div className="rounded-lg bg-white p-8 text-center shadow">
+            <Card className="text-center">
               <p className="text-slate-600">
-                {view === "archived" ? "No archived projects." : "No projects yet."}
+                {view === "archived"
+                  ? "No archived projects."
+                  : "No projects yet."}
               </p>
               {view === "active" && canWrite && (
                 <p className="mt-1 text-sm text-slate-500">
                   Create your first project to start tracking tasks.
                 </p>
               )}
-            </div>
+            </Card>
           )}
 
           {!isPending && !isError && projects && projects.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {projects.map((project) => (
-                <div
-                  key={project._id}
-                  className="rounded-lg bg-white p-4 shadow"
-                >
+                <Card key={project._id} className="p-4">
                   <div className="flex items-start justify-between">
-                    <div>
+                    <div className="min-w-0">
                       <Link
                         to={`/orgs/${orgId}/projects/${project._id}`}
-                        className="font-medium text-slate-800 hover:underline"
+                        className="font-medium text-slate-800 hover:text-teal-700 hover:underline"
                       >
                         {project.name}
                       </Link>
@@ -251,7 +251,7 @@ export function ProjectsPage() {
                       </button>
                     </div>
                   )}
-                </div>
+                </Card>
               ))}
             </div>
           )}
@@ -268,88 +268,47 @@ export function ProjectsPage() {
           noValidate
           className="space-y-4"
         >
-          {formError && (
-            <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-              {formError}
-            </p>
-          )}
+          <ErrorBanner message={formError} />
 
-          <div>
-            <label
-              htmlFor="name"
-              className="block text-sm font-medium text-slate-700"
-            >
-              Name
-            </label>
+          <Field label="Name" htmlFor="name" error={errors.name?.message}>
             <input
               id="name"
               type="text"
               {...register("name")}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              className={inputStyles}
             />
-            {errors.name && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.name.message}
-              </p>
-            )}
-          </div>
+          </Field>
 
-          <div>
-            <label
-              htmlFor="key"
-              className="block text-sm font-medium text-slate-700"
-            >
-              Key
-            </label>
+          <Field label="Key" htmlFor="key" error={errors.key?.message}>
             <input
               id="key"
               type="text"
               placeholder="e.g. OPS"
               {...register("key")}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 font-mono uppercase"
+              className={cn(inputStyles, "font-mono uppercase")}
             />
-            {errors.key && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.key.message}
-              </p>
-            )}
-          </div>
+          </Field>
 
-          <div>
-            <label
-              htmlFor="description"
-              className="block text-sm font-medium text-slate-700"
-            >
-              Description
-            </label>
+          <Field
+            label="Description"
+            htmlFor="description"
+            error={errors.description?.message}
+          >
             <textarea
               id="description"
               rows={3}
               {...register("description")}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              className={inputStyles}
             />
-            {errors.description && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.description.message}
-              </p>
-            )}
-          </div>
+          </Field>
 
           <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={closeCreateModal}
-              className="rounded px-4 py-2 text-sm font-medium text-slate-600"
-            >
+            <Button type="button" variant="ghost" onClick={closeCreateModal}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Creating…" : "Create project"}
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
@@ -369,24 +328,20 @@ export function ProjectsPage() {
             : `"${confirmTarget?.project.name}" will be hidden from the active projects list. You can still view it under archived projects.`}
         </p>
         <div className="mt-4 flex justify-end gap-3">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setConfirmTarget(null)}
-            className="rounded px-4 py-2 text-sm font-medium text-slate-600"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={confirmTarget?.action === "delete" ? "danger" : "primary"}
             onClick={() => void handleConfirm()}
-            className={
-              confirmTarget?.action === "delete"
-                ? "rounded bg-red-600 px-4 py-2 text-sm font-medium text-white"
-                : "rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white"
-            }
           >
             {confirmTarget?.action === "delete" ? "Delete" : "Archive"}
-          </button>
+          </Button>
         </div>
       </Modal>
     </div>
