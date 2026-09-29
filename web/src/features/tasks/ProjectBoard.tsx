@@ -8,6 +8,7 @@ import { useMembers } from "@/features/members/queries";
 import { useProject } from "@/features/projects/queries";
 import { parseApiError } from "@/lib/apiError";
 import { NotFound } from "@/pages/NotFound";
+import { Button } from "@/components/ui/Button";
 import { TaskColumn } from "./TaskColumn";
 import { TaskDrawer } from "./TaskDrawer";
 import { useUpdateTaskStatus, type TaskFilters } from "./queries";
@@ -15,6 +16,9 @@ import { canChangeTaskStatus } from "./ownership";
 import type { Task, TaskStatus, TaskPriority } from "./api";
 
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
+
+const selectStyles =
+  "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30";
 
 export function ProjectBoard() {
   const { orgId } = useOrg();
@@ -74,33 +78,29 @@ export function ProjectBoard() {
   const isArchived = projectQuery.data?.archivedAt != null;
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Link
               to={`/orgs/${orgId}/projects`}
-              className="text-sm text-slate-500 hover:underline"
+              className="text-sm text-slate-500 hover:text-teal-700 hover:underline"
             >
               ← Projects
             </Link>
-            <h1 className="mt-1 text-2xl font-bold text-slate-800">
+            <h1 className="mt-1 text-2xl font-bold text-slate-900">
               {projectQuery.data?.name ?? "Loading…"}
             </h1>
           </div>
           {canCreate && !isArchived && (
-            <button
-              type="button"
-              onClick={() => setDrawerState({ mode: "create" })}
-              className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white"
-            >
+            <Button onClick={() => setDrawerState({ mode: "create" })}>
               New task
-            </button>
+            </Button>
           )}
         </div>
 
         {isArchived && (
-          <p className="mt-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
             This project is archived. Existing tasks are still visible, but
             new tasks can&apos;t be created here.
           </p>
@@ -109,8 +109,10 @@ export function ProjectBoard() {
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <select
             value={filters.priority ?? ""}
-            onChange={(event) => setFilter("priority", event.target.value || null)}
-            className="rounded border border-slate-300 px-2 py-1 text-sm"
+            onChange={(event) =>
+              setFilter("priority", event.target.value || null)
+            }
+            className={selectStyles}
           >
             <option value="">All priorities</option>
             <option value="low">Low</option>
@@ -120,8 +122,10 @@ export function ProjectBoard() {
 
           <select
             value={filters.assigneeId ?? ""}
-            onChange={(event) => setFilter("assignee", event.target.value || null)}
-            className="rounded border border-slate-300 px-2 py-1 text-sm"
+            onChange={(event) =>
+              setFilter("assignee", event.target.value || null)
+            }
+            className={selectStyles}
           >
             <option value="">Everyone</option>
             {members.map((member) => (
@@ -138,12 +142,13 @@ export function ProjectBoard() {
               onChange={(event) =>
                 setFilter("mine", event.target.checked ? "true" : null)
               }
+              className="accent-teal-600"
             />
             My tasks
           </label>
         </div>
 
-        <div className="mt-6 flex gap-4 overflow-x-auto pb-4">
+        <div className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
           {STATUSES.map((status) => (
             <TaskColumn
               key={status}

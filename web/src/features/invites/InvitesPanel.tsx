@@ -8,6 +8,11 @@ import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useOrgDetails } from "@/features/org/queries";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
+import { Field, inputStyles } from "@/components/ui/Field";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { cn } from "@/lib/cn";
 import { useCreateInvite, useInvites, useRevokeInvite } from "./queries";
 
 const inviteFormSchema = z.object({
@@ -111,10 +116,10 @@ export function InvitesPanel() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-slate-800">Invites</h2>
+      <h2 className="text-xl font-bold text-slate-900">Invites</h2>
 
       {org && (
-        <div className="rounded-lg bg-white p-4 shadow">
+        <Card className="p-4">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium text-slate-700">Seats used</span>
             <span className="text-slate-500">
@@ -123,108 +128,93 @@ export function InvitesPanel() {
           </div>
           <div className="mt-2 h-2 rounded-full bg-slate-200">
             <div
-              className="h-2 rounded-full bg-slate-700"
+              className="h-2 rounded-full bg-teal-600"
               style={{
                 width: `${Math.min(100, (org.seatsUsed / org.seatLimit) * 100)}%`,
               }}
             />
           </div>
-        </div>
+        </Card>
       )}
 
       {canManage && (
-        <form
-          onSubmit={(event) => void handleSubmit(onSubmit)(event)}
-          noValidate
-          className="space-y-4 rounded-lg bg-white p-6 shadow"
-        >
-          <h2 className="font-medium text-slate-800">Invite someone</h2>
-
-          {formError && (
-            <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-              {formError}
-            </p>
-          )}
-
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                {...register("email")}
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-              />
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="role"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Role
-              </label>
-              <select
-                id="role"
-                {...register("role")}
-                className="mt-1 rounded border border-slate-300 px-3 py-2"
-              >
-                <option value="member">Member</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        <Card>
+          <form
+            onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+            noValidate
+            className="space-y-4"
           >
-            {isSubmitting ? "Sending…" : "Send invite"}
-          </button>
+            <h2 className="font-medium text-slate-800">Invite someone</h2>
 
-          {revealed && (
-            <div className="rounded border border-amber-200 bg-amber-50 p-3">
-              <p className="text-sm font-medium text-amber-800">
-                Invite link for {revealed.email}
-              </p>
-              <p className="mt-1 text-xs text-amber-700">
-                This link is shown once. Only its hash is stored, so it
-                can&apos;t be displayed again — copy it now, or revoke and send
-                a new invite later if it&apos;s lost.
-              </p>
-              <div className="mt-2 flex gap-2">
-                <input
-                  readOnly
-                  value={revealed.url}
-                  className="flex-1 rounded border border-amber-300 bg-white px-2 py-1 text-xs"
-                  onFocus={(event) => event.target.select()}
-                />
-                <button
-                  type="button"
-                  onClick={() => void handleCopy(revealed.url)}
-                  className="rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white"
+            <ErrorBanner message={formError} />
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex-1">
+                <Field
+                  label="Email"
+                  htmlFor="email"
+                  error={errors.email?.message}
                 >
-                  {copied ? "Copied" : "Copy"}
-                </button>
+                  <input
+                    id="email"
+                    type="email"
+                    {...register("email")}
+                    className={inputStyles}
+                  />
+                </Field>
+              </div>
+
+              <div>
+                <Field label="Role" htmlFor="role">
+                  <select
+                    id="role"
+                    {...register("role")}
+                    className={cn(inputStyles, "sm:w-36")}
+                  >
+                    <option value="member">Member</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </Field>
               </div>
             </div>
-          )}
-        </form>
+
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Sending…" : "Send invite"}
+            </Button>
+
+            {revealed && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-medium text-amber-800">
+                  Invite link for {revealed.email}
+                </p>
+                <p className="mt-1 text-xs text-amber-700">
+                  This link is shown once. Only its hash is stored, so it
+                  can&apos;t be displayed again — copy it now, or revoke and
+                  send a new invite later if it&apos;s lost.
+                </p>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    readOnly
+                    value={revealed.url}
+                    className="flex-1 rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs"
+                    onFocus={(event) => event.target.select()}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleCopy(revealed.url)}
+                    className="shrink-0 rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700"
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </form>
+        </Card>
       )}
 
-      <div className="rounded-lg bg-white shadow">
+      <Card className="p-0">
         <h2 className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800">
           Pending invites
         </h2>
@@ -248,37 +238,34 @@ export function InvitesPanel() {
         )}
 
         {!isPending && !isError && invites && invites.length > 0 && (
-          <table className="w-full text-left text-sm">
-            <tbody>
-              {invites.map((invite) => (
-                <tr
-                  key={invite._id}
-                  className="border-b border-slate-100 last:border-0"
-                >
-                  <td className="px-4 py-3 text-slate-800">{invite.email}</td>
-                  <td className="px-4 py-3 font-mono text-slate-500">
-                    {invite.role}
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">
-                    Expires {new Date(invite.expiresAt).toLocaleDateString()}
-                  </td>
-                  {canManage && (
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => void handleRevoke(invite._id)}
-                        className="text-sm font-medium text-red-600 hover:underline"
-                      >
-                        Revoke
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="divide-y divide-slate-100">
+            {invites.map((invite) => (
+              <li
+                key={invite._id}
+                className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-slate-800">{invite.email}</p>
+                  <p className="text-xs text-slate-500">
+                    <span className="font-mono">{invite.role}</span> ·
+                    Expires{" "}
+                    {new Date(invite.expiresAt).toLocaleDateString()}
+                  </p>
+                </div>
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRevoke(invite._id)}
+                    className="self-start text-sm font-medium text-red-600 hover:underline sm:self-auto"
+                  >
+                    Revoke
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
