@@ -56,7 +56,7 @@ describe("cross-tenant task reference checks", () => {
     const res = await request(app)
       .post(`/api/orgs/${orgA.orgId}/projects/${projectIdA}/tasks`)
       .set("Authorization", `Bearer ${orgA.accessToken}`)
-      .send({ title: "Bad assignment", assigneeId: orgB.userId });
+      .send({ title: "Bad assignment", assigneeIds: [orgB.userId] });
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("INVALID_ASSIGNEE");
@@ -118,7 +118,7 @@ describe("task ownership rules", () => {
     const reassignRes = await request(app)
       .patch(`/api/orgs/${admin.orgId}/tasks/${ownTaskId}`)
       .set("Authorization", `Bearer ${memberToken}`)
-      .send({ assigneeId: memberId });
+      .send({ assigneeIds: [memberId] });
 
     expect(reassignRes.status).toBe(403);
   });
