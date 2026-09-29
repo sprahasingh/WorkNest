@@ -12,8 +12,9 @@ import {
 
 export const projectKeys = {
   all: (orgId: string) => ["orgs", orgId, "projects"] as const,
+  lists: (orgId: string) => [...projectKeys.all(orgId), "list"] as const,
   list: (orgId: string, params: ListProjectsParams = {}) =>
-    [...projectKeys.all(orgId), "list", params] as const,
+    [...projectKeys.lists(orgId), params] as const,
   detail: (orgId: string, projectId: string) =>
     [...projectKeys.all(orgId), "detail", projectId] as const,
 };

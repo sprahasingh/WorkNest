@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import type { InfiniteData } from "@tanstack/query-core";
 import { dashboardKeys } from "@/features/dashboard/queries";
+import { projectKeys } from "@/features/projects/queries";
 import {
   createTask,
   deleteTask,
@@ -103,6 +104,10 @@ export function useCreateTask(orgId: string, projectId: string) {
       void queryClient.invalidateQueries({
         queryKey: dashboardKeys.all(orgId),
       });
+      // Project cards show each project's task counts.
+      void queryClient.invalidateQueries({
+        queryKey: projectKeys.lists(orgId),
+      });
     },
   });
 }
@@ -126,6 +131,9 @@ export function useUpdateTask(orgId: string, projectId: string) {
       void queryClient.invalidateQueries({
         queryKey: dashboardKeys.all(orgId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: projectKeys.lists(orgId),
+      });
     },
   });
 }
@@ -141,6 +149,9 @@ export function useDeleteTask(orgId: string, projectId: string) {
       });
       void queryClient.invalidateQueries({
         queryKey: dashboardKeys.all(orgId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: projectKeys.lists(orgId),
       });
     },
   });
@@ -244,6 +255,9 @@ export function useUpdateTaskStatus(
       });
       void queryClient.invalidateQueries({
         queryKey: dashboardKeys.all(orgId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: projectKeys.lists(orgId),
       });
     },
   });
