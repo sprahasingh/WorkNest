@@ -1,16 +1,20 @@
 import type { Request, Response } from "express";
 import {
-  getUnreadNotifications,
+  listNotifications,
   markNotificationsRead,
 } from "./notifications.service.js";
-import type { MarkReadInput } from "./notifications.schemas.js";
+import type {
+  ListNotificationsQuery,
+  MarkReadInput,
+} from "./notifications.schemas.js";
 
 export async function listNotificationsController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const notifications = await getUnreadNotifications();
-  res.status(200).json({ notifications });
+  const { status } = req.validated!.query as ListNotificationsQuery;
+  const result = await listNotifications(status ?? "all");
+  res.status(200).json(result);
 }
 
 export async function markReadController(
