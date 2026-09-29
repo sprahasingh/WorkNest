@@ -12,10 +12,11 @@ export const inviteKeys = {
   all: (orgId: string) => ["orgs", orgId, "invites"] as const,
 };
 
-export function useInvites(orgId: string) {
+export function useInvites(orgId: string, enabled = true) {
   return useQuery({
     queryKey: inviteKeys.all(orgId),
     queryFn: () => listInvites(orgId),
+    enabled,
   });
 }
 

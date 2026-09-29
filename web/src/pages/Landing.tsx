@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { Link } from "react-router";
 import { useAuth } from "@/auth/auth-context";
+import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -174,6 +175,7 @@ function ProductPreview() {
 export function Landing() {
   const auth = useAuth();
   const isAuthenticated = auth.status === "authenticated";
+  const workspacePath = resolvePostAuthPath(auth.memberships ?? []);
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -190,10 +192,10 @@ export function Landing() {
             <ThemeToggle />
             {isAuthenticated ? (
               <Link
-                to="/orgs"
+                to={workspacePath}
                 className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 sm:px-4"
               >
-                Go to dashboard
+                Open WorkNest
               </Link>
             ) : (
               <>
@@ -232,22 +234,35 @@ export function Landing() {
                 list with extra steps.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  to="/register"
-                  className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700"
-                >
-                  Get started free
-                </Link>
-                <Link
-                  to="/login"
-                  className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                  Log in
-                </Link>
+                {isAuthenticated ? (
+                  <Link
+                    to={workspacePath}
+                    className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700"
+                  >
+                    Go to your workspace
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      to="/register"
+                      className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700"
+                    >
+                      Get started free
+                    </Link>
+                    <Link
+                      to="/login"
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Log in
+                    </Link>
+                  </>
+                )}
               </div>
-              <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">
-                No credit card required. Free plan included.
-              </p>
+              {!isAuthenticated && (
+                <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">
+                  No credit card required. Free plan included.
+                </p>
+              )}
             </div>
 
             <div className="flex justify-center lg:justify-end">
@@ -298,10 +313,10 @@ export function Landing() {
               with proper access control from day one.
             </p>
             <Link
-              to="/register"
+              to={isAuthenticated ? workspacePath : "/register"}
               className="mt-8 inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-teal-700 shadow-sm transition-colors hover:bg-teal-50"
             >
-              Create your workspace
+              {isAuthenticated ? "Go to your workspace" : "Create your workspace"}
             </Link>
           </div>
         </section>

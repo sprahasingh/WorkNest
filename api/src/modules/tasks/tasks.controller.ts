@@ -5,6 +5,7 @@ import {
   getTask,
   updateTask,
   deleteTask,
+  getTaskStats,
 } from "./tasks.service.js";
 import type {
   CreateTaskInput,
@@ -35,6 +36,15 @@ export async function listTasksController(
   const result = await listTasks(projectId as string, query);
 
   res.status(200).json(result);
+}
+
+export async function getTaskStatsController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const { projectId } = req.params;
+  const stats = await getTaskStats(projectId as string);
+  res.status(200).json(stats);
 }
 
 export async function getTaskController(

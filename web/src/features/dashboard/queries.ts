@@ -2,12 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { getDashboard } from "./api";
 
 export const dashboardKeys = {
-  detail: (orgId: string) => ["orgs", orgId, "dashboard"] as const,
+  all: (orgId: string) => ["orgs", orgId, "dashboard"] as const,
+  detail: (orgId: string, days = 14) =>
+    ["orgs", orgId, "dashboard", days] as const,
 };
 
-export function useDashboard(orgId: string) {
+export function useDashboard(orgId: string, days = 14) {
   return useQuery({
-    queryKey: dashboardKeys.detail(orgId),
-    queryFn: () => getDashboard(orgId),
+    queryKey: dashboardKeys.detail(orgId, days),
+    queryFn: () => getDashboard(orgId, days),
   });
 }

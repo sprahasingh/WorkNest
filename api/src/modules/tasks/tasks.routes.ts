@@ -11,12 +11,15 @@ import {
   createTaskController,
   listTasksController,
   getTaskController,
+  getTaskStatsController,
   updateTaskController,
   deleteTaskController,
 } from "./tasks.controller.js";
 import {
-  listActivitiesController,
-  createActivityController,
+  listTaskActivitiesController,
+  createTaskActivityController,
+  listProjectActivitiesController,
+  createProjectActivityController,
 } from "./taskActivity.controller.js";
 
 const projectTasksRouter = Router({ mergeParams: true });
@@ -28,11 +31,32 @@ projectTasksRouter.get(
   listTasksController,
 );
 
+projectTasksRouter.get(
+  "/stats",
+  requirePermission("task:read"),
+  getTaskStatsController,
+);
+
 projectTasksRouter.post(
   "/",
   requirePermission("task:create"),
   validate({ body: createTaskSchema }),
   createTaskController,
+);
+
+const projectActivityRouter = Router({ mergeParams: true });
+
+projectActivityRouter.get(
+  "/",
+  requirePermission("task:read"),
+  listProjectActivitiesController,
+);
+
+projectActivityRouter.post(
+  "/",
+  requirePermission("task:comment"),
+  validate({ body: createActivitySchema }),
+  createProjectActivityController,
 );
 
 const tasksRouter = Router({ mergeParams: true });
@@ -55,14 +79,14 @@ tasksRouter.delete(
 tasksRouter.get(
   "/:taskId/activity",
   requirePermission("task:read"),
-  listActivitiesController,
+  listTaskActivitiesController,
 );
 
 tasksRouter.post(
   "/:taskId/activity",
   requirePermission("task:comment"),
   validate({ body: createActivitySchema }),
-  createActivityController,
+  createTaskActivityController,
 );
 
-export { projectTasksRouter, tasksRouter };
+export { projectTasksRouter, projectActivityRouter, tasksRouter };
