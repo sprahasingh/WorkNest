@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orgKeys } from "@/features/org/queries";
+import { dashboardKeys } from "@/features/dashboard/queries";
 import {
   createInvite,
   listInvites,
@@ -26,6 +27,9 @@ export function useCreateInvite(orgId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: inviteKeys.all(orgId) });
       void queryClient.invalidateQueries({ queryKey: orgKeys.detail(orgId) });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
     },
   });
 }
@@ -38,6 +42,9 @@ export function useRevokeInvite(orgId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: inviteKeys.all(orgId) });
       void queryClient.invalidateQueries({ queryKey: orgKeys.detail(orgId) });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.detail(orgId),
+      });
     },
   });
 }

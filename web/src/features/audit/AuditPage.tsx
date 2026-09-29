@@ -8,7 +8,7 @@ import { useAuditLog, type AuditFilters } from "./queries";
 import { describeAuditEntry } from "./format";
 
 const selectStyles =
-  "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30";
+  "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
 
 export function AuditPage() {
   const { orgId } = useOrg();
@@ -47,9 +47,11 @@ export function AuditPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-bold text-slate-900">Audit log</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+          Audit log
+        </h1>
 
         <div className="mt-4 flex flex-wrap gap-3">
           <select
@@ -103,18 +105,18 @@ export function AuditPage() {
             [0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="h-12 animate-pulse rounded-xl bg-slate-200"
+                className="h-12 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800"
               />
             ))}
 
           {isError && (
-            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
               Couldn&apos;t load the audit log.
             </p>
           )}
 
           {!isPending && !isError && entries.length === 0 && (
-            <Card className="text-center text-sm text-slate-500">
+            <Card className="text-center text-sm text-slate-500 dark:text-slate-400">
               No matching activity yet.
             </Card>
           )}
@@ -123,7 +125,7 @@ export function AuditPage() {
             !isError &&
             entries.map((entry) => (
               <Card key={entry._id} className="p-3">
-                <p className="text-sm text-slate-800">
+                <p className="text-sm text-slate-800 dark:text-slate-200">
                   {describeAuditEntry(entry)}
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
@@ -137,6 +139,7 @@ export function AuditPage() {
               variant="secondary"
               onClick={() => void fetchNextPage()}
               disabled={isFetchingNextPage}
+              loading={isFetchingNextPage}
               className="w-full"
             >
               {isFetchingNextPage ? "Loading…" : "Load more"}
