@@ -7,6 +7,10 @@ import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useOrgDetails, useUpdateOrg, useChangePlan } from "@/features/org/queries";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
+import { Field, inputStyles } from "@/components/ui/Field";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import type { Plan } from "@/api/auth";
 
 const renameFormSchema = z.object({
@@ -108,10 +112,10 @@ export function SettingsPage() {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-slate-100 px-6 py-10">
+      <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-2xl space-y-4">
           <div className="h-8 w-48 animate-pulse rounded bg-slate-200" />
-          <div className="h-32 animate-pulse rounded-lg bg-slate-200" />
+          <div className="h-32 animate-pulse rounded-xl bg-slate-200" />
         </div>
       </div>
     );
@@ -119,7 +123,7 @@ export function SettingsPage() {
 
   if (isError || !org) {
     return (
-      <div className="min-h-screen bg-slate-100 px-6 py-10">
+      <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
         <p className="mx-auto max-w-2xl text-sm text-red-600">
           Couldn&apos;t load organization settings.
         </p>
@@ -131,61 +135,46 @@ export function SettingsPage() {
   const isDowngrade = otherPlan === "free";
 
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-2xl space-y-6">
-        <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
 
-        <div className="rounded-lg bg-white p-6 shadow">
+        <Card>
           <h2 className="font-medium text-slate-800">Organization name</h2>
 
-          {formError && (
-            <p className="mt-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-              {formError}
-            </p>
-          )}
+          <div className="mt-3">
+            <ErrorBanner message={formError} />
+          </div>
 
           <form
             onSubmit={(event) => void handleSubmit(onRenameSubmit)(event)}
             noValidate
-            className="mt-3 flex items-end gap-3"
+            className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end"
           >
             <div className="flex-1">
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Name
-              </label>
-              <input
-                id="name"
-                type="text"
-                disabled={!canUpdateOrg}
-                {...register("name")}
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 disabled:bg-slate-100 disabled:text-slate-400"
-              />
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.name.message}
-                </p>
-              )}
+              <Field label="Name" htmlFor="name" error={errors.name?.message}>
+                <input
+                  id="name"
+                  type="text"
+                  disabled={!canUpdateOrg}
+                  {...register("name")}
+                  className={inputStyles}
+                />
+              </Field>
             </div>
 
             {canUpdateOrg && (
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? "Saving…" : "Save"}
-              </button>
+              </Button>
             )}
           </form>
-        </div>
+        </Card>
 
-        <div className="rounded-lg bg-white p-6 shadow">
+        <Card>
           <div className="flex items-center justify-between">
             <h2 className="font-medium text-slate-800">Plan</h2>
-            <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-sm text-slate-700">
+            <span className="rounded-full bg-teal-50 px-2.5 py-0.5 font-mono text-sm text-teal-700">
               {org.plan}
             </span>
           </div>
@@ -206,20 +195,19 @@ export function SettingsPage() {
           </dl>
 
           {canChangePlan && (
-            <button
-              type="button"
+            <Button
               onClick={() => void handlePlanChange(otherPlan)}
               disabled={changePlan.isPending}
-              className="mt-4 rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="mt-4 w-full sm:w-auto"
             >
               {changePlan.isPending
                 ? "Changing…"
                 : isDowngrade
                   ? `Downgrade to ${otherPlan} (${PLAN_LIMITS[otherPlan].seatLimit} seats, ${PLAN_LIMITS[otherPlan].projectLimit} projects)`
                   : `Upgrade to ${otherPlan} (${PLAN_LIMITS[otherPlan].seatLimit} seats, ${PLAN_LIMITS[otherPlan].projectLimit} projects)`}
-            </button>
+            </Button>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

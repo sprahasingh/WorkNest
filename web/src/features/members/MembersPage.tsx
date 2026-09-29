@@ -5,6 +5,8 @@ import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
 import { Modal } from "@/components/Modal";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { parseApiError } from "@/lib/apiError";
 import type { Role } from "@/api/auth";
 import type { Member } from "./api";
@@ -75,106 +77,156 @@ export function MembersPage() {
     }
   };
 
+  const roleSelect = (member: Member) =>
+    canManage ? (
+      <select
+        value={member.role}
+        onChange={(event) =>
+          handleRoleChange(member, event.target.value as Role)
+        }
+        className="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30"
+      >
+        {ROLE_OPTIONS.map((role) => (
+          <option key={role} value={role}>
+            {role}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <span className="font-mono text-slate-600">{member.role}</span>
+    );
+
   return (
-    <div className="min-h-screen bg-slate-100 px-6 py-10">
+    <div className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-2xl font-bold text-slate-800">Members</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Members</h1>
 
-        <div className="mt-6 overflow-x-auto rounded-lg bg-white shadow">
-          {isPending && (
-            <div className="space-y-2 p-4">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="h-10 animate-pulse rounded bg-slate-200"
-                />
-              ))}
-            </div>
-          )}
+        {isPending && (
+          <div className="mt-6 space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-14 animate-pulse rounded-xl bg-slate-200"
+              />
+            ))}
+          </div>
+        )}
 
-          {isError && (
-            <p className="p-4 text-sm text-red-600">
-              Couldn&apos;t load members.
-            </p>
-          )}
+        {isError && (
+          <p className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+            Couldn&apos;t load members.
+          </p>
+        )}
 
-          {!isPending && !isError && members && (
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Name</th>
-                  <th className="px-4 py-3 font-medium">Email</th>
-                  <th className="px-4 py-3 font-medium">Role</th>
-                  <th className="px-4 py-3 font-medium">Joined</th>
-                  <th className="px-4 py-3 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => {
-                  const isSelf = member.userId.id === user?.id;
-
-                  return (
-                    <tr key={member._id} className="border-b border-slate-100">
-                      <td className="px-4 py-3 text-slate-800">
-                        {member.userId.name}
-                        {isSelf && (
-                          <span className="ml-2 text-xs text-slate-400">
-                            (you)
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {member.userId.email}
-                      </td>
-                      <td className="px-4 py-3">
-                        {canManage ? (
-                          <select
-                            value={member.role}
-                            onChange={(event) =>
-                              handleRoleChange(
-                                member,
-                                event.target.value as Role,
-                              )
-                            }
-                            className="rounded border border-slate-300 px-2 py-1"
-                          >
-                            {ROLE_OPTIONS.map((role) => (
-                              <option key={role} value={role}>
-                                {role}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="font-mono text-slate-600">
-                            {member.role}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-500">
+        {!isPending && !isError && members && (
+          <>
+            {/* Mobile: stacked cards */}
+            <div className="mt-6 space-y-3 sm:hidden">
+              {members.map((member) => {
+                const isSelf = member.userId.id === user?.id;
+                return (
+                  <Card key={member._id} className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-slate-800">
+                          {member.userId.name}
+                          {isSelf && (
+                            <span className="ml-2 text-xs text-slate-400">
+                              (you)
+                            </span>
+                          )}
+                        </p>
+                        <p className="truncate text-sm text-slate-500">
+                          {member.userId.email}
+                        </p>
+                      </div>
+                      {(isSelf || canManage) && (
+                        <button
+                          type="button"
+                          onClick={() => setRemoveTarget({ member, isSelf })}
+                          className={
+                            isSelf
+                              ? "shrink-0 text-sm font-medium text-slate-600 hover:underline"
+                              : "shrink-0 text-sm font-medium text-red-600 hover:underline"
+                          }
+                        >
+                          {isSelf ? "Leave" : "Remove"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      {roleSelect(member)}
+                      <span className="text-xs text-slate-400">
+                        Joined{" "}
                         {new Date(member.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {(isSelf || canManage) && (
-                          <button
-                            type="button"
-                            onClick={() => setRemoveTarget({ member, isSelf })}
-                            className={
-                              isSelf
-                                ? "text-sm font-medium text-slate-600 hover:underline"
-                                : "text-sm font-medium text-red-600 hover:underline"
-                            }
-                          >
-                            {isSelf ? "Leave" : "Remove"}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+                      </span>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-slate-200 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Email</th>
+                    <th className="px-4 py-3 font-medium">Role</th>
+                    <th className="px-4 py-3 font-medium">Joined</th>
+                    <th className="px-4 py-3 font-medium" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.map((member) => {
+                    const isSelf = member.userId.id === user?.id;
+
+                    return (
+                      <tr
+                        key={member._id}
+                        className="border-b border-slate-100 last:border-0"
+                      >
+                        <td className="px-4 py-3 text-slate-800">
+                          {member.userId.name}
+                          {isSelf && (
+                            <span className="ml-2 text-xs text-slate-400">
+                              (you)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {member.userId.email}
+                        </td>
+                        <td className="px-4 py-3">{roleSelect(member)}</td>
+                        <td className="px-4 py-3 text-slate-500">
+                          {new Date(member.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {(isSelf || canManage) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRemoveTarget({ member, isSelf })
+                              }
+                              className={
+                                isSelf
+                                  ? "text-sm font-medium text-slate-600 hover:underline"
+                                  : "text-sm font-medium text-red-600 hover:underline"
+                              }
+                            >
+                              {isSelf ? "Leave" : "Remove"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
         <div className="mt-10">
           <InvitesPanel />
@@ -192,20 +244,20 @@ export function MembersPage() {
             : `"${removeTarget?.member.userId.name}" will lose access to this organization immediately.`}
         </p>
         <div className="mt-4 flex justify-end gap-3">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setRemoveTarget(null)}
-            className="rounded px-4 py-2 text-sm font-medium text-slate-600"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="danger"
             onClick={() => void handleRemoveConfirm()}
-            className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white"
           >
             {removeTarget?.isSelf ? "Leave" : "Remove"}
-          </button>
+          </Button>
         </div>
       </Modal>
     </div>
