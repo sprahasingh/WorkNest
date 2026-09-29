@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { Organization } from "../src/models/Organization.js";
 
 const app = createApp();
 
@@ -128,6 +129,8 @@ describe("task pagination", () => {
   it("returns every item exactly once across pages, even with concurrent inserts", async () => {
     const admin = await registerOrg("page-admin@example.com", "Page Org");
     const projectId = await createProject(admin.orgId, admin.accessToken, "PG");
+
+    await Organization.findByIdAndUpdate(admin.orgId, { plan: "pro" });
 
     await Promise.all(
       Array.from({ length: 15 }, (_, i) =>
