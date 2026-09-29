@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -23,6 +24,11 @@ const STATUS_LABELS: Record<string, string> = {
   in_progress: "In progress",
   done: "Done",
 };
+const STATUS_COLORS: Record<string, string> = {
+  todo: "#94a3b8",
+  in_progress: "#14b8a6",
+  done: "#10b981",
+};
 
 const PRIORITY_ORDER = ["low", "medium", "high"];
 const PRIORITY_LABELS: Record<string, string> = {
@@ -30,14 +36,20 @@ const PRIORITY_LABELS: Record<string, string> = {
   medium: "Medium",
   high: "High",
 };
+const PRIORITY_COLORS: Record<string, string> = {
+  low: "#94a3b8",
+  medium: "#f59e0b",
+  high: "#ef4444",
+};
 
 function normalizeCounts(
   counts: StatusCount[],
   order: string[],
   labels: Record<string, string>,
-): { name: string; count: number }[] {
+): { key: string; name: string; count: number }[] {
   const byId = new Map(counts.map((entry) => [entry._id, entry.count]));
   return order.map((key) => ({
+    key,
     name: labels[key] ?? key,
     count: byId.get(key) ?? 0,
   }));
@@ -130,7 +142,11 @@ export function DashboardPage() {
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#0d9488" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                {statusData.map((entry) => (
+                  <Cell key={entry.key} fill={STATUS_COLORS[entry.key]} />
+                ))}
+              </Bar>
             </BarChart>
           </ChartCard>
 
@@ -140,7 +156,11 @@ export function DashboardPage() {
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
               <Tooltip />
-              <Bar dataKey="count" fill="#134e4a" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                {priorityData.map((entry) => (
+                  <Cell key={entry.key} fill={PRIORITY_COLORS[entry.key]} />
+                ))}
+              </Bar>
             </BarChart>
           </ChartCard>
         </div>
