@@ -194,3 +194,7 @@ web/
     components/      shared UI (layout, modal, error boundary)
     hooks/            useCan (permission checks), useOrg (tenant context)
 ```
+
+## Author
+
+**Spraha Singh** · [GitHub](https://github.com/sprahasingh)
