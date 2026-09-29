@@ -5,21 +5,25 @@ export const inputStyles =
 
 interface FieldProps {
   label: string;
-  htmlFor: string;
+  htmlFor?: string;
   error?: string;
   hint?: string;
   children: ReactNode;
 }
 
+const labelStyles =
+  "block text-sm font-medium text-slate-700 dark:text-slate-300";
+
 export function Field({ label, htmlFor, error, hint, children }: FieldProps) {
   return (
     <div>
-      <label
-        htmlFor={htmlFor}
-        className="block text-sm font-medium text-slate-700 dark:text-slate-300"
-      >
-        {label}
-      </label>
+      {htmlFor ? (
+        <label htmlFor={htmlFor} className={labelStyles}>
+          {label}
+        </label>
+      ) : (
+        <span className={labelStyles}>{label}</span>
+      )}
       {children}
       {hint && !error && (
         <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
