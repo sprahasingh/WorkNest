@@ -38,8 +38,19 @@ describe("canUpdateTask", () => {
     expect(result).toBe(true);
   });
 
-  it("allows a member to update a task they created", () => {
-    const task = makeTask({ createdBy: userId, assigneeIds: null });
+  it("denies a member updating a task they created but are not assigned to", () => {
+    const task = makeTask({ createdBy: userId, assigneeIds: [otherUserId] });
+    const result = canUpdateTask({ userId, role: "member" }, task, {
+      title: "New title",
+    } as unknown as TaskUpdateChanges);
+    expect(result).toBe(false);
+  });
+
+  it("allows a member to update a task they are one of several assignees on", () => {
+    const task = makeTask({
+      createdBy: otherUserId,
+      assigneeIds: [otherUserId, userId],
+    });
     const result = canUpdateTask({ userId, role: "member" }, task, {
       title: "New title",
     } as unknown as TaskUpdateChanges);
