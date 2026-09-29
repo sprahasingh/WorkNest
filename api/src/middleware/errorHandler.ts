@@ -44,6 +44,10 @@ export function errorHandler(
 
   const castErr = err as MongooseCastError;
   if (castErr.name === "CastError") {
+    logger.warn(
+      { err: castErr, path: castErr.path, value: castErr.value, requestId: req.id },
+      "CastError mapped to 404",
+    );
     res.status(404).json({
       error: {
         code: "NOT_FOUND",
