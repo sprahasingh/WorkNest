@@ -7,7 +7,7 @@ export const createTaskSchema = z
     title: z.string().trim().min(1).max(200),
     description: z.string().trim().max(2000).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
-    assigneeId: z.string().regex(objectIdRegex).optional(),
+    assigneeIds: z.array(z.string().regex(objectIdRegex)).optional(),
     dueDate: z.coerce.date().optional(),
   })
   .strict();
@@ -20,7 +20,7 @@ export const updateTaskSchema = z
     description: z.string().trim().max(2000).optional(),
     status: z.enum(["todo", "in_progress", "done"]).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
-    assigneeId: z.string().regex(objectIdRegex).nullable().optional(),
+    assigneeIds: z.array(z.string().regex(objectIdRegex)).nullable().optional(),
     dueDate: z.coerce.date().nullable().optional(),
   })
   .strict();
@@ -39,3 +39,12 @@ export const listTasksQuerySchema = z
   .strict();
 
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
+
+export const createActivitySchema = z
+  .object({
+    type: z.enum(["update_request", "update", "question"]),
+    content: z.string().trim().max(2000).optional(),
+  })
+  .strict();
+
+export type CreateActivityInput = z.infer<typeof createActivitySchema>;
