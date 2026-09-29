@@ -15,6 +15,8 @@ export const PERMISSIONS = [
   "task:delete",
   "task:assign",
   "task:update:own",
+  "task:request-update",
+  "task:comment",
   "audit:read",
   "dashboard:read",
 ] as const;
@@ -37,6 +39,8 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "task:delete",
     "task:assign",
     "task:update:own",
+    "task:request-update",
+    "task:comment",
     "audit:read",
     "dashboard:read",
   ]),
@@ -51,6 +55,8 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "task:delete",
     "task:assign",
     "task:update:own",
+    "task:request-update",
+    "task:comment",
     "dashboard:read",
   ]),
   member: new Set<Permission>([
@@ -60,6 +66,7 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "task:read",
     "task:create",
     "task:update:own",
+    "task:comment",
   ]),
 };
 

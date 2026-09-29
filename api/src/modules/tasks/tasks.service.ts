@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { Task } from "../../models/Task.js";
 import { Project } from "../../models/Project.js";
 import { Membership } from "../../models/Membership.js";
+import { Organization } from "../../models/Organization.js";
 import { requireTenantId, getTenantContext } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { can } from "../../auth/rbac.js";
@@ -14,11 +15,28 @@ import type {
   ListTasksQuery,
 } from "./tasks.schemas.js";
 
+async function validateAssignees(
+  tenantId: string,
+  assigneeIds: string[],
+): Promise<void> {
+  for (const id of assigneeIds) {
+    const membership = await Membership.findOne({ tenantId, userId: id });
+    if (!membership) {
+      throw new AppError(
+        400,
+        "INVALID_ASSIGNEE",
+        "One or more assignees are not members of this organization",
+      );
+    }
+  }
+}
+
 export async function createTask(
   projectId: string,
   input: CreateTaskInput,
   createdBy: string,
 ) {
+  const tenantId = requireTenantId();
   const project = await Project.findById(projectId);
 
   if (!project) {
@@ -33,20 +51,25 @@ export async function createTask(
     );
   }
 
-  if (input.assigneeId) {
-    const tenantId = requireTenantId();
-    const membership = await Membership.findOne({
-      tenantId,
-      userId: input.assigneeId,
+  const org = await Organization.findById(tenantId).setOptions({
+    skipTenant: true,
+  });
+  if (org?.plan === "free") {
+    const activeCount = await Task.countDocuments({
+      projectId,
+      status: { $ne: "done" },
     });
-
-    if (!membership) {
+    if (activeCount >= 10) {
       throw new AppError(
         400,
-        "INVALID_ASSIGNEE",
-        "The assignee is not a member of this organization",
+        "TASK_LIMIT_REACHED",
+        "Free plan projects are limited to 10 active tasks. Mark tasks as done or upgrade to Pro.",
       );
     }
+  }
+
+  if (input.assigneeIds?.length) {
+    await validateAssignees(tenantId, input.assigneeIds);
   }
 
   const dbSession = await mongoose.startSession();
@@ -62,7 +85,7 @@ export async function createTask(
             title: input.title,
             description: input.description,
             priority: input.priority,
-            assigneeId: input.assigneeId,
+            assigneeIds: input.assigneeIds ?? [],
             dueDate: input.dueDate,
             createdBy,
           },
@@ -90,7 +113,8 @@ export async function createTask(
 }
 
 export async function listTasks(projectId: string, query: ListTasksQuery) {
-  const userId = getTenantContext()!.userId;
+  const context = getTenantContext()!;
+  const userId = context.userId;
   const limit = query.limit ?? 20;
 
   const filter: Record<string, unknown> = { projectId };
@@ -98,10 +122,29 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
   if (query.status) filter.status = query.status;
   if (query.priority) filter.priority = query.priority;
   if (query.mine === "true") {
-    filter.assigneeId = userId;
+    filter.assigneeIds = new mongoose.Types.ObjectId(userId);
   } else if (query.assigneeId) {
-    filter.assigneeId = query.assigneeId;
+    filter.assigneeIds = new mongoose.Types.ObjectId(query.assigneeId);
   }
+
+  if (context.role === "member") {
+    const higherRoleMembers = await Membership.find({
+      role: { $in: ["admin", "manager"] },
+    })
+      .select("userId")
+      .lean();
+    const higherRoleIds = higherRoleMembers.map((m) => m.userId);
+
+    const visibilityFilter = {
+      $or: [
+        { assigneeIds: new mongoose.Types.ObjectId(userId) },
+        { assigneeIds: { $not: { $elemMatch: { $in: higherRoleIds } } } },
+      ],
+    };
+
+    filter.$and = [visibilityFilter];
+  }
+
   if (query.cursor) {
     filter._id = { $lt: query.cursor };
   }
@@ -132,14 +175,20 @@ function comparableValue(field: string, value: unknown): unknown {
   if (field === "dueDate") {
     return value instanceof Date ? value.getTime() : value;
   }
-  if (field === "assigneeId") {
-    return value === null || value === undefined ? value : String(value);
+  if (field === "assigneeIds") {
+    return Array.isArray(value)
+      ? value
+          .map((id) => String(id))
+          .sort()
+          .join(",")
+      : "";
   }
   return value;
 }
 
 export async function updateTask(taskId: string, input: UpdateTaskInput) {
   const context = getTenantContext()!;
+  const tenantId = requireTenantId();
   const task = await Task.findById(taskId);
 
   if (!task) {
@@ -148,7 +197,7 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
 
   const isReassigning = Object.prototype.hasOwnProperty.call(
     input,
-    "assigneeId",
+    "assigneeIds",
   );
 
   if (isReassigning && !can(context.role as Role, "task:assign")) {
@@ -173,20 +222,8 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
     );
   }
 
-  if (input.assigneeId) {
-    const tenantId = requireTenantId();
-    const membership = await Membership.findOne({
-      tenantId,
-      userId: input.assigneeId,
-    });
-
-    if (!membership) {
-      throw new AppError(
-        400,
-        "INVALID_ASSIGNEE",
-        "The assignee is not a member of this organization",
-      );
-    }
+  if (input.assigneeIds?.length) {
+    await validateAssignees(tenantId, input.assigneeIds);
   }
 
   const dbSession = await mongoose.startSession();
@@ -199,7 +236,7 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
         "description",
         "status",
         "priority",
-        "assigneeId",
+        "assigneeIds",
         "dueDate",
       ] as const;
 

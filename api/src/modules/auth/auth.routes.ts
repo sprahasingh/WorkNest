@@ -9,6 +9,7 @@ import {
   refreshController,
   logoutController,
   meController,
+  deleteAccountController,
 } from "./auth.controller.js";
 
 const router = Router();
@@ -37,5 +38,6 @@ router.post(
 router.post("/refresh", authLimiter, refreshController);
 router.post("/logout", logoutController);
 router.get("/me", authenticate, meController);
+router.delete("/me", authenticate, deleteAccountController);
 
 export { router as authRouter };
