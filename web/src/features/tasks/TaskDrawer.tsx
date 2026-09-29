@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Modal } from "@/components/Modal";
+import { cn } from "@/lib/cn";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
 import { Field, inputStyles } from "@/components/ui/Field";
@@ -90,6 +91,18 @@ export function TaskDrawer({
   );
   const isAssignee = task?.assigneeIds?.includes(userId) ?? false;
   const canEdit = !isEditing || canUpdateAny || (canUpdateOwn && isAssignee);
+  const showDelete = isEditing && canDelete;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const phoneDeleteRef = useRef<HTMLDivElement>(null);
+
+  // On phones the confirmation opens below the sticky buttons; bring it
+  // into view so both choices can be tapped without scrolling.
+  useEffect(() => {
+    if (confirmingDelete) {
+      phoneDeleteRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [confirmingDelete]);
+  const showRequestUpdate = isEditing && canLead;
 
   const {
     register,
@@ -208,6 +221,7 @@ export function TaskDrawer({
       open={open}
       onClose={onClose}
       title={isEditing ? (canEdit ? "Edit task" : "Task details") : "New task"}
+      size="lg"
     >
       {isEditing && (
         <div
@@ -355,39 +369,86 @@ export function TaskDrawer({
             )}
           </fieldset>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <div>
-              {isEditing && canDelete && (
+          <div className="sticky bottom-0 z-10 border-t border-slate-200 bg-white pt-4 dark:border-slate-700 dark:bg-slate-800 sm:static sm:border-0 sm:bg-transparent sm:pt-2">
+            {confirmingDelete && (
+              <div
+                role="alert"
+                className="hidden items-center justify-between gap-3 rounded-lg bg-red-50 px-3 py-2 dark:bg-red-950/30 sm:flex"
+              >
+                <p className="text-sm text-red-800 dark:text-red-200">
+                  Delete this task? This can&apos;t be undone.
+                </p>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirmingDelete(false)}
+                  >
+                    Keep task
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => void handleDelete()}
+                    disabled={deleteTask.isPending}
+                    loading={deleteTask.isPending}
+                  >
+                    {deleteTask.isPending ? "Deleting…" : "Delete task"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div
+              className={cn(
+                "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3",
+                confirmingDelete && "sm:hidden",
+              )}
+            >
+              {showDelete && (
                 <button
                   type="button"
-                  onClick={() => void handleDelete()}
-                  disabled={deleteTask.isPending}
-                  className="text-sm font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                  onClick={() => setConfirmingDelete(true)}
+                  className="hidden whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30 sm:mr-auto sm:block"
                 >
-                  {deleteTask.isPending ? "Deleting…" : "Delete task"}
+                  Delete task
                 </button>
               )}
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {isEditing && canLead && (
+              <div
+                className={cn(
+                  "order-2 grid gap-2 sm:order-1 sm:flex sm:gap-3",
+                  showRequestUpdate ? "grid-cols-2" : "grid-cols-1",
+                )}
+              >
+                {showRequestUpdate && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleRequestUpdate()}
+                    disabled={requestUpdate.isPending}
+                    loading={requestUpdate.isPending}
+                    className="whitespace-nowrap"
+                  >
+                    Request update
+                  </Button>
+                )}
                 <Button
                   type="button"
-                  variant="secondary"
-                  onClick={() => void handleRequestUpdate()}
-                  disabled={requestUpdate.isPending}
-                  loading={requestUpdate.isPending}
+                  variant={canEdit ? "ghost" : "secondary"}
+                  onClick={onClose}
+                  className="whitespace-nowrap border border-slate-300 dark:border-slate-600 sm:border-0"
                 >
-                  Request update
+                  {canEdit ? "Cancel" : "Close"}
                 </Button>
-              )}
-              <Button type="button" variant="ghost" onClick={onClose}>
-                {canEdit ? "Cancel" : "Close"}
-              </Button>
+              </div>
               {canEdit && (
                 <Button
                   type="submit"
                   disabled={isSubmitting}
                   loading={isSubmitting}
+                  className="order-1 w-full whitespace-nowrap sm:order-2 sm:w-auto"
                 >
                   {isSubmitting
                     ? "Saving…"
@@ -398,6 +459,47 @@ export function TaskDrawer({
               )}
             </div>
           </div>
+
+          {showDelete && (
+            <div
+              ref={phoneDeleteRef}
+              className="border-t border-slate-200 pt-3 dark:border-slate-700 sm:hidden"
+            >
+              {confirmingDelete ? (
+                <div role="alert" className="space-y-2">
+                  <p className="text-center text-sm text-red-800 dark:text-red-200">
+                    Delete this task? This can&apos;t be undone.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setConfirmingDelete(false)}
+                    >
+                      Keep task
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      onClick={() => void handleDelete()}
+                      disabled={deleteTask.isPending}
+                      loading={deleteTask.isPending}
+                    >
+                      {deleteTask.isPending ? "Deleting…" : "Delete task"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(true)}
+                  className="w-full rounded-lg py-2 text-center text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                >
+                  Delete task
+                </button>
+              )}
+            </div>
+          )}
         </form>
       )}
 
