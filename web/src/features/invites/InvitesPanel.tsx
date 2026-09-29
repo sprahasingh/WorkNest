@@ -43,7 +43,7 @@ export function InvitesPanel() {
   const [copied, setCopied] = useState(false);
 
   const { data: org } = useOrgDetails(orgId);
-  const { data: invites, isPending, isError } = useInvites(orgId);
+  const { data: invites, isPending, isError } = useInvites(orgId, canManage);
   const createInvite = useCreateInvite(orgId);
   const revokeInvite = useRevokeInvite(orgId);
 
@@ -220,52 +220,52 @@ export function InvitesPanel() {
         </Card>
       )}
 
-      <Card className="p-0">
-        <h2 className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800 dark:border-slate-700 dark:text-slate-100">
-          Pending invites
-        </h2>
+      {canManage && (
+        <Card className="p-0">
+          <h2 className="border-b border-slate-200 px-4 py-3 font-medium text-slate-800 dark:border-slate-700 dark:text-slate-100">
+            Pending invites
+          </h2>
 
-        {isPending && (
-          <div className="space-y-2 p-4">
-            {[0, 1].map((i) => (
-              <div
-                key={i}
-                className="h-8 animate-pulse rounded bg-slate-200 dark:bg-slate-700"
-              />
-            ))}
-          </div>
-        )}
+          {isPending && (
+            <div className="space-y-2 p-4">
+              {[0, 1].map((i) => (
+                <div
+                  key={i}
+                  className="h-8 animate-pulse rounded bg-slate-200 dark:bg-slate-700"
+                />
+              ))}
+            </div>
+          )}
 
-        {isError && (
-          <p className="p-4 text-sm text-red-600 dark:text-red-400">
-            Couldn&apos;t load invites.
-          </p>
-        )}
+          {isError && (
+            <p className="p-4 text-sm text-red-600 dark:text-red-400">
+              Couldn&apos;t load invites.
+            </p>
+          )}
 
-        {!isPending && !isError && invites?.length === 0 && (
-          <p className="p-4 text-sm text-slate-500 dark:text-slate-400">
-            No pending invites.
-          </p>
-        )}
+          {!isPending && !isError && invites?.length === 0 && (
+            <p className="p-4 text-sm text-slate-500 dark:text-slate-400">
+              No pending invites.
+            </p>
+          )}
 
-        {!isPending && !isError && invites && invites.length > 0 && (
-          <ul className="divide-y divide-slate-100 dark:divide-slate-700">
-            {invites.map((invite) => (
-              <li
-                key={invite._id}
-                className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-slate-800 dark:text-slate-100">
-                    {invite.email}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-mono">{invite.role}</span> ·
-                    Expires{" "}
-                    {new Date(invite.expiresAt).toLocaleDateString()}
-                  </p>
-                </div>
-                {canManage && (
+          {!isPending && !isError && invites && invites.length > 0 && (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-700">
+              {invites.map((invite) => (
+                <li
+                  key={invite._id}
+                  className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-slate-800 dark:text-slate-100">
+                      {invite.email}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      <span className="font-mono">{invite.role}</span> ·
+                      Expires{" "}
+                      {new Date(invite.expiresAt).toLocaleDateString()}
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => void handleRevoke(invite._id)}
@@ -280,12 +280,12 @@ export function InvitesPanel() {
                       ? "Revoking…"
                       : "Revoke"}
                   </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

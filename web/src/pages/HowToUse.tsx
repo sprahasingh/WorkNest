@@ -1,6 +1,8 @@
 import { Link } from "react-router";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/auth/auth-context";
+import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 
 interface GuideStep {
   title: string;
@@ -26,17 +28,22 @@ const STEPS: GuideStep[] = [
   {
     title: "Create and assign a task",
     description:
-      "Open a project and click New task. Set a title, priority, optional due date, and assignee. Anyone can create a task; admins and managers can assign it to someone else.",
+      "Open a project and click New task. Set a title, priority, optional due date, and tick one or more assignees. Admins and managers can assign anyone; a task a member creates is assigned to them. On the free plan a project can hold up to 10 active (not done) tasks.",
   },
   {
     title: "Move a task through its board",
     description:
-      "Each task has a status dropdown right on its card — To do, In progress, or Done. Members can move their own tasks; admins and managers can move any task.",
+      "Each task has a status dropdown right on its card — To do, In progress, or Done. Members can edit and move the tasks assigned to them; admins and managers can edit and move any task.",
+  },
+  {
+    title: "Ask for and share updates",
+    description:
+      "Admins and managers can request an update on one task, or on a whole project to reach every assignee at once, and reply to questions. Assignees post updates or ask questions from a task's Updates & questions tab or the project's updates panel. Everyone involved is notified through the bell.",
   },
   {
     title: "Check the dashboard",
     description:
-      "Admins and managers see overdue tasks, team activity, and usage against your plan at a glance, plus a 14-day trend of new tasks.",
+      "Admins and managers see overdue tasks, team activity, and usage against your plan at a glance, plus a trend of new tasks over the last 7 to 90 days.",
   },
   {
     title: "Review the audit log",
@@ -46,7 +53,7 @@ const STEPS: GuideStep[] = [
   {
     title: "Manage your plan",
     description:
-      "Settings → Plan shows your seat and project usage. Admins can upgrade or downgrade between the free and pro plans as your team grows.",
+      "Settings → Plan shows your seat and project usage. Admins can upgrade or downgrade between the free and pro plans as your team grows; pro removes the per-project task limit.",
   },
 ];
 
@@ -59,20 +66,38 @@ interface PermissionRow {
 
 const PERMISSIONS: PermissionRow[] = [
   {
-    capability: "View the organization, projects, tasks, and members",
+    capability: "View the organization, projects, and members",
     admin: true,
     manager: true,
     member: true,
+  },
+  {
+    capability: "See tasks assigned only to admins or managers",
+    admin: true,
+    manager: true,
+    member: false,
   },
   { capability: "Create tasks", admin: true, manager: true, member: true },
   {
-    capability: "Update your own tasks",
+    capability: "Edit and move tasks assigned to you",
     admin: true,
     manager: true,
     member: true,
   },
   {
-    capability: "Update or move any task",
+    capability: "Edit or move any task",
+    admin: true,
+    manager: true,
+    member: false,
+  },
+  {
+    capability: "Post updates and ask questions on your tasks",
+    admin: true,
+    manager: true,
+    member: true,
+  },
+  {
+    capability: "Request updates and reply to questions",
     admin: true,
     manager: true,
     member: false,
@@ -155,6 +180,10 @@ function BrandMark() {
 }
 
 export function HowToUse() {
+  const auth = useAuth();
+  const isAuthenticated = auth.status === "authenticated";
+  const workspacePath = resolvePostAuthPath(auth.memberships ?? []);
+
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
       <header className="border-b border-slate-100 dark:border-slate-800">
@@ -216,7 +245,8 @@ export function HowToUse() {
               </h3>
               <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                 A single unit of work with a status, priority, optional due
-                date, and assignee, tracked on its project&apos;s board.
+                date, and one or more assignees, tracked on its
+                project&apos;s board.
               </p>
             </Card>
             <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
@@ -309,10 +339,10 @@ export function HowToUse() {
             Ready to set up your workspace?
           </h2>
           <Link
-            to="/register"
+            to={isAuthenticated ? workspacePath : "/register"}
             className="mt-6 inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-teal-700 shadow-sm transition-colors hover:bg-teal-50"
           >
-            Create your account
+            {isAuthenticated ? "Go to your workspace" : "Create your account"}
           </Link>
         </section>
       </main>

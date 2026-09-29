@@ -43,7 +43,9 @@ export function TaskCard({
   onStatusChange,
   onClick,
 }: TaskCardProps) {
-  const assignee = members.find((m) => m.userId.id === task.assigneeId);
+  const assignees = members.filter((m) =>
+    task.assigneeIds?.includes(m.userId.id),
+  );
   const overdue = isOverdue(task);
 
   return (
@@ -55,13 +57,23 @@ export function TaskCard({
         <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
           {task.title}
         </p>
-        {assignee && (
-          <span
-            title={assignee.userId.name}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-medium text-white"
-          >
-            {getInitials(assignee.userId.name)}
-          </span>
+        {assignees.length > 0 && (
+          <div className="flex shrink-0 -space-x-1.5">
+            {assignees.slice(0, 3).map((assignee) => (
+              <span
+                key={assignee._id}
+                title={assignee.userId.name}
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-600 text-xs font-medium text-white ring-1 ring-white dark:ring-slate-800"
+              >
+                {getInitials(assignee.userId.name)}
+              </span>
+            ))}
+            {assignees.length > 3 && (
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-300 text-xs font-medium text-slate-700 ring-1 ring-white dark:bg-slate-600 dark:text-slate-200 dark:ring-slate-800">
+                +{assignees.length - 3}
+              </span>
+            )}
+          </div>
         )}
       </div>
 

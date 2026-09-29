@@ -9,9 +9,16 @@ import { useProject } from "@/features/projects/queries";
 import { parseApiError } from "@/lib/apiError";
 import { NotFound } from "@/pages/NotFound";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/Modal";
 import { TaskColumn } from "./TaskColumn";
 import { TaskDrawer } from "./TaskDrawer";
-import { useUpdateTaskStatus, type TaskFilters } from "./queries";
+import { ActivityFeed } from "./ActivityFeed";
+import {
+  useTask,
+  useTaskStats,
+  useUpdateTaskStatus,
+  type TaskFilters,
+} from "./queries";
 import { canChangeTaskStatus } from "./ownership";
 import type { Task, TaskStatus, TaskPriority } from "./api";
 
@@ -20,8 +27,13 @@ const STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
 const selectStyles =
   "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
 
+type DrawerState =
+  | { mode: "create" }
+  | { mode: "edit"; task: Task; tab?: "details" | "activity" }
+  | null;
+
 export function ProjectBoard() {
-  const { orgId } = useOrg();
+  const { orgId, role } = useOrg();
   const { projectId } = useParams<{ projectId: string }>();
   const auth = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -29,10 +41,14 @@ export function ProjectBoard() {
   const canUpdateAny = useCan("task:update:any");
   const canUpdateOwn = useCan("task:update:own");
   const canCreate = useCan("task:create");
+  const canLead = useCan("task:request-update");
 
-  const [drawerState, setDrawerState] = useState<
-    { mode: "create" } | { mode: "edit"; task: Task } | null
-  >(null);
+  const [drawerState, setDrawerState] = useState<DrawerState>(null);
+
+  // Notifications link here with ?task=<id> (open that task's updates) or
+  // ?updates=1 (open the project-wide updates panel).
+  const linkedTaskId = searchParams.get("task");
+  const updatesOpen = searchParams.get("updates") === "1";
 
   const filters: TaskFilters = {
     assigneeId: searchParams.get("assignee") ?? undefined,
@@ -44,13 +60,15 @@ export function ProjectBoard() {
   const membersQuery = useMembers(orgId);
   const members = membersQuery.data ?? [];
   const projectQuery = useProject(orgId, projectId ?? "");
+  const statsQuery = useTaskStats(orgId, projectId ?? "");
+  const linkedTaskQuery = useTask(orgId, linkedTaskId);
   const updateStatus = useUpdateTaskStatus(orgId, projectId ?? "", filters);
 
   if (!projectId) {
     return <NotFound />;
   }
 
-  const setFilter = (key: string, value: string | null) => {
+  const setParam = (key: string, value: string | null) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (!value) {
@@ -74,8 +92,24 @@ export function ProjectBoard() {
     );
   };
 
+  const closeDrawer = () => {
+    setDrawerState(null);
+    if (linkedTaskId) setParam("task", null);
+  };
+
   const currentUserId = auth.user?.id ?? "";
   const isArchived = projectQuery.data?.archivedAt != null;
+
+  const stats = statsQuery.data;
+  const atTaskLimit =
+    stats?.activeLimit != null && stats.activeCount >= stats.activeLimit;
+  const canPostProjectUpdates = canLead || (stats?.assignedToMe ?? false);
+
+  const openDrawer: DrawerState =
+    drawerState ??
+    (linkedTaskQuery.data
+      ? { mode: "edit", task: linkedTaskQuery.data, tab: "activity" }
+      : null);
 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
@@ -92,12 +126,70 @@ export function ProjectBoard() {
               {projectQuery.data?.name ?? "Loading…"}
             </h1>
           </div>
-          {canCreate && !isArchived && (
-            <Button onClick={() => setDrawerState({ mode: "create" })}>
-              New task
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={() => setParam("updates", "1")}>
+              {canLead ? "Updates & requests" : "Project updates"}
             </Button>
-          )}
+            {canCreate && !isArchived && (
+              <Button
+                onClick={() => setDrawerState({ mode: "create" })}
+                disabled={atTaskLimit}
+                title={
+                  atTaskLimit
+                    ? "This project has reached the free plan's active task limit"
+                    : undefined
+                }
+              >
+                New task
+              </Button>
+            )}
+          </div>
         </div>
+
+        {stats?.activeLimit != null && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+            <span
+              className={`rounded-full px-2.5 py-0.5 font-medium ${
+                atTaskLimit
+                  ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                  : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              }`}
+            >
+              {stats.activeCount} / {stats.activeLimit} active tasks
+            </span>
+            <span className="text-slate-500 dark:text-slate-400">
+              {atTaskLimit
+                ? "Free plan limit reached. Mark a task as done to add another"
+                : "Free plan"}
+              {atTaskLimit && role === "admin" && (
+                <>
+                  {", or "}
+                  <Link
+                    to={`/orgs/${orgId}/settings`}
+                    className="font-medium text-teal-700 hover:underline dark:text-teal-400"
+                  >
+                    upgrade to Pro
+                  </Link>
+                  {" for unlimited tasks"}
+                </>
+              )}
+              {atTaskLimit && "."}
+            </span>
+          </div>
+        )}
+
+        {linkedTaskId && linkedTaskQuery.isError && (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-slate-200 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            <span>That task was deleted or isn&apos;t visible to you.</span>
+            <button
+              type="button"
+              onClick={() => setParam("task", null)}
+              className="font-medium text-teal-700 hover:underline dark:text-teal-400"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {isArchived && (
           <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
@@ -110,7 +202,7 @@ export function ProjectBoard() {
           <select
             value={filters.priority ?? ""}
             onChange={(event) =>
-              setFilter("priority", event.target.value || null)
+              setParam("priority", event.target.value || null)
             }
             className={selectStyles}
           >
@@ -123,7 +215,7 @@ export function ProjectBoard() {
           <select
             value={filters.assigneeId ?? ""}
             onChange={(event) =>
-              setFilter("assignee", event.target.value || null)
+              setParam("assignee", event.target.value || null)
             }
             className={selectStyles}
           >
@@ -140,7 +232,7 @@ export function ProjectBoard() {
               type="checkbox"
               checked={filters.mine ?? false}
               onChange={(event) =>
-                setFilter("mine", event.target.checked ? "true" : null)
+                setParam("mine", event.target.checked ? "true" : null)
               }
               className="accent-teal-600"
             />
@@ -173,15 +265,34 @@ export function ProjectBoard() {
       </div>
 
       <TaskDrawer
-        key={drawerState?.mode === "edit" ? drawerState.task._id : "create"}
-        open={drawerState !== null}
-        onClose={() => setDrawerState(null)}
+        key={openDrawer?.mode === "edit" ? openDrawer.task._id : "create"}
+        open={openDrawer !== null}
+        onClose={closeDrawer}
         orgId={orgId}
         projectId={projectId}
         filters={filters}
         members={members}
-        task={drawerState?.mode === "edit" ? drawerState.task : null}
+        task={openDrawer?.mode === "edit" ? openDrawer.task : null}
+        initialTab={openDrawer?.mode === "edit" ? openDrawer.tab : undefined}
       />
+
+      <Modal
+        open={updatesOpen}
+        onClose={() => setParam("updates", null)}
+        title={`${projectQuery.data?.name ?? "Project"} updates`}
+      >
+        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+          {canLead
+            ? "Ask everyone working on this project for an update, and answer their questions."
+            : "Share progress on your work here, or ask your managers a question about the project."}
+        </p>
+        <ActivityFeed
+          orgId={orgId}
+          scope={{ kind: "project", id: projectId }}
+          canLead={canLead}
+          canContribute={!canLead && canPostProjectUpdates}
+        />
+      </Modal>
     </div>
   );
 }
