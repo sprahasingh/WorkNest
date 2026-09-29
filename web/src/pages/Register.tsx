@@ -5,6 +5,7 @@ import { z } from "zod";
 import { Link, useNavigate } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
+import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
@@ -49,8 +50,8 @@ export function Register() {
   const onSubmit = async (values: RegisterFormValues) => {
     setFormError(null);
     try {
-      await registerUser(values);
-      navigate("/orgs", { replace: true });
+      const me = await registerUser(values);
+      navigate(resolvePostAuthPath(me.memberships), { replace: true });
     } catch (error) {
       const parsed = parseApiError(error);
       if (Object.keys(parsed.fieldErrors).length === 0) {

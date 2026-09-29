@@ -5,6 +5,7 @@ import { z } from "zod";
 import { Link, useLocation, useNavigate, type Location } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
+import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
@@ -42,14 +43,16 @@ export function Login() {
     resolver: zodResolver(loginFormSchema),
   });
 
-  const redirectTo =
-    (location.state as LocationState | null)?.from?.pathname ?? "/orgs";
+  const redirectFrom = (location.state as LocationState | null)?.from
+    ?.pathname;
 
   const onSubmit = async (values: LoginFormValues) => {
     setFormError(null);
     try {
-      await login(values);
-      navigate(redirectTo, { replace: true });
+      const me = await login(values);
+      navigate(redirectFrom ?? resolvePostAuthPath(me.memberships), {
+        replace: true,
+      });
     } catch (error) {
       const parsed = parseApiError(error);
       if (Object.keys(parsed.fieldErrors).length === 0) {
