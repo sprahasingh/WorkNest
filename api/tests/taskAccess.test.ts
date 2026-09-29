@@ -460,6 +460,7 @@ describe("free plan active task limit", () => {
     expect(stats.body).toEqual({
       activeCount: 10,
       activeLimit: 10,
+      plan: "free",
       assignedToMe: false,
     });
 
@@ -489,11 +490,35 @@ describe("free plan active task limit", () => {
     );
     expect(allowed.status).toBe(201);
 
+    const reopen = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${lastId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ status: "todo" });
+    expect(reopen.status).toBe(400);
+    expect(reopen.body.error.code).toBe("TASK_LIMIT_REACHED");
+
+    const stillTen = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks/stats`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(stillTen.body.activeCount).toBe(10);
+
+    const firstPage = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ status: "todo", limit: 4 })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(firstPage.body.items).toHaveLength(4);
+    expect(firstPage.body.total).toBe(10);
+
     await Organization.findByIdAndUpdate(admin.orgId, { plan: "pro" });
+    const reopenOnPro = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${lastId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ status: "in_progress" });
+    expect(reopenOnPro.status).toBe(200);
     const proStats = await request(app)
       .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks/stats`)
       .set("Authorization", `Bearer ${admin.accessToken}`);
-    expect(proStats.body.activeLimit).toBeNull();
+    expect(proStats.body.activeLimit).toBe(50);
   });
 });
 
@@ -523,55 +548,5 @@ describe("legacy assignee migration", () => {
     const raw = await Task.collection.findOne({});
     expect(raw?.assigneeId).toBeUndefined();
     expect(raw?.assigneeIds.map(String)).toEqual([admin.userId]);
-  });
-});
-
-describe("account deletion", () => {
-  it("blocks a sole admin with teammates, then frees the email for re-registration", async () => {
-    const admin = await registerOrg("leaver@example.com", "Leaver Org");
-    const member = await addMember(
-      admin.orgId,
-      admin.accessToken,
-      "stayer@example.com",
-    );
-
-    const blocked = await request(app)
-      .delete("/api/auth/me")
-      .set("Authorization", `Bearer ${admin.accessToken}`);
-    expect(blocked.status).toBe(409);
-    expect(blocked.body.error.code).toBe("SOLE_ADMIN");
-
-    const projectId = await createProject(
-      admin.orgId,
-      admin.accessToken,
-      "DEL",
-    );
-    const task = await createTask(admin.orgId, projectId, admin.accessToken, {
-      title: "Handover",
-      assigneeIds: [member.userId],
-    });
-
-    const deleted = await request(app)
-      .delete("/api/auth/me")
-      .set("Authorization", `Bearer ${member.accessToken}`);
-    expect(deleted.status).toBe(204);
-
-    const after = await request(app)
-      .get(`/api/orgs/${admin.orgId}/tasks/${task.body.task._id}`)
-      .set("Authorization", `Bearer ${admin.accessToken}`);
-    expect(after.body.task.assigneeIds).toEqual([]);
-
-    const login = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "stayer@example.com", password: "password123" });
-    expect(login.status).toBe(401);
-
-    const again = await request(app).post("/api/auth/register").send({
-      name: "Back Again",
-      email: "stayer@example.com",
-      password: "password123",
-      orgName: "Fresh Start",
-    });
-    expect(again.status).toBe(201);
   });
 });

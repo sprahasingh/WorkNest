@@ -55,7 +55,8 @@ export interface AuditActor {
 export interface AuditLogEntry {
   _id: string;
   tenantId: string;
-  actorId: AuditActor;
+  // null when the actor's account no longer exists.
+  actorId: AuditActor | null;
   action: AuditAction;
   entityType: string;
   entityId: string;
