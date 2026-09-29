@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { Organization } from "../src/models/Organization.js";
 
 const app = createApp();
 
@@ -56,7 +57,7 @@ describe("cross-tenant task reference checks", () => {
     const res = await request(app)
       .post(`/api/orgs/${orgA.orgId}/projects/${projectIdA}/tasks`)
       .set("Authorization", `Bearer ${orgA.accessToken}`)
-      .send({ title: "Bad assignment", assigneeId: orgB.userId });
+      .send({ title: "Bad assignment", assigneeIds: [orgB.userId] });
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("INVALID_ASSIGNEE");
@@ -118,7 +119,7 @@ describe("task ownership rules", () => {
     const reassignRes = await request(app)
       .patch(`/api/orgs/${admin.orgId}/tasks/${ownTaskId}`)
       .set("Authorization", `Bearer ${memberToken}`)
-      .send({ assigneeId: memberId });
+      .send({ assigneeIds: [memberId] });
 
     expect(reassignRes.status).toBe(403);
   });
@@ -128,6 +129,8 @@ describe("task pagination", () => {
   it("returns every item exactly once across pages, even with concurrent inserts", async () => {
     const admin = await registerOrg("page-admin@example.com", "Page Org");
     const projectId = await createProject(admin.orgId, admin.accessToken, "PG");
+
+    await Organization.findByIdAndUpdate(admin.orgId, { plan: "pro" });
 
     await Promise.all(
       Array.from({ length: 15 }, (_, i) =>
