@@ -4,6 +4,8 @@ import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
 import { cn } from "@/lib/cn";
+import { hasSeenOnboarding } from "@/lib/onboarding";
+import { OnboardingTour } from "@/components/OnboardingTour";
 
 interface NavItem {
   to: string;
@@ -166,12 +168,28 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </NavLink>
         ))}
       </nav>
+
+      <div className="border-t border-slate-200 p-2">
+        <Link
+          to="/how-to-use"
+          target="_blank"
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+        >
+          <span className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold">
+            ?
+          </span>
+          How to use WorkNest
+        </Link>
+      </div>
     </div>
   );
 }
 
 export function AppLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => !hasSeenOnboarding(),
+  );
 
   useEffect(() => {
     document.body.style.overflow = mobileNavOpen ? "hidden" : "";
@@ -257,6 +275,10 @@ export function AppLayout() {
       <main className="min-w-0 flex-1">
         <Outlet />
       </main>
+
+      {showOnboarding && (
+        <OnboardingTour onClose={() => setShowOnboarding(false)} />
+      )}
     </div>
   );
 }

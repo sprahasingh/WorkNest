@@ -176,7 +176,13 @@ export function Landing() {
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <BrandMark />
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <Link
+              to="/how-to-use"
+              className="hidden text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-block"
+            >
+              How it works
+            </Link>
             {isAuthenticated ? (
               <Link
                 to="/orgs"
