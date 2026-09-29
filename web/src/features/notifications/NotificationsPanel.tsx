@@ -84,14 +84,21 @@ function PanelBody({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50">
       <div
-        className="absolute inset-0 bg-slate-900/30 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-slate-900/30 backdrop-blur-[1px] md:bg-transparent md:backdrop-blur-none"
         onClick={onClose}
       />
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="notifications-title"
-        className="absolute inset-y-0 left-0 flex w-full flex-col sm:max-w-sm border-r border-slate-200 bg-white shadow-2xl animate-[panel-in_180ms_ease-out] motion-reduce:animate-none dark:border-slate-800 dark:bg-slate-900 md:left-56"
+        className={cn(
+          "absolute inset-y-0 flex flex-col bg-white shadow-2xl motion-reduce:animate-none dark:bg-slate-900",
+          // Phones: a drawer from the right, under the bell, leaving a strip
+          // of the page visible so it reads as sliding over it.
+          "right-0 w-[calc(100%-3rem)] max-w-sm rounded-l-2xl border-l border-slate-200 animate-[panel-in-right_260ms_cubic-bezier(0.32,0.72,0,1)] dark:border-slate-800",
+          // Desktop: a card dropping down from the bell at the top right.
+          "md:inset-y-auto md:right-3 md:top-[4.25rem] md:max-h-[min(70vh,560px)] md:w-[380px] md:max-w-none md:origin-top-right md:rounded-xl md:border md:shadow-xl md:animate-[popover-in_140ms_ease-out]",
+        )}
       >
         <header className="border-b border-slate-200 px-4 pb-3 pt-4 dark:border-slate-800">
           <div className="flex items-start justify-between gap-3">
@@ -159,7 +166,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {isPending && (
             <ul className="space-y-1 p-4" aria-label="Loading notifications">
               {[0, 1, 2].map((i) => (
