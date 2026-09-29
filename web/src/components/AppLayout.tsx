@@ -73,8 +73,11 @@ function WorkspaceSwitcher() {
         aria-expanded={open}
         className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
       >
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-600 text-xs font-bold text-white">
-          W
+        <span
+          aria-hidden="true"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-200 text-xs font-bold uppercase text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+        >
+          {orgName.trim().charAt(0) || "?"}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold text-slate-800 dark:text-slate-100">
@@ -212,15 +215,40 @@ function NotificationButton({
   );
 }
 
-function SidebarContent({
-  onNavigate,
+function BrandMark() {
+  return (
+    <div className="flex flex-1 items-center gap-2">
+      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-teal-600 text-xs font-bold text-white">
+        W
+      </span>
+      <span className="font-semibold text-slate-800 dark:text-slate-100">
+        WorkNest
+      </span>
+    </div>
+  );
+}
+
+// Theme and notifications sit at the top right of the app header, where
+// people look for them.
+function HeaderControls({
   notificationsOpen,
   onOpenNotifications,
 }: {
-  onNavigate?: () => void;
   notificationsOpen: boolean;
   onOpenNotifications: () => void;
 }) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <ThemeToggle />
+      <NotificationButton
+        open={notificationsOpen}
+        onClick={onOpenNotifications}
+      />
+    </div>
+  );
+}
+
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const canViewDashboard = useCan("dashboard:read");
   const canViewAudit = useCan("audit:read");
 
@@ -256,24 +284,17 @@ function SidebarContent({
         ))}
       </nav>
 
-      <div className="flex items-center justify-between gap-2 border-t border-slate-200 p-2 dark:border-slate-700">
+      <div className="border-t border-slate-200 p-2 dark:border-slate-700">
         <Link
           to="/how-to-use"
           target="_blank"
-          className="flex items-center gap-2 whitespace-nowrap rounded-lg px-2 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          className="flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
         >
           <span className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[10px] font-bold dark:border-slate-600">
             ?
           </span>
           How to use
         </Link>
-        <div className="flex shrink-0 items-center gap-1">
-          <ThemeToggle menuPlacement="up" />
-          <NotificationButton
-            open={notificationsOpen}
-            onClick={onOpenNotifications}
-          />
-        </div>
       </div>
     </div>
   );
@@ -303,21 +324,14 @@ export function AppLayout() {
   }, [overlayOpen]);
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 md:flex">
-      <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:block">
-        <SidebarContent
-          notificationsOpen={notificationsOpen}
-          onOpenNotifications={openNotifications}
-        />
-      </aside>
-
-      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 md:hidden">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
         <button
           type="button"
           onClick={() => setMobileNavOpen(true)}
           aria-label="Open menu"
           aria-expanded={mobileNavOpen}
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 md:hidden"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -335,20 +349,22 @@ export function AppLayout() {
             <line x1="4" y1="18" x2="20" y2="18" />
           </svg>
         </button>
-        <div className="flex flex-1 items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-teal-600 text-xs font-bold text-white">
-            W
-          </span>
-          <span className="font-semibold text-slate-800 dark:text-slate-100">
-            WorkNest
-          </span>
-        </div>
-        <ThemeToggle />
-        <NotificationButton
-          open={notificationsOpen}
-          onClick={openNotifications}
+        <BrandMark />
+        <HeaderControls
+          notificationsOpen={notificationsOpen}
+          onOpenNotifications={openNotifications}
         />
       </header>
+
+      <div className="md:flex">
+        <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:sticky md:top-16 md:block md:h-[calc(100vh-4rem)]">
+          <SidebarContent />
+        </aside>
+
+        <main className="min-w-0 flex-1">
+          <Outlet />
+        </main>
+      </div>
 
       {mobileNavOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
@@ -356,7 +372,7 @@ export function AppLayout() {
             className="absolute inset-0 bg-black/40"
             onClick={() => setMobileNavOpen(false)}
           />
-          <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-white shadow-xl dark:bg-slate-900">
+          <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl dark:bg-slate-900">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
               <span className="font-semibold text-slate-800 dark:text-slate-100">
                 Menu
@@ -383,18 +399,12 @@ export function AppLayout() {
                 </svg>
               </button>
             </div>
-            <SidebarContent
-              onNavigate={() => setMobileNavOpen(false)}
-              notificationsOpen={notificationsOpen}
-              onOpenNotifications={openNotifications}
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <SidebarContent onNavigate={() => setMobileNavOpen(false)} />
+            </div>
           </div>
         </div>
       )}
-
-      <main className="min-w-0 flex-1">
-        <Outlet />
-      </main>
 
       <NotificationsPanel
         open={notificationsOpen}
