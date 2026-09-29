@@ -1,7 +1,7 @@
 import { apiClient } from "./client";
 
 export type Role = "admin" | "manager" | "member";
-export type Plan = "free" | "pro";
+export type Plan = "free" | "pro" | "premium";
 
 export interface RegisterInput {
   name: string;

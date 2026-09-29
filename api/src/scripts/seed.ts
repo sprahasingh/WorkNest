@@ -9,6 +9,7 @@ import { Membership } from "../models/Membership.js";
 import { Project } from "../models/Project.js";
 import { Task } from "../models/Task.js";
 import { AuditLog } from "../models/AuditLog.js";
+import { PLAN_LIMITS, type Plan } from "../constants/plans.js";
 import { runWithTenant } from "../tenancy/context.js";
 
 const DEMO_PASSWORD = "password123";
@@ -61,7 +62,7 @@ async function createDemoUser(user: DemoUser) {
 async function seedOrg(
   slug: "acme" | "globex",
   orgName: string,
-  plan: "free" | "pro",
+  plan: Plan,
   users: DemoUser[],
   projectCount: number,
   taskCount: number,
@@ -73,9 +74,9 @@ async function seedOrg(
     name: orgName,
     slug,
     plan,
-    seatLimit: plan === "pro" ? 25 : 5,
+    seatLimit: PLAN_LIMITS[plan].seatLimit,
     seatsUsed: createdUsers.length,
-    projectLimit: plan === "pro" ? 50 : 3,
+    projectLimit: PLAN_LIMITS[plan].projectLimit,
     projectCount,
     adminCount: users.filter((u) => u.role === "admin").length,
     createdBy: adminUser._id,
