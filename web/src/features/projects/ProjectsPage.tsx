@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
-import type { Project } from "./api";
+import { PLAN_LIMITS, PLAN_NAMES } from "@/lib/plans";
+import { useOrgDetails } from "@/features/org/queries";
+import type { Project, ProjectSummary } from "./api";
 import {
   useArchiveProject,
   useCreateProject,
@@ -56,11 +58,17 @@ export function ProjectsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [view, setView] = useState<"active" | "archived">("active");
 
-  const {
-    data: projects,
-    isPending,
-    isError,
-  } = useProjects(orgId, { archived: view === "archived" });
+  const { data, isPending, isError } = useProjects(orgId, {
+    archived: view === "archived",
+  });
+  // The other tab's list too, so both tab counts show and switching is instant.
+  const otherView = useProjects(orgId, { archived: view !== "archived" });
+  const projects = data?.projects;
+  const counts = data?.counts ?? otherView.data?.counts;
+
+  const org = useOrgDetails(orgId).data;
+  const activeTaskLimit = org ? PLAN_LIMITS[org.plan].activeTaskLimit : null;
+  const atProjectLimit = org ? org.projectCount >= org.projectLimit : false;
   const createProject = useCreateProject(orgId);
   const archiveProject = useArchiveProject(orgId);
   const deleteProject = useDeleteProject(orgId);
@@ -139,9 +147,27 @@ export function ProjectsPage() {
     <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-4xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-            Projects
-          </h1>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+              Projects
+            </h1>
+            {org && (
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                <span
+                  className={cn(
+                    "font-medium",
+                    atProjectLimit
+                      ? "text-amber-700 dark:text-amber-300"
+                      : "text-slate-700 dark:text-slate-300",
+                  )}
+                >
+                  {org.projectCount} of {org.projectLimit}
+                </span>{" "}
+                projects used on the {PLAN_NAMES[org.plan]} plan
+                {counts && counts.archived > 0 && " (archived ones count too)"}
+              </p>
+            )}
+          </div>
           {canWrite && (
             <Button onClick={() => setIsCreateOpen(true)}>New project</Button>
           )}
@@ -152,25 +178,27 @@ export function ProjectsPage() {
             type="button"
             onClick={() => setView("active")}
             className={cn(
-              "px-3 py-2 text-sm font-medium transition-colors",
+              "flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors",
               view === "active"
                 ? "border-b-2 border-teal-600 text-teal-700 dark:text-teal-400"
                 : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
             )}
           >
             Active
+            <TabCount value={counts?.active} selected={view === "active"} />
           </button>
           <button
             type="button"
             onClick={() => setView("archived")}
             className={cn(
-              "px-3 py-2 text-sm font-medium transition-colors",
+              "flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors",
               view === "archived"
                 ? "border-b-2 border-teal-600 text-teal-700 dark:text-teal-400"
                 : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
             )}
           >
             Archived
+            <TabCount value={counts?.archived} selected={view === "archived"} />
           </button>
         </div>
 
@@ -210,7 +238,7 @@ export function ProjectsPage() {
           {!isPending && !isError && projects && projects.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {projects.map((project) => (
-                <Card key={project._id} className="p-4">
+                <Card key={project._id} className="flex flex-col p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <Link
@@ -250,8 +278,12 @@ export function ProjectsPage() {
                       {project.description}
                     </p>
                   )}
+                  <TaskCounts
+                    project={project}
+                    limit={view === "active" ? activeTaskLimit : null}
+                  />
                   {canWrite && (
-                    <div className="mt-3 flex gap-3 text-sm">
+                    <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-sm dark:border-slate-700/60">
                       {view === "active" && (
                         <button
                           type="button"
@@ -368,6 +400,89 @@ export function ProjectsPage() {
           </Button>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function TabCount({
+  value,
+  selected,
+}: {
+  value: number | undefined;
+  selected: boolean;
+}) {
+  if (value === undefined) return null;
+  return (
+    <span
+      className={cn(
+        "min-w-[1.25rem] rounded-full px-1.5 py-px text-center text-xs font-semibold",
+        selected
+          ? "bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300"
+          : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+      )}
+    >
+      {value}
+    </span>
+  );
+}
+
+// Active (not done) tasks against the plan's per-project limit, plus the
+// project's total. `limit` is null on an unlimited plan or an archived project.
+function TaskCounts({
+  project,
+  limit,
+}: {
+  project: ProjectSummary;
+  limit: number | null;
+}) {
+  const { activeTaskCount: active, taskCount: total } = project;
+  const atLimit = limit !== null && active >= limit;
+  const percent = limit ? Math.min(100, Math.round((active / limit) * 100)) : 0;
+
+  return (
+    <div className="mt-auto pt-4">
+      <div className="flex items-baseline justify-between gap-2 text-sm">
+        <p className="text-slate-600 dark:text-slate-300">
+          <span
+            className={cn(
+              "font-semibold",
+              atLimit
+                ? "text-amber-700 dark:text-amber-300"
+                : "text-slate-900 dark:text-slate-100",
+            )}
+          >
+            {active}
+          </span>
+          {limit !== null && (
+            <span className="text-slate-500 dark:text-slate-400">
+              {" "}
+              / {limit}
+            </span>
+          )}{" "}
+          active {active === 1 && limit === null ? "task" : "tasks"}
+        </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          {total} {total === 1 ? "task" : "tasks"} in total
+        </p>
+      </div>
+      {limit !== null && (
+        <div
+          className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"
+          role="progressbar"
+          aria-label={`${active} of ${limit} active tasks`}
+          aria-valuenow={active}
+          aria-valuemin={0}
+          aria-valuemax={limit}
+        >
+          <div
+            className={cn(
+              "h-full rounded-full transition-[width]",
+              atLimit ? "bg-amber-500" : "bg-teal-500",
+            )}
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
