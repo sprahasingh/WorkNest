@@ -138,7 +138,7 @@ export function SettingsPage() {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
+      <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-2xl space-y-4">
           <div className="h-8 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
           <div className="h-32 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
@@ -149,7 +149,7 @@ export function SettingsPage() {
 
   if (isError || !org) {
     return (
-      <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
+      <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
         <p className="mx-auto max-w-2xl text-sm text-red-600 dark:text-red-400">
           Couldn&apos;t load organization settings.
         </p>
@@ -162,7 +162,7 @@ export function SettingsPage() {
   const pendingPlan = changePlan.isPending ? changePlan.variables : null;
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
+    <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-2xl space-y-6">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
           Settings
