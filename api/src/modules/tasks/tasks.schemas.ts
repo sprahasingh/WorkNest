@@ -40,11 +40,24 @@ export const listTasksQuerySchema = z
 
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
 
+export const ACTIVITY_TYPES = [
+  "update_request",
+  "update",
+  "question",
+  "reply",
+] as const;
+
+export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+
 export const createActivitySchema = z
   .object({
-    type: z.enum(["update_request", "update", "question"]),
+    type: z.enum(ACTIVITY_TYPES),
     content: z.string().trim().max(2000).optional(),
   })
-  .strict();
+  .strict()
+  .refine((input) => input.type === "update_request" || !!input.content, {
+    path: ["content"],
+    message: "Write a message before posting",
+  });
 
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;

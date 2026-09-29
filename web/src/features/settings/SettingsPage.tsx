@@ -13,6 +13,9 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { Plan } from "@/api/auth";
+import { FREE_PLAN_ACTIVE_TASK_LIMIT } from "@/features/tasks/api";
+
+const DELETE_CONFIRMATION_TEXT = "delete my account";
 
 const renameFormSchema = z.object({
   name: z
@@ -33,14 +36,27 @@ interface DowngradeBlockedDetail {
   targetProjectLimit: number;
 }
 
-const PLAN_LIMITS: Record<Plan, { seatLimit: number; projectLimit: number }> = {
-  free: { seatLimit: 5, projectLimit: 3 },
-  pro: { seatLimit: 25, projectLimit: 50 },
+const PLAN_LIMITS: Record<
+  Plan,
+  { seatLimit: number; projectLimit: number; activeTaskLabel: string }
+> = {
+  free: {
+    seatLimit: 5,
+    projectLimit: 3,
+    activeTaskLabel: `${FREE_PLAN_ACTIVE_TASK_LIMIT} active tasks per project`,
+  },
+  pro: {
+    seatLimit: 25,
+    projectLimit: 50,
+    activeTaskLabel: "unlimited tasks",
+  },
 };
 
 export function SettingsPage() {
   const { orgId } = useOrg();
-  const { logout, isLoggingOut } = useAuth();
+  const { logout, isLoggingOut, deleteAccount, isDeletingAccount } = useAuth();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const canUpdateOrg = useCan("org:update");
   const canChangePlan = useCan("plan:change");
 
@@ -109,6 +125,15 @@ export function SettingsPage() {
       }
 
       toast.error(parsed.message);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      await deleteAccount();
+      toast.success("Your account has been deleted");
+    } catch (error) {
+      toast.error(parseApiError(error).message);
     }
   };
 
@@ -200,6 +225,16 @@ export function SettingsPage() {
                 {org.projectCount} / {org.projectLimit}
               </dd>
             </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-500 dark:text-slate-400">
+                Active tasks per project
+              </dt>
+              <dd className="text-slate-700 dark:text-slate-300">
+                {org.plan === "free"
+                  ? `Up to ${FREE_PLAN_ACTIVE_TASK_LIMIT}`
+                  : "Unlimited"}
+              </dd>
+            </div>
           </dl>
 
           {canChangePlan && (
@@ -212,8 +247,8 @@ export function SettingsPage() {
               {changePlan.isPending
                 ? "Changing…"
                 : isDowngrade
-                  ? `Downgrade to ${otherPlan} (${PLAN_LIMITS[otherPlan].seatLimit} seats, ${PLAN_LIMITS[otherPlan].projectLimit} projects)`
-                  : `Upgrade to ${otherPlan} (${PLAN_LIMITS[otherPlan].seatLimit} seats, ${PLAN_LIMITS[otherPlan].projectLimit} projects)`}
+                  ? `Downgrade to ${otherPlan} (${PLAN_LIMITS[otherPlan].seatLimit} seats, ${PLAN_LIMITS[otherPlan].projectLimit} projects, ${PLAN_LIMITS[otherPlan].activeTaskLabel})`
+                  : `Upgrade to ${otherPlan} (${PLAN_LIMITS[otherPlan].seatLimit} seats, ${PLAN_LIMITS[otherPlan].projectLimit} projects, ${PLAN_LIMITS[otherPlan].activeTaskLabel})`}
             </Button>
           )}
         </Card>
@@ -233,6 +268,70 @@ export function SettingsPage() {
           >
             {isLoggingOut ? "Logging out…" : "Log out"}
           </Button>
+        </Card>
+
+        <Card className="border-red-200 dark:border-red-900/40">
+          <h2 className="font-medium text-red-700 dark:text-red-400">
+            Danger zone
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Delete your account and leave every workspace you belong to.
+            You&apos;ll be signed out, and your email is freed so you can sign
+            up or accept an invite again later. If you&apos;re the only admin
+            of a workspace with other people in it, make someone else an
+            admin first.
+          </p>
+
+          {!showDeleteConfirm ? (
+            <Button
+              variant="secondary"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="mt-4 border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/20"
+            >
+              Delete account
+            </Button>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Type{" "}
+                <span className="font-mono font-semibold">
+                  {DELETE_CONFIRMATION_TEXT}
+                </span>{" "}
+                to confirm.
+              </p>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={DELETE_CONFIRMATION_TEXT}
+                className={inputStyles}
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteConfirmText("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => void handleDeleteAccount()}
+                  disabled={
+                    deleteConfirmText !== DELETE_CONFIRMATION_TEXT ||
+                    isDeletingAccount
+                  }
+                  loading={isDeletingAccount}
+                  className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {isDeletingAccount
+                    ? "Deleting…"
+                    : "Permanently delete account"}
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </div>

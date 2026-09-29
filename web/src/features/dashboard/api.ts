@@ -34,9 +34,13 @@ export interface DashboardData {
   usage: DashboardUsage;
 }
 
-export async function getDashboard(orgId: string): Promise<DashboardData> {
+export async function getDashboard(
+  orgId: string,
+  days = 14,
+): Promise<DashboardData> {
   const response = await apiClient.get<DashboardData>(
     `/orgs/${orgId}/dashboard`,
+    { params: { days } },
   );
   return response.data;
 }

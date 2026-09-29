@@ -8,7 +8,8 @@ const notificationSchema = new Schema(
       ref: "Organization",
       required: true,
     },
-    taskId: { type: Schema.Types.ObjectId, ref: "Task", required: true },
+    projectId: { type: Schema.Types.ObjectId, ref: "Project", default: null },
+    taskId: { type: Schema.Types.ObjectId, ref: "Task", default: null },
     activityId: {
       type: Schema.Types.ObjectId,
       ref: "TaskActivity",

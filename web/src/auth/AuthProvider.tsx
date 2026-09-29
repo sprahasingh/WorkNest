@@ -106,10 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsDeletingAccount(true);
     try {
       await deleteAccountRequest();
-    } finally {
       setAccessToken(null);
       setSignedOut(true);
       queryClient.clear();
+    } finally {
       setIsDeletingAccount(false);
     }
   }, [queryClient]);
