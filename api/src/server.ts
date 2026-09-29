@@ -1,6 +1,9 @@
 import { createApp } from "./app.js";
 import { connectDB } from "./db/connect.js";
-import { migrateLegacyTaskAssignees } from "./db/migrations.js";
+import {
+  migrateLegacyTaskAssignees,
+  syncPlanLimits,
+} from "./db/migrations.js";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import mongoose from "mongoose";
@@ -8,6 +11,7 @@ import mongoose from "mongoose";
 async function main(): Promise<void> {
   await connectDB();
   await migrateLegacyTaskAssignees();
+  await syncPlanLimits();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

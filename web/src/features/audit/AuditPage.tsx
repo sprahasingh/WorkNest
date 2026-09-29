@@ -33,6 +33,8 @@ export function AuditPage() {
   } = useAuditLog(orgId, filters);
 
   const entries = data?.pages.flatMap((page) => page.items) ?? [];
+  const memberNames = new Map(members.map((m) => [m.userId.id, m.userId.name]));
+  const formatContext = { memberName: (id: string) => memberNames.get(id) };
 
   const setFilter = (key: string, value: string | null) => {
     setSearchParams((prev) => {
@@ -126,7 +128,7 @@ export function AuditPage() {
             entries.map((entry) => (
               <Card key={entry._id} className="p-3">
                 <p className="text-sm text-slate-800 dark:text-slate-200">
-                  {describeAuditEntry(entry)}
+                  {describeAuditEntry(entry, formatContext)}
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
                   {new Date(entry.createdAt).toLocaleString()}
