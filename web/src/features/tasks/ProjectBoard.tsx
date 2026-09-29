@@ -171,7 +171,7 @@ export function ProjectBoard() {
           </div>
         </div>
 
-        {stats?.activeLimit != null && (
+        {stats && (
           <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
             <span
               className={`rounded-full px-2.5 py-0.5 font-medium ${
@@ -180,12 +180,16 @@ export function ProjectBoard() {
                   : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
               }`}
             >
-              {stats.activeCount} / {stats.activeLimit} active tasks
+              {stats.activeLimit === null
+                ? `${stats.activeCount} active ${stats.activeCount === 1 ? "task" : "tasks"}`
+                : `${stats.activeCount} / ${stats.activeLimit} active tasks`}
             </span>
             <span className="text-slate-500 dark:text-slate-400">
-              {atTaskLimit
-                ? `${planName} plan limit reached. Finish a task to add or reopen another`
-                : `${planName} plan limit for this project`}
+              {stats.activeLimit === null
+                ? `No active task limit on the ${planName} plan`
+                : atTaskLimit
+                  ? `${planName} plan limit reached. Finish a task to add or reopen another`
+                  : `${planName} plan limit for this project`}
               {atTaskLimit && role === "admin" && (
                 <>
                   {", or "}

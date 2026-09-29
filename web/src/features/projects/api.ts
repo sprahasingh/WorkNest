@@ -12,6 +12,19 @@ export interface Project {
   updatedAt: string;
 }
 
+// A project as the list returns it, with its task totals. Active means not
+// done, the count the plan's per-project task limit is measured against.
+export interface ProjectSummary extends Project {
+  activeTaskCount: number;
+  taskCount: number;
+}
+
+export interface ListProjectsResponse {
+  projects: ProjectSummary[];
+  // How many projects are active and archived, whichever list was asked for.
+  counts: { active: number; archived: number };
+}
+
 export interface CreateProjectInput {
   name: string;
   key: string;
@@ -30,8 +43,8 @@ export interface ListProjectsParams {
 export async function listProjects(
   orgId: string,
   params: ListProjectsParams = {},
-): Promise<Project[]> {
-  const response = await apiClient.get<{ projects: Project[] }>(
+): Promise<ListProjectsResponse> {
+  const response = await apiClient.get<ListProjectsResponse>(
     `/orgs/${orgId}/projects`,
     {
       params:
@@ -40,7 +53,7 @@ export async function listProjects(
           : { archived: params.archived ? "true" : "false" },
     },
   );
-  return response.data.projects;
+  return response.data;
 }
 
 export async function createProject(

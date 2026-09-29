@@ -29,8 +29,8 @@ export async function listProjectsController(
 ): Promise<void> {
   const query = req.validated!.query as ListProjectsQuery;
   const archived = query.archived === "true";
-  const projects = await listProjects(archived);
-  res.status(200).json({ projects });
+  const { projects, counts } = await listProjects(archived);
+  res.status(200).json({ projects, counts });
 }
 
 export async function getProjectController(
