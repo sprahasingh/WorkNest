@@ -13,8 +13,8 @@ export type AuthState =
   | { status: "unauthenticated"; user: null; memberships: null };
 
 export type AuthContextValue = AuthState & {
-  login: (input: LoginInput) => Promise<void>;
-  register: (input: RegisterInput) => Promise<void>;
+  login: (input: LoginInput) => Promise<MeResponse>;
+  register: (input: RegisterInput) => Promise<MeResponse>;
   logout: () => Promise<void>;
   refreshMemberships: () => Promise<void>;
   establishSession: (accessToken: string) => Promise<MeResponse>;
