@@ -36,6 +36,8 @@ export interface TaskActivity {
   content?: string;
   createdAt: string;
   author: { _id: string; name: string; email: string } | null;
+  // Present in a project's feed: which task the entry was posted on.
+  task?: { _id: string; title: string } | null;
 }
 
 export interface CreateTaskInput {

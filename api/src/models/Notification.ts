@@ -15,6 +15,13 @@ const notificationSchema = new Schema(
       ref: "TaskActivity",
       required: true,
     },
+    // What happened, so the UI can label it; null on older notifications.
+    type: {
+      type: String,
+      enum: ["update_request", "update", "question", "reply"],
+      default: null,
+    },
+    actorId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     message: { type: String, required: true },
     readAt: { type: Date, default: null },
   },
