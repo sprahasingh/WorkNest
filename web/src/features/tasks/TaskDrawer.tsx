@@ -19,7 +19,6 @@ import {
   useDeleteTask,
   useUpdateTask,
 } from "./queries";
-import type { TaskFilters } from "./queries";
 import { useMarkReadWhenViewed } from "@/features/notifications/queries";
 
 const taskFormSchema = z.object({
@@ -52,7 +51,6 @@ interface TaskDrawerProps {
   onClose: () => void;
   orgId: string;
   projectId: string;
-  filters: TaskFilters;
   members: Member[];
   task: Task | null;
   initialTab?: "details" | "activity";
@@ -63,7 +61,6 @@ export function TaskDrawer({
   onClose,
   orgId,
   projectId,
-  filters,
   members,
   task,
   initialTab = "details",
@@ -78,7 +75,7 @@ export function TaskDrawer({
   const [formError, setFormError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(initialTab);
 
-  const createTask = useCreateTask(orgId, projectId, filters);
+  const createTask = useCreateTask(orgId, projectId);
   const updateTask = useUpdateTask(orgId, projectId);
   const deleteTask = useDeleteTask(orgId, projectId);
   const requestUpdate = useCreateActivity(orgId, {

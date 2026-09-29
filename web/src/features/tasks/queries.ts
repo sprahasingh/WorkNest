@@ -48,11 +48,16 @@ export const taskKeys = {
     ["orgs", orgId, scope.kind, scope.id, "activity"] as const,
 };
 
+// The board and its active-task counter refresh on the same beat so they
+// never disagree about work teammates added or finished meanwhile.
+const BOARD_REFRESH_MS = 30_000;
+
 export function useTaskStats(orgId: string, projectId: string) {
   return useQuery({
     queryKey: taskKeys.stats(orgId, projectId),
     queryFn: () => getTaskStats(orgId, projectId),
     enabled: !!projectId,
+    refetchInterval: BOARD_REFRESH_MS,
   });
 }
 
@@ -82,24 +87,18 @@ export function useTaskColumn(
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    refetchInterval: BOARD_REFRESH_MS,
   });
 }
 
-export function useCreateTask(
-  orgId: string,
-  projectId: string,
-  filters: TaskFilters,
-) {
+export function useCreateTask(orgId: string, projectId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (input: CreateTaskInput) => createTask(orgId, projectId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: taskKeys.list(orgId, projectId, "todo", filters),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: taskKeys.stats(orgId, projectId),
+        queryKey: taskKeys.all(orgId, projectId),
       });
       void queryClient.invalidateQueries({
         queryKey: dashboardKeys.all(orgId),
@@ -119,7 +118,8 @@ export function useUpdateTask(orgId: string, projectId: string) {
       taskId: string;
       input: UpdateTaskInput;
     }) => updateTask(orgId, taskId, input),
-    onSuccess: () => {
+    onSuccess: (task) => {
+      queryClient.setQueryData(taskKeys.detail(orgId, task._id), task);
       void queryClient.invalidateQueries({
         queryKey: taskKeys.all(orgId, projectId),
       });
@@ -189,9 +189,11 @@ export function useUpdateTaskStatus(
           old
             ? {
                 ...old,
-                pages: old.pages.map((page) => ({
+                pages: old.pages.map((page, index) => ({
                   ...page,
                   items: page.items.filter((t) => t._id !== task._id),
+                  total:
+                    index === 0 ? Math.max(page.total - 1, 0) : page.total,
                 })),
               }
             : old,
@@ -204,7 +206,7 @@ export function useUpdateTaskStatus(
 
           if (!old || old.pages.length === 0) {
             return {
-              pages: [{ items: [updatedTask], nextCursor: null }],
+              pages: [{ items: [updatedTask], nextCursor: null, total: 1 }],
               pageParams: [undefined],
             };
           }
@@ -213,7 +215,11 @@ export function useUpdateTaskStatus(
           return {
             ...old,
             pages: [
-              { ...firstPage, items: [updatedTask, ...firstPage.items] },
+              {
+                ...firstPage,
+                items: [updatedTask, ...firstPage.items],
+                total: firstPage.total + 1,
+              },
               ...restPages,
             ],
           };

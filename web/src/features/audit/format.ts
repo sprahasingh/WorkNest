@@ -1,64 +1,154 @@
 import type { AuditLogEntry } from "./api";
 
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "none";
+export interface AuditFormatContext {
+  // Resolves a user id to a current member's name, if they're still here.
+  memberName: (userId: string) => string | undefined;
+}
+
+type Change = { from: unknown; to: unknown };
+
+const FIELD_LABELS: Record<string, string> = {
+  assigneeIds: "assignees",
+  assigneeId: "assignee",
+  dueDate: "due date",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  todo: "To do",
+  in_progress: "In progress",
+  done: "Done",
+};
+
+const FORMER_MEMBER = "a former member";
+
+// Audit entries are history: they can predate today's data shapes, or name
+// people who have since left. Read every field defensively.
+function asChange(value: unknown): Change | null {
+  if (
+    value &&
+    typeof value === "object" &&
+    ("from" in value || "to" in value)
+  ) {
+    return value as Change;
+  }
+  return null;
+}
+
+function text(value: unknown, fallback = "unknown"): string {
+  return value === null || value === undefined || value === ""
+    ? fallback
+    : String(value);
+}
+
+function formatFieldValue(
+  field: string,
+  value: unknown,
+  ctx: AuditFormatContext,
+): string {
+  if (
+    value === null ||
+    value === undefined ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0)
+  ) {
+    return "none";
+  }
+  if (field === "assigneeIds" || field === "assigneeId") {
+    const ids = Array.isArray(value) ? value : [value];
+    return ids
+      .map((id) => ctx.memberName(String(id)) ?? FORMER_MEMBER)
+      .join(", ");
+  }
+  if (field === "dueDate") {
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime())
+      ? String(value)
+      : date.toLocaleDateString();
+  }
+  if (field === "status") {
+    return STATUS_LABELS[String(value)] ?? String(value);
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
   return String(value);
 }
 
-// Renders the metadata shape task.updated/project.updated actually store:
-// Record<field, { from: unknown; to: unknown }> -- confirmed from the
-// backend's own change-tracking code, not guessed.
-function formatChanges(metadata: Record<string, unknown>): string {
-  return Object.entries(metadata)
-    .map(([field, change]) => {
-      const { from, to } = change as { from: unknown; to: unknown };
-      return `${field} from "${formatValue(from)}" to "${formatValue(to)}"`;
-    })
-    .join(", ");
+function formatChanges(
+  metadata: Record<string, unknown>,
+  ctx: AuditFormatContext,
+): string {
+  const parts = Object.entries(metadata).flatMap(([field, raw]) => {
+    const change = asChange(raw);
+    if (!change) return [];
+    const label = FIELD_LABELS[field] ?? field;
+    return [
+      `${label} from "${formatFieldValue(field, change.from, ctx)}" to "${formatFieldValue(field, change.to, ctx)}"`,
+    ];
+  });
+  return parts.length > 0 ? parts.join(", ") : "no visible changes";
 }
 
-export function describeAuditEntry(entry: AuditLogEntry): string {
-  const actor = entry.actorId.name;
-  const m = entry.metadata;
+function describe(entry: AuditLogEntry, ctx: AuditFormatContext): string {
+  const actor = entry.actorId?.name ?? "A former member";
+  const m = entry.metadata ?? {};
 
   switch (entry.action) {
     case "org.renamed": {
-      const name = m.name as { from: string; to: string };
-      return `${actor} renamed the organization from "${name.from}" to "${name.to}"`;
+      const name = asChange(m.name);
+      return name
+        ? `${actor} renamed the organization from "${text(name.from)}" to "${text(name.to)}"`
+        : `${actor} renamed the organization`;
     }
     case "member.role_changed": {
-      const role = m.role as { from: string; to: string };
-      return `${actor} changed a member's role from ${role.from} to ${role.to}`;
+      const role = asChange(m.role);
+      return role
+        ? `${actor} changed a member's role from ${text(role.from)} to ${text(role.to)}`
+        : `${actor} changed a member's role`;
     }
     case "member.removed":
-      return `${actor} removed a ${String(m.role)} from the organization`;
+      return `${actor} removed a ${text(m.role, "member")} from the organization`;
     case "invite.created":
-      return `${actor} invited ${String(m.email)} as ${String(m.role)}`;
+      return `${actor} invited ${text(m.email, "someone")} as ${text(m.role, "a member")}`;
     case "invite.revoked":
-      return `${actor} revoked the invite for ${String(m.email)}`;
+      return `${actor} revoked the invite for ${text(m.email, "someone")}`;
     case "invite.accepted":
       return m.viaSignup
-        ? `${String(m.email)} joined by accepting an invite and creating an account`
-        : `${String(m.email)} accepted an invite to join as ${String(m.role)}`;
+        ? `${text(m.email, "Someone")} joined by accepting an invite and creating an account`
+        : `${text(m.email, "Someone")} accepted an invite to join as ${text(m.role, "a member")}`;
     case "project.created":
-      return `${actor} created project "${String(m.name)}" (${String(m.key)})`;
+      return `${actor} created project "${text(m.name)}" (${text(m.key)})`;
     case "project.updated":
-      return `${actor} updated a project: ${formatChanges(m)}`;
+      return `${actor} updated a project: ${formatChanges(m, ctx)}`;
     case "project.archived":
       return `${actor} archived a project`;
     case "project.deleted":
-      return `${actor} deleted project "${String(m.name)}" (${String(m.key)})`;
+      return `${actor} deleted project "${text(m.name)}" (${text(m.key)})`;
     case "task.created":
-      return `${actor} created task "${String(m.title)}"`;
+      return `${actor} created task "${text(m.title)}"`;
     case "task.updated":
-      return `${actor} updated a task: ${formatChanges(m)}`;
+      return `${actor} updated a task: ${formatChanges(m, ctx)}`;
     case "task.deleted":
-      return `${actor} deleted task "${String(m.title)}"`;
+      return `${actor} deleted task "${text(m.title)}"`;
     case "plan.changed": {
-      const plan = m.plan as { from: string; to: string };
-      return `${actor} changed the plan from ${plan.from} to ${plan.to}`;
+      const plan = asChange(m.plan);
+      return plan
+        ? `${actor} changed the plan from ${text(plan.from)} to ${text(plan.to)}`
+        : `${actor} changed the plan`;
     }
     default:
-      return `${actor} performed ${entry.action}`;
+      return `${actor} performed ${text(entry.action, "an action")}`;
+  }
+}
+
+export function describeAuditEntry(
+  entry: AuditLogEntry,
+  ctx: AuditFormatContext,
+): string {
+  try {
+    return describe(entry, ctx);
+  } catch {
+    // One unreadable entry must never take down the whole log.
+    return `${entry.actorId?.name ?? "Someone"} performed ${text(entry.action, "an action")}`;
   }
 }
