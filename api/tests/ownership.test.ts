@@ -6,13 +6,16 @@ const userId = "user-1";
 const otherUserId = "user-2";
 
 function makeTask(
-  overrides: Partial<{ createdBy: string; assigneeIds: string[] }> = {},
+  overrides: Partial<{ createdBy: string; assigneeIds: string[] | null }> = {},
 ) {
   return {
     createdBy: { toString: () => overrides.createdBy ?? userId },
-    assigneeIds: (overrides.assigneeIds ?? []).map((id) => ({
-      toString: () => id,
-    })),
+    assigneeIds:
+      overrides.assigneeIds === undefined
+        ? null
+        : overrides.assigneeIds === null
+          ? null
+          : overrides.assigneeIds.map((id) => ({ toString: () => id })),
   };
 }
 
@@ -36,7 +39,7 @@ describe("canUpdateTask", () => {
   });
 
   it("allows a member to update a task they created", () => {
-    const task = makeTask({ createdBy: userId, assigneeIds: [] });
+    const task = makeTask({ createdBy: userId, assigneeIds: null });
     const result = canUpdateTask({ userId, role: "member" }, task, {
       title: "New title",
     } as unknown as TaskUpdateChanges);
@@ -61,17 +64,17 @@ describe("canUpdateTask", () => {
   });
 
   it("denies a member from reassigning a task, even one they own", () => {
-    const task = makeTask({ createdBy: userId, assigneeIds: [] });
+    const task = makeTask({ createdBy: userId, assigneeIds: null });
     const result = canUpdateTask({ userId, role: "member" }, task, {
       assigneeIds: [otherUserId],
     });
     expect(result).toBe(false);
   });
 
-  it("denies a member from reassigning even when explicitly setting assigneeIds to empty", () => {
+  it("denies a member from reassigning even when explicitly setting assigneeIds to null", () => {
     const task = makeTask({ createdBy: userId, assigneeIds: [userId] });
     const result = canUpdateTask({ userId, role: "member" }, task, {
-      assigneeIds: [],
+      assigneeIds: null,
     });
     expect(result).toBe(false);
   });
