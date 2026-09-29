@@ -20,6 +20,7 @@ import {
   useUpdateTask,
 } from "./queries";
 import type { TaskFilters } from "./queries";
+import { useMarkReadWhenViewed } from "@/features/notifications/queries";
 
 const taskFormSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
@@ -86,6 +87,10 @@ export function TaskDrawer({
   });
 
   const isEditing = task !== null;
+  useMarkReadWhenViewed(
+    orgId,
+    open && task ? { kind: "task", taskId: task._id } : null,
+  );
   const isAssignee = task?.assigneeIds?.includes(userId) ?? false;
   const canEdit = !isEditing || canUpdateAny || (canUpdateOwn && isAssignee);
 
@@ -225,7 +230,7 @@ export function TaskDrawer({
                   : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               }`}
             >
-              {tab === "details" ? "Details" : "Updates & questions"}
+              {tab === "details" ? "Details" : "Updates"}
             </button>
           ))}
         </div>

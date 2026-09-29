@@ -38,7 +38,7 @@ const STEPS: GuideStep[] = [
   {
     title: "Ask for and share updates",
     description:
-      "Admins and managers can request an update on one task, or on a whole project to reach every assignee at once, and reply to questions. Assignees post updates or ask questions from a task's Updates & questions tab or the project's updates panel. Everyone involved is notified through the bell.",
+      "Admins and managers can request an update on one task, or on a whole project to reach every assignee at once, and reply to questions. Assignees post updates or ask questions from a task's Updates tab or from Project updates, which also collects every task's updates in one place. Everyone involved is notified through the bell, and opening the task or project marks those notifications as read.",
   },
   {
     title: "Check the dashboard",

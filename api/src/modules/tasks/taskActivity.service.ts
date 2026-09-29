@@ -11,7 +11,9 @@ import { can } from "../../auth/rbac.js";
 import { isTaskAssignee } from "../../auth/ownership.js";
 import type { Role } from "../../constants/roles.js";
 import type { ActivityType, CreateActivityInput } from "./tasks.schemas.js";
-import { assertTaskVisible } from "./tasks.service.js";
+import { assertTaskVisible, memberVisibilityFilter } from "./tasks.service.js";
+
+const PROJECT_FEED_LIMIT = 100;
 
 type Id = mongoose.Types.ObjectId | string;
 
@@ -87,6 +89,8 @@ async function recordActivity(options: {
             projectId: options.projectId,
             taskId: options.taskId,
             activityId: created._id,
+            type: options.input.type,
+            actorId: context.userId,
             message: options.message,
           })),
           { session: dbSession },
@@ -142,9 +146,21 @@ export async function createTaskActivity(
     question: `${authorName} asked a question on "${task.title}"`,
   };
 
+  const assignees = task.assigneeIds ?? [];
+  if (input.type === "update_request" && assignees.length === 0) {
+    throw new AppError(
+      400,
+      "NO_ASSIGNEES",
+      "Assign someone to this task before requesting an update",
+    );
+  }
+
+  // Requests and replies go to the people doing the work. Updates and
+  // questions go to admins and managers, and to the task's other assignees
+  // so everyone on the task stays in the loop.
   const recipients = LEAD_ONLY_TYPES.includes(input.type)
-    ? (task.assigneeIds ?? [])
-    : await getAdminAndManagerIds();
+    ? assignees
+    : [...(await getAdminAndManagerIds()), ...assignees];
 
   const { activity } = await recordActivity({
     projectId: task.projectId,
@@ -232,14 +248,36 @@ export async function createProjectActivity(
   });
 }
 
+// Everything said in a project: project-wide posts plus every task's
+// updates, each labelled with its task. Members only get task activity for
+// tasks they're allowed to see.
 export async function listProjectActivities(projectId: string) {
+  const context = getTenantContext()!;
   const project = await Project.findById(projectId);
   if (!project) {
     throw new AppError(404, "NOT_FOUND", "Project not found");
   }
 
-  const activities = await TaskActivity.find({ projectId, taskId: null })
-    .sort({ _id: 1 })
+  const taskFilter: Record<string, unknown> = { projectId };
+  if (context.role === "member") {
+    taskFilter.$and = [await memberVisibilityFilter(context.userId)];
+  }
+  const tasks = await Task.find(taskFilter).select("title").lean();
+  const taskTitles = new Map(tasks.map((t) => [String(t._id), t.title]));
+
+  const activities = await TaskActivity.find({
+    projectId,
+    $or: [{ taskId: null }, { taskId: { $in: [...taskTitles.keys()] } }],
+  })
+    .sort({ _id: -1 })
+    .limit(PROJECT_FEED_LIMIT)
     .lean();
-  return withAuthors(activities);
+
+  const withTask = activities.reverse().map((a) => ({
+    ...a,
+    task: a.taskId
+      ? { _id: String(a.taskId), title: taskTitles.get(String(a.taskId))! }
+      : null,
+  }));
+  return withAuthors(withTask);
 }
