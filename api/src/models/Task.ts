@@ -22,7 +22,7 @@ const taskSchema = new Schema(
       enum: ["low", "medium", "high"],
       default: "medium",
     },
-    assigneeId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    assigneeIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
     dueDate: { type: Date, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
@@ -30,7 +30,7 @@ const taskSchema = new Schema(
 );
 
 taskSchema.index({ tenantId: 1, projectId: 1, status: 1, _id: -1 });
-taskSchema.index({ tenantId: 1, assigneeId: 1, status: 1 });
+taskSchema.index({ tenantId: 1, assigneeIds: 1, status: 1 });
 
 taskSchema.plugin(tenantPlugin);
 

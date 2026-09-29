@@ -5,6 +5,7 @@ export async function getDashboardController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const dashboard = await getDashboard();
+  const days = req.query.days !== undefined ? Number(req.query.days) : 14;
+  const dashboard = await getDashboard(isNaN(days) ? 14 : days);
   res.status(200).json(dashboard);
 }

@@ -5,6 +5,7 @@ import {
   createTaskSchema,
   updateTaskSchema,
   listTasksQuerySchema,
+  createActivitySchema,
 } from "./tasks.schemas.js";
 import {
   createTaskController,
@@ -13,6 +14,10 @@ import {
   updateTaskController,
   deleteTaskController,
 } from "./tasks.controller.js";
+import {
+  listActivitiesController,
+  createActivityController,
+} from "./taskActivity.controller.js";
 
 const projectTasksRouter = Router({ mergeParams: true });
 
@@ -45,6 +50,19 @@ tasksRouter.delete(
   "/:taskId",
   requirePermission("task:delete"),
   deleteTaskController,
+);
+
+tasksRouter.get(
+  "/:taskId/activity",
+  requirePermission("task:read"),
+  listActivitiesController,
+);
+
+tasksRouter.post(
+  "/:taskId/activity",
+  requirePermission("task:comment"),
+  validate({ body: createActivitySchema }),
+  createActivityController,
 );
 
 export { projectTasksRouter, tasksRouter };

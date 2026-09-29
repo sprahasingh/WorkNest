@@ -8,11 +8,11 @@ export interface OwnershipContext {
 
 export interface TaskOwnershipFields {
   createdBy: { toString(): string };
-  assigneeId: { toString(): string } | null | undefined;
+  assigneeIds: Array<{ toString(): string }> | null | undefined;
 }
 
 export interface TaskUpdateChanges {
-  assigneeId?: unknown;
+  assigneeIds?: unknown;
 }
 
 export function canUpdateTask(
@@ -30,7 +30,7 @@ export function canUpdateTask(
 
   const isReassigning = Object.prototype.hasOwnProperty.call(
     changes,
-    "assigneeId",
+    "assigneeIds",
   );
 
   if (isReassigning) {
@@ -38,9 +38,8 @@ export function canUpdateTask(
   }
 
   const isCreator = task.createdBy.toString() === ctx.userId;
-  const isAssignee = task.assigneeId
-    ? task.assigneeId.toString() === ctx.userId
-    : false;
+  const isAssignee =
+    task.assigneeIds?.some((id) => id.toString() === ctx.userId) ?? false;
 
   return isCreator || isAssignee;
 }

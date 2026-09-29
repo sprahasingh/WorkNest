@@ -85,9 +85,7 @@ describe("dashboard aggregation", () => {
     });
     await updateTask(org.orgId, doneId, org.accessToken, { status: "done" });
 
-    const yesterday = new Date(
-      Date.now() - 24 * 60 * 60 * 1000,
-    ).toISOString();
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     await createTask(org.orgId, projectId, org.accessToken, {
       priority: "medium",
@@ -150,24 +148,21 @@ describe("dashboard aggregation", () => {
   });
 
   it("ranks top assignees by open task count, excluding done tasks", async () => {
-    const org = await registerOrg(
-      "dash-assignees@example.com",
-      "Assignee Org",
-    );
+    const org = await registerOrg("dash-assignees@example.com", "Assignee Org");
     const projectId = await createProject(org.orgId, org.accessToken, "ASG");
 
     await createTask(org.orgId, projectId, org.accessToken, {
-      assigneeId: org.userId,
+      assigneeIds: [org.userId],
     });
     await createTask(org.orgId, projectId, org.accessToken, {
-      assigneeId: org.userId,
+      assigneeIds: [org.userId],
     });
 
     const doneAssignedId = await createTask(
       org.orgId,
       projectId,
       org.accessToken,
-      { assigneeId: org.userId },
+      { assigneeIds: [org.userId] },
     );
     await updateTask(org.orgId, doneAssignedId, org.accessToken, {
       status: "done",
