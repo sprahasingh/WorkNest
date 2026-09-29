@@ -1,28 +1,28 @@
 # WorkNest
 
-A multi-tenant project and task management SaaS where organizations can invite members, assign roles, manage projects and tasks, and enforce plan limits. Every organization's data is isolated, and that isolation is enforced centrally in one place, not scattered across every query by hand.
+A multi-tenant project and task management SaaS with organizations, roles, projects, tasks, and plan limits. Tenant isolation is enforced centrally instead of relying on every query to remember to add a `tenantId` filter.
 
 ## Table of Contents
 
-| | Section |
-|---|---|
-| 01 | [Why I Built This](#why-i-built-this) |
-| 02 | [Tech Stack](#tech-stack) |
-| 03 | [Architecture](#architecture) |
-| 04 | [Request Flow](#request-flow) |
-| 05 | [Tenancy](#tenancy) |
-| 06 | [RBAC](#rbac) |
-| 07 | [Concurrency](#concurrency) |
-| 08 | [Features](#features) |
-| 09 | [API Example](#api-example) |
-| 10 | [Local Setup](#local-setup) |
-| 11 | [Seed Demo Data](#seed-demo-data) |
-| 12 | [Testing](#testing) |
-| 13 | [Project Structure](#project-structure) |
+|     | Section                                 |
+| --- | --------------------------------------- |
+| 01  | [Why I Built This](#why-i-built-this)   |
+| 02  | [Tech Stack](#tech-stack)               |
+| 03  | [Architecture](#architecture)           |
+| 04  | [Request Flow](#request-flow)           |
+| 05  | [Tenancy](#tenancy)                     |
+| 06  | [RBAC](#rbac)                           |
+| 07  | [Concurrency](#concurrency)             |
+| 08  | [Features](#features)                   |
+| 09  | [API Example](#api-example)             |
+| 10  | [Local Setup](#local-setup)             |
+| 11  | [Seed Demo Data](#seed-demo-data)       |
+| 12  | [Testing](#testing)                     |
+| 13  | [Project Structure](#project-structure) |
 
 ## Why I Built This
 
-I wanted a project that went past CRUD and forced me to solve the parts of a real B2B SaaS that actually matter: how you guarantee one customer's data can never leak into another's, how you enforce who can do what without trusting the client, how two requests racing for the same limited resource resolve without either overselling it or serializing everything, and how all of that stays auditable after the fact. WorkNest is those four problems, built end to end rather than mocked: multi-tenancy, RBAC, concurrent resource allocation, and auditability.
+I wanted a project that went past CRUD and forced me to deal with some of the harder parts of a B2B SaaS. I wanted to solve tenant isolation, server-side authorization, concurrent resource allocation, and auditability properly. WorkNest focuses on four problems: multi-tenancy, RBAC, concurrency, and auditability.
 
 ## Tech Stack
 
@@ -34,7 +34,7 @@ I wanted a project that went past CRUD and forced me to solve the parts of a rea
 
 ### Request Flow
 
-How a request to a tenant-scoped endpoint (e.g. `PATCH /api/orgs/:orgId/tasks/:taskId`) actually moves through the system, from the middleware chain in `app.ts` down to the query that finally hits MongoDB:
+A request to a tenant-scoped endpoint such as `PATCH /api/orgs/:orgId/tasks/:taskId` moves through the middleware chain in `app.ts` before reaching the MongoDB query:
 
 ```mermaid
 flowchart TD
@@ -62,45 +62,45 @@ Every organization's data lives in the same MongoDB database and collections, di
 - `tenantId` is `immutable` in every schema, so no update can move a document to another tenant.
 - If a query runs with no tenant context and isn't explicitly marked to skip tenant scoping, it throws rather than returning unscoped (i.e., all-tenants) data.
 
-The tenant ID itself always comes from the URL (`/api/orgs/:orgId/...`), is validated against the caller's actual membership, and is then attached to an `AsyncLocalStorage` context for the rest of that request, rather than threaded through every function call by hand.
+The tenant ID comes from the URL (`/api/orgs/:orgId/...`), is validated against the caller's membership, and is stored in an `AsyncLocalStorage` context for the rest of the request. This avoids passing the tenant ID through every function call.
 
 ### RBAC
 
-| Permission | admin | manager | member |
-|---|---|---|---|
-| org:read | ✓ | ✓ | ✓ |
-| org:update, plan:change | ✓ | – | – |
-| member:read | ✓ | ✓ | ✓ |
-| member:manage | ✓ | – | – |
-| invite:manage | ✓ | – | – |
-| project:read | ✓ | ✓ | ✓ |
-| project:write | ✓ | ✓ | – |
-| task:read, task:create | ✓ | ✓ | ✓ |
-| task:update:any, task:delete, task:assign | ✓ | ✓ | – |
-| task:update:own | ✓ | ✓ | ✓ |
-| audit:read | ✓ | – | – |
-| dashboard:read | ✓ | ✓ | – |
+| Permission                                | admin | manager | member |
+| ----------------------------------------- | ----- | ------- | ------ |
+| org:read                                  | ✓     | ✓       | ✓      |
+| org:update, plan:change                   | ✓     | –       | –      |
+| member:read                               | ✓     | ✓       | ✓      |
+| member:manage                             | ✓     | –       | –      |
+| invite:manage                             | ✓     | –       | –      |
+| project:read                              | ✓     | ✓       | ✓      |
+| project:write                             | ✓     | ✓       | –      |
+| task:read, task:create                    | ✓     | ✓       | ✓      |
+| task:update:any, task:delete, task:assign | ✓     | ✓       | –      |
+| task:update:own                           | ✓     | ✓       | ✓      |
+| audit:read                                | ✓     | –       | –      |
+| dashboard:read                            | ✓     | ✓       | –      |
 
-RBAC and ownership are checked separately: RBAC answers "can this role do this kind of action at all," ownership answers "on this specific task." A last-admin rule guarantees an organization always keeps at least one admin, enforced with a conditional update inside the same transaction as the role change or removal so two concurrent demotions can't both succeed.
+RBAC and ownership are checked separately. RBAC determines whether the role can perform an action, while ownership determines whether the user can perform it on a specific task. A last-admin rule prevents an organization from ending up with zero admins. The check is done with a conditional update inside the same transaction as the role change or removal, so two concurrent demotions can't both succeed.
 
 ### Concurrency
 
-Seat and project-slot limits are enforced with atomic, condition-guarded MongoDB updates (`findOneAndUpdate` with an `$expr` condition) inside transactions, not a check-then-write pattern, so concurrent requests racing for the last available seat or project slot can't overshoot the limit.
+Seat and project-slot limits use atomic MongoDB updates with `$expr` conditions inside transactions. This avoids the usual check-then-write race when two requests compete for the last available seat or project slot.
 
 ## Features
 
-- **Multi-tenant isolation**: a single Mongoose plugin enforces tenant scoping on every query, write, and aggregation across all tenant-owned collections, propagated via `AsyncLocalStorage` request context. Fails closed: a query with no tenant context throws rather than silently returning data.
-- **Authentication**: JWT access tokens (15 min) plus rotating refresh tokens; only refresh-token hashes are ever stored server-side. Reuse of an already-rotated refresh token (a sign of a stolen token) revokes the entire token family and forces re-login.
-- **Role-based access control**: three roles (admin, manager, member) across a fixed permission set, enforced server-side on every request. The frontend hides controls a role can't use, but the API is the actual authority.
-- **Organizations and plans**: free and pro plans with seat and project limits. Upgrading is simulated; downgrading is blocked if current usage exceeds the target plan's limits, with the exact excess reported back.
-- **Invites**: one-time-reveal invite links (only the token's hash is ever stored), with seat reservation that holds correctly under concurrent invite requests.
+- **Multi-tenant isolation**: a single Mongoose plugin enforces tenant scoping on every query, write, and aggregation across all tenant-owned collections. The current tenant is stored in `AsyncLocalStorage` for the duration of the request. It fails closed: a query with no tenant context throws rather than silently returning data.
+- **Authentication**: JWT access tokens (15 min) plus rotating refresh tokens; only refresh-token hashes are ever stored server-side. Reusing an already-rotated refresh token revokes the entire token family and requires the user to log in again.
+- **Role-based access control**: three roles (admin, manager, member) across a fixed permission set, enforced server-side on every request. The frontend hides controls a role can't use, but all permission checks are enforced by the API.
+- **Organizations and plans**: free and pro plans with seat and project limits. Upgrading is simulated; downgrading is blocked if current usage exceeds the target plan's limits, with the excess reported in the error response.
+- **Invites**: one-time-reveal invite links (only the token's hash is ever stored), with seat reservation handled atomically under concurrent invite requests.
 - **Projects and tasks**: cursor-paginated task boards with status, priority, assignee, and due-date filters; ownership rules on top of RBAC (a member can edit a task they created or are assigned to, but can't reassign it); optimistic status updates on the board with rollback on failure.
-- **Audit log**: every mutating action (org, member, invite, project, task, and plan changes) is recorded inside the same transaction as the change itself, so a rolled-back action never leaves a log entry. Rendered as human-readable rows with filters and cursor pagination.
+- **Audit log**: every mutating action (org, member, invite, project, task, and plan changes) is recorded inside the same transaction as the change itself, so a rolled-back action never leaves a log entry. The UI renders these as human-readable rows with filters and cursor pagination.
 - **Dashboard**: task counts by status and priority, a 14-day task-creation trend, top assignees by open task count, overdue count, and plan usage, gated to roles with dashboard access.
 
 ## API Example
 
-Every error follows the same envelope, with a `details` array whose shape depends on the error code. Downgrading a plan while usage exceeds the target plan's limits, for example:
+API errors use the same envelope. The details array varies by error code. Downgrading a plan while usage exceeds the target plan's limits, for example:
 
 ```
 POST /api/orgs/:orgId/plan
@@ -122,7 +122,7 @@ POST /api/orgs/:orgId/plan
 
 ## Local Setup
 
-Requires Node 24 (see `.nvmrc`) and a MongoDB Atlas cluster (the free M0 tier works; it's a replica set, which transactions require).
+Requires Node 24 (see .nvmrc) and a MongoDB Atlas cluster. The free M0 tier works because it supports replica sets, which MongoDB transactions require.
 
 ```bash
 git clone https://github.com/sprahasingh/WorkNest.git
@@ -175,7 +175,7 @@ npm run build      # includes a full TypeScript build
 npm run lint
 ```
 
-The backend test suite covers tenant isolation (including that the plugin fails closed with no context, and that cross-tenant reads/writes/aggregates are correctly scoped), the full RBAC permission matrix (every role × every permission), concurrent seat/project-slot allocation, the last-admin invariant under concurrent demotion, and refresh-token rotation with reuse detection.
+The backend test suite covers tenant isolation, including fail-closed behavior when there is no tenant context. It also covers the full RBAC permission matrix, concurrent seat/project-slot allocation, the last-admin invariant under concurrent demotion, and refresh-token rotation with reuse detection.
 
 ## Project Structure
 
