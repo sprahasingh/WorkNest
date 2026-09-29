@@ -66,7 +66,11 @@ const OPTIONS: { value: ThemePreference; label: string; icon: typeof SunIcon }[]
   { value: "dark", label: "Dark", icon: MoonIcon },
 ];
 
-export function ThemeToggle() {
+export function ThemeToggle({
+  menuPlacement = "down",
+}: {
+  menuPlacement?: "down" | "up";
+}) {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -94,13 +98,18 @@ export function ThemeToggle() {
         onClick={() => setOpen((value) => !value)}
         aria-label="Change theme"
         aria-expanded={open}
-        className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
       >
         <ActiveIcon className="h-5 w-5" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+        <div
+          className={cn(
+            "absolute right-0 z-30 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800",
+            menuPlacement === "up" ? "bottom-full mb-1" : "top-full mt-1",
+          )}
+        >
           {OPTIONS.map((option) => (
             <button
               key={option.value}

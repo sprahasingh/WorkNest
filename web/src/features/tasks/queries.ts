@@ -248,6 +248,8 @@ export function useActivity(orgId: string, scope: ActivityScope | null) {
     queryKey: taskKeys.activity(orgId, scope ?? { kind: "task", id: "" }),
     queryFn: () => listActivities(orgId, scope!),
     enabled: !!scope,
+    // Keep an open conversation current while others post to it.
+    refetchInterval: 15_000,
   });
 }
 

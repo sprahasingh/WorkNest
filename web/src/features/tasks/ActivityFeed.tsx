@@ -1,26 +1,14 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { inputStyles } from "@/components/ui/Field";
 import { parseApiError } from "@/lib/apiError";
+import { cn } from "@/lib/cn";
+import { formatFullTime, formatRelativeTime } from "@/lib/time";
 import type { ActivityScope, ActivityType } from "./api";
+import { ACTIVITY_BADGE_STYLES, ACTIVITY_LABELS } from "./activityTypes";
+import { ActivityIcon } from "./ActivityIcon";
 import { useActivity, useCreateActivity } from "./queries";
-
-const TYPE_LABELS: Record<ActivityType, string> = {
-  update_request: "Update requested",
-  update: "Update",
-  question: "Question",
-  reply: "Reply",
-};
-
-const TYPE_STYLES: Record<ActivityType, string> = {
-  update_request:
-    "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  update: "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300",
-  question:
-    "bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
-  reply: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
-};
 
 interface ActivityFeedProps {
   orgId: string;
@@ -29,6 +17,8 @@ interface ActivityFeedProps {
   canLead: boolean;
   // Assignees: can post updates and ask questions.
   canContribute: boolean;
+  // Project feeds link each task update back to its task.
+  onOpenTask?: (taskId: string) => void;
 }
 
 export function ActivityFeed({
@@ -36,16 +26,25 @@ export function ActivityFeed({
   scope,
   canLead,
   canContribute,
+  onOpenTask,
 }: ActivityFeedProps) {
   const { data: activities, isPending, isError } = useActivity(orgId, scope);
   const createActivity = useCreateActivity(orgId, scope);
   const [content, setContent] = useState("");
   const [contentError, setContentError] = useState<string | null>(null);
   const [pendingType, setPendingType] = useState<ActivityType | null>(null);
+  const listRef = useRef<HTMLOListElement>(null);
 
   const isProject = scope.kind === "project";
   const canPost = canLead || canContribute;
   const hasText = content.trim().length > 0;
+  const entryCount = activities?.length ?? 0;
+
+  // Newest entries are at the bottom; keep them in view as they arrive.
+  useEffect(() => {
+    const list = listRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [entryCount]);
 
   const post = async (type: ActivityType) => {
     setContentError(null);
@@ -56,18 +55,17 @@ export function ActivityFeed({
         content: content.trim() || undefined,
       });
       setContent("");
-      if (type === "update_request") {
-        const count = result.notifiedCount;
-        toast.success(
+      const count = result.notifiedCount;
+      const successMessages: Record<ActivityType, string> = {
+        update_request:
           isProject && count !== undefined
             ? `Update request sent to ${count} ${count === 1 ? "person" : "people"}`
             : "Update requested from the assignees",
-        );
-      } else {
-        toast.success(
-          type === "question" ? "Question sent to your managers" : "Posted",
-        );
-      }
+        update: "Update posted",
+        question: "Question sent",
+        reply: "Reply posted",
+      };
+      toast.success(successMessages[type]);
     } catch (error) {
       const parsed = parseApiError(error);
       if (parsed.fieldErrors.content) {
@@ -81,64 +79,120 @@ export function ActivityFeed({
   };
 
   const busy = createActivity.isPending;
+  const audienceHint = canLead
+    ? isProject
+      ? "Requests and replies notify everyone assigned to an open task in this project."
+      : "Requests and replies notify this task's assignees."
+    : isProject
+      ? "Updates and questions notify your admins and managers."
+      : "Updates and questions notify your admins, managers and anyone else on this task.";
 
   return (
     <div className="space-y-4">
-      <div className="max-h-72 space-y-3 overflow-y-auto">
-        {isPending && (
-          <div className="h-10 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-        )}
-        {isError && (
-          <p className="text-sm text-red-600 dark:text-red-400">
-            Couldn&apos;t load activity.
+      {isPending && (
+        <div className="space-y-2">
+          {[0, 1].map((i) => (
+            <div
+              key={i}
+              className="h-12 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-700/60"
+            />
+          ))}
+        </div>
+      )}
+      {isError && (
+        <p className="text-sm text-red-600 dark:text-red-400">
+          Couldn&apos;t load updates.
+        </p>
+      )}
+      {!isPending && !isError && entryCount === 0 && (
+        <div className="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center dark:border-slate-700">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            No updates yet
           </p>
-        )}
-        {!isPending && !isError && activities.length === 0 && (
-          <p className="text-sm text-slate-400 dark:text-slate-500">
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {isProject
-              ? "No project updates yet."
-              : "No updates or questions on this task yet."}
+              ? "Update requests, progress updates and questions from this project will appear here."
+              : "Update requests, progress updates and questions about this task will appear here."}
           </p>
-        )}
-        {activities?.map((entry) => (
-          <div key={entry._id} className="text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium text-slate-700 dark:text-slate-200">
-                {entry.author?.name ?? "Former member"}
-              </span>
-              <span
-                className={`rounded px-1.5 py-0.5 text-xs font-medium ${TYPE_STYLES[entry.type]}`}
-              >
-                {TYPE_LABELS[entry.type]}
-              </span>
-              <span className="ml-auto text-xs text-slate-400">
-                {new Date(entry.createdAt).toLocaleString(undefined, {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-              </span>
-            </div>
-            {entry.content && (
-              <p className="mt-1 whitespace-pre-wrap text-slate-600 dark:text-slate-300">
-                {entry.content}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
+        </div>
+      )}
+      {entryCount > 0 && (
+        <ol
+          ref={listRef}
+          aria-label="Updates"
+          className={cn(
+            "space-y-4 overflow-y-auto pr-1",
+            isProject ? "max-h-[45vh]" : "max-h-72",
+          )}
+        >
+          {activities!.map((entry) => (
+            <li key={entry._id} className="flex gap-3 text-sm">
+              <ActivityIcon type={entry.type} />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-medium text-slate-800 dark:text-slate-100">
+                    {entry.author?.name ?? "Former member"}
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded px-1.5 py-0.5 text-xs font-medium",
+                      ACTIVITY_BADGE_STYLES[entry.type],
+                    )}
+                  >
+                    {ACTIVITY_LABELS[entry.type]}
+                  </span>
+                  <time
+                    dateTime={entry.createdAt}
+                    title={formatFullTime(entry.createdAt)}
+                    className="ml-auto text-xs text-slate-400"
+                  >
+                    {formatRelativeTime(entry.createdAt)}
+                  </time>
+                </div>
+                {isProject && (
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {entry.task ? (
+                      <>
+                        on{" "}
+                        <button
+                          type="button"
+                          onClick={() => onOpenTask?.(entry.task!._id)}
+                          className="font-medium text-teal-700 hover:underline dark:text-teal-400"
+                        >
+                          {entry.task.title}
+                        </button>
+                      </>
+                    ) : (
+                      "to the whole project"
+                    )}
+                  </p>
+                )}
+                {entry.content && (
+                  <p className="mt-1 whitespace-pre-wrap break-words text-slate-600 dark:text-slate-300">
+                    {entry.content}
+                  </p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
 
       {canPost ? (
         <div className="space-y-2 border-t border-slate-200 pt-4 dark:border-slate-700">
-          <label htmlFor={`activity-${scope.id}`} className="sr-only">
+          <label
+            htmlFor={`activity-${scope.kind}-${scope.id}`}
+            className="sr-only"
+          >
             Message
           </label>
           <textarea
-            id={`activity-${scope.id}`}
+            id={`activity-${scope.kind}-${scope.id}`}
             rows={3}
             placeholder={
-              canContribute && !canLead
-                ? "Share progress, or ask your manager a question…"
-                : "Write a message (optional when requesting an update)…"
+              canLead
+                ? "Add a note (optional when requesting an update)…"
+                : "Share your progress, or ask a question…"
             }
             value={content}
             onChange={(e) => {
@@ -193,22 +247,18 @@ export function ActivityFeed({
                   loading={pendingType === "update_request"}
                 >
                   {isProject
-                    ? "Request updates from all assignees"
+                    ? "Request updates from everyone"
                     : "Request update"}
                 </Button>
               </>
             )}
           </div>
-          <p className="text-xs text-slate-400 dark:text-slate-500">
-            {canLead
-              ? isProject
-                ? "Requests notify everyone assigned to an open task in this project. Replies notify them too."
-                : "Requests and replies notify this task's assignees."
-              : "Updates and questions notify your admins and managers."}
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {audienceHint}
           </p>
         </div>
       ) : (
-        <p className="border-t border-slate-200 pt-4 text-xs text-slate-400 dark:border-slate-700 dark:text-slate-500">
+        <p className="border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
           {isProject
             ? "Only people assigned to a task in this project, managers and admins can post here."
             : "Only this task's assignees, managers and admins can post here."}

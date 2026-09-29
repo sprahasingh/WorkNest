@@ -20,6 +20,7 @@ import {
   type TaskFilters,
 } from "./queries";
 import { canChangeTaskStatus } from "./ownership";
+import { useMarkReadWhenViewed } from "@/features/notifications/queries";
 import type { Task, TaskStatus, TaskPriority } from "./api";
 
 const STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
@@ -63,6 +64,10 @@ export function ProjectBoard() {
   const statsQuery = useTaskStats(orgId, projectId ?? "");
   const linkedTaskQuery = useTask(orgId, linkedTaskId);
   const updateStatus = useUpdateTaskStatus(orgId, projectId ?? "", filters);
+  useMarkReadWhenViewed(
+    orgId,
+    updatesOpen && projectId ? { kind: "project", projectId } : null,
+  );
 
   if (!projectId) {
     return <NotFound />;
@@ -97,6 +102,23 @@ export function ProjectBoard() {
     if (linkedTaskId) setParam("task", null);
   };
 
+  const openTaskFromBoard = (task: Task) => {
+    setDrawerState({ mode: "edit", task });
+    if (linkedTaskId) setParam("task", null);
+  };
+
+  // From the project feed: close the updates panel and open that task's
+  // updates, the same way a notification link does.
+  const openTaskUpdates = (taskId: string) => {
+    setDrawerState(null);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("updates");
+      next.set("task", taskId);
+      return next;
+    });
+  };
+
   const currentUserId = auth.user?.id ?? "";
   const isArchived = projectQuery.data?.archivedAt != null;
 
@@ -105,11 +127,12 @@ export function ProjectBoard() {
     stats?.activeLimit != null && stats.activeCount >= stats.activeLimit;
   const canPostProjectUpdates = canLead || (stats?.assignedToMe ?? false);
 
+  // A linked task (from a notification or the project feed) wins over one
+  // opened from the board, so following a link always shows what it points to.
   const openDrawer: DrawerState =
-    drawerState ??
-    (linkedTaskQuery.data
+    linkedTaskId && linkedTaskQuery.data
       ? { mode: "edit", task: linkedTaskQuery.data, tab: "activity" }
-      : null);
+      : drawerState;
 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
@@ -128,7 +151,7 @@ export function ProjectBoard() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={() => setParam("updates", "1")}>
-              {canLead ? "Updates & requests" : "Project updates"}
+              Project updates
             </Button>
             {canCreate && !isArchived && (
               <Button
@@ -258,7 +281,7 @@ export function ProjectBoard() {
                 )
               }
               onStatusChange={handleStatusChange}
-              onTaskClick={(task) => setDrawerState({ mode: "edit", task })}
+              onTaskClick={openTaskFromBoard}
             />
           ))}
         </div>
@@ -280,17 +303,19 @@ export function ProjectBoard() {
         open={updatesOpen}
         onClose={() => setParam("updates", null)}
         title={`${projectQuery.data?.name ?? "Project"} updates`}
+        size="lg"
       >
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           {canLead
-            ? "Ask everyone working on this project for an update, and answer their questions."
-            : "Share progress on your work here, or ask your managers a question about the project."}
+            ? "Everything shared in this project, from every task. Ask everyone for an update at once, or reply to questions."
+            : "Everything shared in this project that you can see. Post an update on your work or ask a question about the project."}
         </p>
         <ActivityFeed
           orgId={orgId}
           scope={{ kind: "project", id: projectId }}
           canLead={canLead}
           canContribute={!canLead && canPostProjectUpdates}
+          onOpenTask={openTaskUpdates}
         />
       </Modal>
     </div>

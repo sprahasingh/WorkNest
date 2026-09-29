@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { validate } from "../../middleware/validate.js";
-import { markReadSchema } from "./notifications.schemas.js";
+import {
+  listNotificationsQuerySchema,
+  markReadSchema,
+} from "./notifications.schemas.js";
 import {
   listNotificationsController,
   markReadController,
@@ -8,7 +11,11 @@ import {
 
 const notificationsRouter = Router({ mergeParams: true });
 
-notificationsRouter.get("/", listNotificationsController);
+notificationsRouter.get(
+  "/",
+  validate({ query: listNotificationsQuerySchema }),
+  listNotificationsController,
+);
 notificationsRouter.patch(
   "/read",
   validate({ body: markReadSchema }),

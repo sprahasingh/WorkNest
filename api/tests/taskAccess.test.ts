@@ -321,6 +321,122 @@ describe("update requests and questions", () => {
   });
 });
 
+describe("notification inbox and shared updates", () => {
+  it("keeps co-assignees in the loop, keeps read notifications, and shares task updates in the project feed", async () => {
+    const admin = await registerOrg("inbox-admin@example.com", "Inbox Org");
+    const alice = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "inbox-alice@example.com",
+    );
+    const bob = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "inbox-bob@example.com",
+    );
+    const dave = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "inbox-dave@example.com",
+    );
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "NIB",
+    );
+    const base = `/api/orgs/${admin.orgId}`;
+
+    const unassigned = await createTask(
+      admin.orgId,
+      projectId,
+      admin.accessToken,
+      { title: "Nobody yet" },
+    );
+    const noAssignees = await request(app)
+      .post(`${base}/tasks/${unassigned.body.task._id}/activity`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ type: "update_request" });
+    expect(noAssignees.status).toBe(400);
+    expect(noAssignees.body.error.code).toBe("NO_ASSIGNEES");
+
+    const shared = await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "Shared",
+      assigneeIds: [alice.userId, bob.userId],
+    });
+    const leadOnly = await createTask(
+      admin.orgId,
+      projectId,
+      admin.accessToken,
+      { title: "Lead only", assigneeIds: [admin.userId] },
+    );
+
+    await request(app)
+      .post(`${base}/tasks/${shared.body.task._id}/activity`)
+      .set("Authorization", `Bearer ${alice.accessToken}`)
+      .send({ type: "update", content: "Draft done" })
+      .expect(201);
+    await request(app)
+      .post(`${base}/tasks/${leadOnly.body.task._id}/activity`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ type: "update", content: "Private progress" })
+      .expect(201);
+
+    const bobUnread = await request(app)
+      .get(`${base}/notifications?status=unread`)
+      .set("Authorization", `Bearer ${bob.accessToken}`);
+    expect(bobUnread.body.unreadCount).toBe(1);
+    expect(bobUnread.body.notifications[0]).toMatchObject({
+      type: "update",
+      actorId: alice.userId,
+      taskId: shared.body.task._id,
+      projectName: "Project NIB",
+    });
+
+    const aliceInbox = await request(app)
+      .get(`${base}/notifications`)
+      .set("Authorization", `Bearer ${alice.accessToken}`);
+    expect(aliceInbox.body.notifications).toHaveLength(0);
+
+    await request(app)
+      .patch(`${base}/notifications/read`)
+      .set("Authorization", `Bearer ${bob.accessToken}`)
+      .send({ ids: [bobUnread.body.notifications[0]._id] })
+      .expect(204);
+
+    const bobAfter = await request(app)
+      .get(`${base}/notifications?status=unread`)
+      .set("Authorization", `Bearer ${bob.accessToken}`);
+    expect(bobAfter.body.unreadCount).toBe(0);
+    expect(bobAfter.body.notifications).toHaveLength(0);
+
+    const bobAll = await request(app)
+      .get(`${base}/notifications?status=all`)
+      .set("Authorization", `Bearer ${bob.accessToken}`);
+    expect(bobAll.body.notifications).toHaveLength(1);
+    expect(bobAll.body.notifications[0].readAt).not.toBeNull();
+
+    const badStatus = await request(app)
+      .get(`${base}/notifications?status=everything`)
+      .set("Authorization", `Bearer ${bob.accessToken}`);
+    expect(badStatus.status).toBe(400);
+
+    type FeedEntry = { content?: string; task: { title: string } | null };
+    const daveFeed = await request(app)
+      .get(`${base}/projects/${projectId}/activity`)
+      .set("Authorization", `Bearer ${dave.accessToken}`);
+    const daveEntries = daveFeed.body.activities as FeedEntry[];
+    expect(daveEntries.map((a) => a.content)).toEqual(["Draft done"]);
+    expect(daveEntries[0]!.task?.title).toBe("Shared");
+
+    const adminFeed = await request(app)
+      .get(`${base}/projects/${projectId}/activity`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(
+      (adminFeed.body.activities as FeedEntry[]).map((a) => a.content),
+    ).toEqual(["Draft done", "Private progress"]);
+  });
+});
+
 describe("free plan active task limit", () => {
   it("reports usage and blocks the 11th active task until one is done", async () => {
     const admin = await registerOrg("limit-admin@example.com", "Limit Org");
