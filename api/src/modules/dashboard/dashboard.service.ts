@@ -141,7 +141,10 @@ export async function getDashboard(
     spanDays <= 90 ? "day" : spanDays <= 730 ? "week" : "month";
 
   // Tasks in projects that are in the bin don't count anywhere.
-  const live = { projectId: { $nin: await binnedProjectIds() } };
+  const live = {
+    projectId: { $nin: await binnedProjectIds() },
+    deletedAt: null,
+  };
 
   // Query a day early: local days start up to 14h before UTC midnight.
   const queryFrom = addDays(previousStart ?? rangeStart, -1);
@@ -194,6 +197,7 @@ export async function getDashboard(
         $match: {
           ...live,
           status: { $ne: "done" },
+          archivedAt: null,
           assigneeIds: { $not: { $size: 0 } },
         },
       },
@@ -222,6 +226,7 @@ export async function getDashboard(
     Task.countDocuments({
       ...live,
       status: { $ne: "done" },
+      archivedAt: null,
       dueDate: { $ne: null, $lt: new Date() },
     }),
     Organization.findById(tenantId).setOptions({ skipTenant: true }),

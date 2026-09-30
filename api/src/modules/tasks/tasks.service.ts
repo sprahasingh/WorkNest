@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { Task } from "../../models/Task.js";
 import { TaskActivity } from "../../models/TaskActivity.js";
 import { Notification } from "../../models/Notification.js";
-import { Project } from "../../models/Project.js";
+import { BIN_RETENTION_DAYS, Project } from "../../models/Project.js";
 import { Membership } from "../../models/Membership.js";
 import { Organization } from "../../models/Organization.js";
 import { User } from "../../models/User.js";
@@ -21,6 +21,7 @@ import type {
   CreateTaskInput,
   UpdateTaskInput,
   ListTasksQuery,
+  TaskView,
 } from "./tasks.schemas.js";
 
 async function validateAssignees(
@@ -95,7 +96,12 @@ async function getPlan(tenantId: string): Promise<Plan> {
 }
 
 function countActiveTasks(projectId: string) {
-  return Task.countDocuments({ projectId, status: { $ne: "done" } });
+  return Task.countDocuments({
+    projectId,
+    status: { $ne: "done" },
+    archivedAt: null,
+    deletedAt: null,
+  });
 }
 
 // Creating a task or reopening a finished one adds an active task, so both
@@ -238,9 +244,22 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
     throw new AppError(404, "NOT_FOUND", "Project not found");
   }
 
-  const filter: Record<string, unknown> = { projectId };
+  const view: TaskView =
+    query.view ?? (query.status === "done" ? "completed" : "active");
+  if (view === "bin") {
+    await purgeExpiredTasks(requireTenantId());
+  }
+  const viewFilters: Record<TaskView, Record<string, unknown>> = {
+    active: { status: { $ne: "done" }, archivedAt: null, deletedAt: null },
+    completed: { status: "done", archivedAt: null, deletedAt: null },
+    archived: { archivedAt: { $ne: null }, deletedAt: null },
+    bin: { deletedAt: { $ne: null } },
+  };
+  const filter: Record<string, unknown> = {
+    projectId,
+    ...viewFilters[view],
+  };
 
-  if (query.status) filter.status = query.status;
   if (query.priority) filter.priority = query.priority;
   if (query.mine === "true") {
     filter.assigneeIds = new mongoose.Types.ObjectId(userId);
@@ -251,25 +270,69 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
   if (context.role === "member") {
     filter.$and = [await memberVisibilityFilter(userId)];
   }
+  if (query.status) {
+    const existingAnd = Array.isArray(filter.$and)
+      ? (filter.$and as Record<string, unknown>[])
+      : [];
+    filter.$and = [...existingAnd, { status: query.status }];
+  }
 
   // Total for the whole list (every page), so a column can show its real size
   // rather than just the cards loaded so far.
-  const total = await Task.countDocuments(filter);
+  const total = await Task.countDocuments(filter).setOptions({
+    includeDeleted: view === "bin",
+  });
 
+  const timestampField =
+    view === "completed"
+      ? "completedAt"
+      : view === "archived"
+        ? "archivedAt"
+        : view === "bin"
+          ? "deletedAt"
+          : null;
   if (query.cursor) {
-    filter._id = { $lt: query.cursor };
+    if (timestampField && query.cursor.includes("_")) {
+      const [timestamp, taskId] = query.cursor.split("_");
+      const cursorDate = new Date(Number(timestamp));
+      filter.$or = [
+        { [timestampField]: { $lt: cursorDate } },
+        { [timestampField]: cursorDate, _id: { $lt: taskId } },
+      ];
+    } else {
+      filter._id = { $lt: query.cursor };
+    }
   }
 
-  const tasks = await Task.find(filter)
-    .sort({ _id: -1 })
-    .limit(limit + 1)
-    .lean();
+  const taskQuery = Task.find(filter).setOptions({
+    includeDeleted: view === "bin",
+  });
+  const sortedTaskQuery = timestampField
+    ? taskQuery.sort({ [timestampField]: -1, _id: -1 })
+    : taskQuery.sort({ _id: -1 });
+  const tasks = await sortedTaskQuery.limit(limit + 1).lean();
 
   const hasMore = tasks.length > limit;
   const items = hasMore ? tasks.slice(0, limit) : tasks;
-  const nextCursor = hasMore ? String(items[items.length - 1]?._id) : null;
+  const lastItem = items[items.length - 1];
+  const nextCursor = hasMore
+    ? timestampField
+      ? `${(lastItem as unknown as Record<string, Date | null>)[timestampField]?.getTime() ?? 0}_${String(lastItem?._id)}`
+      : String(lastItem?._id)
+    : null;
 
-  return { items, nextCursor, total };
+  const retentionMs = BIN_RETENTION_DAYS * 86_400_000;
+  return {
+    items: items.map((task) => ({
+      ...task,
+      purgeAt: task.deletedAt
+        ? new Date(task.deletedAt.getTime() + retentionMs).toISOString()
+        : null,
+    })),
+    nextCursor,
+    total,
+    binRetentionDays: BIN_RETENTION_DAYS,
+  };
 }
 
 export async function getTask(taskId: string) {
@@ -309,6 +372,33 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
   }
 
   await assertTaskVisible(task);
+
+  if (task.archivedAt) {
+    throw new AppError(
+      409,
+      "TASK_ARCHIVED_READ_ONLY",
+      "Unarchive this task before changing it",
+    );
+  }
+
+  const isReopeningCompletedTask =
+    task.status === "done" &&
+    (input.status === "todo" || input.status === "in_progress");
+  if (task.status === "done") {
+    const hasOtherChanges = Object.keys(input).some((key) => key !== "status");
+    if (
+      hasOtherChanges ||
+      (input.status &&
+        input.status !== task.status &&
+        !isReopeningCompletedTask)
+    ) {
+      throw new AppError(
+        409,
+        "TASK_COMPLETED_READ_ONLY",
+        "Reopen this task before editing it",
+      );
+    }
+  }
 
   const isReassigning = Object.prototype.hasOwnProperty.call(
     input,
@@ -383,7 +473,22 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
       }
 
       Object.assign(task, changes);
+      if (completing) task.completedAt = new Date();
+      if (reopening) task.completedAt = null;
       await task.save({ session: dbSession });
+
+      if (completing) {
+        await Notification.updateMany(
+          {
+            tenantId,
+            taskId: task._id,
+            type: { $in: ["task_due_soon", "task_overdue"] },
+            dismissedAt: null,
+          },
+          { dismissedAt: new Date() },
+          { session: dbSession },
+        );
+      }
 
       if (diff.dueDate) {
         await Notification.updateMany(
@@ -473,33 +578,247 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
   }
 }
 
-export async function deleteTask(taskId: string) {
-  const context = getTenantContext()!;
-  const task = await findTaskInLiveProject(taskId);
-
-  if (!task) {
-    throw new AppError(404, "NOT_FOUND", "Task not found");
-  }
-
-  if (!can(context.role as Role, "task:delete")) {
+function assertCanManageTask(role: Role): void {
+  if (!can(role, "task:delete")) {
     throw new AppError(
       403,
       "FORBIDDEN",
-      "You do not have permission to delete this task",
+      "You do not have permission to manage this task",
+    );
+  }
+}
+
+export async function archiveTask(taskId: string) {
+  const context = getTenantContext()!;
+  assertCanManageTask(context.role as Role);
+  const task = await findTaskInLiveProject(taskId);
+  if (!task) throw new AppError(404, "NOT_FOUND", "Task not found");
+  if (task.status !== "done") {
+    throw new AppError(
+      400,
+      "TASK_NOT_COMPLETED",
+      "Only completed tasks can be archived",
+    );
+  }
+  if (task.archivedAt) {
+    throw new AppError(
+      409,
+      "TASK_ALREADY_ARCHIVED",
+      "Task is already archived",
     );
   }
 
   const dbSession = await mongoose.startSession();
+  try {
+    let archivedTask;
+    await dbSession.withTransaction(async () => {
+      archivedTask = await Task.findOneAndUpdate(
+        { _id: taskId, status: "done", archivedAt: null },
+        { archivedAt: new Date() },
+        { new: true, session: dbSession },
+      );
+      if (!archivedTask) {
+        throw new AppError(
+          409,
+          "TASK_ALREADY_ARCHIVED",
+          "Task is already archived",
+        );
+      }
+      await Notification.updateMany(
+        {
+          tenantId: requireTenantId(),
+          taskId,
+          type: { $in: ["task_due_soon", "task_overdue"] },
+          dismissedAt: null,
+        },
+        { dismissedAt: new Date() },
+        { session: dbSession },
+      );
+      await recordAudit(
+        {
+          action: "task.archived",
+          entityType: "Task",
+          entityId: taskId,
+          metadata: { title: task.title },
+        },
+        dbSession,
+      );
+    });
+    return archivedTask!;
+  } finally {
+    await dbSession.endSession();
+  }
+}
 
+export async function unarchiveTask(taskId: string) {
+  const context = getTenantContext()!;
+  assertCanManageTask(context.role as Role);
+  const archivedTask = await Task.findOne({
+    _id: taskId,
+    archivedAt: { $ne: null },
+  });
+  if (
+    !archivedTask ||
+    !(await Project.exists({ _id: archivedTask.projectId }))
+  ) {
+    throw new AppError(404, "NOT_FOUND", "Archived task not found");
+  }
+  const dbSession = await mongoose.startSession();
+  try {
+    let task;
+    await dbSession.withTransaction(async () => {
+      task = await Task.findOneAndUpdate(
+        { _id: taskId, archivedAt: { $ne: null }, deletedAt: null },
+        { archivedAt: null },
+        { new: true, session: dbSession },
+      );
+      if (!task) {
+        throw new AppError(404, "NOT_FOUND", "Archived task not found");
+      }
+      await recordAudit(
+        {
+          action: "task.unarchived",
+          entityType: "Task",
+          entityId: taskId,
+          metadata: { title: task.title },
+        },
+        dbSession,
+      );
+    });
+    return task!;
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
+export async function moveTaskToBin(taskId: string) {
+  const context = getTenantContext()!;
+  assertCanManageTask(context.role as Role);
+  const task = await findTaskInLiveProject(taskId);
+  if (!task) throw new AppError(404, "NOT_FOUND", "Task not found");
+
+  const dbSession = await mongoose.startSession();
+  try {
+    let binnedTask;
+    await dbSession.withTransaction(async () => {
+      binnedTask = await Task.findOneAndUpdate(
+        { _id: taskId, deletedAt: null },
+        { deletedAt: new Date(), deletedBy: context.userId },
+        { new: true, session: dbSession },
+      );
+      if (!binnedTask) throw new AppError(404, "NOT_FOUND", "Task not found");
+      await recordAudit(
+        {
+          action: "task.binned",
+          entityType: "Task",
+          entityId: taskId,
+          metadata: { title: task.title },
+        },
+        dbSession,
+      );
+    });
+    return binnedTask!;
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
+export async function restoreTask(taskId: string) {
+  const context = getTenantContext()!;
+  assertCanManageTask(context.role as Role);
+  const retentionCutoff = new Date(
+    Date.now() - BIN_RETENTION_DAYS * 86_400_000,
+  );
+  const binnedTask = await Task.findOne({
+    _id: taskId,
+    deletedAt: { $gte: retentionCutoff },
+  }).setOptions({ includeDeleted: true });
+  if (!binnedTask) {
+    throw new AppError(404, "NOT_FOUND", "Task not found in the bin");
+  }
+  if (!(await Project.exists({ _id: binnedTask.projectId }))) {
+    throw new AppError(
+      409,
+      "PROJECT_IN_BIN",
+      "Restore the project before restoring its task",
+    );
+  }
+
+  if (binnedTask.status !== "done" && !binnedTask.archivedAt) {
+    await assertRoomForActiveTask(
+      requireTenantId(),
+      String(binnedTask.projectId),
+      "reopen",
+    );
+  }
+
+  const dbSession = await mongoose.startSession();
+  try {
+    let task;
+    await dbSession.withTransaction(async () => {
+      task = await Task.findOneAndUpdate(
+        { _id: taskId, deletedAt: { $ne: null } },
+        { deletedAt: null, deletedBy: null },
+        { new: true, session: dbSession },
+      ).setOptions({ includeDeleted: true });
+      if (!task) {
+        throw new AppError(404, "NOT_FOUND", "Task not found in the bin");
+      }
+      await recordAudit(
+        {
+          action: "task.restored",
+          entityType: "Task",
+          entityId: taskId,
+          metadata: { title: task.title },
+        },
+        dbSession,
+      );
+    });
+    return task!;
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
+async function destroyTask(
+  task: {
+    _id: mongoose.Types.ObjectId;
+    tenantId: mongoose.Types.ObjectId;
+  },
+  dbSession: mongoose.ClientSession,
+) {
+  const taskId = task._id;
+  await TaskActivity.deleteMany({ taskId })
+    .session(dbSession)
+    .setOptions({ skipTenant: true });
+  await Notification.deleteMany({ tenantId: task.tenantId, taskId }).session(
+    dbSession,
+  );
+  await Task.deleteOne({ _id: taskId })
+    .session(dbSession)
+    .setOptions({ skipTenant: true, includeDeleted: true });
+}
+
+export async function deleteTaskPermanently(taskId: string) {
+  const context = getTenantContext()!;
+  assertCanManageTask(context.role as Role);
+  const dbSession = await mongoose.startSession();
   try {
     await dbSession.withTransaction(async () => {
-      await Task.deleteOne({ _id: taskId }).session(dbSession);
-      await TaskActivity.deleteMany({ taskId }).session(dbSession);
-      await Notification.deleteMany({
-        tenantId: requireTenantId(),
-        taskId,
-      }).session(dbSession);
-
+      const task = await Task.findOne({
+        _id: taskId,
+        deletedAt: { $ne: null },
+      })
+        .session(dbSession)
+        .setOptions({ includeDeleted: true });
+      if (!task) {
+        throw new AppError(
+          404,
+          "NOT_FOUND",
+          "Only tasks in the bin can be deleted permanently",
+        );
+      }
+      await destroyTask(task, dbSession);
       await recordAudit(
         {
           action: "task.deleted",
@@ -513,4 +832,39 @@ export async function deleteTask(taskId: string) {
   } finally {
     await dbSession.endSession();
   }
+}
+
+export async function purgeExpiredTasks(tenantId?: string) {
+  const cutoff = new Date(Date.now() - BIN_RETENTION_DAYS * 86_400_000);
+  const expired = await Task.find({
+    ...(tenantId ? { tenantId } : {}),
+    deletedAt: { $lt: cutoff },
+  }).setOptions({ includeDeleted: true, skipTenant: true });
+
+  for (const task of expired) {
+    const dbSession = await mongoose.startSession();
+    try {
+      await dbSession.withTransaction(async () => {
+        await destroyTask(task, dbSession);
+        await recordAudit(
+          {
+            action: "task.purged",
+            entityType: "Task",
+            entityId: task._id,
+            metadata: { title: task.title },
+            tenantId: task.tenantId,
+            actorId: task.deletedBy ?? task.createdBy,
+          },
+          dbSession,
+        );
+      });
+    } finally {
+      await dbSession.endSession();
+    }
+  }
+  return expired.length;
+}
+
+export async function deleteTask(taskId: string) {
+  return moveTaskToBin(taskId);
 }

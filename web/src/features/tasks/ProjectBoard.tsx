@@ -22,9 +22,15 @@ import {
 import { canChangeTaskStatus } from "./ownership";
 import { useMarkReadWhenViewed } from "@/features/notifications/queries";
 import { PLAN_NAMES } from "@/lib/plans";
-import type { Task, TaskStatus, TaskPriority } from "./api";
+import type { Task, TaskStatus, TaskPriority, TaskView } from "./api";
 
-const STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
+const ACTIVE_STATUSES: TaskStatus[] = ["todo", "in_progress"];
+const TASK_VIEWS: { value: TaskView; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Recently completed" },
+  { value: "archived", label: "Archived" },
+  { value: "bin", label: "Bin" },
+];
 
 const selectStyles =
   "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
@@ -59,6 +65,18 @@ export function ProjectBoard() {
       (searchParams.get("priority") as TaskPriority | null) ?? undefined,
     mine: searchParams.get("mine") === "true" ? true : undefined,
   };
+  const requestedView = searchParams.get("view");
+  const boardView: TaskView = TASK_VIEWS.some(
+    (view) => view.value === requestedView,
+  )
+    ? (requestedView as TaskView)
+    : "active";
+  const visibleStatuses: (TaskStatus | undefined)[] =
+    boardView === "active"
+      ? ACTIVE_STATUSES
+      : boardView === "completed"
+        ? ["done"]
+        : [undefined];
 
   const membersQuery = useMembers(orgId);
   const members = membersQuery.data ?? [];
@@ -92,6 +110,9 @@ export function ProjectBoard() {
     updateStatus.mutate(
       { task, newStatus },
       {
+        onSuccess: () => {
+          if (newStatus === "done") setParam("view", "completed");
+        },
         onError: (error) => {
           const parsed = parseApiError(error);
           toast.error(parsed.message);
@@ -318,12 +339,47 @@ export function ProjectBoard() {
           </label>
         </div>
 
-        <div className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
-          {STATUSES.map((status) => (
+        <div
+          role="group"
+          aria-label="Task view"
+          className="mt-6 inline-flex max-w-full overflow-x-auto rounded-lg bg-slate-200 p-1 dark:bg-slate-800"
+        >
+          {TASK_VIEWS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={boardView === value}
+              onClick={() =>
+                setParam("view", value === "active" ? null : value)
+              }
+              className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                boardView === value
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          {boardView === "completed"
+            ? "Completed tasks are kept here. Reopen one to return it to active work."
+            : boardView === "archived"
+              ? "Archived tasks are hidden from everyday work and can be unarchived."
+              : boardView === "bin"
+                ? "Binned tasks can be restored for 30 days before permanent deletion."
+                : "Finished tasks move to Recently completed. Archive them to hide them from everyday work."}
+        </p>
+
+        <div className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
+          {visibleStatuses.map((status) => (
             <TaskColumn
-              key={status}
+              key={status ?? boardView}
               orgId={orgId}
               projectId={projectId}
+              view={boardView}
               status={status}
               filters={filters}
               members={members}
