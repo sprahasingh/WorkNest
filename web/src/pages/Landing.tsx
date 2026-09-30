@@ -1,5 +1,6 @@
-import type { ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { Link } from "react-router";
+import { HelpLinks } from "@/components/HelpLinks";
 import { useAuth } from "@/auth/auth-context";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 import { Card } from "@/components/ui/Card";
@@ -172,28 +173,149 @@ function ProductPreview() {
   );
 }
 
+function MenuIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="17" x2="20" y2="17" />
+    </svg>
+  );
+}
+
+// Phone menu: slides in from the right like the app's panels, with the
+// account actions on top and help at the bottom.
+function LandingMenu({
+  isAuthenticated,
+  workspacePath,
+  onClose,
+}: {
+  isAuthenticated: boolean;
+  workspacePath: string;
+  onClose: () => void;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 sm:hidden">
+      <div
+        className="absolute inset-0 bg-slate-900/30 backdrop-blur-[1px]"
+        onClick={onClose}
+      />
+      <nav
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
+        className="absolute inset-y-0 right-0 flex w-[calc(100%-3rem)] max-w-sm flex-col rounded-l-2xl border-l border-slate-200 bg-white shadow-2xl animate-[panel-in-right_260ms_cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none dark:border-slate-800 dark:bg-slate-900"
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+          <BrandMark />
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Close menu"
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              className="h-5 w-5"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-6 overflow-y-auto p-4">
+          <div className="space-y-2">
+            {isAuthenticated ? (
+              <Link
+                to={workspacePath}
+                onClick={onClose}
+                className="flex w-full items-center justify-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
+              >
+                Open WorkNest
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/register"
+                  onClick={onClose}
+                  className="flex w-full items-center justify-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
+                >
+                  Register
+                </Link>
+                <Link
+                  to="/login"
+                  onClick={onClose}
+                  className="flex w-full items-center justify-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Log in
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-slate-200 p-2 dark:border-slate-800">
+          <HelpLinks from="/" onNavigate={onClose} />
+        </div>
+      </nav>
+    </div>
+  );
+}
+
 export function Landing() {
   const auth = useAuth();
   const isAuthenticated = auth.status === "authenticated";
   const workspacePath = resolvePostAuthPath(auth.memberships ?? []);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <BrandMark />
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="hidden items-center gap-4 sm:flex">
             <Link
               to="/how-to-use"
-              className="hidden text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-block dark:text-slate-300 dark:hover:text-teal-400"
+              className="text-sm font-medium text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-400"
             >
-              How it works
+              How to use
             </Link>
             <ThemeToggle />
             {isAuthenticated ? (
               <Link
                 to={workspacePath}
-                className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 sm:px-4"
+                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700"
               >
                 Open WorkNest
               </Link>
@@ -201,21 +323,44 @@ export function Landing() {
               <>
                 <Link
                   to="/login"
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 sm:px-4 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Log in
                 </Link>
                 <Link
                   to="/register"
-                  className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 sm:px-4"
+                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700"
                 >
                   Register
                 </Link>
               </>
             )}
           </div>
+
+          {/* Phones: the main action stays visible; the rest lives in a menu. */}
+          <div className="flex items-center gap-1 sm:hidden">
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open menu"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <MenuIcon />
+            </button>
+          </div>
         </div>
       </header>
+
+      {menuOpen && (
+        <LandingMenu
+          isAuthenticated={isAuthenticated}
+          workspacePath={workspacePath}
+          onClose={() => setMenuOpen(false)}
+        />
+      )}
 
       <main>
         <section className="mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pt-20 lg:pt-24">
@@ -230,8 +375,8 @@ export function Landing() {
               <p className="mt-5 max-w-xl text-lg text-slate-600 dark:text-slate-400">
                 WorkNest is a project and task management workspace built for
                 organizations that need real tenant isolation, role-based
-                permissions, and a full audit trail, not just a shared todo
-                list with extra steps.
+                permissions, and a full audit trail, not just a shared todo list
+                with extra steps.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 {isAuthenticated ? (
@@ -275,8 +420,7 @@ export function Landing() {
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
             <div className="max-w-2xl">
               <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-50">
-                Everything a growing team needs, nothing it has to build
-                itself.
+                Everything a growing team needs, nothing it has to build itself.
               </h2>
               <p className="mt-3 text-slate-600 dark:text-slate-400">
                 Tenant isolation and access control are enforced at the data
@@ -316,7 +460,9 @@ export function Landing() {
               to={isAuthenticated ? workspacePath : "/register"}
               className="mt-8 inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-teal-700 shadow-sm transition-colors hover:bg-teal-50"
             >
-              {isAuthenticated ? "Go to your workspace" : "Create your workspace"}
+              {isAuthenticated
+                ? "Go to your workspace"
+                : "Create your workspace"}
             </Link>
           </div>
         </section>
@@ -342,7 +488,9 @@ export function Landing() {
             ))}
           </div>
 
-          <p>&copy; {new Date().getFullYear()} WorkNest. Built by Spraha Singh.</p>
+          <p>
+            &copy; {new Date().getFullYear()} WorkNest. Built by Spraha Singh.
+          </p>
         </div>
       </footer>
     </div>
