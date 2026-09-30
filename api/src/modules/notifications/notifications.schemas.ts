@@ -10,6 +10,16 @@ export const markReadSchema = z
 
 export type MarkReadInput = z.infer<typeof markReadSchema>;
 
+export const dismissNotificationsSchema = z
+  .object({
+    ids: z.array(z.string().regex(objectIdRegex)).min(1).max(100),
+  })
+  .strict();
+
+export type DismissNotificationsInput = z.infer<
+  typeof dismissNotificationsSchema
+>;
+
 export const listNotificationsQuerySchema = z
   .object({
     status: z.enum(["unread", "all"]).optional(),

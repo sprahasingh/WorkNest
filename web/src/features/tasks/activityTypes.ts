@@ -1,4 +1,4 @@
-import type { ActivityType } from "./api";
+import type { ActivityType, TaskNotificationType } from "./api";
 
 // One vocabulary for task/project updates, shared by the activity feeds and
 // the notifications panel so the same event always looks the same.
@@ -16,4 +16,15 @@ export const ACTIVITY_BADGE_STYLES: Record<ActivityType, string> = {
   question:
     "bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
   reply: "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
+};
+
+export const TASK_NOTIFICATION_BADGE_STYLES: Record<
+  TaskNotificationType,
+  string
+> = {
+  task_completed:
+    "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+  task_due_soon:
+    "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  task_overdue: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 };
