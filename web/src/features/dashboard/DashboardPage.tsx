@@ -626,6 +626,12 @@ interface ChartTheme {
 function useDoubleTapDetails() {
   const [showDetails, setShowDetails] = useState(false);
   const lastTapRef = useRef(0);
+  const pointerStartRef = useRef<{
+    x: number;
+    y: number;
+    time: number;
+    pointerId: number;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // A tap anywhere else hides them again.
@@ -640,7 +646,28 @@ function useDoubleTapDetails() {
     return () => document.removeEventListener("pointerdown", hideOnOutsideTap);
   }, [showDetails]);
 
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    pointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      time: event.timeStamp,
+      pointerId: event.pointerId,
+    };
+  };
+
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const start = pointerStartRef.current;
+    pointerStartRef.current = null;
+    if (
+      !start ||
+      start.pointerId !== event.pointerId ||
+      event.timeStamp - start.time > 300 ||
+      Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10
+    ) {
+      return;
+    }
+
     if (event.timeStamp - lastTapRef.current < DOUBLE_TAP_MS) {
       setShowDetails((shown) => !shown);
       lastTapRef.current = 0;
@@ -654,7 +681,18 @@ function useDoubleTapDetails() {
     if (event.pointerType === "mouse") setShowDetails(false);
   };
 
-  return { showDetails, containerRef, onPointerUp, onPointerLeave };
+  const onPointerCancel = () => {
+    pointerStartRef.current = null;
+  };
+
+  return {
+    showDetails,
+    containerRef,
+    onPointerDown,
+    onPointerUp,
+    onPointerCancel,
+    onPointerLeave,
+  };
 }
 
 function ChartCard({
@@ -677,8 +715,14 @@ function ChartCard({
 }) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
-  const { showDetails, containerRef, onPointerUp, onPointerLeave } =
-    useDoubleTapDetails();
+  const {
+    showDetails,
+    containerRef,
+    onPointerDown,
+    onPointerUp,
+    onPointerCancel,
+    onPointerLeave,
+  } = useDoubleTapDetails();
   const chartTheme: ChartTheme = {
     gridColor: isDark ? "#334155" : "#e2e8f0",
     tickColor: isDark ? "#94a3b8" : "#64748b",
@@ -728,7 +772,9 @@ function ChartCard({
       {summary && <div className="mt-3">{summary}</div>}
       <div
         ref={containerRef}
+        onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onPointerLeave={onPointerLeave}
         data-details={showDetails ? "on" : "off"}
         // manipulation stops a double tap from zooming the page on phones;
