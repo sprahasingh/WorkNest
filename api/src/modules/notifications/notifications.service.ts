@@ -1,5 +1,5 @@
 import { Notification } from "../../models/Notification.js";
-import { Project } from "../../models/Project.js";
+import { Project, binnedProjectIds } from "../../models/Project.js";
 import { getTenantContext, requireTenantId } from "../../tenancy/context.js";
 
 const PAGE_SIZE = 50;
@@ -7,7 +7,12 @@ const PAGE_SIZE = 50;
 export async function listNotifications(status: "unread" | "all") {
   const context = getTenantContext()!;
   const tenantId = requireTenantId();
-  const mine = { userId: context.userId, tenantId };
+  // Notifications about projects in the bin come back if they're restored.
+  const mine = {
+    userId: context.userId,
+    tenantId,
+    projectId: { $nin: await binnedProjectIds() },
+  };
 
   const [notifications, unreadCount] = await Promise.all([
     Notification.find(status === "unread" ? { ...mine, readAt: null } : mine)

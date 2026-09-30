@@ -11,7 +11,11 @@ export type AuditAction =
   | "project.created"
   | "project.updated"
   | "project.archived"
+  | "project.unarchived"
+  | "project.binned"
+  | "project.restored"
   | "project.deleted"
+  | "project.purged"
   | "task.created"
   | "task.updated"
   | "task.deleted"
@@ -28,7 +32,11 @@ export const AUDIT_ACTIONS: AuditAction[] = [
   "project.created",
   "project.updated",
   "project.archived",
+  "project.unarchived",
+  "project.binned",
+  "project.restored",
   "project.deleted",
+  "project.purged",
   "task.created",
   "task.updated",
   "task.deleted",
