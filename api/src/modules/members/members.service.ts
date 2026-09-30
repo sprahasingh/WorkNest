@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 import { Membership } from "../../models/Membership.js";
 import { Organization } from "../../models/Organization.js";
+import { Task } from "../../models/Task.js";
+import { Notification } from "../../models/Notification.js";
+import { User } from "../../models/User.js";
 import { getTenantContext, requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
@@ -112,12 +115,36 @@ export async function removeMember(memberId: string) {
         { session: dbSession },
       ).setOptions({ skipTenant: true });
 
+      // Only this org's membership goes; the person's account and their
+      // other orgs are untouched. Their tasks here are left unassigned so no
+      // one is assigned work in an org they can't open.
+      const unassigned = await Task.updateMany(
+        { assigneeIds: membership.userId },
+        { $pull: { assigneeIds: membership.userId } },
+        { session: dbSession },
+      );
+      await Notification.deleteMany(
+        { tenantId, userId: membership.userId },
+        { session: dbSession },
+      );
+
+      const person = await User.findById(membership.userId)
+        .select("name email")
+        .session(dbSession);
+
       await recordAudit(
         {
           action: "member.removed",
           entityType: "Membership",
           entityId: memberId,
-          metadata: { role: membership.role, userId: membership.userId },
+          metadata: {
+            role: membership.role,
+            userId: membership.userId,
+            name: person?.name,
+            email: person?.email,
+            self: isSelf,
+            unassignedTaskCount: unassigned.modifiedCount,
+          },
         },
         dbSession,
       );

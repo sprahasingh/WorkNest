@@ -2,14 +2,17 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/auth/auth-context";
 import {
   acceptInvite,
+  declineInvite,
   getInvitePreview,
   signupViaInvite,
+  type InviteStatus,
 } from "@/api/invites";
+import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
@@ -18,15 +21,27 @@ import { Button } from "@/components/ui/Button";
 
 const signupFormSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(72),
+  password: z.string().min(8, "Password must be at least 8 characters").max(72),
 });
 
 type SignupFormValues = z.infer<typeof signupFormSchema>;
 
 const SIGNUP_FIELDS = ["name", "password"] as const;
+
+const ROLE_LABELS = { admin: "Admin", manager: "Manager", member: "Member" };
+
+// Why a link that's no longer pending can't be used.
+const CLOSED_MESSAGES: Record<Exclude<InviteStatus, "pending">, string> = {
+  accepted: "This invite has already been used.",
+  declined:
+    "This invite was declined. Ask an admin to invite you again if you've changed your mind.",
+  revoked:
+    "This invite link was replaced or revoked. Ask an admin for a new one.",
+  expired: "This invite has expired. Ask an admin to send a new one.",
+};
+
+const secondaryLinkStyles =
+  "inline-flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700";
 
 export function InviteAccept() {
   const { token } = useParams<{ token: string }>();
@@ -34,6 +49,8 @@ export function InviteAccept() {
   const auth = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [isDeclining, setIsDeclining] = useState(false);
+  const [declined, setDeclined] = useState(false);
 
   const previewQuery = useQuery({
     queryKey: ["invites", token],
@@ -72,21 +89,50 @@ export function InviteAccept() {
   }
 
   const preview = previewQuery.data;
+  const isSignedIn = auth.status === "authenticated";
+  const workspacePath = resolvePostAuthPath(auth.memberships ?? []);
+  const loginPath = `/login?next=${encodeURIComponent(`/invite/${token}`)}`;
 
-  if (preview.expired) {
+  const closedMessage = declined
+    ? `You declined the invite to ${preview.organizationName}.`
+    : preview.status !== "pending"
+      ? CLOSED_MESSAGES[preview.status]
+      : null;
+
+  if (closedMessage) {
     return (
       <AuthShell>
-        <p className="text-center text-sm text-slate-600 dark:text-slate-400">
-          This invite has expired or was revoked. Ask an admin to send a new
-          one.
-        </p>
+        <div className="space-y-4 text-center">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            {closedMessage}
+          </p>
+          <Link
+            to={isSignedIn ? workspacePath : "/login"}
+            className={secondaryLinkStyles}
+          >
+            {isSignedIn ? "Go to your workspace" : "Log in"}
+          </Link>
+        </div>
       </AuthShell>
     );
   }
 
   const isMatchingUser =
-    auth.status === "authenticated" &&
-    auth.user.email.toLowerCase() === preview.email.toLowerCase();
+    isSignedIn && auth.user.email.toLowerCase() === preview.email.toLowerCase();
+  const isOtherUser = isSignedIn && !isMatchingUser;
+
+  const handleDecline = async () => {
+    setFormError(null);
+    setIsDeclining(true);
+    try {
+      await declineInvite(token);
+      setDeclined(true);
+    } catch (error) {
+      setFormError(parseApiError(error).message);
+    } finally {
+      setIsDeclining(false);
+    }
+  };
 
   const handleAccept = async () => {
     setFormError(null);
@@ -140,23 +186,81 @@ export function InviteAccept() {
             <span className="font-medium text-slate-700 dark:text-slate-200">
               {preview.organizationName}
             </span>{" "}
-            as <span className="font-mono">{preview.role}</span>
+            as{" "}
+            <span className="font-medium text-slate-700 dark:text-slate-200">
+              {ROLE_LABELS[preview.role].toLowerCase()}
+            </span>
           </p>
         </div>
 
         <ErrorBanner message={formError} />
 
-        {isMatchingUser ? (
-          <Button
-            type="button"
-            onClick={() => void handleAccept()}
-            disabled={isAccepting}
-            loading={isAccepting}
-            className="w-full"
-          >
-            {isAccepting ? "Joining…" : `Accept as ${preview.email}`}
-          </Button>
-        ) : (
+        {isMatchingUser && (
+          <div className="space-y-2">
+            <Button
+              type="button"
+              onClick={() => void handleAccept()}
+              disabled={isAccepting || isDeclining}
+              loading={isAccepting}
+              className="w-full"
+            >
+              {isAccepting ? "Joining…" : `Join as ${preview.email}`}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => void handleDecline()}
+              disabled={isAccepting || isDeclining}
+              loading={isDeclining}
+              className="w-full"
+            >
+              Decline
+            </Button>
+          </div>
+        )}
+
+        {isOtherUser && (
+          <div className="space-y-3">
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+              This invite is for{" "}
+              <span className="font-medium">{preview.email}</span>, but
+              you&apos;re signed in as{" "}
+              <span className="font-medium">{auth.user.email}</span>.
+            </p>
+            <Button
+              type="button"
+              onClick={() => void auth.logout()}
+              disabled={auth.isLoggingOut}
+              loading={auth.isLoggingOut}
+              className="w-full"
+            >
+              Log out and continue as {preview.email}
+            </Button>
+            <Link to={workspacePath} className={secondaryLinkStyles}>
+              Stay signed in as {auth.user.email}
+            </Link>
+          </div>
+        )}
+
+        {!isSignedIn && preview.accountExists && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              <span className="font-medium text-slate-800 dark:text-slate-100">
+                {preview.email}
+              </span>{" "}
+              already has a WorkNest account. Log in to join — your other
+              organizations stay as they are.
+            </p>
+            <Link
+              to={loginPath}
+              className="inline-flex w-full items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400"
+            >
+              Log in to accept
+            </Link>
+          </div>
+        )}
+
+        {!isSignedIn && !preview.accountExists && (
           <form
             onSubmit={(event) => void handleSubmit(onSubmit)(event)}
             noValidate
@@ -208,6 +312,16 @@ export function InviteAccept() {
             >
               {isSubmitting ? "Creating account…" : "Create account & join"}
             </Button>
+
+            <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+              Already have an account?{" "}
+              <Link
+                to={loginPath}
+                className="font-medium text-teal-700 hover:underline dark:text-teal-400"
+              >
+                Log in
+              </Link>
+            </p>
           </form>
         )}
       </div>

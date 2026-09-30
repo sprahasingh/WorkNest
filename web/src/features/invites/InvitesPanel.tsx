@@ -31,6 +31,14 @@ const INVITE_FIELDS = ["email", "role"] as const;
 interface RevealedInvite {
   email: string;
   url: string;
+  existingUser: boolean;
+}
+
+// An invite the admin tried to send while one was already pending.
+interface PendingConflict {
+  email: string;
+  role: InviteFormValues["role"];
+  invitedAt: string | null;
 }
 
 export function InvitesPanel() {
@@ -40,6 +48,7 @@ export function InvitesPanel() {
 
   const [formError, setFormError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<RevealedInvite | null>(null);
+  const [conflict, setConflict] = useState<PendingConflict | null>(null);
   const [copied, setCopied] = useState(false);
 
   const { data: org } = useOrgDetails(orgId);
@@ -58,14 +67,32 @@ export function InvitesPanel() {
     defaultValues: { role: "member" },
   });
 
-  const onSubmit = async (values: InviteFormValues) => {
+  const sendInvite = async (
+    values: InviteFormValues,
+    replaceExisting = false,
+  ) => {
     setFormError(null);
+    setConflict(null);
     try {
-      const { inviteUrl } = await createInvite.mutateAsync(values);
-      setRevealed({ email: values.email, url: inviteUrl });
+      const { inviteUrl, existingUser } = await createInvite.mutateAsync({
+        ...values,
+        replaceExisting,
+      });
+      setRevealed({ email: values.email, url: inviteUrl, existingUser });
+      setCopied(false);
       reset({ email: "", role: "member" });
     } catch (error) {
       const parsed = parseApiError(error);
+
+      if (parsed.code === "INVITE_ALREADY_PENDING") {
+        const detail = (parsed.details?.[0] ?? {}) as { invitedAt?: string };
+        setConflict({
+          email: values.email,
+          role: values.role,
+          invitedAt: detail.invitedAt ?? null,
+        });
+        return;
+      }
 
       if (parsed.code === "SEAT_LIMIT_REACHED") {
         toast.error("No seats remaining", {
@@ -98,6 +125,8 @@ export function InvitesPanel() {
       }
     }
   };
+
+  const onSubmit = (values: InviteFormValues) => sendInvite(values);
 
   const handleCopy = async (url: string) => {
     await navigator.clipboard.writeText(url);
@@ -185,15 +214,67 @@ export function InvitesPanel() {
               </div>
             </div>
 
-            <Button type="submit" disabled={isSubmitting} loading={isSubmitting}>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              loading={isSubmitting}
+            >
               {isSubmitting ? "Sending…" : "Send invite"}
             </Button>
+
+            {conflict && (
+              <div
+                role="alert"
+                className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800/60"
+              >
+                <p className="font-medium text-slate-800 dark:text-slate-100">
+                  {conflict.email} already has a pending invite
+                </p>
+                <p className="mt-1 text-slate-600 dark:text-slate-300">
+                  {conflict.invitedAt
+                    ? `Sent ${new Date(conflict.invitedAt).toLocaleDateString()}. `
+                    : ""}
+                  Create a new link if the old one was lost — the old link will
+                  stop working, and no extra seat is used.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    loading={isSubmitting || createInvite.isPending}
+                    onClick={() =>
+                      void sendInvite(
+                        { email: conflict.email, role: conflict.role },
+                        true,
+                      )
+                    }
+                  >
+                    Create a new link
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setConflict(null)}
+                  >
+                    Keep the old one
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {revealed && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-900/10">
                 <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
                   Invite link for {revealed.email}
                 </p>
+                {revealed.existingUser && (
+                  <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                    They already have a WorkNest account, so the invite is also
+                    waiting in their app (under the bell). Sharing the link is
+                    optional.
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                   This link is shown once. Only its hash is stored, so it
                   can&apos;t be displayed again — copy it now, or revoke and
@@ -261,9 +342,9 @@ export function InvitesPanel() {
                       {invite.email}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      <span className="font-mono">{invite.role}</span> ·
-                      Expires{" "}
+                      <span className="font-mono">{invite.role}</span> · Expires{" "}
                       {new Date(invite.expiresAt).toLocaleDateString()}
+                      {invite.existingUser && " · Has a WorkNest account"}
                     </p>
                   </div>
                   <button

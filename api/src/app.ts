@@ -19,6 +19,7 @@ import { createOrgSchema } from "./modules/orgs/orgs.schemas.js";
 import { validate } from "./middleware/validate.js";
 import { invitesRouter } from "./modules/invites/invites.routes.js";
 import { invitesPublicRouter } from "./modules/invites/invitesPublic.routes.js";
+import { myInvitesRouter } from "./modules/invites/myInvites.routes.js";
 import { projectsRouter } from "./modules/projects/projects.routes.js";
 import {
   projectTasksRouter,
@@ -66,6 +67,7 @@ export function createApp(): Express {
 
   app.use("/api/auth", authRouter);
   app.use("/api/invites", invitesPublicRouter);
+  app.use("/api/me/invites", myInvitesRouter);
 
   app.post(
     "/api/orgs",
