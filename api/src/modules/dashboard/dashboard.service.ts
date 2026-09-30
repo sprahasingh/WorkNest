@@ -14,6 +14,10 @@ interface DailyCount {
   count: number;
 }
 
+// A number of days, or everything since the org started.
+export type DashboardRange = number | "all";
+export type TrendGranularity = "day" | "week" | "month";
+
 interface TopAssignee {
   userId: string;
   name: string;
@@ -21,14 +25,67 @@ interface TopAssignee {
   openTaskCount: number;
 }
 
-export async function getDashboard(days: number = 14) {
-  const clampedDays = Math.min(Math.max(days, 7), 90);
+function startOfUtcDay(date: Date): Date {
+  const day = new Date(date);
+  day.setUTCHours(0, 0, 0, 0);
+  return day;
+}
+
+// The first day of the day, Monday-based week, or month holding `date`.
+function bucketStart(date: Date, granularity: TrendGranularity): Date {
+  const start = startOfUtcDay(date);
+  if (granularity === "week") {
+    start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
+  } else if (granularity === "month") {
+    start.setUTCDate(1);
+  }
+  return start;
+}
+
+function nextBucket(date: Date, granularity: TrendGranularity): Date {
+  const next = new Date(date);
+  if (granularity === "day") next.setUTCDate(next.getUTCDate() + 1);
+  else if (granularity === "week") next.setUTCDate(next.getUTCDate() + 7);
+  else next.setUTCMonth(next.getUTCMonth() + 1);
+  return next;
+}
+
+// "All time" starts on the day the org was created, or earlier if it holds
+// older tasks (e.g. imported or seeded ones).
+async function findOrgStart(tenantId: string): Promise<Date> {
+  const [org, firstTask] = await Promise.all([
+    Organization.findById(tenantId)
+      .select("createdAt")
+      .setOptions({ skipTenant: true }),
+    Task.findOne().sort({ createdAt: 1 }).select("createdAt"),
+  ]);
+  const candidates = [org?.createdAt, firstTask?.createdAt].filter(
+    (date): date is Date => date instanceof Date,
+  );
+  return candidates.length > 0
+    ? new Date(Math.min(...candidates.map((date) => date.getTime())))
+    : new Date();
+}
+
+export async function getDashboard(range: DashboardRange = 14) {
   const tenantId = requireTenantId();
   const tenantObjectId = new mongoose.Types.ObjectId(tenantId);
+  const today = startOfUtcDay(new Date());
 
-  const fourteenDaysAgo = new Date();
-  fourteenDaysAgo.setUTCDate(fourteenDaysAgo.getUTCDate() - (clampedDays - 1));
-  fourteenDaysAgo.setUTCHours(0, 0, 0, 0);
+  let rangeStart: Date;
+  if (range === "all") {
+    rangeStart = startOfUtcDay(await findOrgStart(tenantId));
+  } else {
+    const clampedDays = Math.min(Math.max(range, 7), 90);
+    rangeStart = new Date(today);
+    rangeStart.setUTCDate(rangeStart.getUTCDate() - (clampedDays - 1));
+  }
+
+  // Long spans are grouped by week or month so the trend stays readable.
+  const spanDays =
+    Math.round((today.getTime() - rangeStart.getTime()) / 86_400_000) + 1;
+  const granularity: TrendGranularity =
+    spanDays <= 90 ? "day" : spanDays <= 730 ? "week" : "month";
 
   const [
     byStatus,
@@ -46,7 +103,7 @@ export async function getDashboard(days: number = 14) {
       { $group: { _id: "$priority", count: { $sum: 1 } } },
     ]),
     Task.aggregate<{ _id: string; count: number }>([
-      { $match: { createdAt: { $gte: fourteenDaysAgo } } },
+      { $match: { createdAt: { $gte: rangeStart } } },
       {
         $group: {
           _id: {
@@ -100,18 +157,25 @@ export async function getDashboard(days: number = 14) {
     }),
   ]);
 
-  const createdPerDay: DailyCount[] = [];
-  const countsByDate = new Map(
-    createdPerDayRaw.map((entry) => [entry._id, entry.count]),
-  );
+  const countsByBucket = new Map<string, number>();
+  for (const entry of createdPerDayRaw) {
+    const key = bucketStart(new Date(entry._id), granularity)
+      .toISOString()
+      .slice(0, 10);
+    countsByBucket.set(key, (countsByBucket.get(key) ?? 0) + entry.count);
+  }
 
-  for (let i = 0; i < clampedDays; i++) {
-    const date = new Date(fourteenDaysAgo);
-    date.setUTCDate(date.getUTCDate() + i);
-    const dateKey = date.toISOString().slice(0, 10);
+  // One point per day, week, or month, each dated by its first day.
+  const createdPerDay: DailyCount[] = [];
+  for (
+    let bucket = bucketStart(rangeStart, granularity);
+    bucket <= today;
+    bucket = nextBucket(bucket, granularity)
+  ) {
+    const dateKey = bucket.toISOString().slice(0, 10);
     createdPerDay.push({
       date: dateKey,
-      count: countsByDate.get(dateKey) ?? 0,
+      count: countsByBucket.get(dateKey) ?? 0,
     });
   }
 
@@ -126,6 +190,11 @@ export async function getDashboard(days: number = 14) {
     tasksByStatus: byStatus,
     tasksByPriority: byPriority,
     tasksCreatedPerDay: createdPerDay,
+    trend: {
+      granularity,
+      since: rangeStart.toISOString().slice(0, 10),
+      total: createdPerDayRaw.reduce((sum, entry) => sum + entry.count, 0),
+    },
     topAssignees,
     overdueCount,
     usage: {

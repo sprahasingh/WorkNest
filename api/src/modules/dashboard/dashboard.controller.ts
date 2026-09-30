@@ -1,11 +1,13 @@
 import type { Request, Response } from "express";
-import { getDashboard } from "./dashboard.service.js";
+import { getDashboard, type DashboardRange } from "./dashboard.service.js";
 
 export async function getDashboardController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const days = req.query.days !== undefined ? Number(req.query.days) : 14;
-  const dashboard = await getDashboard(isNaN(days) ? 14 : days);
+  const raw = req.query.days;
+  const days = raw !== undefined ? Number(raw) : 14;
+  const range: DashboardRange = raw === "all" ? "all" : isNaN(days) ? 14 : days;
+  const dashboard = await getDashboard(range);
   res.status(200).json(dashboard);
 }

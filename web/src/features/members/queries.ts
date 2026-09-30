@@ -35,7 +35,7 @@ export function useRemoveMember(orgId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: memberKeys.all(orgId) });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: dashboardKeys.all(orgId),
       });
       void queryClient.invalidateQueries({
         queryKey: orgKeys.detail(orgId),
