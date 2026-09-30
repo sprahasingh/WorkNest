@@ -6,13 +6,17 @@ import { toast } from "sonner";
 import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
-import { useOrgDetails, useUpdateOrg, useChangePlan } from "@/features/org/queries";
+import {
+  useOrgDetails,
+  useUpdateOrg,
+  useChangePlan,
+} from "@/features/org/queries";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import type { Plan } from "@/api/auth";
+import { updatePersonalInformation, type Plan } from "@/api/auth";
 import { cn } from "@/lib/cn";
 import {
   PLAN_LIMITS,
@@ -24,16 +28,256 @@ import {
 const DELETE_CONFIRMATION_TEXT = "delete my account";
 
 const renameFormSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Name must be at least 2 characters")
-    .max(80),
+  name: z.string().trim().min(2, "Name must be at least 2 characters").max(80),
 });
 
 type RenameFormValues = z.infer<typeof renameFormSchema>;
 
 const RENAME_FIELDS = ["name"] as const;
+
+const personalInformationSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(2, "Name must be at least 2 characters")
+      .max(100),
+    email: z.string().trim().email("Enter a valid email"),
+    currentPassword: z.string().min(1, "Enter your current password"),
+    newPassword: z.string().max(72).optional(),
+    confirmNewPassword: z.string().optional(),
+  })
+  .superRefine((values, context) => {
+    if (values.newPassword && values.newPassword.length < 8) {
+      context.addIssue({
+        code: "custom",
+        path: ["newPassword"],
+        message: "New password must be at least 8 characters",
+      });
+    }
+    if (values.newPassword !== values.confirmNewPassword) {
+      context.addIssue({
+        code: "custom",
+        path: ["confirmNewPassword"],
+        message: "Passwords do not match",
+      });
+    }
+  });
+
+type PersonalInformationFormValues = z.infer<typeof personalInformationSchema>;
+
+const PERSONAL_INFORMATION_FIELDS = [
+  "name",
+  "email",
+  "currentPassword",
+  "newPassword",
+] as const;
+
+function PersonalInformationCard() {
+  const { user, updateCurrentUser } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    setError,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<PersonalInformationFormValues>({
+    resolver: zodResolver(personalInformationSchema),
+    defaultValues: {
+      name: user?.name ?? "",
+      email: user?.email ?? "",
+      currentPassword: "",
+      newPassword: "",
+      confirmNewPassword: "",
+    },
+  });
+
+  const cancelEditing = () => {
+    reset({
+      name: user?.name ?? "",
+      email: user?.email ?? "",
+      currentPassword: "",
+      newPassword: "",
+      confirmNewPassword: "",
+    });
+    setFormError(null);
+    setIsEditing(false);
+  };
+
+  const onSubmit = async (values: PersonalInformationFormValues) => {
+    setFormError(null);
+    try {
+      const updatedUser = await updatePersonalInformation({
+        name: values.name,
+        email: values.email,
+        currentPassword: values.currentPassword,
+        ...(values.newPassword ? { newPassword: values.newPassword } : {}),
+      });
+      updateCurrentUser(updatedUser);
+      reset({
+        name: updatedUser.name,
+        email: updatedUser.email,
+        currentPassword: "",
+        newPassword: "",
+        confirmNewPassword: "",
+      });
+      setIsEditing(false);
+      toast.success("Personal information updated");
+    } catch (error) {
+      const parsed = parseApiError(error);
+      if (Object.keys(parsed.fieldErrors).length === 0) {
+        setFormError(parsed.message);
+        return;
+      }
+      const unmatched = applyFieldErrors(
+        parsed.fieldErrors,
+        PERSONAL_INFORMATION_FIELDS,
+        setError,
+      );
+      if (unmatched.length > 0) setFormError(unmatched.join(" "));
+    }
+  };
+
+  return (
+    <Card>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="font-medium text-slate-800 dark:text-slate-100">
+            Personal information
+          </h2>
+          {!isEditing && (
+            <dl className="mt-3 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+              <div className="min-w-0">
+                <dt className="text-slate-500 dark:text-slate-400">Name</dt>
+                <dd className="break-words font-medium text-slate-800 dark:text-slate-200">
+                  {user?.name ?? "Unavailable"}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-slate-500 dark:text-slate-400">Email</dt>
+                <dd className="break-all font-medium text-slate-800 dark:text-slate-200">
+                  {user?.email ?? "Unavailable"}
+                </dd>
+              </div>
+            </dl>
+          )}
+        </div>
+        {!isEditing && user && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setIsEditing(true)}
+            className="w-full shrink-0 sm:w-auto"
+          >
+            Edit personal information
+          </Button>
+        )}
+      </div>
+
+      {isEditing && (
+        <form
+          id="personal-information-form"
+          onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+          noValidate
+          className="mt-4 space-y-4"
+        >
+          <ErrorBanner message={formError} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Name"
+              htmlFor="profile-name"
+              error={errors.name?.message}
+            >
+              <input
+                id="profile-name"
+                autoComplete="name"
+                {...register("name")}
+                className={inputStyles}
+              />
+            </Field>
+            <Field
+              label="Email"
+              htmlFor="profile-email"
+              error={errors.email?.message}
+            >
+              <input
+                id="profile-email"
+                type="email"
+                autoComplete="email"
+                {...register("email")}
+                className={inputStyles}
+              />
+            </Field>
+            <Field
+              label="Current password"
+              htmlFor="profile-current-password"
+              error={errors.currentPassword?.message}
+            >
+              <input
+                id="profile-current-password"
+                type="password"
+                autoComplete="current-password"
+                {...register("currentPassword")}
+                className={inputStyles}
+              />
+            </Field>
+            <Field
+              label="New password (optional)"
+              htmlFor="profile-new-password"
+              error={errors.newPassword?.message}
+            >
+              <input
+                id="profile-new-password"
+                type="password"
+                autoComplete="new-password"
+                {...register("newPassword")}
+                className={inputStyles}
+              />
+            </Field>
+            <Field
+              label="Confirm new password"
+              htmlFor="profile-confirm-password"
+              error={errors.confirmNewPassword?.message}
+            >
+              <input
+                id="profile-confirm-password"
+                type="password"
+                autoComplete="new-password"
+                {...register("confirmNewPassword")}
+                className={inputStyles}
+              />
+            </Field>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Confirm your current password to save changes. Leave the new
+            password blank to keep it unchanged.
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={cancelEditing}
+              disabled={isSubmitting}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting || !user}
+              loading={isSubmitting}
+              className="w-full sm:w-auto"
+            >
+              {isSubmitting ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Card>
+  );
+}
 
 interface DowngradeBlockedDetail {
   seatsUsed: number;
@@ -141,6 +385,7 @@ export function SettingsPage() {
       <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-2xl space-y-4">
           <div className="h-8 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+          <PersonalInformationCard />
           <div className="h-32 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
         </div>
       </div>
@@ -153,6 +398,9 @@ export function SettingsPage() {
         <p className="mx-auto max-w-2xl text-sm text-red-600 dark:text-red-400">
           Couldn&apos;t load organization settings.
         </p>
+        <div className="mx-auto max-w-2xl">
+          <PersonalInformationCard />
+        </div>
       </div>
     );
   }
@@ -167,6 +415,8 @@ export function SettingsPage() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
           Settings
         </h1>
+
+        <PersonalInformationCard />
 
         <Card>
           <h2 className="font-medium text-slate-800 dark:text-slate-100">
@@ -195,7 +445,11 @@ export function SettingsPage() {
             </div>
 
             {canUpdateOrg && (
-              <Button type="submit" disabled={isSubmitting} loading={isSubmitting}>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                loading={isSubmitting}
+              >
                 {isSubmitting ? "Saving…" : "Save"}
               </Button>
             )}
@@ -235,10 +489,7 @@ export function SettingsPage() {
             </div>
           </dl>
 
-          <ul
-            aria-label="Plans"
-            className="mt-5 grid gap-3 sm:grid-cols-3"
-          >
+          <ul aria-label="Plans" className="mt-5 grid gap-3 sm:grid-cols-3">
             {PLAN_ORDER.map((plan, rank) => {
               const limits = PLAN_LIMITS[plan];
               const isCurrent = plan === currentPlan;
@@ -322,9 +573,9 @@ export function SettingsPage() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Delete your account and leave every workspace you belong to.
             You&apos;ll be signed out, and your email is freed so you can sign
-            up or accept an invite again later. If you&apos;re the only admin
-            of a workspace with other people in it, make someone else an
-            admin first.
+            up or accept an invite again later. If you&apos;re the only admin of
+            a workspace with other people in it, make someone else an admin
+            first.
           </p>
 
           {!showDeleteConfirm ? (

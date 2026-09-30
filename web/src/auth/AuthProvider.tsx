@@ -11,6 +11,7 @@ import {
   type LoginInput,
   type MeResponse,
   type RegisterInput,
+  type User,
 } from "@/api/auth";
 import { setAccessToken, setAuthFailureHandler } from "@/api/client";
 import {
@@ -134,6 +135,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.setQueryData<MeResponse>(SESSION_QUERY_KEY, me);
   }, [queryClient]);
 
+  const updateCurrentUser = useCallback(
+    (user: User) => {
+      queryClient.setQueryData<MeResponse>(SESSION_QUERY_KEY, (current) =>
+        current ? { ...current, user } : current,
+      );
+    },
+    [queryClient],
+  );
+
   const state: AuthState = signedOut
     ? UNAUTHENTICATED_STATE
     : sessionQuery.isPending
@@ -155,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     deleteAccount,
     isDeletingAccount,
     refreshMemberships,
+    updateCurrentUser,
     establishSession,
   };
 

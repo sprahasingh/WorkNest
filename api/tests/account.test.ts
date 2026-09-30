@@ -12,11 +12,13 @@ async function registerOrg(email: string, orgName: string) {
     orgName,
   });
   const accessToken = res.body.accessToken as string;
+  const refreshCookie = res.headers["set-cookie"]?.[0]?.split(";")[0];
   const me = await request(app)
     .get("/api/auth/me")
     .set("Authorization", `Bearer ${accessToken}`);
   return {
     accessToken,
+    refreshCookie,
     orgId: me.body.memberships[0].tenantId.id as string,
     userId: me.body.user.id as string,
   };
@@ -62,6 +64,73 @@ async function createTask(
     .set("Authorization", `Bearer ${token}`)
     .send(body);
 }
+
+describe("personal information", () => {
+  it("updates profile and password after verifying the current password", async () => {
+    const account = await registerOrg("profile@example.com", "Profile Org");
+    expect(account.refreshCookie).toBeTruthy();
+
+    const updated = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${account.accessToken}`)
+      .set("Cookie", account.refreshCookie!)
+      .send({
+        name: "Updated Person",
+        email: "updated@example.com",
+        currentPassword: "password123",
+        newPassword: "new-password-456",
+      });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.user).toMatchObject({
+      name: "Updated Person",
+      email: "updated@example.com",
+    });
+    expect(updated.body.user.passwordHash).toBeUndefined();
+
+    const oldCredentials = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "profile@example.com", password: "password123" });
+    expect(oldCredentials.status).toBe(401);
+
+    const newCredentials = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "updated@example.com", password: "new-password-456" });
+    expect(newCredentials.status).toBe(200);
+
+    const refresh = await request(app)
+      .post("/api/auth/refresh")
+      .set("Cookie", account.refreshCookie!);
+    expect(refresh.status).toBe(200);
+  });
+
+  it("rejects an incorrect current password and a duplicate email", async () => {
+    const first = await registerOrg("first-profile@example.com", "First Org");
+    await registerOrg("taken-profile@example.com", "Second Org");
+
+    const incorrectPassword = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${first.accessToken}`)
+      .send({
+        name: "Changed Person",
+        email: "first-profile@example.com",
+        currentPassword: "wrong-password",
+      });
+    expect(incorrectPassword.status).toBe(401);
+    expect(incorrectPassword.body.error.code).toBe("CURRENT_PASSWORD_INVALID");
+
+    const duplicateEmail = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${first.accessToken}`)
+      .send({
+        name: "Admin User",
+        email: "taken-profile@example.com",
+        currentPassword: "password123",
+      });
+    expect(duplicateEmail.status).toBe(409);
+    expect(duplicateEmail.body.error.code).toBe("EMAIL_ALREADY_REGISTERED");
+  });
+});
 
 describe("account deletion", () => {
   it("blocks a sole admin with teammates, then frees the email for re-registration", async () => {
