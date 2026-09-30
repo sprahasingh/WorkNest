@@ -1,5 +1,11 @@
 import { apiClient } from "@/api/client";
-import type { ActivityType } from "@/features/tasks/api";
+import type { ActivityType, TaskNotificationType } from "@/features/tasks/api";
+
+export type NotificationType = ActivityType | TaskNotificationType;
+export const TASK_REMINDER_TYPES: TaskNotificationType[] = [
+  "task_due_soon",
+  "task_overdue",
+];
 
 export interface Notification {
   _id: string;
@@ -8,11 +14,13 @@ export interface Notification {
   projectId: string | null;
   projectName: string | null;
   taskId: string | null;
-  activityId: string;
-  type: ActivityType | null;
+  dueDate: string | null;
+  activityId: string | null;
+  type: NotificationType | null;
   actorId: string | null;
   message: string;
   readAt: string | null;
+  dismissedAt: string | null;
   createdAt: string;
 }
 
@@ -21,6 +29,7 @@ export type NotificationStatus = "unread" | "all";
 export interface NotificationList {
   notifications: Notification[];
   unreadCount: number;
+  readableUnreadCount: number;
 }
 
 export async function listNotifications(
@@ -39,6 +48,17 @@ export async function markNotificationsRead(
   ids?: string[],
 ): Promise<void> {
   await apiClient.patch(`/orgs/${orgId}/notifications/read`, { ids });
+}
+
+export async function dismissNotifications(
+  orgId: string,
+  ids: string[],
+): Promise<void> {
+  await apiClient.patch(`/orgs/${orgId}/notifications/dismiss`, { ids });
+}
+
+export function isTaskReminder(type: NotificationType | null): boolean {
+  return TASK_REMINDER_TYPES.includes(type as TaskNotificationType);
 }
 
 // Where a notification takes you: the task's updates, or the project's.

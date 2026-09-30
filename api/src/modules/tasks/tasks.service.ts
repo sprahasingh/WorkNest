@@ -5,6 +5,7 @@ import { Notification } from "../../models/Notification.js";
 import { Project } from "../../models/Project.js";
 import { Membership } from "../../models/Membership.js";
 import { Organization } from "../../models/Organization.js";
+import { User } from "../../models/User.js";
 import { requireTenantId, getTenantContext } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { can } from "../../auth/rbac.js";
@@ -338,6 +339,10 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
 
   const reopening =
     task.status === "done" && !!input.status && input.status !== "done";
+  const completing = task.status !== "done" && input.status === "done";
+  const completionEventKey = completing
+    ? `${task._id}:task_completed:${task.updatedAt?.getTime() ?? Date.now()}`
+    : null;
   if (reopening) {
     await assertRoomForActiveTask(tenantId, String(task.projectId), "reopen");
   }
@@ -379,6 +384,77 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
 
       Object.assign(task, changes);
       await task.save({ session: dbSession });
+
+      if (diff.dueDate) {
+        await Notification.updateMany(
+          {
+            tenantId,
+            taskId: task._id,
+            type: { $in: ["task_due_soon", "task_overdue"] },
+            dismissedAt: null,
+          },
+          { dismissedAt: new Date() },
+          { session: dbSession },
+        );
+      } else if (diff.assigneeIds) {
+        await Notification.updateMany(
+          {
+            tenantId,
+            taskId: task._id,
+            type: { $in: ["task_due_soon", "task_overdue"] },
+            userId: { $nin: task.assigneeIds ?? [] },
+            dismissedAt: null,
+          },
+          { dismissedAt: new Date() },
+          { session: dbSession },
+        );
+      }
+
+      if (completing && completionEventKey) {
+        const [actor, leadIds] = await Promise.all([
+          User.findById(context.userId)
+            .select("name")
+            .session(dbSession)
+            .lean(),
+          getAdminAndManagerIds(),
+        ]);
+        const recipientIds = [
+          ...new Set([
+            ...(task.assigneeIds ?? []).map((id) => id.toString()),
+            ...leadIds.map((id) => id.toString()),
+          ]),
+        ].filter((userId) => userId !== context.userId);
+
+        if (recipientIds.length > 0) {
+          await Notification.bulkWrite(
+            recipientIds.map((userId) => ({
+              updateOne: {
+                filter: {
+                  userId: new mongoose.Types.ObjectId(userId),
+                  eventKey: completionEventKey,
+                },
+                update: {
+                  $setOnInsert: {
+                    userId: new mongoose.Types.ObjectId(userId),
+                    tenantId: new mongoose.Types.ObjectId(tenantId),
+                    projectId: task.projectId,
+                    taskId: task._id,
+                    activityId: null,
+                    type: "task_completed" as const,
+                    actorId: new mongoose.Types.ObjectId(context.userId),
+                    message: `${actor?.name ?? "Someone"} marked "${task.title}" as done`,
+                    eventKey: completionEventKey,
+                    readAt: null,
+                    dismissedAt: null,
+                  },
+                },
+                upsert: true,
+              },
+            })),
+            { session: dbSession, ordered: true },
+          );
+        }
+      }
 
       await recordAudit(
         {
