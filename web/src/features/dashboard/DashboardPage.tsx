@@ -28,7 +28,7 @@ import { cn } from "@/lib/cn";
 import { useDashboard } from "./queries";
 import type { DashboardRange, DashboardTrend, StatusCount } from "./api";
 
-const DATE_RANGE_OPTIONS: { value: DashboardRange; label: string }[] = [
+const DATE_RANGE_OPTIONS: { value: number | "all"; label: string }[] = [
   { value: 7, label: "Last 7 days" },
   { value: 14, label: "Last 14 days" },
   { value: 30, label: "Last 30 days" },
@@ -130,6 +130,21 @@ function formatAverage(value: number): string {
     : String(Math.round(value * 10) / 10);
 }
 
+// How many days the range covers, both ends included.
+function rangeLength(trend: DashboardTrend): number {
+  return (
+    Math.round(
+      (Date.parse(trend.until) - Date.parse(trend.since)) / 86_400_000,
+    ) + 1
+  );
+}
+
+function localDayKey(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 // "+5 vs previous 14 days": the difference in tasks created, or null when
 // there's nothing to compare.
 function trendChange(
@@ -139,7 +154,8 @@ function trendChange(
   if (range === "all" || trend.previousTotal === null) return null;
   // Nothing in either period: the chart already says so.
   if (trend.previousTotal === 0 && trend.total === 0) return null;
-  const versus = `vs previous ${range} days`;
+  const length = typeof range === "number" ? range : rangeLength(trend);
+  const versus = `vs previous ${length} ${length === 1 ? "day" : "days"}`;
   const difference = trend.total - trend.previousTotal;
   if (difference === 0)
     return { text: `No change ${versus}`, direction: "flat" };
@@ -150,7 +166,17 @@ function trendChange(
 }
 
 function trendTitle(range: DashboardRange, trend: DashboardTrend): string {
-  if (range !== "all") return `Tasks created, last ${range} days`;
+  if (typeof range === "number") return `Tasks created, last ${range} days`;
+  if (typeof range === "object") {
+    const sameYear = trend.since.slice(0, 4) === trend.until.slice(0, 4);
+    const from = formatUtcDate(
+      trend.since,
+      sameYear ? { month: "short", day: "numeric" } : FULL_DATE,
+    );
+    return trend.since === trend.until
+      ? `Tasks created on ${formatUtcDate(trend.since, FULL_DATE)}`
+      : `Tasks created, ${from} to ${formatUtcDate(trend.until, FULL_DATE)}`;
+  }
   const per = { day: "per day", week: "per week", month: "per month" }[
     trend.granularity
   ];
@@ -161,6 +187,12 @@ export function DashboardPage() {
   const { orgId } = useOrg();
   const canViewDashboard = useCan("dashboard:read");
   const [days, setDays] = useState<DashboardRange>(14);
+  // The custom dates being picked, before they're applied.
+  const [customDraft, setCustomDraft] = useState<{
+    from: string;
+    to: string;
+  } | null>(null);
+  const todayKey = localDayKey(new Date());
   const { data, isPending, isError, isPlaceholderData } = useDashboard(
     orgId,
     days,
@@ -213,7 +245,8 @@ export function DashboardPage() {
     const labels = trendLabels(
       entry.date,
       data.trend.granularity,
-      index === all.length - 1,
+      // Only the last point, and only if the range runs up to today.
+      index === all.length - 1 && data.trend.until === data.trend.today,
     );
     return { date: labels.tick, fullLabel: labels.full, count: entry.count };
   });
@@ -242,13 +275,27 @@ export function DashboardPage() {
               </span>
             )}
             <select
-              value={String(days)}
-              aria-label="Date range"
-              onChange={(e) =>
-                setDays(
-                  e.target.value === "all" ? "all" : Number(e.target.value),
-                )
+              value={
+                customDraft || typeof days === "object"
+                  ? "custom"
+                  : String(days)
               }
+              aria-label="Date range"
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "custom") {
+                  const start = new Date();
+                  start.setDate(start.getDate() - 13);
+                  setCustomDraft(
+                    typeof days === "object"
+                      ? days
+                      : { from: localDayKey(start), to: todayKey },
+                  );
+                  return;
+                }
+                setCustomDraft(null);
+                setDays(value === "all" ? "all" : Number(value));
+              }}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               {DATE_RANGE_OPTIONS.map((opt) => (
@@ -256,9 +303,32 @@ export function DashboardPage() {
                   {opt.label}
                 </option>
               ))}
+              <option value="custom">Custom range…</option>
             </select>
+            {typeof days === "object" && !customDraft && (
+              <button
+                type="button"
+                onClick={() => setCustomDraft(days)}
+                className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
+              >
+                Change dates
+              </button>
+            )}
           </div>
         </div>
+
+        {customDraft && (
+          <CustomRangePicker
+            draft={customDraft}
+            today={todayKey}
+            onChange={setCustomDraft}
+            onApply={() => {
+              setDays(customDraft);
+              setCustomDraft(null);
+            }}
+            onCancel={() => setCustomDraft(null)}
+          />
+        )}
 
         {isNewOrg && (
           <GettingStarted
@@ -282,7 +352,7 @@ export function DashboardPage() {
             label={
               days === "all"
                 ? "Tasks created (all time)"
-                : `Tasks created (${days}d)`
+                : `Tasks created (${typeof days === "number" ? days : rangeLength(data.trend)}d)`
             }
             value={data.trend.total}
             sub={change?.text}
@@ -759,6 +829,89 @@ function GettingStarted({
           </li>
         ))}
       </ol>
+    </Card>
+  );
+}
+
+// Two date fields and Apply, shown when "Custom range…" is picked.
+function CustomRangePicker({
+  draft,
+  today,
+  onChange,
+  onApply,
+  onCancel,
+}: {
+  draft: { from: string; to: string };
+  today: string;
+  onChange: (draft: { from: string; to: string }) => void;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  const error =
+    !draft.from || !draft.to
+      ? "Pick both dates."
+      : draft.from > draft.to
+        ? "The start date must be on or before the end date."
+        : draft.to > today
+          ? "The end date can't be in the future."
+          : null;
+  const inputClass =
+    "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:[color-scheme:dark]";
+
+  return (
+    <Card className="p-4">
+      <form
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!error) onApply();
+        }}
+      >
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+          From
+          <input
+            type="date"
+            value={draft.from}
+            max={draft.to || today}
+            onChange={(event) =>
+              onChange({ ...draft, from: event.target.value })
+            }
+            className={inputClass}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+          To
+          <input
+            type="date"
+            value={draft.to}
+            min={draft.from || undefined}
+            max={today}
+            onChange={(event) => onChange({ ...draft, to: event.target.value })}
+            className={inputClass}
+          />
+        </label>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={error !== null}
+            className="rounded-lg bg-teal-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Apply
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Cancel
+          </button>
+        </div>
+        {error && (
+          <p className="w-full text-xs text-amber-700 dark:text-amber-300">
+            {error}
+          </p>
+        )}
+      </form>
     </Card>
   );
 }
