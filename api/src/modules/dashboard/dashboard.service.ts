@@ -16,7 +16,11 @@ interface DailyCount {
 }
 
 // A number of days, or everything since the org started.
-export type DashboardRange = number | "all";
+// A number of days, everything since the org started, or a custom span of
+// calendar days ("YYYY-MM-DD", both ends included).
+export type DashboardRange = number | "all" | { from: string; to: string };
+
+export const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
 export type TrendGranularity = "day" | "week" | "month";
 
 interface TopAssignee {
@@ -111,9 +115,18 @@ export async function getDashboard(
   const today = keyToDate(localDayKey(new Date(), tz));
 
   let rangeStart: Date;
+  let rangeEnd = today;
   // The equally long period just before, to compare against.
   let previousStart: Date | null = null;
-  if (range === "all") {
+  if (typeof range === "object") {
+    // Custom dates can't reach into the future.
+    rangeEnd = keyToDate(range.to) > today ? today : keyToDate(range.to);
+    rangeStart =
+      keyToDate(range.from) > rangeEnd ? rangeEnd : keyToDate(range.from);
+    const length =
+      Math.round((rangeEnd.getTime() - rangeStart.getTime()) / DAY_MS) + 1;
+    previousStart = addDays(rangeStart, -length);
+  } else if (range === "all") {
     rangeStart = keyToDate(localDayKey(await findOrgStart(tenantId), tz));
   } else {
     const clampedDays = Math.min(Math.max(range, 7), 90);
@@ -123,7 +136,7 @@ export async function getDashboard(
 
   // Long spans are grouped by week or month so the trend stays readable.
   const spanDays =
-    Math.round((today.getTime() - rangeStart.getTime()) / DAY_MS) + 1;
+    Math.round((rangeEnd.getTime() - rangeStart.getTime()) / DAY_MS) + 1;
   const granularity: TrendGranularity =
     spanDays <= 90 ? "day" : spanDays <= 730 ? "week" : "month";
 
@@ -151,7 +164,13 @@ export async function getDashboard(
       { $group: { _id: "$priority", count: { $sum: 1 } } },
     ]),
     Task.aggregate<{ _id: string; count: number }>([
-      { $match: { ...live, createdAt: { $gte: queryFrom } } },
+      {
+        $match: {
+          ...live,
+          // A day either side: local days are offset from UTC.
+          createdAt: { $gte: queryFrom, $lt: addDays(rangeEnd, 2) },
+        },
+      },
       {
         $group: {
           _id: {
@@ -213,7 +232,10 @@ export async function getDashboard(
 
   const startKey = dateToKey(rangeStart);
   const previousKey = previousStart ? dateToKey(previousStart) : null;
-  const inRange = createdPerDayRaw.filter((entry) => entry._id >= startKey);
+  const endKey = dateToKey(rangeEnd);
+  const inRange = createdPerDayRaw.filter(
+    (entry) => entry._id >= startKey && entry._id <= endKey,
+  );
 
   const countsByBucket = new Map<string, number>();
   for (const entry of inRange) {
@@ -225,7 +247,7 @@ export async function getDashboard(
   const createdPerDay: DailyCount[] = [];
   for (
     let bucket = bucketStart(rangeStart, granularity);
-    bucket <= today;
+    bucket <= rangeEnd;
     bucket = nextBucket(bucket, granularity)
   ) {
     const dateKey = dateToKey(bucket);
@@ -252,6 +274,8 @@ export async function getDashboard(
     trend: {
       granularity,
       since: startKey,
+      // Last day covered; today unless a custom range ends earlier.
+      until: endKey,
       // The last point is today / this week / this month, still in progress.
       today: dateToKey(today),
       timeZone: tz,
