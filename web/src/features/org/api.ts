@@ -5,6 +5,7 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
+  timeZone: string;
   plan: Plan;
   seatLimit: number;
   seatsUsed: number;
@@ -17,7 +18,8 @@ export interface Organization {
 }
 
 export interface UpdateOrgInput {
-  name: string;
+  name?: string;
+  timeZone?: string;
 }
 
 export async function getOrg(orgId: string): Promise<Organization> {

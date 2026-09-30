@@ -5,6 +5,7 @@ const organizationSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, trim: true },
+    timeZone: { type: String, required: true, default: "UTC" },
     plan: { type: String, enum: PLANS, default: "free" },
     seatLimit: { type: Number, required: true, default: 5 },
     seatsUsed: { type: Number, required: true, default: 1 },

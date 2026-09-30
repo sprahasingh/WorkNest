@@ -1,8 +1,10 @@
 import type { AuditLogEntry } from "./api";
+import { formatDateInTimeZone } from "@/lib/time";
 
 export interface AuditFormatContext {
   // Resolves a user id to a current member's name, if they're still here.
   memberName: (userId: string) => string | undefined;
+  timeZone: string;
 }
 
 type Change = { from: unknown; to: unknown };
@@ -11,6 +13,7 @@ const FIELD_LABELS: Record<string, string> = {
   assigneeIds: "assignees",
   assigneeId: "assignee",
   dueDate: "due date",
+  timeZone: "time zone",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -63,7 +66,7 @@ function formatFieldValue(
     const date = new Date(String(value));
     return Number.isNaN(date.getTime())
       ? String(value)
-      : date.toLocaleDateString();
+      : formatDateInTimeZone(date.toISOString(), ctx.timeZone);
   }
   if (field === "status") {
     return STATUS_LABELS[String(value)] ?? String(value);
@@ -100,6 +103,10 @@ function describe(entry: AuditLogEntry, ctx: AuditFormatContext): string {
         ? `${actor} renamed the organization from "${text(name.from)}" to "${text(name.to)}"`
         : `${actor} renamed the organization`;
     }
+    case "org.timezone_changed":
+      return `${actor} changed the organization time zone: ${formatChanges(m, ctx)}`;
+    case "org.settings_updated":
+      return `${actor} updated organization settings: ${formatChanges(m, ctx)}`;
     case "member.role_changed": {
       const role = asChange(m.role);
       return role

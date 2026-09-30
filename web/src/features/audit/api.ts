@@ -2,6 +2,8 @@ import { apiClient } from "@/api/client";
 
 export type AuditAction =
   | "org.renamed"
+  | "org.settings_updated"
+  | "org.timezone_changed"
   | "member.role_changed"
   | "member.removed"
   | "invite.created"
@@ -23,6 +25,8 @@ export type AuditAction =
 
 export const AUDIT_ACTIONS: AuditAction[] = [
   "org.renamed",
+  "org.settings_updated",
+  "org.timezone_changed",
   "member.role_changed",
   "member.removed",
   "invite.created",
