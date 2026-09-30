@@ -8,6 +8,7 @@ import { hasSeenOnboarding } from "@/lib/onboarding";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useUnreadCount } from "@/features/notifications/queries";
+import { useMyInvites } from "@/features/invites/myInvites";
 import { NotificationsPanel } from "@/features/notifications/NotificationsPanel";
 
 interface NavItem {
@@ -83,9 +84,7 @@ function WorkspaceSwitcher() {
           <span className="block truncate font-semibold text-slate-800 dark:text-slate-100">
             {orgName}
           </span>
-          <span className="block font-mono text-xs text-slate-400">
-            {role}
-          </span>
+          <span className="block font-mono text-xs text-slate-400">{role}</span>
         </span>
         <ChevronDownIcon
           className={cn(
@@ -190,7 +189,9 @@ function NotificationButton({
   onClick: () => void;
 }) {
   const { orgId } = useOrg();
-  const unreadCount = useUnreadCount(orgId);
+  // Invitations to other orgs count too, so they're never missed.
+  const unreadCount =
+    useUnreadCount(orgId) + (useMyInvites().data?.length ?? 0);
 
   return (
     <button
@@ -305,10 +306,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 export function AppLayout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const closeNotifications = useCallback(
-    () => setNotificationsOpen(false),
-    [],
-  );
+  const closeNotifications = useCallback(() => setNotificationsOpen(false), []);
   const openNotifications = () => {
     setMobileNavOpen(false);
     setNotificationsOpen(true);

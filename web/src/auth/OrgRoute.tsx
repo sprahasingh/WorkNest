@@ -1,15 +1,36 @@
-import { Outlet, useParams } from "react-router";
+import { useEffect, useState } from "react";
+import { Navigate, Outlet, useParams } from "react-router";
+import { setOrgAccessHandler } from "@/api/client";
 import { useAuth } from "./auth-context";
 import { OrgContext, type OrgContextValue } from "@/hooks/useOrg";
 import { NotFound } from "@/pages/NotFound";
 
 export function OrgRoute() {
   const { orgId } = useParams<{ orgId: string }>();
-  const { memberships } = useAuth();
+  const { memberships, refreshMemberships } = useAuth();
+  // Set when the server says we lost access to this org while using it.
+  const [lostOrgName, setLostOrgName] = useState<string | null>(null);
 
   const membership = memberships?.find((m) => m.tenantId.id === orgId);
+  const orgName = membership?.tenantId.name ?? null;
+
+  // If an admin removes you or changes your role while you're here, pick up
+  // the change instead of leaving the app half-broken.
+  useEffect(() => {
+    setOrgAccessHandler((changedOrgId, change) => {
+      if (changedOrgId !== orgId) return;
+      if (change === "lost") setLostOrgName(orgName);
+      void refreshMemberships();
+    });
+    return () => setOrgAccessHandler(null);
+  }, [orgId, orgName, refreshMemberships]);
 
   if (!orgId || !membership) {
+    if (lostOrgName) {
+      return (
+        <Navigate to="/orgs" replace state={{ lostOrgName: lostOrgName }} />
+      );
+    }
     return <NotFound />;
   }
 

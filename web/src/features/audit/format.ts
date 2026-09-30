@@ -106,12 +106,21 @@ function describe(entry: AuditLogEntry, ctx: AuditFormatContext): string {
         ? `${actor} changed a member's role from ${text(role.from)} to ${text(role.to)}`
         : `${actor} changed a member's role`;
     }
-    case "member.removed":
-      return `${actor} removed a ${text(m.role, "member")} from the organization`;
+    case "member.removed": {
+      const who = typeof m.name === "string" ? m.name : null;
+      if (m.self === true) return `${actor} left the organization`;
+      return who
+        ? `${actor} removed ${who} (${text(m.role, "member")}) from the organization`
+        : `${actor} removed a ${text(m.role, "member")} from the organization`;
+    }
     case "invite.created":
       return `${actor} invited ${text(m.email, "someone")} as ${text(m.role, "a member")}`;
     case "invite.revoked":
-      return `${actor} revoked the invite for ${text(m.email, "someone")}`;
+      return m.replaced === true
+        ? `${actor} replaced the invite link for ${text(m.email, "someone")}`
+        : `${actor} revoked the invite for ${text(m.email, "someone")}`;
+    case "invite.declined":
+      return `${text(m.email, "Someone")} declined the invite to join as ${text(m.role, "a member")}`;
     case "invite.accepted":
       return m.viaSignup
         ? `${text(m.email, "Someone")} joined by accepting an invite and creating an account`
