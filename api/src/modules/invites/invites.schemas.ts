@@ -5,6 +5,8 @@ export const createInviteSchema = z
   .object({
     email: z.string().trim().toLowerCase().email(),
     role: z.enum(ROLES),
+    // Replace a pending invite for the same email with a fresh link.
+    replaceExisting: z.boolean().optional(),
   })
   .strict();
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { createOrg } from "@/api/orgs";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
@@ -11,6 +11,8 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useMyInvites } from "@/features/invites/myInvites";
+import { MyInvitations } from "@/features/invites/MyInvitations";
 
 const createOrgFormSchema = z.object({
   name: z
@@ -28,6 +30,10 @@ export function OrgPicker() {
   const { memberships, logout, isLoggingOut, refreshMemberships } = useAuth();
   const navigate = useNavigate();
   const [formError, setFormError] = useState<string | null>(null);
+  const invites = useMyInvites().data ?? [];
+  const location = useLocation();
+  const lostOrgName = (location.state as { lostOrgName?: unknown } | null)
+    ?.lostOrgName;
 
   const {
     register,
@@ -97,6 +103,30 @@ export function OrgPicker() {
           </p>
         </div>
 
+        {typeof lostOrgName === "string" && (
+          <p
+            role="status"
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300"
+          >
+            You no longer have access to{" "}
+            <span className="font-medium">{lostOrgName}</span>. An admin may
+            have removed you. Your account and other organizations are
+            unaffected.
+          </p>
+        )}
+
+        {invites.length > 0 && (
+          <section aria-labelledby="picker-invitations-title">
+            <h2
+              id="picker-invitations-title"
+              className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200"
+            >
+              Invitations waiting for you
+            </h2>
+            <MyInvitations invites={invites} />
+          </section>
+        )}
+
         <div className="space-y-2">
           {memberships && memberships.length > 0 ? (
             memberships.map((membership) => (
@@ -137,7 +167,11 @@ export function OrgPicker() {
 
             <ErrorBanner message={formError} />
 
-            <Field label="Organization name" htmlFor="name" error={errors.name?.message}>
+            <Field
+              label="Organization name"
+              htmlFor="name"
+              error={errors.name?.message}
+            >
               <input
                 id="name"
                 type="text"

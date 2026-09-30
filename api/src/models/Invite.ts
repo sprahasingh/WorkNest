@@ -20,7 +20,7 @@ const inviteSchema = new Schema(
     expiresAt: { type: Date, required: true },
     status: {
       type: String,
-      enum: ["pending", "accepted", "revoked", "expired"],
+      enum: ["pending", "accepted", "declined", "revoked", "expired"],
       default: "pending",
     },
   },

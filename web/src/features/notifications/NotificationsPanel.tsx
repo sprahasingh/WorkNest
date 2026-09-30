@@ -10,6 +10,8 @@ import {
   type NotificationStatus,
 } from "./api";
 import { useMarkNotificationsRead, useNotifications } from "./queries";
+import { useMyInvites } from "@/features/invites/myInvites";
+import { MyInvitations } from "@/features/invites/MyInvitations";
 
 const TABS: { value: NotificationStatus; label: string }[] = [
   { value: "unread", label: "Unread" },
@@ -54,6 +56,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
 
   const unreadCount = data?.unreadCount ?? 0;
   const notifications = data?.notifications ?? [];
+  const invites = useMyInvites().data ?? [];
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -110,9 +113,13 @@ function PanelBody({ onClose }: { onClose: () => void }) {
                 Notifications
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {unreadCount > 0
-                  ? `${unreadCount} unread`
-                  : "You're all caught up"}
+                {[
+                  invites.length > 0 &&
+                    `${invites.length} ${invites.length === 1 ? "invitation" : "invitations"}`,
+                  unreadCount > 0 && `${unreadCount} unread`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "You're all caught up"}
               </p>
             </div>
             <button
@@ -167,6 +174,21 @@ function PanelBody({ onClose }: { onClose: () => void }) {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {invites.length > 0 && (
+            <section
+              aria-labelledby="invitations-title"
+              className="border-b border-slate-200 p-4 dark:border-slate-800"
+            >
+              <h3
+                id="invitations-title"
+                className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              >
+                Invitations
+              </h3>
+              <MyInvitations invites={invites} onJoined={onClose} />
+            </section>
+          )}
+
           {isPending && (
             <ul className="space-y-1 p-4" aria-label="Loading notifications">
               {[0, 1, 2].map((i) => (
@@ -193,28 +215,44 @@ function PanelBody({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          {!isPending && !isError && notifications.length === 0 && (
-            <div className="flex flex-col items-center px-6 py-16 text-center">
-              <ActivityIcon type={null} className="h-12 w-12" />
-              <p className="mt-4 font-medium text-slate-700 dark:text-slate-200">
-                {tab === "unread" ? "You're all caught up" : "Nothing here yet"}
-              </p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {!isPending &&
+            !isError &&
+            notifications.length === 0 &&
+            invites.length > 0 && (
+              <p className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
                 {tab === "unread"
-                  ? "New update requests, updates and questions will show up here."
-                  : "You'll be notified when someone asks you for an update, posts one, or asks a question."}
+                  ? "No unread notifications."
+                  : "No notifications yet."}
               </p>
-              {tab === "unread" && (
-                <button
-                  type="button"
-                  onClick={() => setTab("all")}
-                  className="mt-4 text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
-                >
-                  See earlier notifications
-                </button>
-              )}
-            </div>
-          )}
+            )}
+
+          {!isPending &&
+            !isError &&
+            notifications.length === 0 &&
+            invites.length === 0 && (
+              <div className="flex flex-col items-center px-6 py-16 text-center">
+                <ActivityIcon type={null} className="h-12 w-12" />
+                <p className="mt-4 font-medium text-slate-700 dark:text-slate-200">
+                  {tab === "unread"
+                    ? "You're all caught up"
+                    : "Nothing here yet"}
+                </p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {tab === "unread"
+                    ? "New update requests, updates and questions will show up here."
+                    : "You'll be notified when someone asks you for an update, posts one, or asks a question."}
+                </p>
+                {tab === "unread" && (
+                  <button
+                    type="button"
+                    onClick={() => setTab("all")}
+                    className="mt-4 text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
+                  >
+                    See earlier notifications
+                  </button>
+                )}
+              </div>
+            )}
 
           {!isPending && !isError && notifications.length > 0 && (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">

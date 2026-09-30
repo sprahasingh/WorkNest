@@ -1,7 +1,8 @@
 import { apiClient } from "@/api/client";
 import type { Role } from "@/api/auth";
 
-export type InviteStatus = "pending" | "accepted" | "revoked" | "expired";
+export type InviteStatus =
+  "pending" | "accepted" | "declined" | "revoked" | "expired";
 
 export interface Invite {
   _id: string;
@@ -13,16 +14,22 @@ export interface Invite {
   status: InviteStatus;
   createdAt: string;
   updatedAt: string;
+  // Whether this email already has a WorkNest account (then the invite also
+  // shows up in their app).
+  existingUser?: boolean;
 }
 
 export interface CreateInviteInput {
   email: string;
   role: Role;
+  // Replace a pending invite for the same email with a fresh link.
+  replaceExisting?: boolean;
 }
 
 export interface CreateInviteResponse {
   invite: Invite;
   inviteUrl: string;
+  existingUser: boolean;
 }
 
 export async function listInvites(orgId: string): Promise<Invite[]> {
