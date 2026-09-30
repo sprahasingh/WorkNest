@@ -16,6 +16,10 @@ import {
   updateTask,
   listActivities,
   createActivity,
+  archiveTask,
+  unarchiveTask,
+  restoreTask,
+  deleteTaskPermanently,
   type ActivityScope,
   type CreateActivityInput,
   type CreateTaskInput,
@@ -23,6 +27,7 @@ import {
   type Task,
   type TaskPriority,
   type TaskStatus,
+  type TaskView,
   type UpdateTaskInput,
 } from "./api";
 
@@ -38,9 +43,11 @@ export const taskKeys = {
   list: (
     orgId: string,
     projectId: string,
+    view: TaskView,
     status: TaskStatus,
     filters: TaskFilters,
-  ) => [...taskKeys.all(orgId, projectId), "list", status, filters] as const,
+  ) =>
+    [...taskKeys.all(orgId, projectId), "list", view, status, filters] as const,
   stats: (orgId: string, projectId: string) =>
     [...taskKeys.all(orgId, projectId), "stats"] as const,
   detail: (orgId: string, taskId: string) =>
@@ -74,14 +81,16 @@ export function useTask(orgId: string, taskId: string | null) {
 export function useTaskColumn(
   orgId: string,
   projectId: string,
-  status: TaskStatus,
+  view: TaskView,
+  status: TaskStatus | undefined,
   filters: TaskFilters,
 ) {
   return useInfiniteQuery({
-    queryKey: taskKeys.list(orgId, projectId, status, filters),
+    queryKey: taskKeys.list(orgId, projectId, view, status ?? "todo", filters),
     queryFn: ({ pageParam }) =>
       listTasks(orgId, projectId, {
         ...filters,
+        view,
         status,
         cursor: pageParam,
         limit: 20,
@@ -157,6 +166,52 @@ export function useDeleteTask(orgId: string, projectId: string) {
   });
 }
 
+function useTaskLifecycleMutation(
+  orgId: string,
+  projectId: string,
+  mutationFn: (taskId: string) => Promise<unknown>,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.all(orgId, projectId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.all(orgId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: projectKeys.lists(orgId),
+      });
+    },
+  });
+}
+
+export function useArchiveTask(orgId: string, projectId: string) {
+  return useTaskLifecycleMutation(orgId, projectId, (taskId) =>
+    archiveTask(orgId, taskId),
+  );
+}
+
+export function useUnarchiveTask(orgId: string, projectId: string) {
+  return useTaskLifecycleMutation(orgId, projectId, (taskId) =>
+    unarchiveTask(orgId, taskId),
+  );
+}
+
+export function useRestoreTask(orgId: string, projectId: string) {
+  return useTaskLifecycleMutation(orgId, projectId, (taskId) =>
+    restoreTask(orgId, taskId),
+  );
+}
+
+export function useDeleteTaskPermanently(orgId: string, projectId: string) {
+  return useTaskLifecycleMutation(orgId, projectId, (taskId) =>
+    deleteTaskPermanently(orgId, taskId),
+  );
+}
+
 interface UpdateStatusContext {
   sourceKey: ReturnType<typeof taskKeys.list>;
   targetKey: ReturnType<typeof taskKeys.list>;
@@ -181,8 +236,24 @@ export function useUpdateTaskStatus(
       updateTask(orgId, task._id, { status: newStatus }),
 
     onMutate: async ({ task, newStatus }) => {
-      const sourceKey = taskKeys.list(orgId, projectId, task.status, filters);
-      const targetKey = taskKeys.list(orgId, projectId, newStatus, filters);
+      const sourceView: TaskView =
+        task.status === "done" ? "completed" : "active";
+      const targetView: TaskView =
+        newStatus === "done" ? "completed" : "active";
+      const sourceKey = taskKeys.list(
+        orgId,
+        projectId,
+        sourceView,
+        task.status,
+        filters,
+      );
+      const targetKey = taskKeys.list(
+        orgId,
+        projectId,
+        targetView,
+        newStatus,
+        filters,
+      );
 
       await Promise.all([
         queryClient.cancelQueries({ queryKey: sourceKey }),
@@ -203,8 +274,7 @@ export function useUpdateTaskStatus(
                 pages: old.pages.map((page, index) => ({
                   ...page,
                   items: page.items.filter((t) => t._id !== task._id),
-                  total:
-                    index === 0 ? Math.max(page.total - 1, 0) : page.total,
+                  total: index === 0 ? Math.max(page.total - 1, 0) : page.total,
                 })),
               }
             : old,
@@ -213,11 +283,22 @@ export function useUpdateTaskStatus(
       queryClient.setQueryData<InfiniteData<ListTasksResponse>>(
         targetKey,
         (old) => {
-          const updatedTask: Task = { ...task, status: newStatus };
+          const updatedTask: Task = {
+            ...task,
+            status: newStatus,
+            completedAt: newStatus === "done" ? new Date().toISOString() : null,
+          };
 
           if (!old || old.pages.length === 0) {
             return {
-              pages: [{ items: [updatedTask], nextCursor: null, total: 1 }],
+              pages: [
+                {
+                  items: [updatedTask],
+                  nextCursor: null,
+                  total: 1,
+                  binRetentionDays: 30,
+                },
+              ],
               pageParams: [undefined],
             };
           }

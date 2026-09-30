@@ -251,6 +251,7 @@ export async function deleteAccount(userId: string): Promise<void> {
         { $pull: { assigneeIds: userId } },
       )
         .setOptions({ skipTenant: true })
+        .setOptions({ includeDeleted: true })
         .session(dbSession);
 
       await Membership.deleteMany({ userId })
