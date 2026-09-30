@@ -105,12 +105,30 @@ export async function listProjects(view: ProjectView) {
     total: number;
     active: number;
   }>([
-    { $match: { projectId: { $in: projects.map((p) => p._id) } } },
+    {
+      $match: {
+        projectId: { $in: projects.map((p) => p._id) },
+        deletedAt: null,
+      },
+    },
     {
       $group: {
         _id: "$projectId",
         total: { $sum: 1 },
-        active: { $sum: { $cond: [{ $ne: ["$status", "done"] }, 1, 0] } },
+        active: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ["$status", "done"] },
+                  { $eq: [{ $ifNull: ["$archivedAt", null] }, null] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
       },
     },
   ]);
@@ -368,7 +386,7 @@ async function destroyProject(
   const scope = { tenantId: project.tenantId, projectId: project._id };
   await Task.deleteMany(scope)
     .session(dbSession)
-    .setOptions({ skipTenant: true });
+    .setOptions({ skipTenant: true, includeDeleted: true });
   await TaskActivity.deleteMany(scope)
     .session(dbSession)
     .setOptions({ skipTenant: true });

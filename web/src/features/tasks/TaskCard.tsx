@@ -92,7 +92,7 @@ export function TaskCard({
         )}
       </div>
 
-      {canChangeStatus && (
+      {canChangeStatus && task.status !== "done" && (
         <select
           value={task.status}
           onClick={(event) => event.stopPropagation()}
@@ -110,6 +110,11 @@ export function TaskCard({
             </option>
           ))}
         </select>
+      )}
+      {task.status === "done" && task.completedAt && (
+        <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-400">
+          Completed {new Date(task.completedAt).toLocaleDateString()}
+        </p>
       )}
     </div>
   );
