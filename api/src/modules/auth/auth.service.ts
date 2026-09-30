@@ -12,6 +12,7 @@ import { randomToken, sha256 } from "../../lib/crypto.js";
 import { Session } from "../../models/Session.js";
 import { randomUUID } from "node:crypto";
 import type { LoginInput } from "./auth.schemas.js";
+import type { UpdatePersonalInformationInput } from "./auth.schemas.js";
 import { generateSlug } from "../orgs/orgs.service.js";
 
 export async function createSession(userId: mongoose.Types.ObjectId | string) {
@@ -111,6 +112,77 @@ export async function login(input: LoginInput) {
   }
 
   return { userId: user._id };
+}
+
+export async function updatePersonalInformation(
+  userId: string,
+  input: UpdatePersonalInformationInput,
+  currentRefreshToken?: string,
+) {
+  const user = await User.findById(userId).select("+passwordHash +status");
+  if (
+    !user ||
+    (user as unknown as Record<string, unknown>).status === "deleted"
+  ) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+
+  const currentPasswordIsValid = await bcrypt.compare(
+    input.currentPassword,
+    user.passwordHash as string,
+  );
+  if (!currentPasswordIsValid) {
+    throw new AppError(
+      401,
+      "CURRENT_PASSWORD_INVALID",
+      "Current password is incorrect",
+    );
+  }
+
+  user.name = input.name;
+  user.email = input.email;
+  if (input.newPassword) {
+    user.passwordHash = await bcrypt.hash(input.newPassword, env.BCRYPT_COST);
+  }
+
+  try {
+    await user.save();
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === 11000
+    ) {
+      throw new AppError(
+        409,
+        "EMAIL_ALREADY_REGISTERED",
+        "An account with this email already exists",
+      );
+    }
+    throw error;
+  }
+
+  if (input.newPassword) {
+    const currentSession = currentRefreshToken
+      ? await Session.findOne({
+          userId,
+          tokenHash: sha256(currentRefreshToken),
+          revokedAt: null,
+        }).select("_id")
+      : null;
+
+    await Session.updateMany(
+      {
+        userId,
+        revokedAt: null,
+        ...(currentSession ? { _id: { $ne: currentSession._id } } : {}),
+      },
+      { revokedAt: new Date() },
+    );
+  }
+
+  return User.findById(userId);
 }
 
 export async function deleteAccount(userId: string): Promise<void> {

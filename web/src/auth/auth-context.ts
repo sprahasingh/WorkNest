@@ -24,6 +24,7 @@ export type AuthContextValue = AuthState & {
   deleteAccount: () => Promise<void>;
   isDeletingAccount: boolean;
   refreshMemberships: () => Promise<void>;
+  updateCurrentUser: (user: User) => void;
   establishSession: (
     accessToken: string,
     options?: AuthRequestOptions,
