@@ -4,6 +4,10 @@ import {
   listPendingInvites,
   revokeInvite,
   acceptInvite,
+  acceptInviteById,
+  declineInvite,
+  declineInviteByToken,
+  listMyInvites,
   signupViaInvite,
   getInviteByToken,
 } from "./invites.service.js";
@@ -23,9 +27,9 @@ export async function createInviteController(
   res: Response,
 ): Promise<void> {
   const input = req.validated!.body as CreateInviteInput;
-  const { invite, rawToken } = await createInvite(input);
+  const { invite, rawToken, existingUser } = await createInvite(input);
   const inviteUrl = `${env.CLIENT_ORIGIN}/invite/${rawToken}`;
-  res.status(201).json({ invite, inviteUrl });
+  res.status(201).json({ invite, inviteUrl, existingUser });
 }
 
 export async function listInvitesController(
@@ -45,25 +49,68 @@ export async function revokeInviteController(
   res.status(204).send();
 }
 
+async function currentUserEmail(userId: string): Promise<string> {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+  return user.email as string;
+}
+
 export async function acceptInviteController(
   req: Request,
   res: Response,
 ): Promise<void> {
   const { token } = req.params;
   const userId = req.auth!.userId;
+  const email = await currentUserEmail(userId);
 
-  const user = await User.findById(userId);
-  if (!user) {
-    throw new AppError(404, "USER_NOT_FOUND", "User not found");
-  }
-
-  const membership = await acceptInvite(
-    token as string,
-    userId,
-    user.email as string,
-  );
+  const membership = await acceptInvite(token as string, userId, email);
 
   res.status(200).json({ membership });
+}
+
+export async function declineInviteController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const userId = req.auth!.userId;
+  const email = await currentUserEmail(userId);
+  await declineInviteByToken(req.params.token as string, userId, email);
+  res.status(204).send();
+}
+
+export async function listMyInvitesController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const email = await currentUserEmail(req.auth!.userId);
+  const invites = await listMyInvites(email);
+  res.status(200).json({ invites });
+}
+
+export async function acceptMyInviteController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const userId = req.auth!.userId;
+  const email = await currentUserEmail(userId);
+  const membership = await acceptInviteById(
+    req.params.inviteId as string,
+    userId,
+    email,
+  );
+  res.status(200).json({ membership });
+}
+
+export async function declineMyInviteController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const userId = req.auth!.userId;
+  const email = await currentUserEmail(userId);
+  await declineInvite({ _id: req.params.inviteId as string }, userId, email);
+  res.status(204).send();
 }
 
 export async function signupViaInviteController(

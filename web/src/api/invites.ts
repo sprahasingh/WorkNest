@@ -1,7 +1,8 @@
 import { apiClient } from "./client";
 import type { Role } from "./auth";
 
-export type InviteStatus = "pending" | "accepted" | "revoked" | "expired";
+export type InviteStatus =
+  "pending" | "accepted" | "declined" | "revoked" | "expired";
 
 export interface InvitePreview {
   organizationName: string;
@@ -9,6 +10,18 @@ export interface InvitePreview {
   role: Role;
   expired: boolean;
   status: InviteStatus;
+  // Whether this email already has a WorkNest account.
+  accountExists: boolean;
+}
+
+// An invitation addressed to the signed-in user, from any organization.
+export interface MyInvite {
+  _id: string;
+  organization: { id: string; name: string };
+  role: Role;
+  invitedBy: { name: string } | null;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface AcceptedMembership {
@@ -54,4 +67,26 @@ export async function signupViaInvite(
     input,
   );
   return response.data;
+}
+
+export async function listMyInvites(): Promise<MyInvite[]> {
+  const response = await apiClient.get<{ invites: MyInvite[] }>("/me/invites");
+  return response.data.invites;
+}
+
+export async function acceptMyInvite(
+  inviteId: string,
+): Promise<AcceptInviteResponse> {
+  const response = await apiClient.post<AcceptInviteResponse>(
+    `/me/invites/${inviteId}/accept`,
+  );
+  return response.data;
+}
+
+export async function declineMyInvite(inviteId: string): Promise<void> {
+  await apiClient.post(`/me/invites/${inviteId}/decline`);
+}
+
+export async function declineInvite(token: string): Promise<void> {
+  await apiClient.post(`/invites/${token}/decline`);
 }

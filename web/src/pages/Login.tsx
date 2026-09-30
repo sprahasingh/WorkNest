@@ -2,10 +2,10 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
-import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
+import { resolvePostAuthPath, safeNextPath } from "@/lib/postAuthRedirect";
 import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
@@ -27,6 +27,8 @@ const LOGIN_FIELDS = ["email", "password"] as const;
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const nextPath = safeNextPath(location.search);
   const [formError, setFormError] = useState<string | null>(null);
 
   const {
@@ -42,7 +44,9 @@ export function Login() {
     setFormError(null);
     try {
       const me = await login(values);
-      navigate(resolvePostAuthPath(me.memberships), { replace: true });
+      navigate(nextPath ?? resolvePostAuthPath(me.memberships), {
+        replace: true,
+      });
     } catch (error) {
       const parsed = parseApiError(error);
       if (Object.keys(parsed.fieldErrors).length === 0) {

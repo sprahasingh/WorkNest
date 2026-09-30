@@ -5,6 +5,7 @@ import { inviteSignupSchema } from "./invites.schemas.js";
 import {
   getInviteByTokenController,
   acceptInviteController,
+  declineInviteController,
   signupViaInviteController,
 } from "./invites.controller.js";
 
@@ -13,6 +14,7 @@ const router = Router();
 router.get("/:token", getInviteByTokenController);
 
 router.post("/:token/accept", authenticate, acceptInviteController);
+router.post("/:token/decline", authenticate, declineInviteController);
 
 router.post(
   "/:token/signup",

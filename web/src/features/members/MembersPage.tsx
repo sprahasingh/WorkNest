@@ -161,8 +161,7 @@ export function MembersPage() {
                     <div className="mt-3 flex items-center justify-between">
                       {roleSelect(member)}
                       <span className="text-xs text-slate-400">
-                        Joined{" "}
-                        {new Date(member.createdAt).toLocaleDateString()}
+                        Joined {new Date(member.createdAt).toLocaleDateString()}
                       </span>
                     </div>
                   </Card>
@@ -244,8 +243,8 @@ export function MembersPage() {
       >
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {removeTarget?.isSelf
-            ? "You'll lose access to this organization immediately. You can only rejoin if someone invites you again."
-            : `"${removeTarget?.member.userId.name}" will lose access to this organization immediately.`}
+            ? "You'll lose access to this organization immediately and be unassigned from its tasks. Your account and other organizations stay as they are. You can rejoin if someone invites you again."
+            : `${removeTarget?.member.userId.name} will lose access to this organization immediately and be unassigned from its tasks. Their WorkNest account and other organizations aren't affected, and you can invite them back later.`}
         </p>
         <div className="mt-4 flex justify-end gap-3">
           <Button
