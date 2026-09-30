@@ -131,8 +131,16 @@ function describe(entry: AuditLogEntry, ctx: AuditFormatContext): string {
       return `${actor} updated a project: ${formatChanges(m, ctx)}`;
     case "project.archived":
       return `${actor} archived a project`;
+    case "project.unarchived":
+      return `${actor} unarchived project "${text(m.name)}"`;
+    case "project.binned":
+      return `${actor} moved project "${text(m.name)}" (${text(m.key)}) to the bin`;
+    case "project.restored":
+      return `${actor} restored project "${text(m.name)}" (${text(m.key)}) from the bin`;
     case "project.deleted":
-      return `${actor} deleted project "${text(m.name)}" (${text(m.key)})`;
+      return `${actor} permanently deleted project "${text(m.name)}" (${text(m.key)})`;
+    case "project.purged":
+      return `Project "${text(m.name)}" (${text(m.key)}) was deleted automatically after 30 days in the bin`;
     case "task.created":
       return `${actor} created task "${text(m.title)}"`;
     case "task.updated":

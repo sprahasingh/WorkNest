@@ -12,7 +12,10 @@ import {
   getProjectController,
   updateProjectController,
   archiveProjectController,
+  unarchiveProjectController,
   deleteProjectController,
+  restoreProjectController,
+  deleteProjectPermanentlyController,
 } from "./projects.controller.js";
 
 const router = Router({ mergeParams: true });
@@ -48,6 +51,24 @@ router.post(
   "/:projectId/archive",
   requirePermission("project:write"),
   archiveProjectController,
+);
+
+router.post(
+  "/:projectId/unarchive",
+  requirePermission("project:write"),
+  unarchiveProjectController,
+);
+
+router.post(
+  "/:projectId/restore",
+  requirePermission("project:write"),
+  restoreProjectController,
+);
+
+router.delete(
+  "/:projectId/permanent",
+  requirePermission("project:write"),
+  deleteProjectPermanentlyController,
 );
 
 router.delete(
