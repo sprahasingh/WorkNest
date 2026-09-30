@@ -1,19 +1,31 @@
 import mongoose from "mongoose";
 import { Task } from "../../models/Task.js";
 import { Notification } from "../../models/Notification.js";
+import { Membership } from "../../models/Membership.js";
+import { Organization } from "../../models/Organization.js";
 import { Project, binnedProjectIds } from "../../models/Project.js";
-import { getTenantContext, requireTenantId } from "../../tenancy/context.js";
+import {
+  getTenantContext,
+  requireTenantId,
+  runWithTenant,
+} from "../../tenancy/context.js";
 
 const PAGE_SIZE = 50;
-const DUE_SOON_WINDOW_MS = 24 * 60 * 60 * 1000;
+const ASSIGNEE_DUE_SOON_WINDOW_MS = 24 * 60 * 60 * 1000;
+const DUE_SOON_48H_WINDOW_MS = 48 * 60 * 60 * 1000;
 const REMINDER_TYPES = ["task_due_soon", "task_overdue"] as const;
+let reminderSweepRunning = false;
 
 async function ensureMyDueNotifications(): Promise<void> {
   const context = getTenantContext()!;
   const tenantId = new mongoose.Types.ObjectId(requireTenantId());
   const userId = new mongoose.Types.ObjectId(context.userId);
   const now = new Date();
-  const reminderWindowEnd = new Date(now.getTime() + DUE_SOON_WINDOW_MS);
+  const membership = await Membership.findOne({ userId }).select("role").lean();
+  const isManager = membership?.role === "manager";
+  const isAdmin = membership?.role === "admin";
+  const isPrivileged = isManager || isAdmin;
+  const reminderWindowEnd = new Date(now.getTime() + DUE_SOON_48H_WINDOW_MS);
   const activeProjectIds = await Project.find({ archivedAt: null }).distinct(
     "_id",
   );
@@ -25,44 +37,85 @@ async function ensureMyDueNotifications(): Promise<void> {
     archivedAt: null,
     deletedAt: null,
     dueDate: { $ne: null, $lte: reminderWindowEnd },
-    assigneeIds: userId,
+    ...(isPrivileged ? {} : { assigneeIds: userId }),
   })
     .sort({ dueDate: 1 })
-    .select("_id projectId title dueDate")
+    .select("_id projectId title dueDate assigneeIds reminderCycle")
     .lean();
 
   if (tasks.length === 0) return;
 
-  const operations = tasks.map((task) => {
+  const operations = tasks.flatMap((task) => {
     const dueDate = task.dueDate!;
-    const type: (typeof REMINDER_TYPES)[number] =
-      dueDate <= now ? "task_overdue" : "task_due_soon";
-    const eventKey = `${task._id}:${type}:${dueDate.getTime()}`;
-    return {
-      updateOne: {
-        filter: { userId, eventKey },
-        update: {
-          $setOnInsert: {
-            userId,
-            tenantId,
-            projectId: task.projectId,
-            taskId: task._id,
-            dueDate,
-            activityId: null,
-            type,
-            actorId: null,
-            message:
-              type === "task_overdue"
-                ? `Task "${task.title}" is overdue`
-                : `Task "${task.title}" is due soon`,
-            eventKey,
-            readAt: null,
-            dismissedAt: null,
+    const isAssignee = task.assigneeIds.some((assigneeId) =>
+      assigneeId.equals(userId),
+    );
+    const dueSoonPhases = new Set<"48h" | "24h">();
+    const reminders: {
+      type: (typeof REMINDER_TYPES)[number];
+      phase?: "48h" | "24h";
+    }[] = [];
+
+    if (dueDate <= now && (isAssignee || isPrivileged)) {
+      reminders.push({ type: "task_overdue" });
+    } else if (dueDate > now) {
+      const timeUntilDue = dueDate.getTime() - now.getTime();
+      if (isManager && timeUntilDue <= DUE_SOON_48H_WINDOW_MS) {
+        dueSoonPhases.add("48h");
+      }
+      if (isAssignee) {
+        if (timeUntilDue <= DUE_SOON_48H_WINDOW_MS) {
+          dueSoonPhases.add("48h");
+        }
+        if (timeUntilDue <= ASSIGNEE_DUE_SOON_WINDOW_MS) {
+          dueSoonPhases.add("24h");
+        }
+      }
+      reminders.push(
+        ...Array.from(dueSoonPhases, (phase) => ({
+          type: "task_due_soon" as const,
+          phase,
+        })),
+      );
+    }
+
+    return reminders.map(({ type, phase }) => {
+      const cycleSuffix = task.reminderCycle
+        ? `:cycle:${task.reminderCycle}`
+        : "";
+      const baseEventKey = `${task._id}:${type}:${dueDate.getTime()}${cycleSuffix}`;
+      const eventKey =
+        phase === "48h" && !isManager
+          ? `${baseEventKey}:48h`
+          : phase === "24h" && isManager
+            ? `${baseEventKey}:24h`
+            : baseEventKey;
+      return {
+        updateOne: {
+          filter: { userId, eventKey },
+          update: {
+            $setOnInsert: {
+              userId,
+              tenantId,
+              projectId: task.projectId,
+              taskId: task._id,
+              dueDate,
+              activityId: null,
+              type,
+              actorId: null,
+              message:
+                type === "task_overdue"
+                  ? `Task "${task.title}" is overdue`
+                  : `Task "${task.title}" is due soon`,
+              eventKey,
+              readAt: null,
+              dismissedAt: null,
+            },
           },
+          upsert: true,
         },
-        upsert: true,
-      },
-    };
+      };
+    });
   });
 
   try {
@@ -79,18 +132,52 @@ async function ensureMyDueNotifications(): Promise<void> {
   }
 }
 
+export async function ensureDueNotificationsForAllUsers(): Promise<void> {
+  if (reminderSweepRunning) return;
+  reminderSweepRunning = true;
+
+  try {
+    const organizations = await Organization.collection
+      .find({}, { projection: { _id: 1 } })
+      .toArray();
+
+    for (const organization of organizations) {
+      const memberships = await Membership.collection
+        .find(
+          { tenantId: organization._id },
+          { projection: { userId: 1, role: 1 } },
+        )
+        .toArray();
+
+      for (const membership of memberships) {
+        await runWithTenant(
+          {
+            tenantId: String(organization._id),
+            userId: String(membership.userId),
+            role: String(membership.role),
+          },
+          ensureMyDueNotifications,
+        );
+      }
+    }
+  } finally {
+    reminderSweepRunning = false;
+  }
+}
+
 export async function listNotifications(status: "unread" | "all") {
   const context = getTenantContext()!;
   const tenantId = requireTenantId();
   await ensureMyDueNotifications();
-  const binnedTaskIds = (await Task.distinct("_id", {
-    deletedAt: { $ne: null },
-  })) as mongoose.Types.ObjectId[];
-  // Notifications about projects in the bin come back if they're restored.
+  const [binnedTaskIds, archivedProjectIds] = (await Promise.all([
+    Task.distinct("_id", { deletedAt: { $ne: null } }),
+    Project.find({ archivedAt: { $ne: null } }).distinct("_id"),
+  ])) as [mongoose.Types.ObjectId[], mongoose.Types.ObjectId[]];
+  // Notifications for binned tasks and archived projects return when restored.
   const mine = {
     userId: context.userId,
     tenantId,
-    projectId: { $nin: await binnedProjectIds() },
+    projectId: { $nin: [...(await binnedProjectIds()), ...archivedProjectIds] },
     taskId: { $nin: binnedTaskIds },
   };
 

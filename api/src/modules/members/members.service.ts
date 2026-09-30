@@ -60,6 +60,34 @@ export async function changeMemberRole(memberId: string, newRole: Role) {
       membership.role = newRole;
       await membership.save({ session: dbSession });
 
+      if (previousRole !== newRole) {
+        await Notification.deleteMany(
+          {
+            tenantId,
+            userId: membership.userId,
+            type: "task_due_soon",
+            dismissedAt: null,
+          },
+          { session: dbSession },
+        );
+      }
+
+      if (newRole === "member") {
+        const assignedTaskIds = (await Task.distinct("_id", {
+          assigneeIds: membership.userId,
+        }).session(dbSession)) as mongoose.Types.ObjectId[];
+        await Notification.deleteMany(
+          {
+            tenantId,
+            userId: membership.userId,
+            taskId: { $nin: assignedTaskIds },
+            type: "task_overdue",
+            dismissedAt: null,
+          },
+          { session: dbSession },
+        );
+      }
+
       await recordAudit(
         {
           action: "member.role_changed",

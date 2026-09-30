@@ -24,6 +24,8 @@ const taskSchema = new Schema(
     },
     assigneeIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
     dueDate: { type: Date, default: null },
+    dueDateIsDateOnly: { type: Boolean, default: false },
+    reminderCycle: { type: Number, default: 0 },
     completedAt: { type: Date, default: null },
     archivedAt: { type: Date, default: null },
     deletedAt: { type: Date, default: null },

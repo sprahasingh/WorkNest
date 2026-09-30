@@ -18,6 +18,8 @@ export interface Task {
   priority: TaskPriority;
   assigneeIds: string[];
   dueDate: string | null;
+  dueDateIsDateOnly?: boolean;
+  reminderCycle?: number;
   completedAt?: string | null;
   archivedAt?: string | null;
   deletedAt?: string | null;
