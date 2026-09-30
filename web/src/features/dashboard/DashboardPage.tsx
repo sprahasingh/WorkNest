@@ -1,4 +1,10 @@
-import { useState, type ReactElement } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactElement,
+} from "react";
 import { Link, Navigate } from "react-router";
 import {
   Bar,
@@ -17,15 +23,19 @@ import { useCan } from "@/hooks/useCan";
 import { useTheme } from "@/theme/theme-context";
 import { Card } from "@/components/ui/Card";
 import { useDashboard } from "./queries";
-import type { StatusCount } from "./api";
+import type { DashboardRange, DashboardTrend, StatusCount } from "./api";
 
-const DATE_RANGE_OPTIONS = [
-  { value: 7, label: "7 days" },
-  { value: 14, label: "14 days" },
-  { value: 30, label: "30 days" },
-  { value: 60, label: "60 days" },
-  { value: 90, label: "90 days" },
-] as const;
+const DATE_RANGE_OPTIONS: { value: DashboardRange; label: string }[] = [
+  { value: 7, label: "Last 7 days" },
+  { value: 14, label: "Last 14 days" },
+  { value: 30, label: "Last 30 days" },
+  { value: 60, label: "Last 60 days" },
+  { value: 90, label: "Last 90 days" },
+  { value: "all", label: "All time" },
+];
+
+// Two taps or clicks this close together (ms) count as a double tap.
+const DOUBLE_TAP_MS = 350;
 
 const STATUS_ORDER = ["todo", "in_progress", "done"];
 const STATUS_LABELS: Record<string, string> = {
@@ -69,10 +79,52 @@ function formatShortDate(isoDate: string): string {
   return `${month}/${day}`;
 }
 
+function formatUtcDate(
+  isoDate: string,
+  options: Intl.DateTimeFormatOptions,
+): string {
+  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString(undefined, {
+    ...options,
+    timeZone: "UTC",
+  });
+}
+
+const FULL_DATE: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+};
+
+// Axis tick and tooltip heading for one trend point.
+function trendLabels(
+  isoDate: string,
+  granularity: DashboardTrend["granularity"],
+): { tick: string; full: string } {
+  if (granularity === "month") {
+    return {
+      tick: formatUtcDate(isoDate, { month: "short", year: "2-digit" }),
+      full: formatUtcDate(isoDate, { month: "long", year: "numeric" }),
+    };
+  }
+  const full = formatUtcDate(isoDate, FULL_DATE);
+  return {
+    tick: formatShortDate(isoDate),
+    full: granularity === "week" ? `Week of ${full}` : full,
+  };
+}
+
+function trendTitle(range: DashboardRange, trend: DashboardTrend): string {
+  if (range !== "all") return `Tasks created, last ${range} days`;
+  const per = { day: "per day", week: "per week", month: "per month" }[
+    trend.granularity
+  ];
+  return `Tasks created ${per}, since ${formatUtcDate(trend.since, FULL_DATE)}`;
+}
+
 export function DashboardPage() {
   const { orgId } = useOrg();
   const canViewDashboard = useCan("dashboard:read");
-  const [days, setDays] = useState(14);
+  const [days, setDays] = useState<DashboardRange>(14);
   const { data, isPending, isError } = useDashboard(orgId, days);
 
   if (!canViewDashboard) {
@@ -118,10 +170,10 @@ export function DashboardPage() {
     PRIORITY_ORDER,
     PRIORITY_LABELS,
   );
-  const trendData = data.tasksCreatedPerDay.map((entry) => ({
-    date: formatShortDate(entry.date),
-    count: entry.count,
-  }));
+  const trendData = data.tasksCreatedPerDay.map((entry) => {
+    const labels = trendLabels(entry.date, data.trend.granularity);
+    return { date: labels.tick, fullLabel: labels.full, count: entry.count };
+  });
 
   const isNewOrg = data.usage.projectCount === 0;
 
@@ -133,13 +185,16 @@ export function DashboardPage() {
             Dashboard
           </h1>
           <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
+            value={String(days)}
+            aria-label="Date range"
+            onChange={(e) =>
+              setDays(e.target.value === "all" ? "all" : Number(e.target.value))
+            }
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           >
             {DATE_RANGE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                Last {opt.label}
+              <option key={opt.value} value={String(opt.value)}>
+                {opt.label}
               </option>
             ))}
           </select>
@@ -164,22 +219,29 @@ export function DashboardPage() {
             value={`${data.usage.projectCount} / ${data.usage.projectLimit}`}
           />
           <StatCard
-            label={`Tasks created (${days}d)`}
-            value={trendData.reduce((sum, entry) => sum + entry.count, 0)}
+            label={
+              days === "all"
+                ? "Tasks created (all time)"
+                : `Tasks created (${days}d)`
+            }
+            value={data.trend.total}
           />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <ChartCard title="Tasks by status">
-            {({ gridColor, tickColor, tooltipStyle }) => (
+          <ChartCard title="Tasks by status" subtitle="All tasks right now">
+            {({ gridColor, tickColor, tooltipProps }) => (
               <BarChart data={statusData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: tickColor }} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 12, fill: tickColor }}
+                />
                 <YAxis
                   allowDecimals={false}
                   tick={{ fontSize: 12, fill: tickColor }}
                 />
-                <Tooltip contentStyle={tooltipStyle} />
+                <Tooltip {...tooltipProps} formatter={taskCountFormatter} />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {statusData.map((entry) => (
                     <Cell key={entry.key} fill={STATUS_COLORS[entry.key]} />
@@ -189,16 +251,19 @@ export function DashboardPage() {
             )}
           </ChartCard>
 
-          <ChartCard title="Tasks by priority">
-            {({ gridColor, tickColor, tooltipStyle }) => (
+          <ChartCard title="Tasks by priority" subtitle="All tasks right now">
+            {({ gridColor, tickColor, tooltipProps }) => (
               <BarChart data={priorityData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: tickColor }} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 12, fill: tickColor }}
+                />
                 <YAxis
                   allowDecimals={false}
                   tick={{ fontSize: 12, fill: tickColor }}
                 />
-                <Tooltip contentStyle={tooltipStyle} />
+                <Tooltip {...tooltipProps} formatter={taskCountFormatter} />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {priorityData.map((entry) => (
                     <Cell key={entry.key} fill={PRIORITY_COLORS[entry.key]} />
@@ -209,8 +274,8 @@ export function DashboardPage() {
           </ChartCard>
         </div>
 
-        <ChartCard title={`Tasks created, last ${days} days`}>
-          {({ gridColor, tickColor, tooltipStyle }) => (
+        <ChartCard title={trendTitle(days, data.trend)}>
+          {({ gridColor, tickColor, tooltipProps }) => (
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
               <XAxis dataKey="date" tick={{ fontSize: 12, fill: tickColor }} />
@@ -218,13 +283,21 @@ export function DashboardPage() {
                 allowDecimals={false}
                 tick={{ fontSize: 12, fill: tickColor }}
               />
-              <Tooltip contentStyle={tooltipStyle} />
+              <Tooltip
+                {...tooltipProps}
+                formatter={taskCountFormatter}
+                labelFormatter={(label, payload) =>
+                  (payload?.[0]?.payload as { fullLabel?: string } | undefined)
+                    ?.fullLabel ?? label
+                }
+              />
               <Line
                 type="monotone"
                 dataKey="count"
                 stroke="#14b8a6"
                 strokeWidth={2}
-                dot={false}
+                // Few points (e.g. a new org's "all time") read better as dots.
+                dot={trendData.length <= 14 ? { r: 3 } : false}
               />
             </LineChart>
           )}
@@ -280,53 +353,135 @@ function StatCard({
         {value}
       </p>
       {sub && (
-        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-          {sub}
-        </p>
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{sub}</p>
       )}
     </Card>
   );
 }
 
+function taskCountFormatter(value: unknown): [string, string] {
+  return [String(value), "Tasks"];
+}
+
 interface ChartTheme {
   gridColor: string;
   tickColor: string;
-  tooltipStyle: {
-    background: string;
-    border: string;
-    borderRadius: number;
-    color: string;
-    fontSize: number;
+  // Spread onto <Tooltip>: its look, and whether it may show at all.
+  tooltipProps: {
+    active?: boolean;
+    contentStyle: {
+      background: string;
+      border: string;
+      borderRadius: number;
+      color: string;
+      fontSize: number;
+    };
   };
+}
+
+// Exact numbers stay hidden until the chart is double-tapped (or
+// double-clicked), so an ordinary tap or scroll doesn't pop them up.
+function useDoubleTapDetails() {
+  const [showDetails, setShowDetails] = useState(false);
+  const lastTapRef = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // A tap anywhere else hides them again.
+  useEffect(() => {
+    if (!showDetails) return;
+    const hideOnOutsideTap = (event: globalThis.PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setShowDetails(false);
+      }
+    };
+    document.addEventListener("pointerdown", hideOnOutsideTap);
+    return () => document.removeEventListener("pointerdown", hideOnOutsideTap);
+  }, [showDetails]);
+
+  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.timeStamp - lastTapRef.current < DOUBLE_TAP_MS) {
+      setShowDetails((shown) => !shown);
+      lastTapRef.current = 0;
+    } else {
+      lastTapRef.current = event.timeStamp;
+    }
+  };
+
+  // With a mouse, moving off the chart hides them too.
+  const onPointerLeave = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse") setShowDetails(false);
+  };
+
+  return { showDetails, containerRef, onPointerUp, onPointerLeave };
 }
 
 function ChartCard({
   title,
+  subtitle,
   children,
 }: {
   title: string;
+  subtitle?: string;
   children: (chartTheme: ChartTheme) => ReactElement;
 }) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const { showDetails, containerRef, onPointerUp, onPointerLeave } =
+    useDoubleTapDetails();
   const chartTheme: ChartTheme = {
     gridColor: isDark ? "#334155" : "#e2e8f0",
     tickColor: isDark ? "#94a3b8" : "#64748b",
-    tooltipStyle: {
-      background: isDark ? "#1e293b" : "#ffffff",
-      border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`,
-      borderRadius: 8,
-      color: isDark ? "#f1f5f9" : "#0f172a",
-      fontSize: 13,
+    tooltipProps: {
+      // false keeps it hidden; undefined lets it follow the pointer.
+      active: showDetails ? undefined : false,
+      contentStyle: {
+        background: isDark ? "#1e293b" : "#ffffff",
+        border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`,
+        borderRadius: 8,
+        color: isDark ? "#f1f5f9" : "#0f172a",
+        fontSize: 13,
+      },
     },
   };
 
   return (
     <Card>
-      <h2 className="font-medium text-slate-800 dark:text-slate-100">
-        {title}
-      </h2>
-      <div className="mt-4 h-56">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div>
+          <h2 className="font-medium text-slate-800 dark:text-slate-100">
+            {title}
+          </h2>
+          {subtitle && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {subtitle}
+            </p>
+          )}
+        </div>
+        <p
+          className="text-xs text-slate-400 dark:text-slate-500"
+          aria-live="polite"
+        >
+          <span className="pointer-coarse:hidden">
+            {showDetails
+              ? "Double-click to hide numbers"
+              : "Double-click for numbers"}
+          </span>
+          <span className="hidden pointer-coarse:inline">
+            {showDetails
+              ? "Double-tap to hide numbers"
+              : "Double-tap for numbers"}
+          </span>
+        </p>
+      </div>
+      <div
+        ref={containerRef}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerLeave}
+        data-details={showDetails ? "on" : "off"}
+        // manipulation stops a double tap from zooming the page on phones;
+        // no outline, so a tap doesn't leave a focus box around the chart.
+        className="mt-4 h-56 touch-manipulation select-none [&_*]:outline-none"
+      >
         <ResponsiveContainer width="100%" height="100%">
           {children(chartTheme)}
         </ResponsiveContainer>

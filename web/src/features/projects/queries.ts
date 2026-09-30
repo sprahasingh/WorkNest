@@ -41,7 +41,7 @@ export function useCreateProject(orgId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: dashboardKeys.all(orgId),
       });
     },
   });
@@ -55,7 +55,7 @@ export function useArchiveProject(orgId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: dashboardKeys.all(orgId),
       });
     },
   });
@@ -69,7 +69,7 @@ export function useDeleteProject(orgId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: dashboardKeys.all(orgId),
       });
     },
   });
