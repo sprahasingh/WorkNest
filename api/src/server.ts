@@ -3,6 +3,7 @@ import { connectDB } from "./db/connect.js";
 import {
   ensureNotificationEventIndex,
   ensureCompletedTaskIndex,
+  migrateDateOnlyTaskDueDates,
   migrateLegacyTaskAssignees,
   migrateCompletedTaskTimestamps,
   syncPlanLimits,
@@ -11,11 +12,13 @@ import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { purgeExpiredProjects } from "./modules/projects/projects.service.js";
 import { purgeExpiredTasks } from "./modules/tasks/tasks.service.js";
+import { ensureDueNotificationsForAllUsers } from "./modules/notifications/notifications.service.js";
 import mongoose from "mongoose";
 
 async function main(): Promise<void> {
   await connectDB();
   await migrateLegacyTaskAssignees();
+  await migrateDateOnlyTaskDueDates();
   await migrateCompletedTaskTimestamps();
   await syncPlanLimits();
   await ensureNotificationEventIndex();
@@ -33,6 +36,14 @@ async function main(): Promise<void> {
   };
   sweepBin();
   setInterval(sweepBin, 60 * 60 * 1000).unref();
+
+  const sweepTaskReminders = () => {
+    void ensureDueNotificationsForAllUsers().catch((error: unknown) =>
+      logger.error({ error }, "Task reminder sweep failed"),
+    );
+  };
+  sweepTaskReminders();
+  setInterval(sweepTaskReminders, 60 * 1000).unref();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

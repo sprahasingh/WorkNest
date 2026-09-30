@@ -39,7 +39,7 @@ export async function updateOrgController(
   res: Response,
 ): Promise<void> {
   const input = req.validated!.body as UpdateOrgInput;
-  const org = await updateOrg(input.name);
+  const org = await updateOrg(input);
   res.status(200).json({ organization: org });
 }
 
