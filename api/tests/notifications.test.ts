@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { Membership } from "../src/models/Membership.js";
+import { Notification } from "../src/models/Notification.js";
 import { migrateDateOnlyTaskDueDates } from "../src/db/migrations.js";
 import { ensureDueNotificationsForAllUsers } from "../src/modules/notifications/notifications.service.js";
 
@@ -76,63 +77,77 @@ async function getUnread(orgId: string, token: string) {
 }
 
 describe("task notifications", () => {
-  it("creates one due-soon and overdue reminder and keeps them unread until dismissed", async () => {
+  it("replaces the 48-hour reminder with a due-today reminder at local midnight", async () => {
     const admin = await registerOrg("reminders@example.com", "Reminder Org");
     const projectId = await createProject(admin.orgId, admin.accessToken, "RM");
-    await createTask(admin.orgId, projectId, admin.accessToken, {
-      assigneeIds: [admin.userId],
-      dueDate: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-    });
-    await createTask(admin.orgId, projectId, admin.accessToken, {
-      assigneeIds: [admin.userId],
-      dueDate: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    });
+    const dueDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const taskWith48HourReminder = await createTask(
+      admin.orgId,
+      projectId,
+      admin.accessToken,
+      {
+        assigneeIds: [admin.userId],
+        dueDate,
+      },
+    );
 
     const firstRead = await getUnread(admin.orgId, admin.accessToken);
-    expect(firstRead.body.unreadCount).toBe(3);
-    expect(firstRead.body.readableUnreadCount).toBe(0);
+    const firstReminder = firstRead.body.notifications.find(
+      (item: { taskId: string; type: string }) =>
+        item.taskId === taskWith48HourReminder.body.task._id &&
+        item.type === "task_due_soon",
+    );
+    expect(firstReminder.eventKey).toMatch(/:48h$/);
+
+    const taskWithout48HourReminder = await createTask(
+      admin.orgId,
+      projectId,
+      admin.accessToken,
+      { assigneeIds: [admin.userId], dueDate },
+    );
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(`${dueDate}T00:00:00.000Z`));
+    try {
+      await ensureDueNotificationsForAllUsers();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const reminders = await Notification.find({
+      tenantId: admin.orgId,
+      userId: admin.userId,
+      type: "task_due_soon",
+    }).lean();
+    const previousReminder = reminders.find(
+      (item) => item._id.toString() === firstReminder._id,
+    );
+    expect(previousReminder?.dismissedAt).toBeTruthy();
+
+    for (const taskId of [
+      taskWith48HourReminder.body.task._id,
+      taskWithout48HourReminder.body.task._id,
+    ]) {
+      const dueTodayReminder = reminders.find(
+        (item) =>
+          item.taskId?.toString() === taskId &&
+          !item.eventKey?.endsWith(":48h"),
+      );
+      expect(dueTodayReminder?.message).toBe(
+        'Task "Notification task" is due today',
+      );
+      expect(dueTodayReminder?.dismissedAt).toBeNull();
+    }
+
     expect(
-      firstRead.body.notifications
-        .map((item: { type: string }) => item.type)
-        .sort(),
-    ).toEqual(["task_due_soon", "task_due_soon", "task_overdue"]);
-    expect(
-      firstRead.body.notifications.find(
-        (item: { type: string }) => item.type === "task_due_soon",
-      ).dueDate,
-    ).toBeTruthy();
-
-    const reminderId = firstRead.body.notifications[0]._id as string;
-    const markedRead = await request(app)
-      .patch(`/api/orgs/${admin.orgId}/notifications/read`)
-      .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({});
-    expect(markedRead.status).toBe(204);
-
-    const afterMarkRead = await getUnread(admin.orgId, admin.accessToken);
-    expect(afterMarkRead.body.unreadCount).toBe(3);
-
-    const repeatedRead = await getUnread(admin.orgId, admin.accessToken);
-    expect(repeatedRead.body.notifications).toHaveLength(3);
-
-    const dismissed = await request(app)
-      .patch(`/api/orgs/${admin.orgId}/notifications/dismiss`)
-      .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ ids: [reminderId] });
-    expect(dismissed.status).toBe(204);
-
-    const afterDismiss = await getUnread(admin.orgId, admin.accessToken);
-    expect(afterDismiss.body.unreadCount).toBe(2);
-
-    const all = await request(app)
-      .get(`/api/orgs/${admin.orgId}/notifications`)
-      .query({ status: "all" })
-      .set("Authorization", `Bearer ${admin.accessToken}`);
-    expect(
-      all.body.notifications.find(
-        (item: { _id: string }) => item._id === reminderId,
-      ).dismissedAt,
-    ).toBeTruthy();
+      reminders.some(
+        (item) =>
+          item.taskId?.toString() === taskWithout48HourReminder.body.task._id &&
+          item.eventKey?.endsWith(":48h"),
+      ),
+    ).toBe(false);
   });
 
   it("starts a fresh reminder cycle when a completed task is reopened", async () => {
@@ -153,7 +168,7 @@ describe("task notifications", () => {
     const taskId = created.body.task._id as string;
 
     const initial = await getUnread(admin.orgId, admin.accessToken);
-    expect(initial.body.notifications).toHaveLength(2);
+    expect(initial.body.notifications).toHaveLength(1);
 
     const completed = await request(app)
       .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
@@ -168,7 +183,7 @@ describe("task notifications", () => {
     expect(reopened.status).toBe(200);
 
     const afterReopen = await getUnread(admin.orgId, admin.accessToken);
-    expect(afterReopen.body.notifications).toHaveLength(2);
+    expect(afterReopen.body.notifications).toHaveLength(1);
     expect(
       afterReopen.body.notifications.every(
         (item: { type: string }) => item.type === "task_due_soon",
@@ -271,7 +286,7 @@ describe("task notifications", () => {
           item.taskId === todayTask.body.task._id &&
           item.type === "task_due_soon",
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
   it("migrates legacy midnight-UTC date-only tasks to end of day", async () => {
@@ -338,7 +353,7 @@ describe("task notifications", () => {
       admin.orgId,
       assignee.accessToken,
     );
-    expect(memberNotifications.body.notifications).toHaveLength(2);
+    expect(memberNotifications.body.notifications).toHaveLength(1);
     const managerNotifications = await getUnread(
       admin.orgId,
       manager.accessToken,
@@ -369,7 +384,7 @@ describe("task notifications", () => {
     });
 
     const initial = await getUnread(admin.orgId, admin.accessToken);
-    expect(initial.body.notifications).toHaveLength(2);
+    expect(initial.body.notifications).toHaveLength(1);
 
     const archived = await request(app)
       .post(`/api/orgs/${admin.orgId}/projects/${projectId}/archive`)
@@ -385,7 +400,7 @@ describe("task notifications", () => {
     expect(unarchived.status).toBe(200);
     expect(
       (await getUnread(admin.orgId, admin.accessToken)).body.notifications,
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
   it("removes role-only reminders when a member is demoted", async () => {
@@ -423,7 +438,7 @@ describe("task notifications", () => {
     );
 
     const initial = await getUnread(admin.orgId, manager.accessToken);
-    expect(initial.body.notifications).toHaveLength(4);
+    expect(initial.body.notifications).toHaveLength(3);
 
     const managerMembership = await Membership.findOne({
       tenantId: admin.orgId,
@@ -441,7 +456,7 @@ describe("task notifications", () => {
       admin.orgId,
       manager.accessToken,
     );
-    expect(afterManagerDemotion.body.notifications).toHaveLength(3);
+    expect(afterManagerDemotion.body.notifications).toHaveLength(2);
     expect(afterManagerDemotion.body.notifications).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -470,7 +485,7 @@ describe("task notifications", () => {
       admin.orgId,
       manager.accessToken,
     );
-    expect(afterAdminDemotion.body.notifications).toHaveLength(2);
+    expect(afterAdminDemotion.body.notifications).toHaveLength(1);
     expect(
       afterAdminDemotion.body.notifications.every(
         (item: { taskId: string; type: string }) =>
@@ -554,7 +569,7 @@ describe("task notifications", () => {
           item.taskId === assigneeWindowTask.body.task._id &&
           item.type === "task_due_soon",
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
 
     const adminNotifications = await getUnread(admin.orgId, admin.accessToken);
     expect(adminNotifications.body.notifications).toEqual(
@@ -575,7 +590,7 @@ describe("task notifications", () => {
           item.taskId === assigneeWindowTask.body.task._id &&
           item.type === "task_due_soon",
       );
-    expect(adminDueSoonNotifications).toHaveLength(2);
+    expect(adminDueSoonNotifications).toHaveLength(1);
     expect(
       adminNotifications.body.notifications.some(
         (item: { taskId: string; type: string }) =>
@@ -594,7 +609,7 @@ describe("task notifications", () => {
           item.taskId === assigneeWindowTask.body.task._id &&
           item.type === "task_due_soon",
       );
-    expect(assigneeDueSoonNotifications).toHaveLength(2);
+    expect(assigneeDueSoonNotifications).toHaveLength(1);
     expect(
       assigneeDueSoonNotifications.some((item: { eventKey: string }) =>
         item.eventKey.endsWith(":48h"),
@@ -604,7 +619,7 @@ describe("task notifications", () => {
       assigneeDueSoonNotifications.some(
         (item: { eventKey: string }) => !item.eventKey.endsWith(":48h"),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(assigneeNotifications.body.notifications).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
