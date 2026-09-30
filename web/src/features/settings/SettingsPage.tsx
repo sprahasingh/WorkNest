@@ -27,13 +27,27 @@ import {
 
 const DELETE_CONFIRMATION_TEXT = "delete my account";
 
-const renameFormSchema = z.object({
+const organizationSettingsFormSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(80),
+  timeZone: z
+    .string()
+    .trim()
+    .min(1)
+    .refine((timeZone) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Enter a valid IANA time zone"),
 });
 
-type RenameFormValues = z.infer<typeof renameFormSchema>;
+type OrganizationSettingsFormValues = z.infer<
+  typeof organizationSettingsFormSchema
+>;
 
-const RENAME_FIELDS = ["name"] as const;
+const ORGANIZATION_SETTINGS_FIELDS = ["name", "timeZone"] as const;
 
 const personalInformationSchema = z
   .object({
@@ -307,16 +321,20 @@ export function SettingsPage() {
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<RenameFormValues>({
-    resolver: zodResolver(renameFormSchema),
-    values: org ? { name: org.name } : undefined,
+  } = useForm<OrganizationSettingsFormValues>({
+    resolver: zodResolver(organizationSettingsFormSchema),
+    values: org
+      ? { name: org.name, timeZone: org.timeZone ?? "UTC" }
+      : undefined,
   });
 
-  const onRenameSubmit = async (values: RenameFormValues) => {
+  const onOrganizationSettingsSubmit = async (
+    values: OrganizationSettingsFormValues,
+  ) => {
     setFormError(null);
     try {
       await updateOrg.mutateAsync(values);
-      toast.success("Organization renamed");
+      toast.success("Organization settings updated");
     } catch (error) {
       const parsed = parseApiError(error);
       if (Object.keys(parsed.fieldErrors).length === 0) {
@@ -325,7 +343,7 @@ export function SettingsPage() {
       }
       const unmatched = applyFieldErrors(
         parsed.fieldErrors,
-        RENAME_FIELDS,
+        ORGANIZATION_SETTINGS_FIELDS,
         setError,
       );
       if (unmatched.length > 0) {
@@ -420,7 +438,7 @@ export function SettingsPage() {
 
         <Card>
           <h2 className="font-medium text-slate-800 dark:text-slate-100">
-            Organization name
+            Organization settings
           </h2>
 
           <div className="mt-3">
@@ -428,9 +446,11 @@ export function SettingsPage() {
           </div>
 
           <form
-            onSubmit={(event) => void handleSubmit(onRenameSubmit)(event)}
+            onSubmit={(event) =>
+              void handleSubmit(onOrganizationSettingsSubmit)(event)
+            }
             noValidate
-            className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end"
+            className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
           >
             <div className="flex-1">
               <Field label="Name" htmlFor="name" error={errors.name?.message}>
@@ -439,6 +459,22 @@ export function SettingsPage() {
                   type="text"
                   disabled={!canUpdateOrg}
                   {...register("name")}
+                  className={inputStyles}
+                />
+              </Field>
+            </div>
+            <div className="flex-1">
+              <Field
+                label="Time zone"
+                htmlFor="timeZone"
+                error={errors.timeZone?.message}
+              >
+                <input
+                  id="timeZone"
+                  type="text"
+                  placeholder="America/New_York"
+                  disabled={!canUpdateOrg}
+                  {...register("timeZone")}
                   className={inputStyles}
                 />
               </Field>

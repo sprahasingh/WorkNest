@@ -6,12 +6,14 @@ import { Card } from "@/components/ui/Card";
 import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, type AuditAction } from "./api";
 import { useAuditLog, type AuditFilters } from "./queries";
 import { describeAuditEntry } from "./format";
+import { useOrgDetails } from "@/features/org/queries";
 
 const selectStyles =
   "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
 
 export function AuditPage() {
   const { orgId } = useOrg();
+  const { data: organization } = useOrgDetails(orgId);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters: AuditFilters = {
@@ -34,7 +36,10 @@ export function AuditPage() {
 
   const entries = data?.pages.flatMap((page) => page.items) ?? [];
   const memberNames = new Map(members.map((m) => [m.userId.id, m.userId.name]));
-  const formatContext = { memberName: (id: string) => memberNames.get(id) };
+  const formatContext = {
+    memberName: (id: string) => memberNames.get(id),
+    timeZone: organization?.timeZone ?? "UTC",
+  };
 
   const setFilter = (key: string, value: string | null) => {
     setSearchParams((prev) => {

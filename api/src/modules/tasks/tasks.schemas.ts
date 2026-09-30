@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const objectIdRegex = /^[a-f\d]{24}$/i;
+const dueDateInputSchema = z.union([z.iso.date(), z.coerce.date()]);
 
 export const createTaskSchema = z
   .object({
@@ -8,7 +9,7 @@ export const createTaskSchema = z
     description: z.string().trim().max(2000).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
     assigneeIds: z.array(z.string().regex(objectIdRegex)).optional(),
-    dueDate: z.coerce.date().optional(),
+    dueDate: dueDateInputSchema.optional(),
   })
   .strict();
 
@@ -21,7 +22,7 @@ export const updateTaskSchema = z
     status: z.enum(["todo", "in_progress", "done"]).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
     assigneeIds: z.array(z.string().regex(objectIdRegex)).nullable().optional(),
-    dueDate: z.coerce.date().nullable().optional(),
+    dueDate: dueDateInputSchema.nullable().optional(),
   })
   .strict();
 

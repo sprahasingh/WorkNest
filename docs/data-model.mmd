@@ -12,6 +12,7 @@ erDiagram
         ObjectId id PK
         string name
         string slug
+        string timeZone
         string plan
         number seatLimit
         number seatsUsed
@@ -70,6 +71,8 @@ erDiagram
         string priority
         ObjectId assigneeId FK
         date dueDate
+        boolean dueDateIsDateOnly
+        number reminderCycle
         ObjectId createdBy FK
     }
     AUDIT_LOG {
