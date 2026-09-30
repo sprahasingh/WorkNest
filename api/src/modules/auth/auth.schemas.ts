@@ -19,3 +19,16 @@ export const loginSchema = z
   .strict();
 
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const updatePersonalInformationSchema = z
+  .object({
+    name: z.string().trim().min(2).max(100),
+    email: z.string().trim().toLowerCase().email(),
+    currentPassword: z.string().min(1).max(72),
+    newPassword: z.string().min(8).max(72).optional(),
+  })
+  .strict();
+
+export type UpdatePersonalInformationInput = z.infer<
+  typeof updatePersonalInformationSchema
+>;

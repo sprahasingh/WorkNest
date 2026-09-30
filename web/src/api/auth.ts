@@ -54,6 +54,20 @@ export interface MeResponse {
   memberships: OrgMembership[];
 }
 
+export interface UpdatePersonalInformationInput {
+  name: string;
+  email: string;
+  currentPassword: string;
+  newPassword?: string;
+}
+
+export async function updatePersonalInformation(
+  input: UpdatePersonalInformationInput,
+): Promise<User> {
+  const response = await apiClient.patch<{ user: User }>("/auth/me", input);
+  return response.data.user;
+}
+
 export async function register(
   input: RegisterInput,
 ): Promise<AuthTokenResponse> {
