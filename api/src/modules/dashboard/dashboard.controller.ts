@@ -8,6 +8,7 @@ export async function getDashboardController(
   const raw = req.query.days;
   const days = raw !== undefined ? Number(raw) : 14;
   const range: DashboardRange = raw === "all" ? "all" : isNaN(days) ? 14 : days;
-  const dashboard = await getDashboard(range);
+  const timeZone = typeof req.query.tz === "string" ? req.query.tz : "UTC";
+  const dashboard = await getDashboard(range, timeZone);
   res.status(200).json(dashboard);
 }
