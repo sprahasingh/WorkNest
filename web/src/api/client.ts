@@ -6,6 +6,15 @@ interface RefreshResponse {
   accessToken: string;
 }
 
+const SERVER_WAKE_TIMEOUT_MS = 120_000;
+
+export class ServerWakeTimeoutError extends Error {
+  constructor() {
+    super("The server did not wake before the timeout.");
+    this.name = "ServerWakeTimeoutError";
+  }
+}
+
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
   _wakeRetried?: boolean;
@@ -84,13 +93,21 @@ function delay(milliseconds: number): Promise<void> {
 async function waitForServer(): Promise<void> {
   serverWakePromise ??= (async () => {
     onServerWakeChange?.(true);
+    const deadline = Date.now() + SERVER_WAKE_TIMEOUT_MS;
     try {
       while (true) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) throw new ServerWakeTimeoutError();
+
         try {
-          await refreshClient.get("/health", { timeout: 10_000 });
+          await refreshClient.get("/health", {
+            timeout: Math.min(10_000, remainingMs),
+          });
           return;
         } catch {
-          await delay(2_000);
+          const nextDelayMs = Math.min(2_000, deadline - Date.now());
+          if (nextDelayMs <= 0) throw new ServerWakeTimeoutError();
+          await delay(nextDelayMs);
         }
       }
     } finally {
