@@ -137,10 +137,15 @@ function trendChange(
 ): { text: string; direction: "up" | "down" | "flat" } | null {
   if (range === "all" || trend.previousTotal === null) return null;
   const versus = `vs previous ${range} days`;
-  if (trend.previousTotal === 0) {
-    return trend.total === 0
-      ? { text: `No change ${versus}`, direction: "flat" }
-      : { text: `Up from 0 ${versus}`, direction: "up" };
+  // Nothing in either period: the chart already says so.
+  if (trend.previousTotal === 0 && trend.total === 0) return null;
+  // A percentage of or down to zero reads oddly, so show the count instead.
+  if (trend.previousTotal === 0 || trend.total === 0) {
+    const difference = trend.total - trend.previousTotal;
+    return {
+      text: `${difference > 0 ? "+" : "−"}${Math.abs(difference)} ${versus}`,
+      direction: difference > 0 ? "up" : "down",
+    };
   }
   const percent = Math.round(
     ((trend.total - trend.previousTotal) / trend.previousTotal) * 100,
