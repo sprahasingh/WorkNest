@@ -31,9 +31,14 @@ export type DashboardRange = number | "all";
 export interface DashboardTrend {
   // How points are grouped; long "all time" spans use weeks or months.
   granularity: "day" | "week" | "month";
-  // First day of the range, YYYY-MM-DD.
+  // First day of the range, YYYY-MM-DD, in the viewer's time zone.
   since: string;
+  // Today in that time zone; the last point is still in progress.
+  today: string;
+  timeZone: string;
   total: number;
+  // Tasks created in the equally long period before; null for all time.
+  previousTotal: number | null;
 }
 
 export interface DashboardData {
@@ -54,7 +59,13 @@ export async function getDashboard(
 ): Promise<DashboardData> {
   const response = await apiClient.get<DashboardData>(
     `/orgs/${orgId}/dashboard`,
-    { params: { days } },
+    // Days are counted in the viewer's own time zone.
+    {
+      params: {
+        days,
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+    },
   );
   return response.data;
 }

@@ -4,15 +4,17 @@ import {
   useState,
   type PointerEvent,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import { Link, Navigate } from "react-router";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -22,6 +24,7 @@ import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useTheme } from "@/theme/theme-context";
 import { Card } from "@/components/ui/Card";
+import { cn } from "@/lib/cn";
 import { useDashboard } from "./queries";
 import type { DashboardRange, DashboardTrend, StatusCount } from "./api";
 
@@ -74,11 +77,6 @@ function normalizeCounts(
   }));
 }
 
-function formatShortDate(isoDate: string): string {
-  const [, month, day] = isoDate.split("-");
-  return `${month}/${day}`;
-}
-
 function formatUtcDate(
   isoDate: string,
   options: Intl.DateTimeFormatOptions,
@@ -95,21 +93,62 @@ const FULL_DATE: Intl.DateTimeFormatOptions = {
   year: "numeric",
 };
 
-// Axis tick and tooltip heading for one trend point.
+const PERIOD_WORDS = {
+  day: { per: "per day", current: "today" },
+  week: { per: "per week", current: "this week" },
+  month: { per: "per month", current: "this month" },
+} as const;
+
+// Axis tick and tooltip heading for one trend point. The last point is the
+// current day, week or month, which is still filling up.
 function trendLabels(
   isoDate: string,
   granularity: DashboardTrend["granularity"],
+  isCurrent: boolean,
 ): { tick: string; full: string } {
+  const soFar = isCurrent
+    ? ` (${PERIOD_WORDS[granularity].current}, so far)`
+    : "";
   if (granularity === "month") {
     return {
       tick: formatUtcDate(isoDate, { month: "short", year: "2-digit" }),
-      full: formatUtcDate(isoDate, { month: "long", year: "numeric" }),
+      full: `${formatUtcDate(isoDate, { month: "long", year: "numeric" })}${soFar}`,
     };
   }
   const full = formatUtcDate(isoDate, FULL_DATE);
   return {
-    tick: formatShortDate(isoDate),
-    full: granularity === "week" ? `Week of ${full}` : full,
+    // "Sep 28" rather than "09/28", which reads differently by country.
+    tick: formatUtcDate(isoDate, { month: "short", day: "numeric" }),
+    full: `${granularity === "week" ? `Week of ${full}` : full}${soFar}`,
+  };
+}
+
+function formatAverage(value: number): string {
+  // 2.97 -> "3", 2.46 -> "2.5", 12.4 -> "12".
+  return value >= 10
+    ? String(Math.round(value))
+    : String(Math.round(value * 10) / 10);
+}
+
+// "+25% vs previous 14 days", or null when there's nothing to compare.
+function trendChange(
+  range: DashboardRange,
+  trend: DashboardTrend,
+): { text: string; direction: "up" | "down" | "flat" } | null {
+  if (range === "all" || trend.previousTotal === null) return null;
+  const versus = `vs previous ${range} days`;
+  if (trend.previousTotal === 0) {
+    return trend.total === 0
+      ? { text: `No change ${versus}`, direction: "flat" }
+      : { text: `Up from 0 ${versus}`, direction: "up" };
+  }
+  const percent = Math.round(
+    ((trend.total - trend.previousTotal) / trend.previousTotal) * 100,
+  );
+  if (percent === 0) return { text: `No change ${versus}`, direction: "flat" };
+  return {
+    text: `${percent > 0 ? "+" : ""}${percent}% ${versus}`,
+    direction: percent > 0 ? "up" : "down",
   };
 }
 
@@ -125,7 +164,10 @@ export function DashboardPage() {
   const { orgId } = useOrg();
   const canViewDashboard = useCan("dashboard:read");
   const [days, setDays] = useState<DashboardRange>(14);
-  const { data, isPending, isError } = useDashboard(orgId, days);
+  const { data, isPending, isError, isPlaceholderData } = useDashboard(
+    orgId,
+    days,
+  );
 
   if (!canViewDashboard) {
     return <Navigate to={`/orgs/${orgId}/projects`} replace />;
@@ -170,10 +212,19 @@ export function DashboardPage() {
     PRIORITY_ORDER,
     PRIORITY_LABELS,
   );
-  const trendData = data.tasksCreatedPerDay.map((entry) => {
-    const labels = trendLabels(entry.date, data.trend.granularity);
+  const trendData = data.tasksCreatedPerDay.map((entry, index, all) => {
+    const labels = trendLabels(
+      entry.date,
+      data.trend.granularity,
+      index === all.length - 1,
+    );
     return { date: labels.tick, fullLabel: labels.full, count: entry.count };
   });
+  const trendAverage =
+    trendData.length > 0 ? data.trend.total / trendData.length : 0;
+  const change = trendChange(days, data.trend);
+  const per = PERIOD_WORDS[data.trend.granularity].per;
+  const isUpdating = isPlaceholderData;
 
   const isNewOrg = data.usage.projectCount === 0;
 
@@ -184,20 +235,32 @@ export function DashboardPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
             Dashboard
           </h1>
-          <select
-            value={String(days)}
-            aria-label="Date range"
-            onChange={(e) =>
-              setDays(e.target.value === "all" ? "all" : Number(e.target.value))
-            }
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-          >
-            {DATE_RANGE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={String(opt.value)}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-3">
+            {isUpdating && (
+              <span
+                role="status"
+                className="text-xs text-slate-500 dark:text-slate-400"
+              >
+                Updating…
+              </span>
+            )}
+            <select
+              value={String(days)}
+              aria-label="Date range"
+              onChange={(e) =>
+                setDays(
+                  e.target.value === "all" ? "all" : Number(e.target.value),
+                )
+              }
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              {DATE_RANGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={String(opt.value)}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {isNewOrg && (
@@ -225,83 +288,194 @@ export function DashboardPage() {
                 : `Tasks created (${days}d)`
             }
             value={data.trend.total}
+            sub={change?.text}
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ChartCard title="Tasks by status" subtitle="All tasks right now">
-            {({ gridColor, tickColor, tooltipProps }) => (
-              <BarChart data={statusData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 12, fill: tickColor }}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  tick={{ fontSize: 12, fill: tickColor }}
-                />
-                <Tooltip {...tooltipProps} formatter={taskCountFormatter} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {statusData.map((entry) => (
-                    <Cell key={entry.key} fill={STATUS_COLORS[entry.key]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            )}
-          </ChartCard>
+        <div
+          className={cn(
+            "space-y-6 transition-opacity",
+            isUpdating && "opacity-60",
+          )}
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ChartCard
+              title="Tasks by status"
+              subtitle="All tasks right now"
+              emptyMessage={
+                statusData.every((d) => d.count === 0)
+                  ? "No tasks yet"
+                  : undefined
+              }
+              description={statusData
+                .map((d) => `${d.name}: ${d.count}`)
+                .join(", ")}
+            >
+              {({ gridColor, tickColor, tooltipProps }) => (
+                <BarChart data={statusData}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={gridColor}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 12, fill: tickColor }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 12, fill: tickColor }}
+                  />
+                  <Tooltip {...tooltipProps} formatter={taskCountFormatter} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {statusData.map((entry) => (
+                      <Cell key={entry.key} fill={STATUS_COLORS[entry.key]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              )}
+            </ChartCard>
 
-          <ChartCard title="Tasks by priority" subtitle="All tasks right now">
+            <ChartCard
+              title="Tasks by priority"
+              subtitle="All tasks right now"
+              emptyMessage={
+                priorityData.every((d) => d.count === 0)
+                  ? "No tasks yet"
+                  : undefined
+              }
+              description={priorityData
+                .map((d) => `${d.name}: ${d.count}`)
+                .join(", ")}
+            >
+              {({ gridColor, tickColor, tooltipProps }) => (
+                <BarChart data={priorityData}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={gridColor}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 12, fill: tickColor }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 12, fill: tickColor }}
+                  />
+                  <Tooltip {...tooltipProps} formatter={taskCountFormatter} />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                    {priorityData.map((entry) => (
+                      <Cell key={entry.key} fill={PRIORITY_COLORS[entry.key]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              )}
+            </ChartCard>
+          </div>
+
+          <ChartCard
+            title={trendTitle(days, data.trend)}
+            summary={
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+                  {data.trend.total}
+                </span>
+                {change && (
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-xs font-medium",
+                      change.direction === "up" &&
+                        "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+                      change.direction === "down" &&
+                        "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+                      change.direction === "flat" &&
+                        "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+                    )}
+                  >
+                    {change.direction === "up" && "▲ "}
+                    {change.direction === "down" && "▼ "}
+                    {change.text}
+                  </span>
+                )}
+                {data.trend.total > 0 && (
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Avg {formatAverage(trendAverage)} {per}
+                  </span>
+                )}
+              </div>
+            }
+            emptyMessage={
+              data.trend.total === 0
+                ? "No tasks were created in this period"
+                : undefined
+            }
+            description={`${data.trend.total} tasks created. ${change?.text ?? ""} Average ${formatAverage(trendAverage)} ${per}.`}
+          >
             {({ gridColor, tickColor, tooltipProps }) => (
-              <BarChart data={priorityData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+              <AreaChart
+                data={trendData}
+                margin={{ top: 8, right: 8, left: -8 }}
+              >
+                <defs>
+                  <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={gridColor}
+                  vertical={false}
+                />
                 <XAxis
-                  dataKey="name"
+                  dataKey="date"
                   tick={{ fontSize: 12, fill: tickColor }}
+                  tickLine={false}
+                  minTickGap={16}
                 />
                 <YAxis
                   allowDecimals={false}
                   tick={{ fontSize: 12, fill: tickColor }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={36}
                 />
-                <Tooltip {...tooltipProps} formatter={taskCountFormatter} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {priorityData.map((entry) => (
-                    <Cell key={entry.key} fill={PRIORITY_COLORS[entry.key]} />
-                  ))}
-                </Bar>
-              </BarChart>
+                <Tooltip
+                  {...tooltipProps}
+                  formatter={taskCountFormatter}
+                  labelFormatter={(label, payload) =>
+                    (
+                      payload?.[0]?.payload as
+                        { fullLabel?: string } | undefined
+                    )?.fullLabel ?? label
+                  }
+                />
+                {data.trend.total > 0 && (
+                  <ReferenceLine
+                    y={trendAverage}
+                    stroke={tickColor}
+                    strokeDasharray="4 4"
+                    strokeOpacity={0.6}
+                    ifOverflow="extendDomain"
+                  />
+                )}
+                <Area
+                  // Monotone keeps the curve from dipping below zero or
+                  // overshooting between points.
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#14b8a6"
+                  strokeWidth={2}
+                  fill="url(#trend-fill)"
+                  // Few points (e.g. a new org's "all time") read better as dots.
+                  dot={trendData.length <= 14 ? { r: 3 } : false}
+                  activeDot={{ r: 4 }}
+                />
+              </AreaChart>
             )}
           </ChartCard>
         </div>
-
-        <ChartCard title={trendTitle(days, data.trend)}>
-          {({ gridColor, tickColor, tooltipProps }) => (
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-              <XAxis dataKey="date" tick={{ fontSize: 12, fill: tickColor }} />
-              <YAxis
-                allowDecimals={false}
-                tick={{ fontSize: 12, fill: tickColor }}
-              />
-              <Tooltip
-                {...tooltipProps}
-                formatter={taskCountFormatter}
-                labelFormatter={(label, payload) =>
-                  (payload?.[0]?.payload as { fullLabel?: string } | undefined)
-                    ?.fullLabel ?? label
-                }
-              />
-              <Line
-                type="monotone"
-                dataKey="count"
-                stroke="#14b8a6"
-                strokeWidth={2}
-                // Few points (e.g. a new org's "all time") read better as dots.
-                dot={trendData.length <= 14 ? { r: 3 } : false}
-              />
-            </LineChart>
-          )}
-        </ChartCard>
 
         <Card>
           <h2 className="font-medium text-slate-800 dark:text-slate-100">
@@ -369,6 +543,7 @@ interface ChartTheme {
   // Spread onto <Tooltip>: its look, and whether it may show at all.
   tooltipProps: {
     active?: boolean;
+    separator: string;
     contentStyle: {
       background: string;
       border: string;
@@ -418,10 +593,19 @@ function useDoubleTapDetails() {
 function ChartCard({
   title,
   subtitle,
+  summary,
+  emptyMessage,
+  description,
   children,
 }: {
   title: string;
   subtitle?: string;
+  // Headline numbers shown between the title and the chart.
+  summary?: ReactNode;
+  // Shown over the chart when there's no data to plot.
+  emptyMessage?: string;
+  // Text version of the chart for screen readers.
+  description?: string;
   children: (chartTheme: ChartTheme) => ReactElement;
 }) {
   const { resolvedTheme } = useTheme();
@@ -434,6 +618,7 @@ function ChartCard({
     tooltipProps: {
       // false keeps it hidden; undefined lets it follow the pointer.
       active: showDetails ? undefined : false,
+      separator: ": ",
       contentStyle: {
         background: isDark ? "#1e293b" : "#ffffff",
         border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`,
@@ -473,6 +658,7 @@ function ChartCard({
           </span>
         </p>
       </div>
+      {summary && <div className="mt-3">{summary}</div>}
       <div
         ref={containerRef}
         onPointerUp={onPointerUp}
@@ -480,11 +666,20 @@ function ChartCard({
         data-details={showDetails ? "on" : "off"}
         // manipulation stops a double tap from zooming the page on phones;
         // no outline, so a tap doesn't leave a focus box around the chart.
-        className="mt-4 h-56 touch-manipulation select-none [&_*]:outline-none"
+        className="relative mt-4 h-56 touch-manipulation select-none [&_*]:outline-none"
+        role="img"
+        aria-label={description ? `${title}. ${description}` : title}
       >
         <ResponsiveContainer width="100%" height="100%">
           {children(chartTheme)}
         </ResponsiveContainer>
+        {emptyMessage && (
+          <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+            <span className="rounded-lg bg-white/90 px-3 py-1.5 shadow-sm dark:bg-slate-900/90">
+              {emptyMessage}
+            </span>
+          </p>
+        )}
       </div>
     </Card>
   );

@@ -11,5 +11,9 @@ export function useDashboard(orgId: string, days: DashboardRange = 14) {
   return useQuery({
     queryKey: dashboardKeys.detail(orgId, days),
     queryFn: () => getDashboard(orgId, days),
+    // Keep showing the current charts while another range loads (but never
+    // another org's).
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === orgId ? previous : undefined,
   });
 }
