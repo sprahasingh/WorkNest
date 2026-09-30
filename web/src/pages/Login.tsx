@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
+import { setServerWakeHandler } from "@/api/client";
 
 const loginFormSchema = z.object({
   email: z
@@ -30,6 +31,12 @@ export function Login() {
   const location = useLocation();
   const nextPath = safeNextPath(location.search);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isWakingServer, setIsWakingServer] = useState(false);
+
+  useEffect(() => {
+    setServerWakeHandler(setIsWakingServer);
+    return () => setServerWakeHandler(null);
+  }, []);
 
   const {
     register,
@@ -112,7 +119,11 @@ export function Login() {
           loading={isSubmitting}
           className="w-full"
         >
-          {isSubmitting ? "Logging in…" : "Log in"}
+          {isWakingServer
+            ? "Waking up the server…"
+            : isSubmitting
+              ? "Logging in…"
+              : "Log in"}
         </Button>
 
         <p className="text-center text-sm text-slate-600 dark:text-slate-400">
