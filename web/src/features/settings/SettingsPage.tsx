@@ -27,6 +27,25 @@ import {
 
 const DELETE_CONFIRMATION_TEXT = "delete my account";
 
+const TIME_ZONE_VALUES = Array.from(
+  new Set([...Intl.supportedValuesOf("timeZone"), "UTC"]),
+).sort();
+
+function timeZoneAreaLabel(timeZone: string) {
+  const [, ...areaParts] = timeZone.split("/");
+  const area = areaParts.map((part) => part.replaceAll("_", " ")).join(" / ");
+  return area ? `${area} (${timeZone})` : timeZone;
+}
+
+const TIME_ZONE_GROUPS = TIME_ZONE_VALUES.reduce<Record<string, string[]>>(
+  (groups, timeZone) => {
+    const region = timeZone.split("/")[0] ?? "Other";
+    (groups[region] ??= []).push(timeZone);
+    return groups;
+  },
+  {},
+);
+
 const organizationSettingsFormSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(80),
   timeZone: z
@@ -469,14 +488,30 @@ export function SettingsPage() {
                 htmlFor="timeZone"
                 error={errors.timeZone?.message}
               >
-                <input
+                <select
                   id="timeZone"
-                  type="text"
-                  placeholder="America/New_York"
                   disabled={!canUpdateOrg}
                   {...register("timeZone")}
                   className={inputStyles}
-                />
+                >
+                  {org?.timeZone &&
+                    !TIME_ZONE_VALUES.includes(org.timeZone) && (
+                      <option value={org.timeZone}>
+                        {timeZoneAreaLabel(org.timeZone)}
+                      </option>
+                    )}
+                  {Object.entries(TIME_ZONE_GROUPS).map(
+                    ([region, timeZones]) => (
+                      <optgroup key={region} label={region}>
+                        {timeZones.map((timeZone) => (
+                          <option key={timeZone} value={timeZone}>
+                            {timeZoneAreaLabel(timeZone)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ),
+                  )}
+                </select>
               </Field>
             </div>
 
