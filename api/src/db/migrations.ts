@@ -14,6 +14,45 @@ export async function ensureNotificationEventIndex(): Promise<void> {
   );
 }
 
+export async function migrateCompletedTaskTimestamps(): Promise<void> {
+  await Task.collection.updateMany(
+    {
+      status: "done",
+      $or: [{ completedAt: { $exists: false } }, { completedAt: null }],
+    },
+    [
+      {
+        $set: {
+          completedAt: { $ifNull: ["$updatedAt", "$createdAt"] },
+        },
+      },
+    ],
+  );
+}
+
+export async function ensureCompletedTaskIndex(): Promise<void> {
+  await Promise.all([
+    Task.collection.createIndex({
+      tenantId: 1,
+      projectId: 1,
+      completedAt: -1,
+      _id: -1,
+    }),
+    Task.collection.createIndex({
+      tenantId: 1,
+      projectId: 1,
+      archivedAt: -1,
+      _id: -1,
+    }),
+    Task.collection.createIndex({
+      tenantId: 1,
+      projectId: 1,
+      deletedAt: -1,
+      _id: -1,
+    }),
+  ]);
+}
+
 // Each organization stores its seat and project limits. When a plan's limits
 // change, bring existing organizations on that plan up to date. Anyone
 // already above a lowered limit keeps everything they have; they just can't

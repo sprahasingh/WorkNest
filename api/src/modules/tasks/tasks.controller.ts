@@ -5,6 +5,10 @@ import {
   getTask,
   updateTask,
   deleteTask,
+  archiveTask,
+  unarchiveTask,
+  restoreTask,
+  deleteTaskPermanently,
   getTaskStats,
 } from "./tasks.service.js";
 import type {
@@ -72,5 +76,37 @@ export async function deleteTaskController(
 ): Promise<void> {
   const { taskId } = req.params;
   await deleteTask(taskId as string);
+  res.status(204).send();
+}
+
+export async function archiveTaskController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const task = await archiveTask(req.params.taskId as string);
+  res.status(200).json({ task });
+}
+
+export async function unarchiveTaskController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const task = await unarchiveTask(req.params.taskId as string);
+  res.status(200).json({ task });
+}
+
+export async function restoreTaskController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const task = await restoreTask(req.params.taskId as string);
+  res.status(200).json({ task });
+}
+
+export async function deleteTaskPermanentlyController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await deleteTaskPermanently(req.params.taskId as string);
   res.status(204).send();
 }

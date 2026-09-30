@@ -28,6 +28,7 @@ async function wipeDemoOrgs(): Promise<void> {
   for (const org of demoOrgs) {
     await Task.deleteMany({ tenantId: org._id }).setOptions({
       skipTenant: true,
+      includeDeleted: true,
     });
     await Project.deleteMany({ tenantId: org._id }).setOptions({
       skipTenant: true,

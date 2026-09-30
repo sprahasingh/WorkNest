@@ -219,6 +219,8 @@ export async function createProjectActivity(
     const openTasks = await Task.find({
       projectId,
       status: { $ne: "done" },
+      archivedAt: null,
+      deletedAt: null,
     })
       .select("assigneeIds")
       .lean();

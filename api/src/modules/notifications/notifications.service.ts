@@ -22,6 +22,8 @@ async function ensureMyDueNotifications(): Promise<void> {
   const tasks = await Task.find({
     projectId: { $in: activeProjectIds },
     status: { $in: ["todo", "in_progress"] },
+    archivedAt: null,
+    deletedAt: null,
     dueDate: { $ne: null, $lte: reminderWindowEnd },
     assigneeIds: userId,
   })
@@ -81,11 +83,15 @@ export async function listNotifications(status: "unread" | "all") {
   const context = getTenantContext()!;
   const tenantId = requireTenantId();
   await ensureMyDueNotifications();
+  const binnedTaskIds = (await Task.distinct("_id", {
+    deletedAt: { $ne: null },
+  })) as mongoose.Types.ObjectId[];
   // Notifications about projects in the bin come back if they're restored.
   const mine = {
     userId: context.userId,
     tenantId,
     projectId: { $nin: await binnedProjectIds() },
+    taskId: { $nin: binnedTaskIds },
   };
 
   const [notifications, unreadCount, readableUnreadCount] = await Promise.all([

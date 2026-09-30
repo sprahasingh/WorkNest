@@ -122,7 +122,7 @@ export async function removeMember(memberId: string) {
         { assigneeIds: membership.userId },
         { $pull: { assigneeIds: membership.userId } },
         { session: dbSession },
-      );
+      ).setOptions({ includeDeleted: true });
       await Notification.deleteMany(
         { tenantId, userId: membership.userId },
         { session: dbSession },
