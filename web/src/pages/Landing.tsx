@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { Link } from "react-router";
+import { toast } from "sonner";
 import { HelpLinks } from "@/components/HelpLinks";
 import { useAuth } from "@/auth/auth-context";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
+import { parseApiError } from "@/lib/apiError";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -195,12 +197,16 @@ function MenuIcon() {
 // account actions on top and help at the bottom.
 function LandingMenu({
   isAuthenticated,
+  isLoggingOut,
   workspacePath,
   onClose,
+  onLogout,
 }: {
   isAuthenticated: boolean;
+  isLoggingOut: boolean;
   workspacePath: string;
   onClose: () => void;
+  onLogout: () => void;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -257,13 +263,24 @@ function LandingMenu({
         <div className="flex-1 space-y-6 overflow-y-auto p-4">
           <div className="space-y-2">
             {isAuthenticated ? (
-              <Link
-                to={workspacePath}
-                onClick={onClose}
-                className="flex w-full items-center justify-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
-              >
-                Open WorkNest
-              </Link>
+              <>
+                <Link
+                  to={workspacePath}
+                  onClick={onClose}
+                  className="flex w-full items-center justify-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700"
+                >
+                  Open WorkNest
+                </Link>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  disabled={isLoggingOut}
+                  aria-busy={isLoggingOut || undefined}
+                  className="flex w-full items-center justify-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:text-red-400 dark:hover:bg-red-950/30"
+                >
+                  {isLoggingOut ? "Signing out…" : "Log out"}
+                </button>
+              </>
             ) : (
               <>
                 <Link
@@ -296,8 +313,19 @@ function LandingMenu({
 export function Landing() {
   const auth = useAuth();
   const isAuthenticated = auth.status === "authenticated";
+  const isLoggingOut = auth.isLoggingOut;
   const workspacePath = resolvePostAuthPath(auth.memberships ?? []);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await auth.logout();
+    } catch (error) {
+      toast.error(parseApiError(error).message);
+    } finally {
+      setMenuOpen(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -357,8 +385,10 @@ export function Landing() {
       {menuOpen && (
         <LandingMenu
           isAuthenticated={isAuthenticated}
+          isLoggingOut={isLoggingOut}
           workspacePath={workspacePath}
           onClose={() => setMenuOpen(false)}
+          onLogout={() => void handleLogout()}
         />
       )}
 
