@@ -310,6 +310,59 @@ describe("dashboard trend days and comparison", () => {
   });
 });
 
+describe("dashboard custom range", () => {
+  it("covers exactly the chosen days, in either order, never past today", async () => {
+    const org = await registerOrg("dash-custom@example.com", "Custom Org");
+    const projectId = await createProject(org.orgId, org.accessToken, "CUS");
+    const auth = { Authorization: `Bearer ${org.accessToken}` };
+
+    const daysAgo = (n: number) => {
+      const date = new Date();
+      date.setUTCDate(date.getUTCDate() - n);
+      date.setUTCHours(12, 0, 0, 0);
+      return date;
+    };
+    const key = (n: number) => daysAgo(n).toISOString().slice(0, 10);
+
+    for (const n of [10, 5, 1]) {
+      const id = await createTask(org.orgId, projectId, org.accessToken);
+      await Task.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(id) },
+        { $set: { createdAt: daysAgo(n) } },
+      );
+    }
+
+    const res = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ from: key(12), to: key(4), tz: "UTC" })
+      .set(auth);
+    expect(res.status).toBe(200);
+    expect(res.body.trend).toMatchObject({
+      granularity: "day",
+      since: key(12),
+      until: key(4),
+      total: 2,
+      previousTotal: 0,
+    });
+    expect(res.body.tasksCreatedPerDay).toHaveLength(9);
+
+    const swapped = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ from: key(4), to: key(12), tz: "UTC" })
+      .set(auth);
+    expect(swapped.body.trend).toMatchObject({ since: key(12), until: key(4) });
+
+    const future = new Date();
+    future.setUTCDate(future.getUTCDate() + 30);
+    const clamped = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ from: key(2), to: future.toISOString().slice(0, 10), tz: "UTC" })
+      .set(auth);
+    expect(clamped.body.trend.until).toBe(key(0));
+    expect(clamped.body.trend.total).toBe(1);
+  });
+});
+
 describe("cross-tenant dashboard isolation", () => {
   it("never counts another org's tasks or projects", async () => {
     const orgA = await registerOrg("dash-a@example.com", "Dash Org A");
