@@ -130,30 +130,22 @@ function formatAverage(value: number): string {
     : String(Math.round(value * 10) / 10);
 }
 
-// "+25% vs previous 14 days", or null when there's nothing to compare.
+// "+5 vs previous 14 days": the difference in tasks created, or null when
+// there's nothing to compare.
 function trendChange(
   range: DashboardRange,
   trend: DashboardTrend,
 ): { text: string; direction: "up" | "down" | "flat" } | null {
   if (range === "all" || trend.previousTotal === null) return null;
-  const versus = `vs previous ${range} days`;
   // Nothing in either period: the chart already says so.
   if (trend.previousTotal === 0 && trend.total === 0) return null;
-  // A percentage of or down to zero reads oddly, so show the count instead.
-  if (trend.previousTotal === 0 || trend.total === 0) {
-    const difference = trend.total - trend.previousTotal;
-    return {
-      text: `${difference > 0 ? "+" : "−"}${Math.abs(difference)} ${versus}`,
-      direction: difference > 0 ? "up" : "down",
-    };
-  }
-  const percent = Math.round(
-    ((trend.total - trend.previousTotal) / trend.previousTotal) * 100,
-  );
-  if (percent === 0) return { text: `No change ${versus}`, direction: "flat" };
+  const versus = `vs previous ${range} days`;
+  const difference = trend.total - trend.previousTotal;
+  if (difference === 0)
+    return { text: `No change ${versus}`, direction: "flat" };
   return {
-    text: `${percent > 0 ? "+" : ""}${percent}% ${versus}`,
-    direction: percent > 0 ? "up" : "down",
+    text: `${difference > 0 ? "+" : "−"}${Math.abs(difference)} ${versus}`,
+    direction: difference > 0 ? "up" : "down",
   };
 }
 
