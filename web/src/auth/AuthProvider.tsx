@@ -7,6 +7,7 @@ import {
   refresh as refreshRequest,
   register as registerRequest,
   deleteAccount as deleteAccountRequest,
+  type AuthRequestOptions,
   type LoginInput,
   type MeResponse,
   type RegisterInput,
@@ -64,20 +65,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const establishSession = useCallback(
-    async (accessToken: string): Promise<MeResponse> => {
+    async (
+      accessToken: string,
+      options?: AuthRequestOptions,
+    ): Promise<MeResponse> => {
       setAccessToken(accessToken);
-      const me = await fetchMe();
-      queryClient.setQueryData<MeResponse>(SESSION_QUERY_KEY, me);
-      setSignedOut(false);
-      return me;
+      try {
+        const me = await fetchMe(options);
+        if (options?.signal?.aborted) {
+          throw options.signal.reason ?? new Error("Request canceled");
+        }
+        queryClient.setQueryData<MeResponse>(SESSION_QUERY_KEY, me);
+        setSignedOut(false);
+        return me;
+      } catch (error) {
+        if (options?.signal?.aborted) setAccessToken(null);
+        throw error;
+      }
     },
     [queryClient],
   );
 
   const login = useCallback(
-    async (input: LoginInput) => {
-      const { accessToken } = await loginRequest(input);
-      return establishSession(accessToken);
+    async (input: LoginInput, options?: AuthRequestOptions) => {
+      const { accessToken } = await loginRequest(input, options);
+      if (options?.signal?.aborted) {
+        throw options.signal.reason ?? new Error("Request canceled");
+      }
+      return establishSession(accessToken, options);
     },
     [establishSession],
   );

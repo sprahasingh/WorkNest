@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,7 +10,10 @@ import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
-import { ServerWakeTimeoutError, setServerWakeHandler } from "@/api/client";
+import {
+  ServerWakeTimeoutError,
+  subscribeServerWakeChange,
+} from "@/api/client";
 
 const loginFormSchema = z.object({
   email: z
@@ -24,6 +27,7 @@ const loginFormSchema = z.object({
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
 const LOGIN_FIELDS = ["email", "password"] as const;
+const LOGIN_TIMEOUT_MS = 120_000;
 
 export function Login() {
   const { login } = useAuth();
@@ -32,10 +36,14 @@ export function Login() {
   const nextPath = safeNextPath(location.search);
   const [formError, setFormError] = useState<string | null>(null);
   const [isWakingServer, setIsWakingServer] = useState(false);
+  const requestController = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    setServerWakeHandler(setIsWakingServer);
-    return () => setServerWakeHandler(null);
+    const unsubscribe = subscribeServerWakeChange(setIsWakingServer);
+    return () => {
+      unsubscribe();
+      requestController.current?.abort();
+    };
   }, []);
 
   const {
@@ -49,12 +57,28 @@ export function Login() {
 
   const onSubmit = async (values: LoginFormValues) => {
     setFormError(null);
+    const controller = new AbortController();
+    let timedOut = false;
+    requestController.current = controller;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, LOGIN_TIMEOUT_MS);
+
     try {
-      const me = await login(values);
+      const me = await login(values, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       navigate(nextPath ?? resolvePostAuthPath(me.memberships), {
         replace: true,
       });
     } catch (error) {
+      if (timedOut) {
+        setFormError(
+          "The server is taking longer than expected. Check your connection and try again.",
+        );
+        return;
+      }
+      if (controller.signal.aborted) return;
       if (error instanceof ServerWakeTimeoutError) {
         setFormError(
           "The server is taking longer than expected. Check your connection and try again.",
@@ -74,6 +98,11 @@ export function Login() {
       );
       if (unmatched.length > 0) {
         setFormError(unmatched.join(" "));
+      }
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (requestController.current === controller) {
+        requestController.current = null;
       }
     }
   };
@@ -137,6 +166,10 @@ export function Login() {
           Don&apos;t have an account?{" "}
           <Link
             to="/register"
+            aria-disabled={isSubmitting}
+            onClick={(event) => {
+              if (isSubmitting) event.preventDefault();
+            }}
             className="font-medium text-teal-700 hover:underline dark:text-teal-400"
           >
             Register
