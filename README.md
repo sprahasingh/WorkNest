@@ -1,6 +1,6 @@
 # WorkNest
 
-A multi-tenant project and task management SaaS with organizations, roles, projects, tasks, and plan limits. Tenant isolation is enforced centrally instead of relying on every query to remember to add a `tenantId` filter.
+WorkNest is a multi-tenant project and task manager. Teams sign up as organizations, invite people with roles, and track work in projects and tasks, with limits that depend on the plan they're on. Tenant isolation is handled in one central place, so no query has to remember to filter by `tenantId` on its own.
 
 ## Table of Contents
 
@@ -14,27 +14,28 @@ A multi-tenant project and task management SaaS with organizations, roles, proje
 | 06  | [RBAC](#rbac)                           |
 | 07  | [Concurrency](#concurrency)             |
 | 08  | [Features](#features)                   |
-| 09  | [API Example](#api-example)             |
-| 10  | [Local Setup](#local-setup)             |
-| 11  | [Seed Demo Data](#seed-demo-data)       |
-| 12  | [Testing](#testing)                     |
-| 13  | [Project Structure](#project-structure) |
+| 09  | [Plans](#plans)                         |
+| 10  | [API Example](#api-example)             |
+| 11  | [Local Setup](#local-setup)             |
+| 12  | [Seed Demo Data](#seed-demo-data)       |
+| 13  | [Testing](#testing)                     |
+| 14  | [Project Structure](#project-structure) |
 
 ## Why I Built This
 
-I wanted a project that went past CRUD and forced me to deal with some of the harder parts of a B2B SaaS. I wanted to solve tenant isolation, server-side authorization, concurrent resource allocation, and auditability properly. WorkNest focuses on four problems: multi-tenancy, RBAC, concurrency, and auditability.
+I wanted a project that went further than CRUD and made me deal with the parts of a B2B product that are easy to get wrong. That meant keeping each organization's data apart, checking permissions on the server, handling two people grabbing the last free seat at the same time, and keeping a record of who changed what. WorkNest is built around those four problems.
 
 ## Tech Stack
 
-**Backend:** Node.js, TypeScript (strict), Express 5, MongoDB Atlas, Mongoose, Zod, JWT + bcrypt, Vitest + Supertest
+**Backend:** Node.js, TypeScript (strict), Express 5, MongoDB Atlas, Mongoose, Zod, JWT and bcrypt, Vitest and Supertest
 
-**Frontend:** React 19, Vite, TypeScript (strict), React Router, TanStack Query, React Hook Form + Zod, Axios, Tailwind CSS v4, Recharts
+**Frontend:** React 19, Vite, TypeScript (strict), React Router, TanStack Query, React Hook Form with Zod, Axios, Tailwind CSS v4, Recharts
 
 ## Architecture
 
 ### Request Flow
 
-A request to a tenant-scoped endpoint such as `PATCH /api/orgs/:orgId/tasks/:taskId` moves through the middleware chain in `app.ts` before reaching the MongoDB query:
+Here's what happens to a request to an org endpoint like `PATCH /api/orgs/:orgId/tasks/:taskId` before it touches the database:
 
 ```mermaid
 flowchart TD
@@ -46,23 +47,23 @@ flowchart TD
     F --> G["requirePermission<br/>RBAC check"]
     G -->|denied| H["403 Forbidden"]
     G -->|allowed| I["Route handler<br/>controller / service"]
-    I --> J["Mongoose tenant plugin<br/>injects tenantId into the<br/>query, write, or aggregate"]
+    I --> J["Mongoose tenant plugin<br/>adds tenantId to the<br/>query, write, or aggregate"]
     J --> K[("MongoDB<br/>tenant-scoped read/write")]
     K --> L["Response"]
 ```
 
-A caller who isn't a member of the target org gets a 404 regardless of whether that org actually exists. Cross-tenant access and a nonexistent org are indistinguishable from the outside, so the API never confirms or denies an org's existence to someone who doesn't belong to it.
+If you aren't a member of an org, you get a 404 whether or not that org exists. From the outside, "not yours" and "doesn't exist" look the same, so the API never tells a stranger that an org is there.
 
 ### Tenancy
 
-Every organization's data lives in the same MongoDB database and collections, distinguished by a `tenantId` field. A single Mongoose plugin, applied to every tenant-owned model, does the enforcement:
+All organizations share the same database and collections. Each document carries a `tenantId`, and one Mongoose plugin on every org-owned model does the enforcing:
 
-- Query hooks (`find`, `updateOne`, `deleteMany`, `aggregate`, etc.) inject the current tenant's ID into the filter automatically.
-- Document hooks stamp `tenantId` on create and reject any attempt to save a document with a mismatched tenant ID.
-- `tenantId` is `immutable` in every schema, so no update can move a document to another tenant.
-- If a query runs with no tenant context and isn't explicitly marked to skip tenant scoping, it throws rather than returning unscoped (i.e., all-tenants) data.
+- Query hooks (`find`, `updateOne`, `deleteMany`, `aggregate` and the rest) add the current org's ID to the filter.
+- Document hooks stamp `tenantId` on new documents and refuse to save one that belongs to a different org.
+- `tenantId` is `immutable` in every schema, so an update can't move a document to another org.
+- A query that runs without an org context throws an error instead of quietly returning every org's data, unless it's explicitly marked as cross-org.
 
-The tenant ID comes from the URL (`/api/orgs/:orgId/...`), is validated against the caller's membership, and is stored in an `AsyncLocalStorage` context for the rest of the request. This avoids passing the tenant ID through every function call.
+The org ID comes from the URL (`/api/orgs/:orgId/...`), gets checked against your membership, and is kept in an `AsyncLocalStorage` context for the rest of the request. That way it doesn't have to be passed through every function by hand.
 
 ### RBAC
 
@@ -78,29 +79,47 @@ The tenant ID comes from the URL (`/api/orgs/:orgId/...`), is validated against 
 | task:read, task:create                    | ✓     | ✓       | ✓      |
 | task:update:any, task:delete, task:assign | ✓     | ✓       | –      |
 | task:update:own                           | ✓     | ✓       | ✓      |
+| task:request-update                       | ✓     | ✓       | –      |
+| task:comment                              | ✓     | ✓       | ✓      |
 | audit:read                                | ✓     | –       | –      |
 | dashboard:read                            | ✓     | ✓       | –      |
 
-RBAC and ownership are checked separately. RBAC determines whether the role can perform an action, while ownership determines whether the user can perform it on a specific task. A last-admin rule prevents an organization from ending up with zero admins. The check is done with a conditional update inside the same transaction as the role change or removal, so two concurrent demotions can't both succeed.
+Roles and ownership are two separate checks. The role decides whether you can do something at all, and ownership decides whether you can do it to a particular task. A member can edit and move tasks they're assigned to, but can't reassign them, and doesn't see tasks that are only assigned to admins or managers.
+
+An org can never end up without an admin. The check runs as a conditional update inside the same transaction as the role change or removal, so two admins demoting each other at the same moment can't both succeed.
 
 ### Concurrency
 
-Seat and project-slot limits use atomic MongoDB updates with `$expr` conditions inside transactions. This avoids the usual check-then-write race when two requests compete for the last available seat or project slot.
+Seat and project limits are enforced with atomic MongoDB updates (`$expr` conditions) inside transactions. That closes the usual gap between "check if there's room" and "take the spot" when two requests go for the last seat or project slot at once.
 
 ## Features
 
-- **Multi-tenant isolation**: a single Mongoose plugin enforces tenant scoping on every query, write, and aggregation across all tenant-owned collections. The current tenant is stored in `AsyncLocalStorage` for the duration of the request. It fails closed: a query with no tenant context throws rather than silently returning data.
-- **Authentication**: JWT access tokens (15 min) plus rotating refresh tokens; only refresh-token hashes are ever stored server-side. Reusing an already-rotated refresh token revokes the entire token family and requires the user to log in again.
-- **Role-based access control**: three roles (admin, manager, member) across a fixed permission set, enforced server-side on every request. The frontend hides controls a role can't use, but all permission checks are enforced by the API.
-- **Organizations and plans**: free and pro plans with seat and project limits. Upgrading is simulated; downgrading is blocked if current usage exceeds the target plan's limits, with the excess reported in the error response.
-- **Invites**: one-time-reveal invite links (only the token's hash is ever stored), with seat reservation handled atomically under concurrent invite requests.
-- **Projects and tasks**: cursor-paginated task boards with status, priority, assignee, and due-date filters; ownership rules on top of RBAC (a member can edit a task they created or are assigned to, but can't reassign it); optimistic status updates on the board with rollback on failure.
-- **Audit log**: every mutating action (org, member, invite, project, task, and plan changes) is recorded inside the same transaction as the change itself, so a rolled-back action never leaves a log entry. The UI renders these as human-readable rows with filters and cursor pagination.
-- **Dashboard**: task counts by status and priority, a 14-day task-creation trend, top assignees by open task count, overdue count, and plan usage, gated to roles with dashboard access.
+- **Tenant isolation:** one Mongoose plugin scopes every query, write and aggregation to the current org. The current org lives in `AsyncLocalStorage` for the length of the request, and a query with no org context fails instead of leaking data.
+- **Accounts:** short-lived JWT access tokens (15 minutes) and rotating refresh tokens. Only hashes of refresh tokens are stored. Reusing an old refresh token signs out that whole chain of sessions. People can delete their own account; it's soft-deleted so the audit history still makes sense, and the email is freed up for a new sign-up.
+- **Roles:** admin, manager and member, checked on the server for every request. The UI hides what a role can't use, but the API is what actually says no.
+- **Organizations and plans:** Free, Pro and Premium plans with limits on seats, projects and active tasks per project (see [Plans](#plans)). Upgrades are simulated. A downgrade is blocked while current usage is over the smaller plan's limits, and the error says what's over.
+- **Invites:** admins get a one-time invite link (only a hash of the token is stored), and a seat is reserved safely even if several invites go out at once. If the person already has an account, the invitation also shows up in their app under the bell and on their organizations page, where they can join or decline. Inviting an email that already has a pending invite offers a fresh link instead of a vague error.
+- **Members:** removing someone takes them out of that org only. Their account and other orgs stay as they are, their tasks in that org become unassigned, and they can be invited back later. If it happens while they're using the org, they're sent to their organizations page with a short note.
+- **Projects:** each card shows its active and total task counts. Projects can be archived and unarchived. Deleting a project moves it to a Bin tab, with an undo, where it can be restored for 30 days before it and its tasks are deleted for good. A project in the bin frees its slot, and its board, tasks, notifications and dashboard numbers are hidden until it's restored.
+- **Tasks:** boards with To do, In progress and Done columns, cursor pagination, and filters for priority, assignee and "my tasks". Tasks can have several assignees. Status changes on the board are optimistic and roll back if the server says no. Each plan limits how many active (not done) tasks a project can hold.
+- **Updates and questions:** admins and managers can ask for an update on one task or on a whole project. Assignees can post updates or ask questions, and leads can reply. Everyone involved gets a notification, and opening the task or the project's updates marks them as read.
+- **Dashboard:** tasks by status and priority, top assignees, overdue tasks and plan usage, for admins and managers. The "Tasks created" chart covers the last 7 to 90 days or all time (grouped by week or month for long spans), counts days in your own time zone, and compares with the previous period. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.
+- **Audit log:** every change to orgs, members, invites, projects, tasks and plans is written in the same transaction as the change, so an action that rolls back never leaves an entry behind. The UI shows plain-language rows with filters.
+- **Around the app:** light and dark themes, a first-run tour, a "How to use" guide with the full permission table, a phone-friendly landing page menu, and a "Send feedback" link that opens an email.
+
+## Plans
+
+| Plan    | Seats | Projects | Active tasks per project |
+| ------- | ----- | -------- | ------------------------ |
+| Free    | 5     | 3        | 10                       |
+| Pro     | 30    | 25       | 50                       |
+| Premium | 100   | 50       | Unlimited                |
+
+Archived projects count toward the project limit. Projects in the bin don't.
 
 ## API Example
 
-API errors use the same envelope. The details array varies by error code. Downgrading a plan while usage exceeds the target plan's limits, for example:
+Every error comes back in the same shape, and the `details` array depends on the error code. Here's what you get when you try to downgrade while you're using more than the smaller plan allows:
 
 ```
 POST /api/orgs/:orgId/plan
@@ -114,7 +133,14 @@ POST /api/orgs/:orgId/plan
     "code": "PLAN_DOWNGRADE_BLOCKED",
     "message": "Current usage exceeds the limits of the target plan",
     "details": [
-      { "seatsUsed": 6, "projectCount": 4, "targetSeatLimit": 5, "targetProjectLimit": 3 }
+      {
+        "seatsUsed": 6,
+        "projectCount": 4,
+        "projectsOverTaskLimit": 1,
+        "targetSeatLimit": 5,
+        "targetProjectLimit": 3,
+        "targetActiveTaskLimit": 10
+      }
     ]
   }
 }
@@ -122,7 +148,7 @@ POST /api/orgs/:orgId/plan
 
 ## Local Setup
 
-Requires Node 24 (see .nvmrc) and a MongoDB Atlas cluster. The free M0 tier works because it supports replica sets, which MongoDB transactions require.
+You'll need Node 24 (see `.nvmrc`) and a MongoDB Atlas cluster. The free M0 tier is fine, since it runs as a replica set and MongoDB transactions need one.
 
 ```bash
 git clone https://github.com/sprahasingh/WorkNest.git
@@ -138,15 +164,15 @@ cp .env.example .env   # fill in MONGODB_URI and JWT_ACCESS_SECRET
 npm run dev            # runs on http://localhost:4000
 ```
 
-**Frontend** (in a separate terminal):
+**Frontend** (in a second terminal):
 
 ```bash
 cd web
 npm install
-npm run dev             # runs on http://localhost:5173, proxies /api to localhost:4000
+npm run dev             # runs on http://localhost:5173 and proxies /api to localhost:4000
 ```
 
-Open `http://localhost:5173` and register a new account, or seed demo data first (see below).
+Open `http://localhost:5173` and register, or load the demo data first (below).
 
 ### Seed Demo Data
 
@@ -155,16 +181,16 @@ cd api
 npm run seed
 ```
 
-Creates two demo organizations (password `password123` for all accounts):
+This creates two demo organizations. Every account uses the password `password123`.
 
-- **Acme Corp** (free plan): `admin@acme.demo`, `manager@acme.demo`, `member@acme.demo`
-- **Globex Corporation** (pro plan): `admin@globex.demo`
+- **Acme Corp** (Free plan): `admin@acme.demo`, `manager@acme.demo`, `member@acme.demo`
+- **Globex Corporation** (Pro plan): `admin@globex.demo`
 
 ## Testing
 
 ```bash
 cd api
-npm test          # 44 tests across 11 files, run against an in-memory MongoDB replica set
+npm test          # 62 tests in 15 files, run against an in-memory MongoDB replica set
 npm run typecheck
 npm run lint
 ```
@@ -175,24 +201,35 @@ npm run build      # includes a full TypeScript build
 npm run lint
 ```
 
-The backend test suite covers tenant isolation, including fail-closed behavior when there is no tenant context. It also covers the full RBAC permission matrix, concurrent seat/project-slot allocation, the last-admin invariant under concurrent demotion, and refresh-token rotation with reuse detection.
+The backend tests cover:
+
+- tenant isolation, including failing closed when there's no org context
+- the full permission table, and which tasks members can see and edit
+- seats and project slots under concurrent requests, and the last-admin rule under concurrent demotions
+- refresh token rotation and reuse detection
+- in-app invitations, declining, duplicate invites, and removing and re-inviting members
+- the project bin, restore, permanent delete and the 30-day cleanup
+- plan limits, including active tasks per project and blocked downgrades
+- dashboard numbers, including time zones and the previous-period comparison
 
 ## Project Structure
 
 ```
 api/
   src/
-    tenancy/       AsyncLocalStorage context, the isolation plugin, tenant resolution middleware
+    tenancy/        AsyncLocalStorage context, the isolation plugin, tenant resolution middleware
     auth/           authentication middleware, RBAC, ownership checks
-    modules/        one folder per domain area (auth, orgs, members, invites, projects, tasks, audit, dashboard)
+    modules/        one folder per area (auth, orgs, members, invites, projects, tasks, notifications, audit, dashboard)
     models/         one Mongoose schema per collection
-  tests/            Vitest + Supertest, against mongodb-memory-server
+    db/             database connection and startup migrations
+  tests/            Vitest and Supertest, against mongodb-memory-server
 web/
   src/
-    auth/            AuthProvider, route guards
-    features/        one folder per domain area, each with its own api/queries/components
-    components/      shared UI (layout, modal, error boundary)
-    hooks/            useCan (permission checks), useOrg (tenant context)
+    auth/           AuthProvider, route guards
+    features/       one folder per area, each with its own api, queries and components
+    components/     shared UI (layout, modal, help links, error boundary)
+    pages/          landing, login, register, invite, organizations and the how-to-use guide
+    hooks/          useCan (permission checks), useOrg (current org)
 ```
 
 ## Author
