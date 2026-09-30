@@ -197,12 +197,14 @@ function MenuIcon() {
 // account actions on top and help at the bottom.
 function LandingMenu({
   isAuthenticated,
+  user,
   isLoggingOut,
   workspacePath,
   onClose,
   onLogout,
 }: {
   isAuthenticated: boolean;
+  user: { name: string; email: string } | null;
   isLoggingOut: boolean;
   workspacePath: string;
   onClose: () => void;
@@ -264,6 +266,33 @@ function LandingMenu({
           <div className="space-y-2">
             {isAuthenticated ? (
               <>
+                {user && (
+                  <div
+                    aria-label="Signed-in account"
+                    className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70"
+                  >
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-bold text-teal-800 dark:bg-teal-900/60 dark:text-teal-200">
+                      {user.name
+                        .trim()
+                        .split(/\s+/)
+                        .slice(0, 2)
+                        .map((part) => part[0])
+                        .join("")
+                        .toUpperCase() || "W"}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        Signed in as
+                      </p>
+                      <p className="mt-0.5 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {user.name}
+                      </p>
+                      <p className="break-all text-xs text-slate-600 dark:text-slate-400">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <Link
                   to={workspacePath}
                   onClick={onClose}
@@ -313,6 +342,7 @@ function LandingMenu({
 export function Landing() {
   const auth = useAuth();
   const isAuthenticated = auth.status === "authenticated";
+  const user = auth.status === "authenticated" ? auth.user : null;
   const isLoggingOut = auth.isLoggingOut;
   const workspacePath = resolvePostAuthPath(auth.memberships ?? []);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -385,6 +415,7 @@ export function Landing() {
       {menuOpen && (
         <LandingMenu
           isAuthenticated={isAuthenticated}
+          user={user}
           isLoggingOut={isLoggingOut}
           workspacePath={workspacePath}
           onClose={() => setMenuOpen(false)}
