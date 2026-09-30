@@ -179,6 +179,18 @@ describe("removing a member", () => {
   it("keeps their account, unassigns their tasks here, and lets them be invited back", async () => {
     const admin = await people.admin();
     const sam = await people.sam();
+
+    // Sam joins the admin's org first, through an in-app invite.
+    await request(app)
+      .post(`/api/orgs/${admin.orgId}/invites`)
+      .set(admin.auth)
+      .send({ email: "invites-sam@example.com", role: "member" });
+    const pending = await request(app).get("/api/me/invites").set(sam.auth);
+    const joined = await request(app)
+      .post(`/api/me/invites/${pending.body.invites[0]._id}/accept`)
+      .set(sam.auth);
+    expect(joined.status).toBe(200);
+
     const samMembership = (
       await request(app).get(`/api/orgs/${admin.orgId}/members`).set(admin.auth)
     ).body.members.find(
