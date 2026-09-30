@@ -6,7 +6,14 @@ interface RefreshResponse {
   accessToken: string;
 }
 
-const SERVER_WAKE_TIMEOUT_MS = 120_000;
+const SERVER_WAKE_TIMEOUT_MS = 90_000;
+const SERVER_READY_CACHE_MS = 10 * 60_000;
+const SERVER_CHECK_INTERVALS_MS = [2_000, 4_000, 8_000] as const;
+
+interface HealthResponse {
+  status: string;
+  db: string;
+}
 
 export class ServerWakeTimeoutError extends Error {
   constructor() {
@@ -19,12 +26,24 @@ type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
   _wakeRetried?: boolean;
 };
+type RequestSignal = NonNullable<InternalAxiosRequestConfig["signal"]>;
 
 let accessToken: string | null = null;
 let refreshPromise: Promise<string> | null = null;
-let serverWakePromise: Promise<void> | null = null;
+let lastServerReadyAt = 0;
+let isServerWaking = false;
 let onAuthFailure: (() => void) | null = null;
-let onServerWakeChange: ((isWaking: boolean) => void) | null = null;
+const serverWakeHandlers = new Set<(isWaking: boolean) => void>();
+
+interface ServerWakeAttempt {
+  controller: AbortController;
+  promise: Promise<void>;
+  waiters: number;
+}
+
+let serverWakeAttempt: ServerWakeAttempt | null = null;
+
+class HealthNotReadyError extends Error {}
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
@@ -58,23 +77,30 @@ export function setAuthFailureHandler(handler: (() => void) | null): void {
   onAuthFailure = handler;
 }
 
-export function setServerWakeHandler(
-  handler: ((isWaking: boolean) => void) | null,
-): void {
-  onServerWakeChange = handler;
+export function subscribeServerWakeChange(
+  handler: (isWaking: boolean) => void,
+): () => void {
+  serverWakeHandlers.add(handler);
+  if (isServerWaking) handler(true);
+  return () => serverWakeHandlers.delete(handler);
 }
 
 export const apiClient = axios.create({
   baseURL: "/api",
   withCredentials: true,
+  timeout: 30_000,
 });
 
 const refreshClient = axios.create({
   baseURL: "/api",
   withCredentials: true,
+  timeout: 15_000,
 });
 
-apiClient.interceptors.request.use((config) => {
+apiClient.interceptors.request.use(async (config) => {
+  if (config.signal?.aborted) throw new axios.CanceledError();
+  await waitForServer(false, config.signal);
+  if (config.signal?.aborted) throw new axios.CanceledError();
   if (accessToken) {
     config.headers.set("Authorization", `Bearer ${accessToken}`);
   }
@@ -86,37 +112,138 @@ async function refreshAccessToken(): Promise<string> {
   return response.data.accessToken;
 }
 
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+function notifyServerWakeChange(isWaking: boolean): void {
+  isServerWaking = isWaking;
+  for (const handler of serverWakeHandlers) handler(isWaking);
 }
 
-async function waitForServer(): Promise<void> {
-  serverWakePromise ??= (async () => {
-    onServerWakeChange?.(true);
-    const deadline = Date.now() + SERVER_WAKE_TIMEOUT_MS;
-    try {
-      while (true) {
-        const remainingMs = deadline - Date.now();
-        if (remainingMs <= 0) throw new ServerWakeTimeoutError();
+function delay(milliseconds: number, signal: RequestSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      window.clearTimeout(timer);
+      reject(new axios.CanceledError());
+    };
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener?.("abort", onAbort);
+      resolve();
+    }, milliseconds);
+    signal.addEventListener?.("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
+}
 
-        try {
-          await refreshClient.get("/health", {
-            timeout: Math.min(10_000, remainingMs),
-          });
-          return;
-        } catch {
-          const nextDelayMs = Math.min(2_000, deadline - Date.now());
-          if (nextDelayMs <= 0) throw new ServerWakeTimeoutError();
-          await delay(nextDelayMs);
+function isRetryableHealthError(error: unknown): boolean {
+  if (error instanceof HealthNotReadyError) return true;
+  if (!axios.isAxiosError(error)) return false;
+  const status = error.response?.status;
+  return status === undefined || status === 429 || status >= 500;
+}
+
+async function pollUntilServerReady(signal: RequestSignal): Promise<void> {
+  const deadline = Date.now() + SERVER_WAKE_TIMEOUT_MS;
+  let attemptNumber = 0;
+  let announcedWake = false;
+
+  try {
+    while (true) {
+      if (signal.aborted) throw new axios.CanceledError();
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) throw new ServerWakeTimeoutError();
+
+      try {
+        const response = await refreshClient.get<HealthResponse>("/health", {
+          timeout: Math.min(5_000, remainingMs),
+          signal,
+        });
+        if (response.data.status !== "ok" || response.data.db !== "connected") {
+          throw new HealthNotReadyError();
         }
-      }
-    } finally {
-      onServerWakeChange?.(false);
-      serverWakePromise = null;
-    }
-  })();
+        lastServerReadyAt = Date.now();
+        return;
+      } catch (error) {
+        if (signal.aborted || axios.isCancel(error)) throw error;
+        if (!isRetryableHealthError(error)) throw error;
+        if (!announcedWake) {
+          announcedWake = true;
+          notifyServerWakeChange(true);
+        }
 
-  return serverWakePromise;
+        const intervalIndex = Math.min(
+          attemptNumber,
+          SERVER_CHECK_INTERVALS_MS.length - 1,
+        );
+        const nextDelayMs = Math.min(
+          SERVER_CHECK_INTERVALS_MS[intervalIndex],
+          deadline - Date.now(),
+        );
+        if (nextDelayMs <= 0) throw new ServerWakeTimeoutError();
+        attemptNumber += 1;
+        await delay(nextDelayMs, signal);
+      }
+    }
+  } finally {
+    if (announcedWake) notifyServerWakeChange(false);
+  }
+}
+
+function createServerWakeAttempt(): ServerWakeAttempt {
+  const attempt: ServerWakeAttempt = {
+    controller: new AbortController(),
+    promise: Promise.resolve(),
+    waiters: 0,
+  };
+  attempt.promise = pollUntilServerReady(attempt.controller.signal).finally(
+    () => {
+      if (serverWakeAttempt === attempt) serverWakeAttempt = null;
+    },
+  );
+  serverWakeAttempt = attempt;
+  return attempt;
+}
+
+function waitForServer(
+  forceCheck = false,
+  signal?: RequestSignal,
+): Promise<void> {
+  if (signal?.aborted) return Promise.reject(new axios.CanceledError());
+  if (!forceCheck && Date.now() - lastServerReadyAt < SERVER_READY_CACHE_MS) {
+    return Promise.resolve();
+  }
+
+  const attempt = serverWakeAttempt ?? createServerWakeAttempt();
+  attempt.waiters += 1;
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const release = () => {
+      if (settled) return false;
+      settled = true;
+      signal?.removeEventListener?.("abort", onAbort);
+      attempt.waiters -= 1;
+      if (attempt.waiters === 0 && serverWakeAttempt === attempt) {
+        attempt.controller.abort();
+      }
+      return true;
+    };
+    const onAbort = () => {
+      if (release()) reject(new axios.CanceledError());
+    };
+
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+
+    attempt.promise.then(
+      () => {
+        if (release()) resolve();
+      },
+      (error: unknown) => {
+        if (release()) reject(error);
+      },
+    );
+  });
 }
 
 function isServerUnavailable(error: AxiosError): boolean {
@@ -129,16 +256,26 @@ function isServerUnavailable(error: AxiosError): boolean {
 }
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    lastServerReadyAt = Date.now();
+    return response;
+  },
   async (error: AxiosError<ApiErrorBody>) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
+    if (axios.isCancel(error)) return Promise.reject(error);
+
+    if (isServerUnavailable(error)) lastServerReadyAt = 0;
+
     if (
       originalRequest &&
+      ["get", "head", "options"].includes(
+        originalRequest.method?.toLowerCase() ?? "",
+      ) &&
       !originalRequest._wakeRetried &&
       isServerUnavailable(error)
     ) {
       originalRequest._wakeRetried = true;
-      await waitForServer();
+      await waitForServer(true, originalRequest.signal);
       return apiClient(originalRequest);
     }
 

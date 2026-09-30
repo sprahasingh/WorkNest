@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 import type {
   LoginInput,
+  AuthRequestOptions,
   MeResponse,
   OrgMembership,
   RegisterInput,
@@ -13,14 +14,20 @@ export type AuthState =
   | { status: "unauthenticated"; user: null; memberships: null };
 
 export type AuthContextValue = AuthState & {
-  login: (input: LoginInput) => Promise<MeResponse>;
+  login: (
+    input: LoginInput,
+    options?: AuthRequestOptions,
+  ) => Promise<MeResponse>;
   register: (input: RegisterInput) => Promise<MeResponse>;
   logout: () => Promise<void>;
   isLoggingOut: boolean;
   deleteAccount: () => Promise<void>;
   isDeletingAccount: boolean;
   refreshMemberships: () => Promise<void>;
-  establishSession: (accessToken: string) => Promise<MeResponse>;
+  establishSession: (
+    accessToken: string,
+    options?: AuthRequestOptions,
+  ) => Promise<MeResponse>;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(
