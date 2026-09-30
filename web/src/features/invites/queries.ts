@@ -29,7 +29,7 @@ export function useCreateInvite(orgId: string) {
       void queryClient.invalidateQueries({ queryKey: inviteKeys.all(orgId) });
       void queryClient.invalidateQueries({ queryKey: orgKeys.detail(orgId) });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: dashboardKeys.all(orgId),
       });
     },
   });
@@ -44,7 +44,7 @@ export function useRevokeInvite(orgId: string) {
       void queryClient.invalidateQueries({ queryKey: inviteKeys.all(orgId) });
       void queryClient.invalidateQueries({ queryKey: orgKeys.detail(orgId) });
       void queryClient.invalidateQueries({
-        queryKey: dashboardKeys.detail(orgId),
+        queryKey: dashboardKeys.all(orgId),
       });
     },
   });
