@@ -10,7 +10,7 @@ import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
-import { setServerWakeHandler } from "@/api/client";
+import { ServerWakeTimeoutError, setServerWakeHandler } from "@/api/client";
 
 const loginFormSchema = z.object({
   email: z
@@ -55,6 +55,13 @@ export function Login() {
         replace: true,
       });
     } catch (error) {
+      if (error instanceof ServerWakeTimeoutError) {
+        setFormError(
+          "The server is taking longer than expected. Check your connection and try again.",
+        );
+        return;
+      }
+
       const parsed = parseApiError(error);
       if (Object.keys(parsed.fieldErrors).length === 0) {
         setFormError(parsed.message);
