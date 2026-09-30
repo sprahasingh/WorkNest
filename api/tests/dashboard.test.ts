@@ -195,7 +195,7 @@ describe("dashboard trend range", () => {
       .query({ days: "all" })
       .set(auth);
     expect(young.status).toBe(200);
-    expect(young.body.trend).toEqual({
+    expect(young.body.trend).toMatchObject({
       granularity: "day",
       since: today,
       total: 1,
@@ -236,6 +236,77 @@ describe("dashboard trend range", () => {
       .set(auth);
     expect(lastWeek.body.trend).toMatchObject({ granularity: "day", total: 1 });
     expect(lastWeek.body.tasksCreatedPerDay).toHaveLength(7);
+  });
+});
+
+describe("dashboard trend days and comparison", () => {
+  it("counts days in the viewer's time zone and compares with the previous period", async () => {
+    const org = await registerOrg("dash-tz@example.com", "Time Zone Org");
+    const projectId = await createProject(org.orgId, org.accessToken, "TZ");
+    const auth = { Authorization: `Bearer ${org.accessToken}` };
+
+    // 22:00 UTC three days ago is already the next day in India (+5:30).
+    const late = new Date();
+    late.setUTCDate(late.getUTCDate() - 3);
+    late.setUTCHours(22, 0, 0, 0);
+    const lateTask = await createTask(org.orgId, projectId, org.accessToken);
+    // And one from ten days ago, before a 7-day window.
+    const old = new Date();
+    old.setUTCDate(old.getUTCDate() - 10);
+    old.setUTCHours(12, 0, 0, 0);
+    const oldTask = await createTask(org.orgId, projectId, org.accessToken);
+    for (const [id, createdAt] of [
+      [lateTask, late],
+      [oldTask, old],
+    ] as const) {
+      await Task.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(id) },
+        { $set: { createdAt } },
+      );
+    }
+
+    const dayAfter = new Date(late);
+    dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
+    const utcKey = late.toISOString().slice(0, 10);
+    const indiaKey = dayAfter.toISOString().slice(0, 10);
+
+    const countOn = (
+      points: Array<{ date: string; count: number }>,
+      key: string,
+    ) => points.find((p) => p.date === key)?.count ?? 0;
+
+    const inUtc = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: 7, tz: "UTC" })
+      .set(auth);
+    expect(countOn(inUtc.body.tasksCreatedPerDay, utcKey)).toBe(1);
+
+    const inIndia = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: 7, tz: "Asia/Kolkata" })
+      .set(auth);
+    expect(countOn(inIndia.body.tasksCreatedPerDay, indiaKey)).toBe(1);
+    expect(countOn(inIndia.body.tasksCreatedPerDay, utcKey)).toBe(0);
+    expect(inIndia.body.trend).toMatchObject({
+      timeZone: "Asia/Kolkata",
+      total: 1,
+      previousTotal: 1,
+    });
+
+    // An unknown time zone falls back to UTC instead of failing.
+    const bogus = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: 7, tz: "Not/AZone" })
+      .set(auth);
+    expect(bogus.status).toBe(200);
+    expect(bogus.body.trend.timeZone).toBe("UTC");
+
+    const allTime = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: "all", tz: "UTC" })
+      .set(auth);
+    expect(allTime.body.trend.previousTotal).toBeNull();
+    expect(allTime.body.trend.total).toBe(2);
   });
 });
 
