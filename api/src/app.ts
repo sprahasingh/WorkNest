@@ -48,15 +48,13 @@ export function createApp(): Express {
   app.use(cookieParser());
   app.use(pinoHttp({ logger }));
 
-  const globalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 300,
+  const healthLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 120,
     standardHeaders: true,
     legacyHeaders: false,
   });
-  app.use(globalLimiter);
-
-  app.get("/api/health", (_req, res) => {
+  app.get("/api/health", healthLimiter, (_req, res) => {
     const dbConnected = mongoose.connection.readyState === 1;
     res.status(dbConnected ? 200 : 503).json({
       status: dbConnected ? "ok" : "degraded",
@@ -64,6 +62,14 @@ export function createApp(): Express {
       uptime: process.uptime(),
     });
   });
+
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use(globalLimiter);
 
   app.use("/api/auth", authRouter);
   app.use("/api/invites", invitesPublicRouter);
