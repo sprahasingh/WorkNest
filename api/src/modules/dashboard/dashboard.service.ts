@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { Task } from "../../models/Task.js";
 import { Organization } from "../../models/Organization.js";
+import { binnedProjectIds } from "../../models/Project.js";
 import { Membership } from "../../models/Membership.js";
 import { requireTenantId } from "../../tenancy/context.js";
 
@@ -88,7 +89,9 @@ async function findOrgStart(tenantId: string): Promise<Date> {
     Organization.findById(tenantId)
       .select("createdAt")
       .setOptions({ skipTenant: true }),
-    Task.findOne().sort({ createdAt: 1 }).select("createdAt"),
+    Task.findOne({ projectId: { $nin: await binnedProjectIds() } })
+      .sort({ createdAt: 1 })
+      .select("createdAt"),
   ]);
   const candidates = [org?.createdAt, firstTask?.createdAt].filter(
     (date): date is Date => date instanceof Date,
@@ -124,6 +127,9 @@ export async function getDashboard(
   const granularity: TrendGranularity =
     spanDays <= 90 ? "day" : spanDays <= 730 ? "week" : "month";
 
+  // Tasks in projects that are in the bin don't count anywhere.
+  const live = { projectId: { $nin: await binnedProjectIds() } };
+
   // Query a day early: local days start up to 14h before UTC midnight.
   const queryFrom = addDays(previousStart ?? rangeStart, -1);
 
@@ -137,13 +143,15 @@ export async function getDashboard(
     memberCount,
   ] = await Promise.all([
     Task.aggregate<StatusCount>([
+      { $match: live },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]),
     Task.aggregate<StatusCount>([
+      { $match: live },
       { $group: { _id: "$priority", count: { $sum: 1 } } },
     ]),
     Task.aggregate<{ _id: string; count: number }>([
-      { $match: { createdAt: { $gte: queryFrom } } },
+      { $match: { ...live, createdAt: { $gte: queryFrom } } },
       {
         $group: {
           _id: {
@@ -165,6 +173,7 @@ export async function getDashboard(
     }>([
       {
         $match: {
+          ...live,
           status: { $ne: "done" },
           assigneeIds: { $not: { $size: 0 } },
         },
@@ -192,6 +201,7 @@ export async function getDashboard(
       },
     ]),
     Task.countDocuments({
+      ...live,
       status: { $ne: "done" },
       dueDate: { $ne: null, $lt: new Date() },
     }),

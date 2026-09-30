@@ -11,7 +11,11 @@ import { can } from "../../auth/rbac.js";
 import { isTaskAssignee } from "../../auth/ownership.js";
 import type { Role } from "../../constants/roles.js";
 import type { ActivityType, CreateActivityInput } from "./tasks.schemas.js";
-import { assertTaskVisible, memberVisibilityFilter } from "./tasks.service.js";
+import {
+  assertTaskVisible,
+  findTaskInLiveProject,
+  memberVisibilityFilter,
+} from "./tasks.service.js";
 
 const PROJECT_FEED_LIMIT = 100;
 
@@ -123,7 +127,7 @@ export async function createTaskActivity(
   input: CreateActivityInput,
 ) {
   const context = getTenantContext()!;
-  const task = await Task.findById(taskId);
+  const task = await findTaskInLiveProject(taskId);
   if (!task) {
     throw new AppError(404, "NOT_FOUND", "Task not found");
   }
@@ -173,7 +177,7 @@ export async function createTaskActivity(
 }
 
 export async function listTaskActivities(taskId: string) {
-  const task = await Task.findById(taskId);
+  const task = await findTaskInLiveProject(taskId);
   if (!task) {
     throw new AppError(404, "NOT_FOUND", "Task not found");
   }

@@ -5,7 +5,10 @@ import {
   getProject,
   updateProject,
   archiveProject,
-  deleteProject,
+  unarchiveProject,
+  moveProjectToBin,
+  restoreProject,
+  deleteProjectPermanently,
 } from "./projects.service.js";
 import type {
   CreateProjectInput,
@@ -28,9 +31,10 @@ export async function listProjectsController(
   res: Response,
 ): Promise<void> {
   const query = req.validated!.query as ListProjectsQuery;
-  const archived = query.archived === "true";
-  const { projects, counts } = await listProjects(archived);
-  res.status(200).json({ projects, counts });
+  const view =
+    query.view ?? (query.archived === "true" ? "archived" : "active");
+  const result = await listProjects(view);
+  res.status(200).json(result);
 }
 
 export async function getProjectController(
@@ -61,11 +65,35 @@ export async function archiveProjectController(
   res.status(200).json({ project });
 }
 
+export async function unarchiveProjectController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const project = await unarchiveProject(req.params.projectId as string);
+  res.status(200).json({ project });
+}
+
+// DELETE moves the project to the bin; it can be restored for 30 days.
 export async function deleteProjectController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const { projectId } = req.params;
-  await deleteProject(projectId as string);
+  const project = await moveProjectToBin(req.params.projectId as string);
+  res.status(200).json({ project });
+}
+
+export async function restoreProjectController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const project = await restoreProject(req.params.projectId as string);
+  res.status(200).json({ project });
+}
+
+export async function deleteProjectPermanentlyController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await deleteProjectPermanently(req.params.projectId as string);
   res.status(204).send();
 }
