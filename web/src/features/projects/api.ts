@@ -7,6 +7,8 @@ export interface Project {
   key: string;
   description?: string;
   archivedAt: string | null;
+  // Set while the project is in the bin.
+  deletedAt?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -17,12 +19,16 @@ export interface Project {
 export interface ProjectSummary extends Project {
   activeTaskCount: number;
   taskCount: number;
+  // When a project in the bin will be deleted for good.
+  purgeAt: string | null;
 }
 
 export interface ListProjectsResponse {
   projects: ProjectSummary[];
   // How many projects are active and archived, whichever list was asked for.
-  counts: { active: number; archived: number };
+  counts: { active: number; archived: number; bin: number };
+  // Days a project stays in the bin before it's deleted for good.
+  binRetentionDays: number;
 }
 
 export interface CreateProjectInput {
@@ -36,8 +42,10 @@ export interface UpdateProjectInput {
   description?: string;
 }
 
+export type ProjectView = "active" | "archived" | "bin";
+
 export interface ListProjectsParams {
-  archived?: boolean;
+  view?: ProjectView;
 }
 
 export async function listProjects(
@@ -46,12 +54,7 @@ export async function listProjects(
 ): Promise<ListProjectsResponse> {
   const response = await apiClient.get<ListProjectsResponse>(
     `/orgs/${orgId}/projects`,
-    {
-      params:
-        params.archived === undefined
-          ? undefined
-          : { archived: params.archived ? "true" : "false" },
-    },
+    { params: { view: params.view ?? "active" } },
   );
   return response.data;
 }
@@ -99,9 +102,40 @@ export async function archiveProject(
   return response.data.project;
 }
 
+export async function unarchiveProject(
+  orgId: string,
+  projectId: string,
+): Promise<Project> {
+  const response = await apiClient.post<{ project: Project }>(
+    `/orgs/${orgId}/projects/${projectId}/unarchive`,
+  );
+  return response.data.project;
+}
+
+// Moves the project to the bin, where it can be restored for 30 days.
 export async function deleteProject(
   orgId: string,
   projectId: string,
+): Promise<Project> {
+  const response = await apiClient.delete<{ project: Project }>(
+    `/orgs/${orgId}/projects/${projectId}`,
+  );
+  return response.data.project;
+}
+
+export async function restoreProject(
+  orgId: string,
+  projectId: string,
+): Promise<Project> {
+  const response = await apiClient.post<{ project: Project }>(
+    `/orgs/${orgId}/projects/${projectId}/restore`,
+  );
+  return response.data.project;
+}
+
+export async function deleteProjectPermanently(
+  orgId: string,
+  projectId: string,
 ): Promise<void> {
-  await apiClient.delete(`/orgs/${orgId}/projects/${projectId}`);
+  await apiClient.delete(`/orgs/${orgId}/projects/${projectId}/permanent`);
 }
