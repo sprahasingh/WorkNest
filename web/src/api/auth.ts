@@ -1,5 +1,11 @@
 import { apiClient } from "./client";
 
+const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+
+export interface AuthRequestOptions {
+  signal?: AbortSignal;
+}
+
 export type Role = "admin" | "manager" | "member";
 export type Plan = "free" | "pro" | "premium";
 
@@ -58,10 +64,14 @@ export async function register(
   return response.data;
 }
 
-export async function login(input: LoginInput): Promise<AuthTokenResponse> {
+export async function login(
+  input: LoginInput,
+  options: AuthRequestOptions = {},
+): Promise<AuthTokenResponse> {
   const response = await apiClient.post<AuthTokenResponse>(
     "/auth/login",
     input,
+    { timeout: AUTH_REQUEST_TIMEOUT_MS, signal: options.signal },
   );
   return response.data;
 }
@@ -75,8 +85,13 @@ export async function logout(): Promise<void> {
   await apiClient.post("/auth/logout");
 }
 
-export async function fetchMe(): Promise<MeResponse> {
-  const response = await apiClient.get<MeResponse>("/auth/me");
+export async function fetchMe(
+  options: AuthRequestOptions = {},
+): Promise<MeResponse> {
+  const response = await apiClient.get<MeResponse>("/auth/me", {
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
+    signal: options.signal,
+  });
   return response.data;
 }
 
