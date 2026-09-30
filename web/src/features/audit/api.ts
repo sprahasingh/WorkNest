@@ -7,6 +7,7 @@ export type AuditAction =
   | "invite.created"
   | "invite.revoked"
   | "invite.accepted"
+  | "invite.declined"
   | "project.created"
   | "project.updated"
   | "project.archived"
@@ -23,6 +24,7 @@ export const AUDIT_ACTIONS: AuditAction[] = [
   "invite.created",
   "invite.revoked",
   "invite.accepted",
+  "invite.declined",
   "project.created",
   "project.updated",
   "project.archived",

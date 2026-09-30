@@ -18,6 +18,30 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
+export type OrgAccessChange = "lost" | "forbidden";
+let onOrgAccessChange:
+  ((orgId: string, change: OrgAccessChange) => void) | null = null;
+
+// Told when an org request shows your access changed under you: removed from
+// the org ("lost") or a role change blocking an action ("forbidden").
+export function setOrgAccessHandler(
+  handler: ((orgId: string, change: OrgAccessChange) => void) | null,
+): void {
+  onOrgAccessChange = handler;
+}
+
+function reportOrgAccessChange(error: AxiosError<ApiErrorBody>): void {
+  const orgId = error.config?.url?.match(/^\/orgs\/([a-f0-9]{24})\//)?.[1];
+  const status = error.response?.status;
+  const body = error.response?.data?.error;
+  if (!orgId || !body) return;
+  if (status === 404 && body.message === "Organization not found") {
+    onOrgAccessChange?.(orgId, "lost");
+  } else if (status === 403 && body.code === "FORBIDDEN") {
+    onOrgAccessChange?.(orgId, "forbidden");
+  }
+}
+
 export function setAuthFailureHandler(handler: (() => void) | null): void {
   onAuthFailure = handler;
 }
@@ -53,6 +77,7 @@ apiClient.interceptors.response.use(
       error.response.data?.error?.code === "TOKEN_EXPIRED";
 
     if (!isTokenExpired || !originalRequest || originalRequest._retry) {
+      reportOrgAccessChange(error);
       return Promise.reject(error);
     }
 
