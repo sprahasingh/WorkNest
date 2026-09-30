@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
+import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
+import { Task } from "../src/models/Task.js";
 
 const app = createApp();
 
@@ -177,6 +179,63 @@ describe("dashboard aggregation", () => {
       userId: org.userId,
       openTaskCount: 2,
     });
+  });
+});
+
+describe("dashboard trend range", () => {
+  it("covers everything since the org started for days=all, grouping long spans by week", async () => {
+    const org = await registerOrg("dash-all-time@example.com", "All Time Org");
+    const projectId = await createProject(org.orgId, org.accessToken, "ALL");
+    await createTask(org.orgId, projectId, org.accessToken);
+    const auth = { Authorization: `Bearer ${org.accessToken}` };
+    const today = new Date().toISOString().slice(0, 10);
+
+    const young = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: "all" })
+      .set(auth);
+    expect(young.status).toBe(200);
+    expect(young.body.trend).toEqual({
+      granularity: "day",
+      since: today,
+      total: 1,
+    });
+    expect(young.body.tasksCreatedPerDay).toEqual([{ date: today, count: 1 }]);
+
+    // An older task (e.g. imported) stretches "all time" back to its day.
+    const oldTaskId = await createTask(org.orgId, projectId, org.accessToken);
+    const longAgo = new Date();
+    longAgo.setUTCDate(longAgo.getUTCDate() - 200);
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(oldTaskId) },
+      { $set: { createdAt: longAgo } },
+    );
+
+    const res = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: "all" })
+      .set(auth);
+    expect(res.body.trend).toMatchObject({
+      granularity: "week",
+      since: longAgo.toISOString().slice(0, 10),
+      total: 2,
+    });
+    const points = res.body.tasksCreatedPerDay as Array<{
+      date: string;
+      count: number;
+    }>;
+    expect(points.length).toBeGreaterThanOrEqual(29);
+    expect(points.length).toBeLessThanOrEqual(31);
+    expect(points.reduce((sum, p) => sum + p.count, 0)).toBe(2);
+    // Every point is a Monday.
+    expect(points.every((p) => new Date(p.date).getUTCDay() === 1)).toBe(true);
+
+    const lastWeek = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: 7 })
+      .set(auth);
+    expect(lastWeek.body.trend).toMatchObject({ granularity: "day", total: 1 });
+    expect(lastWeek.body.tasksCreatedPerDay).toHaveLength(7);
   });
 });
 
