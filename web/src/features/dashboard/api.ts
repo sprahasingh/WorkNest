@@ -25,10 +25,24 @@ export interface DashboardUsage {
   projectLimit: number;
 }
 
+// A number of days, or everything since the org started.
+export type DashboardRange = number | "all";
+
+export interface DashboardTrend {
+  // How points are grouped; long "all time" spans use weeks or months.
+  granularity: "day" | "week" | "month";
+  // First day of the range, YYYY-MM-DD.
+  since: string;
+  total: number;
+}
+
 export interface DashboardData {
   tasksByStatus: StatusCount[];
   tasksByPriority: StatusCount[];
+  // One point per day, week, or month (see trend.granularity), dated by its
+  // first day.
   tasksCreatedPerDay: DailyCount[];
+  trend: DashboardTrend;
   topAssignees: TopAssignee[];
   overdueCount: number;
   usage: DashboardUsage;
@@ -36,7 +50,7 @@ export interface DashboardData {
 
 export async function getDashboard(
   orgId: string,
-  days = 14,
+  days: DashboardRange = 14,
 ): Promise<DashboardData> {
   const response = await apiClient.get<DashboardData>(
     `/orgs/${orgId}/dashboard`,
