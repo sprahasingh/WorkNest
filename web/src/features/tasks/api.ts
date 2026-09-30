@@ -3,6 +3,7 @@ import type { Plan } from "@/api/auth";
 
 export type TaskStatus = "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "medium" | "high";
+export type TaskView = "active" | "completed" | "archived" | "bin";
 export type ActivityType = "update_request" | "update" | "question" | "reply";
 export type TaskNotificationType =
   "task_completed" | "task_due_soon" | "task_overdue";
@@ -17,6 +18,11 @@ export interface Task {
   priority: TaskPriority;
   assigneeIds: string[];
   dueDate: string | null;
+  completedAt?: string | null;
+  archivedAt?: string | null;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+  purgeAt?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -65,6 +71,7 @@ export interface CreateActivityInput {
 }
 
 export interface ListTasksParams {
+  view?: TaskView;
   status?: TaskStatus;
   priority?: TaskPriority;
   assigneeId?: string;
@@ -78,6 +85,7 @@ export interface ListTasksResponse {
   nextCursor: string | null;
   // How many tasks match across every page, not just this one.
   total: number;
+  binRetentionDays: number;
 }
 
 export async function listTasks(
@@ -123,8 +131,45 @@ export async function updateTask(
   return response.data.task;
 }
 
+export async function archiveTask(
+  orgId: string,
+  taskId: string,
+): Promise<Task> {
+  const response = await apiClient.patch<{ task: Task }>(
+    `/orgs/${orgId}/tasks/${taskId}/archive`,
+  );
+  return response.data.task;
+}
+
+export async function unarchiveTask(
+  orgId: string,
+  taskId: string,
+): Promise<Task> {
+  const response = await apiClient.patch<{ task: Task }>(
+    `/orgs/${orgId}/tasks/${taskId}/unarchive`,
+  );
+  return response.data.task;
+}
+
+export async function restoreTask(
+  orgId: string,
+  taskId: string,
+): Promise<Task> {
+  const response = await apiClient.post<{ task: Task }>(
+    `/orgs/${orgId}/tasks/${taskId}/restore`,
+  );
+  return response.data.task;
+}
+
 export async function deleteTask(orgId: string, taskId: string): Promise<void> {
   await apiClient.delete(`/orgs/${orgId}/tasks/${taskId}`);
+}
+
+export async function deleteTaskPermanently(
+  orgId: string,
+  taskId: string,
+): Promise<void> {
+  await apiClient.delete(`/orgs/${orgId}/tasks/${taskId}/permanent`);
 }
 
 export async function getTaskStats(

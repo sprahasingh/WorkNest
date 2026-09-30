@@ -14,6 +14,10 @@ import {
   getTaskStatsController,
   updateTaskController,
   deleteTaskController,
+  archiveTaskController,
+  unarchiveTaskController,
+  restoreTaskController,
+  deleteTaskPermanentlyController,
 } from "./tasks.controller.js";
 import {
   listTaskActivitiesController,
@@ -74,6 +78,27 @@ tasksRouter.delete(
   "/:taskId",
   requirePermission("task:delete"),
   deleteTaskController,
+);
+
+tasksRouter.patch(
+  "/:taskId/archive",
+  requirePermission("task:delete"),
+  archiveTaskController,
+);
+tasksRouter.patch(
+  "/:taskId/unarchive",
+  requirePermission("task:delete"),
+  unarchiveTaskController,
+);
+tasksRouter.post(
+  "/:taskId/restore",
+  requirePermission("task:delete"),
+  restoreTaskController,
+);
+tasksRouter.delete(
+  "/:taskId/permanent",
+  requirePermission("task:delete"),
+  deleteTaskPermanentlyController,
 );
 
 tasksRouter.get(

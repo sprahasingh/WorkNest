@@ -27,13 +27,20 @@ export const updateTaskSchema = z
 
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 
+export const TASK_VIEWS = ["active", "completed", "archived", "bin"] as const;
+export type TaskView = (typeof TASK_VIEWS)[number];
+
 export const listTasksQuerySchema = z
   .object({
+    view: z.enum(TASK_VIEWS).optional(),
     status: z.enum(["todo", "in_progress", "done"]).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
     assigneeId: z.string().regex(objectIdRegex).optional(),
     mine: z.enum(["true"]).optional(),
-    cursor: z.string().regex(objectIdRegex).optional(),
+    cursor: z
+      .string()
+      .regex(/^(?:[a-f\d]{24}|\d{1,16}_[a-f\d]{24})$/i)
+      .optional(),
     limit: z.coerce.number().int().min(1).max(50).optional(),
   })
   .strict();

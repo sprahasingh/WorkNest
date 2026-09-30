@@ -120,7 +120,13 @@ export async function changePlan(newPlan: Plan) {
           ? 0
           : (
               await Task.aggregate<{ _id: unknown }>([
-                { $match: { status: { $ne: "done" } } },
+                {
+                  $match: {
+                    status: { $ne: "done" },
+                    archivedAt: null,
+                    deletedAt: null,
+                  },
+                },
                 { $group: { _id: "$projectId", active: { $sum: 1 } } },
                 { $match: { active: { $gt: limits.activeTaskLimit } } },
               ]).session(dbSession)

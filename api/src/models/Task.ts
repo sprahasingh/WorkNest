@@ -24,13 +24,43 @@ const taskSchema = new Schema(
     },
     assigneeIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
     dueDate: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
+    archivedAt: { type: Date, default: null },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true },
 );
 
 taskSchema.index({ tenantId: 1, projectId: 1, status: 1, _id: -1 });
+taskSchema.index({ tenantId: 1, projectId: 1, completedAt: -1, _id: -1 });
+taskSchema.index({ tenantId: 1, projectId: 1, archivedAt: -1, _id: -1 });
 taskSchema.index({ tenantId: 1, assigneeIds: 1, status: 1 });
+taskSchema.index({ tenantId: 1, projectId: 1, deletedAt: -1, _id: -1 });
+
+taskSchema.pre(
+  [
+    "find",
+    "findOne",
+    "findOneAndUpdate",
+    "findOneAndDelete",
+    "findOneAndReplace",
+    "updateOne",
+    "updateMany",
+    "replaceOne",
+    "deleteOne",
+    "deleteMany",
+    "countDocuments",
+    "distinct",
+  ],
+  function () {
+    const options = this.getOptions() as { includeDeleted?: boolean };
+    if (!options.includeDeleted && this.getFilter().deletedAt === undefined) {
+      this.where({ deletedAt: null });
+    }
+  },
+);
 
 taskSchema.plugin(tenantPlugin);
 

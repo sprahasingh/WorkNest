@@ -2,7 +2,7 @@ import type { Member } from "@/features/members/api";
 import { Button } from "@/components/ui/Button";
 import { TaskCard } from "./TaskCard";
 import { useTaskColumn, type TaskFilters } from "./queries";
-import type { Task, TaskStatus } from "./api";
+import type { Task, TaskStatus, TaskView } from "./api";
 
 const COLUMN_LABELS: Record<TaskStatus, string> = {
   todo: "To do",
@@ -13,7 +13,8 @@ const COLUMN_LABELS: Record<TaskStatus, string> = {
 interface TaskColumnProps {
   orgId: string;
   projectId: string;
-  status: TaskStatus;
+  view: TaskView;
+  status: TaskStatus | undefined;
   filters: TaskFilters;
   members: Member[];
   canChangeStatus: (task: Task) => boolean;
@@ -24,6 +25,7 @@ interface TaskColumnProps {
 export function TaskColumn({
   orgId,
   projectId,
+  view,
   status,
   filters,
   members,
@@ -38,7 +40,7 @@ export function TaskColumn({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useTaskColumn(orgId, projectId, status, filters);
+  } = useTaskColumn(orgId, projectId, view, status, filters);
 
   const tasks = data?.pages.flatMap((page) => page.items) ?? [];
   const total = data?.pages[0]?.total ?? tasks.length;
@@ -46,7 +48,11 @@ export function TaskColumn({
   return (
     <div className="flex w-[85vw] shrink-0 snap-start flex-col rounded-xl bg-slate-50 p-3 dark:bg-slate-900 sm:w-72">
       <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-        {COLUMN_LABELS[status]}{" "}
+        {status
+          ? COLUMN_LABELS[status]
+          : view === "archived"
+            ? "Archived"
+            : "Bin"}{" "}
         <span className="font-normal text-slate-400">({total})</span>
       </h2>
 
@@ -72,7 +78,7 @@ export function TaskColumn({
               key={task._id}
               task={task}
               members={members}
-              canChangeStatus={canChangeStatus(task)}
+              canChangeStatus={view === "active" && canChangeStatus(task)}
               onStatusChange={onStatusChange}
               onClick={() => onTaskClick(task)}
             />

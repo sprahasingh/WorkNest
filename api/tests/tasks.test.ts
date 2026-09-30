@@ -1,17 +1,25 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
+import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
+import { Task } from "../src/models/Task.js";
 
 const app = createApp();
+app.set("trust proxy", 1);
+let registrationIp = 0;
 
 async function registerOrg(email: string, orgName: string) {
-  const res = await request(app).post("/api/auth/register").send({
-    name: "Test User",
-    email,
-    password: "password123",
-    orgName,
-  });
+  registrationIp += 1;
+  const res = await request(app)
+    .post("/api/auth/register")
+    .set("X-Forwarded-For", `198.51.100.${registrationIp}`)
+    .send({
+      name: "Test User",
+      email,
+      password: "password123",
+      orgName,
+    });
 
   const accessToken = res.body.accessToken as string;
 
@@ -122,6 +130,272 @@ describe("task ownership rules", () => {
       .send({ assigneeIds: [memberId] });
 
     expect(reassignRes.status).toBe(403);
+  });
+});
+
+describe("completed task lifecycle", () => {
+  it("timestamps completion, blocks edits, and clears the timestamp on reopen", async () => {
+    const admin = await registerOrg(
+      "completed-task@example.com",
+      "Completed Org",
+    );
+    const projectId = await createProject(admin.orgId, admin.accessToken, "CT");
+    const created = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ title: "Lifecycle task" });
+    const taskId = created.body.task._id as string;
+
+    const completed = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ status: "done" });
+    expect(completed.status).toBe(200);
+    expect(completed.body.task.completedAt).toBeTruthy();
+
+    const editedWhileDone = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ title: "Changed while done" });
+    expect(editedWhileDone.status).toBe(409);
+    expect(editedWhileDone.body.error.code).toBe("TASK_COMPLETED_READ_ONLY");
+
+    const repeatedDone = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ status: "done" });
+    expect(repeatedDone.status).toBe(200);
+
+    const reopened = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ status: "in_progress" });
+    expect(reopened.status).toBe(200);
+    expect(reopened.body.task.completedAt).toBeNull();
+
+    const editedAfterReopen = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ title: "Changed after reopen" });
+    expect(editedAfterReopen.status).toBe(200);
+    expect(editedAfterReopen.body.task.title).toBe("Changed after reopen");
+  });
+});
+
+describe("task archive and bin lifecycle", () => {
+  it("archives completed tasks without deleting their history and allows unarchive", async () => {
+    const admin = await registerOrg("archived-task@example.com", "Archive Org");
+    const projectId = await createProject(admin.orgId, admin.accessToken, "AR");
+    const created = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ title: "Archive lifecycle" });
+    const taskId = created.body.task._id as string;
+
+    await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ status: "done" });
+
+    const archived = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}/archive`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(archived.status).toBe(200);
+    expect(archived.body.task.archivedAt).toBeTruthy();
+
+    const completedView = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ view: "completed" })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(completedView.body.items).toHaveLength(0);
+
+    const archivedView = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ view: "archived" })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(archivedView.body.items).toHaveLength(1);
+
+    const details = await request(app)
+      .get(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(details.status).toBe(200);
+
+    const edit = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ title: "Should be blocked" });
+    expect(edit.status).toBe(409);
+    expect(edit.body.error.code).toBe("TASK_ARCHIVED_READ_ONLY");
+
+    const unarchived = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}/unarchive`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(unarchived.status).toBe(200);
+    expect(unarchived.body.task.archivedAt).toBeNull();
+  });
+
+  it("moves tasks to the bin, restores them, and only permanently deletes from bin", async () => {
+    const admin = await registerOrg("binned-task@example.com", "Bin Org");
+    const projectId = await createProject(admin.orgId, admin.accessToken, "BN");
+    const created = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ title: "Bin lifecycle" });
+    const taskId = created.body.task._id as string;
+
+    const permanentActive = await request(app)
+      .delete(`/api/orgs/${admin.orgId}/tasks/${taskId}/permanent`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(permanentActive.status).toBe(404);
+
+    const binned = await request(app)
+      .delete(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(binned.status).toBe(204);
+
+    const binView = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ view: "bin" })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(binView.body.items).toHaveLength(1);
+    expect(binView.body.items[0].purgeAt).toBeTruthy();
+    expect(binView.body.binRetentionDays).toBe(30);
+
+    const hiddenDetails = await request(app)
+      .get(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(hiddenDetails.status).toBe(404);
+
+    const restored = await request(app)
+      .post(`/api/orgs/${admin.orgId}/tasks/${taskId}/restore`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(restored.status).toBe(200);
+    expect(restored.body.task.deletedAt).toBeNull();
+
+    const activeView = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ view: "active" })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(activeView.body.items).toHaveLength(1);
+
+    await request(app)
+      .delete(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    const permanentlyDeleted = await request(app)
+      .delete(`/api/orgs/${admin.orgId}/tasks/${taskId}/permanent`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(permanentlyDeleted.status).toBe(204);
+  });
+
+  it("requires restoring a binned project before restoring one of its tasks", async () => {
+    const admin = await registerOrg("nested-bin@example.com", "Nested Bin Org");
+    const projectId = await createProject(admin.orgId, admin.accessToken, "NB");
+    const created = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ title: "Nested restore" });
+    const taskId = created.body.task._id as string;
+
+    await request(app)
+      .delete(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    await request(app)
+      .delete(`/api/orgs/${admin.orgId}/projects/${projectId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+
+    const blockedRestore = await request(app)
+      .post(`/api/orgs/${admin.orgId}/tasks/${taskId}/restore`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(blockedRestore.status).toBe(409);
+    expect(blockedRestore.body.error.code).toBe("PROJECT_IN_BIN");
+
+    const restoredProject = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects/${projectId}/restore`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(restoredProject.status).toBe(200);
+
+    const restoredTask = await request(app)
+      .post(`/api/orgs/${admin.orgId}/tasks/${taskId}/restore`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(restoredTask.status).toBe(200);
+  });
+
+  it("purges expired tasks when the Bin view is opened", async () => {
+    const admin = await registerOrg("expired-task@example.com", "Expired Org");
+    const projectId = await createProject(admin.orgId, admin.accessToken, "EX");
+    const created = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ title: "Expired task" });
+    const taskId = created.body.task._id as string;
+
+    await request(app)
+      .delete(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(taskId) },
+      {
+        $set: {
+          deletedAt: new Date(Date.now() - 31 * 86_400_000),
+        },
+      },
+    );
+
+    const binView = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ view: "bin" })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(binView.status).toBe(200);
+    expect(binView.body.items).toHaveLength(0);
+    expect(
+      await Task.collection.findOne({
+        _id: new mongoose.Types.ObjectId(taskId),
+      }),
+    ).toBeNull();
+  });
+
+  it("sorts completed view by completion time and paginates with a stable cursor", async () => {
+    const admin = await registerOrg(
+      "completed-pages@example.com",
+      "Completed Pages Org",
+    );
+    const projectId = await createProject(admin.orgId, admin.accessToken, "CP");
+    const taskIds: string[] = [];
+    for (const title of ["Older", "Newer"]) {
+      const created = await request(app)
+        .post(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+        .set("Authorization", `Bearer ${admin.accessToken}`)
+        .send({ title });
+      const taskId = created.body.task._id as string;
+      taskIds.push(taskId);
+      await request(app)
+        .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+        .set("Authorization", `Bearer ${admin.accessToken}`)
+        .send({ status: "done" });
+    }
+
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(taskIds[0]) },
+      { $set: { completedAt: new Date("2025-01-01T00:00:00.000Z") } },
+    );
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(taskIds[1]) },
+      { $set: { completedAt: new Date("2025-02-01T00:00:00.000Z") } },
+    );
+
+    const firstPage = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ view: "completed", limit: 1 })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(firstPage.body.items[0].title).toBe("Newer");
+    expect(firstPage.body.nextCursor).toBeTruthy();
+
+    const secondPage = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ view: "completed", limit: 1, cursor: firstPage.body.nextCursor })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(secondPage.body.items[0].title).toBe("Older");
+    expect(secondPage.body.nextCursor).toBeNull();
   });
 });
 
