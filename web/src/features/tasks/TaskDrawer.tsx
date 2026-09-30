@@ -26,6 +26,8 @@ import {
   useUpdateTask,
 } from "./queries";
 import { useMarkReadWhenViewed } from "@/features/notifications/queries";
+import { useOrgDetails } from "@/features/org/queries";
+import { dateInputValueInTimeZone } from "@/lib/time";
 
 const taskFormSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
@@ -47,9 +49,9 @@ const TASK_FIELDS = [
   "status",
 ] as const;
 
-function toDateInputValue(dueDate: string | null): string {
+function toDateInputValue(dueDate: string | null, timeZone: string): string {
   if (!dueDate) return "";
-  return dueDate.slice(0, 10);
+  return dateInputValueInTimeZone(dueDate, timeZone);
 }
 
 interface TaskDrawerProps {
@@ -74,6 +76,8 @@ export function TaskDrawer({
   const [, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const userId = user?.id ?? "";
+  const { data: organization } = useOrgDetails(orgId);
+  const timeZone = organization?.timeZone ?? "UTC";
   const canAssign = useCan("task:assign");
   const canDelete = useCan("task:delete");
   const canUpdateAny = useCan("task:update:any");
@@ -150,9 +154,19 @@ export function TaskDrawer({
       priority: task?.priority ?? "medium",
       // Tasks created by someone who can't assign are always theirs.
       assigneeIds: task?.assigneeIds ?? (canAssign ? [] : [userId]),
-      dueDate: toDateInputValue(task?.dueDate ?? null),
+      dueDate: toDateInputValue(task?.dueDate ?? null, timeZone),
       status: task?.status ?? "todo",
     },
+    values: organization
+      ? {
+          title: task?.title ?? "",
+          description: task?.description ?? "",
+          priority: task?.priority ?? "medium",
+          assigneeIds: task?.assigneeIds ?? (canAssign ? [] : [userId]),
+          dueDate: toDateInputValue(task?.dueDate ?? null, timeZone),
+          status: task?.status ?? "todo",
+        }
+      : undefined,
   });
 
   const selectedAssigneeIds = useWatch({ control, name: "assigneeIds" });
@@ -185,7 +199,12 @@ export function TaskDrawer({
           description: values.description,
           priority: values.priority,
           status: values.status,
-          dueDate: values.dueDate || null,
+          dueDate:
+            task.dueDate &&
+            !task.dueDateIsDateOnly &&
+            values.dueDate === toDateInputValue(task.dueDate, timeZone)
+              ? task.dueDate
+              : values.dueDate || null,
         };
         if (canAssign) {
           input.assigneeIds = values.assigneeIds;

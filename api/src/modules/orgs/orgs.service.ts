@@ -2,10 +2,13 @@ import mongoose from "mongoose";
 import { Organization } from "../../models/Organization.js";
 import { Membership } from "../../models/Membership.js";
 import { Task } from "../../models/Task.js";
+import { Notification } from "../../models/Notification.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
 import { PLAN_LIMITS, type Plan } from "../../constants/plans.js";
+import { dateKeyInTimeZone, dateOnlyDueDate } from "../../lib/timezone.js";
+import type { UpdateOrgInput } from "./orgs.schemas.js";
 
 export function generateSlug(orgName: string): string {
   const base = orgName
@@ -60,7 +63,7 @@ export async function createOrg(userId: string, name: string) {
   }
 }
 
-export async function updateOrg(name: string) {
+export async function updateOrg(input: UpdateOrgInput) {
   const tenantId = requireTenantId();
   const dbSession = await mongoose.startSession();
 
@@ -76,18 +79,81 @@ export async function updateOrg(name: string) {
         throw new AppError(404, "NOT_FOUND", "Organization not found");
       }
 
-      const updated = await Organization.findByIdAndUpdate(
-        tenantId,
-        { name },
-        { new: true, runValidators: true, session: dbSession },
-      ).setOptions({ skipTenant: true });
+      const previousTimeZone =
+        typeof before.timeZone === "string" ? before.timeZone : "UTC";
+      if (input.timeZone !== undefined && input.timeZone !== previousTimeZone) {
+        const tasks = await Task.find({
+          dueDate: { $ne: null },
+          dueDateIsDateOnly: true,
+        })
+          .select("_id dueDate")
+          .setOptions({ includeDeleted: true })
+          .session(dbSession)
+          .lean();
+        if (tasks.length > 0) {
+          await Task.bulkWrite(
+            tasks.map((task) => {
+              const dueDate = task.dueDate as Date;
+              return {
+                updateOne: {
+                  filter: { _id: task._id },
+                  update: {
+                    $set: {
+                      dueDate: dateOnlyDueDate(
+                        dateKeyInTimeZone(dueDate, previousTimeZone),
+                        input.timeZone!,
+                      ),
+                    },
+                    $inc: { reminderCycle: 1 },
+                  },
+                },
+              };
+            }),
+            { session: dbSession, ordered: false },
+          );
+        }
+        await Notification.deleteMany(
+          {
+            tenantId,
+            type: { $in: ["task_due_soon", "task_overdue"] },
+          },
+          { session: dbSession },
+        );
+      }
+
+      const changes = {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.timeZone !== undefined ? { timeZone: input.timeZone } : {}),
+      };
+      const updated = await Organization.findByIdAndUpdate(tenantId, changes, {
+        new: true,
+        runValidators: true,
+        session: dbSession,
+      }).setOptions({ skipTenant: true });
 
       await recordAudit(
         {
-          action: "org.renamed",
+          action:
+            input.name !== undefined && input.timeZone !== undefined
+              ? "org.settings_updated"
+              : input.timeZone !== undefined
+                ? "org.timezone_changed"
+                : "org.renamed",
           entityType: "Organization",
           entityId: tenantId,
-          metadata: { name: { from: before.name, to: name } },
+          metadata: {
+            ...(input.name !== undefined
+              ? { name: { from: before.name, to: input.name } }
+              : {}),
+            ...(input.timeZone !== undefined
+              ? {
+                  timeZone: {
+                    from: before.timeZone ?? "UTC",
+                    to: input.timeZone,
+                  },
+                }
+              : {}),
+          },
         },
         dbSession,
       );

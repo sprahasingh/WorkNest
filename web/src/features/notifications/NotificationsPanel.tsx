@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useOrg } from "@/hooks/useOrg";
 import { cn } from "@/lib/cn";
-import { formatFullTime, formatRelativeTime } from "@/lib/time";
+import {
+  formatDateInTimeZone,
+  formatFullTime,
+  formatRelativeTime,
+} from "@/lib/time";
+import { useOrgDetails } from "@/features/org/queries";
 import { ActivityIcon } from "@/features/tasks/ActivityIcon";
 import {
   isTaskReminder,
@@ -53,6 +58,8 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
 
 function PanelBody({ onClose }: { onClose: () => void }) {
   const { orgId } = useOrg();
+  const { data: organization } = useOrgDetails(orgId);
+  const timeZone = organization?.timeZone ?? "UTC";
   const navigate = useNavigate();
   const [tab, setTab] = useState<NotificationStatus>("unread");
   const { data, isPending, isError, refetch } = useNotifications(orgId, tab);
@@ -298,7 +305,14 @@ function PanelBody({ onClose }: { onClose: () => void }) {
                               <>{notification.projectName} · </>
                             )}
                             {notification.dueDate && (
-                              <>Due {formatFullTime(notification.dueDate)} · </>
+                              <>
+                                Due{" "}
+                                {formatDateInTimeZone(
+                                  notification.dueDate,
+                                  timeZone,
+                                )}{" "}
+                                ·{" "}
+                              </>
                             )}
                             <time
                               dateTime={notification.createdAt}

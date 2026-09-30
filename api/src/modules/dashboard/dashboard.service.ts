@@ -4,6 +4,7 @@ import { Organization } from "../../models/Organization.js";
 import { binnedProjectIds } from "../../models/Project.js";
 import { Membership } from "../../models/Membership.js";
 import { requireTenantId } from "../../tenancy/context.js";
+import { isValidTimeZone } from "../../lib/timezone.js";
 
 interface StatusCount {
   _id: string;
@@ -34,14 +35,7 @@ interface TopAssignee {
 // "YYYY-MM-DD" keys and handled as UTC-midnight Dates for arithmetic.
 const DAY_MS = 86_400_000;
 
-export function isValidTimeZone(timeZone: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone });
-    return true;
-  } catch {
-    return false;
-  }
-}
+export { isValidTimeZone };
 
 // The calendar day an instant falls on in `timeZone`.
 function localDayKey(date: Date, timeZone: string): string {
@@ -227,7 +221,7 @@ export async function getDashboard(
       ...live,
       status: { $ne: "done" },
       archivedAt: null,
-      dueDate: { $ne: null, $lt: new Date() },
+      dueDate: { $ne: null, $lte: new Date() },
     }),
     Organization.findById(tenantId).setOptions({ skipTenant: true }),
     Membership.countDocuments({ tenantId: tenantObjectId }).setOptions({
