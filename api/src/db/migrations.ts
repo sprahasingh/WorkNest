@@ -1,8 +1,111 @@
+import mongoose from "mongoose";
+import { dateOnlyDueDate, isValidTimeZone } from "../lib/timezone.js";
 import { Task } from "../models/Task.js";
 import { Organization } from "../models/Organization.js";
 import { Notification } from "../models/Notification.js";
 import { PLAN_LIMITS, PLANS } from "../constants/plans.js";
 import { logger } from "../lib/logger.js";
+
+interface LegacyTaskDueDate {
+  _id: mongoose.Types.ObjectId;
+  tenantId: mongoose.Types.ObjectId;
+  dueDate: Date;
+}
+
+const DATE_ONLY_MIGRATION_ID = "task-date-only-end-of-day-v1";
+
+export async function migrateDateOnlyTaskDueDates(): Promise<void> {
+  const migrationCollection = mongoose.connection.collection<{
+    _id: string;
+    completedAt: Date;
+  }>("schema_migrations");
+  if (await migrationCollection.findOne({ _id: DATE_ONLY_MIGRATION_ID }))
+    return;
+
+  const cursor = Task.collection
+    .find<LegacyTaskDueDate>(
+      { dueDate: { $type: "date" } },
+      { projection: { _id: 1, tenantId: 1, dueDate: 1 } },
+    )
+    .batchSize(500);
+  let batch: LegacyTaskDueDate[] = [];
+  let migratedCount = 0;
+
+  const migrateBatch = async () => {
+    if (batch.length === 0) return;
+
+    const tenantIds = [
+      ...new Set(batch.map((task) => String(task.tenantId))),
+    ].map((id) => new mongoose.Types.ObjectId(id));
+    const organizations = await Organization.collection
+      .find(
+        { _id: { $in: tenantIds } },
+        { projection: { _id: 1, timeZone: 1 } },
+      )
+      .toArray();
+    const timeZones = new Map(
+      organizations.map((organization) => [
+        String(organization._id),
+        typeof organization.timeZone === "string" &&
+        isValidTimeZone(organization.timeZone)
+          ? organization.timeZone
+          : "UTC",
+      ]),
+    );
+
+    await Task.collection.bulkWrite(
+      batch.map((task) => {
+        const timeZone = timeZones.get(String(task.tenantId)) ?? "UTC";
+        const dateKey = task.dueDate.toISOString().slice(0, 10);
+        return {
+          updateOne: {
+            filter: { _id: task._id, dueDate: task.dueDate },
+            update: {
+              $set: {
+                dueDate: dateOnlyDueDate(dateKey, timeZone),
+                dueDateIsDateOnly: true,
+              },
+              $inc: { reminderCycle: 1 },
+            },
+          },
+        };
+      }),
+      { ordered: false },
+    );
+    await Notification.collection.deleteMany({
+      taskId: { $in: batch.map((task) => task._id) },
+      type: { $in: ["task_due_soon", "task_overdue"] },
+    });
+    migratedCount += batch.length;
+    batch = [];
+  };
+
+  for await (const task of cursor) {
+    const dueDate = task.dueDate;
+    if (
+      dueDate.getUTCHours() !== 0 ||
+      dueDate.getUTCMinutes() !== 0 ||
+      dueDate.getUTCSeconds() !== 0 ||
+      dueDate.getUTCMilliseconds() !== 0
+    ) {
+      continue;
+    }
+    batch.push(task);
+    if (batch.length === 500) await migrateBatch();
+  }
+  await migrateBatch();
+  try {
+    await migrationCollection.insertOne({
+      _id: DATE_ONLY_MIGRATION_ID,
+      completedAt: new Date(),
+    });
+  } catch (error) {
+    if ((error as { code?: number }).code !== 11000) throw error;
+  }
+  if (migratedCount > 0) {
+    logger.info({ migratedCount }, "Migrated date-only task due dates");
+  }
+}
 
 export async function ensureNotificationEventIndex(): Promise<void> {
   await Notification.collection.createIndex(

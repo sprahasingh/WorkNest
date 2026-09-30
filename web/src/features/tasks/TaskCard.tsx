@@ -1,5 +1,6 @@
 import type { Member } from "@/features/members/api";
 import type { Task, TaskStatus } from "./api";
+import { formatDateInTimeZone } from "@/lib/time";
 
 const PRIORITY_STYLES: Record<Task["priority"], string> = {
   low: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
@@ -25,11 +26,12 @@ function getInitials(name: string): string {
 
 function isOverdue(task: Task): boolean {
   if (!task.dueDate || task.status === "done") return false;
-  return new Date(task.dueDate) < new Date();
+  return new Date(task.dueDate) <= new Date();
 }
 
 interface TaskCardProps {
   task: Task;
+  timeZone: string;
   members: Member[];
   canChangeStatus: boolean;
   onStatusChange: (task: Task, newStatus: TaskStatus) => void;
@@ -38,6 +40,7 @@ interface TaskCardProps {
 
 export function TaskCard({
   task,
+  timeZone,
   members,
   canChangeStatus,
   onStatusChange,
@@ -87,7 +90,7 @@ export function TaskCard({
           <span
             className={`text-xs ${overdue ? "font-medium text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}
           >
-            {new Date(task.dueDate).toLocaleDateString()}
+            {formatDateInTimeZone(task.dueDate, timeZone)}
           </span>
         )}
       </div>

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { dateOnlyDueDate } from "../../lib/timezone.js";
 import { Task } from "../../models/Task.js";
 import { TaskActivity } from "../../models/TaskActivity.js";
 import { Notification } from "../../models/Notification.js";
@@ -39,6 +40,19 @@ async function validateAssignees(
       "One or more assignees are not members of this organization",
     );
   }
+}
+
+async function normalizeDueDate(
+  value: Date | string | null | undefined,
+  tenantId: string,
+): Promise<Date | null | undefined> {
+  if (typeof value !== "string") return value;
+  const organization = await Organization.findById(tenantId)
+    .select("timeZone")
+    .setOptions({ skipTenant: true });
+  const timeZone =
+    typeof organization?.timeZone === "string" ? organization.timeZone : "UTC";
+  return dateOnlyDueDate(value, timeZone);
 }
 
 async function getAdminAndManagerIds(): Promise<mongoose.Types.ObjectId[]> {
@@ -195,6 +209,8 @@ export async function createTask(
     await validateAssignees(tenantId, assigneeIds);
   }
 
+  const dueDate = await normalizeDueDate(input.dueDate, tenantId);
+
   const dbSession = await mongoose.startSession();
 
   try {
@@ -209,7 +225,8 @@ export async function createTask(
             description: input.description,
             priority: input.priority,
             assigneeIds,
-            dueDate: input.dueDate,
+            dueDate,
+            dueDateIsDateOnly: typeof input.dueDate === "string",
             createdBy,
           },
         ],
@@ -323,12 +340,14 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
 
   const retentionMs = BIN_RETENTION_DAYS * 86_400_000;
   return {
-    items: items.map((task) => ({
-      ...task,
-      purgeAt: task.deletedAt
-        ? new Date(task.deletedAt.getTime() + retentionMs).toISOString()
-        : null,
-    })),
+    items: items.map((task) => {
+      return {
+        ...task,
+        purgeAt: task.deletedAt
+          ? new Date(task.deletedAt.getTime() + retentionMs).toISOString()
+          : null,
+      };
+    }),
     nextCursor,
     total,
     binRetentionDays: BIN_RETENTION_DAYS,
@@ -437,7 +456,17 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
     await assertRoomForActiveTask(tenantId, String(task.projectId), "reopen");
   }
 
-  const changes = { ...input };
+  const changes: UpdateTaskInput & { dueDateIsDateOnly?: boolean } = {
+    ...input,
+  };
+  if (Object.prototype.hasOwnProperty.call(changes, "dueDate")) {
+    if (typeof changes.dueDate === "string") {
+      changes.dueDate = await normalizeDueDate(changes.dueDate, tenantId);
+      changes.dueDateIsDateOnly = true;
+    } else {
+      changes.dueDateIsDateOnly = false;
+    }
+  }
   if (isReassigning) {
     changes.assigneeIds = [...new Set(input.assigneeIds ?? [])];
     if (changes.assigneeIds.length > 0) {
@@ -475,6 +504,9 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
       Object.assign(task, changes);
       if (completing) task.completedAt = new Date();
       if (reopening) task.completedAt = null;
+      if (reopening || diff.dueDate) {
+        task.reminderCycle = (task.reminderCycle ?? 0) + 1;
+      }
       await task.save({ session: dbSession });
 
       if (completing) {
@@ -502,17 +534,62 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
           { session: dbSession },
         );
       } else if (diff.assigneeIds) {
-        await Notification.updateMany(
-          {
+        const previousAssigneeIds = (
+          (diff.assigneeIds.from as mongoose.Types.ObjectId[] | undefined) ?? []
+        ).map((userId) => userId.toString());
+        const currentAssigneeIds = new Set(
+          (task.assigneeIds ?? []).map((userId) => userId.toString()),
+        );
+        const removedAssigneeIds = previousAssigneeIds.filter(
+          (userId) => !currentAssigneeIds.has(userId),
+        );
+
+        if (removedAssigneeIds.length > 0) {
+          const removedMemberships = await Membership.find({
+            userId: { $in: removedAssigneeIds },
+          })
+            .select("userId role")
+            .session(dbSession)
+            .lean();
+          const removedMemberIds = removedMemberships
+            .filter((membership) => membership.role === "member")
+            .map((membership) => membership.userId);
+          const removedAdminIds = removedMemberships
+            .filter((membership) => membership.role === "admin")
+            .map((membership) => membership.userId);
+          const removedManagerIds = removedMemberships
+            .filter((membership) => membership.role === "manager")
+            .map((membership) => membership.userId);
+          const reminderFilter = {
             tenantId,
             taskId: task._id,
-            type: { $in: ["task_due_soon", "task_overdue"] },
-            userId: { $nin: task.assigneeIds ?? [] },
             dismissedAt: null,
-          },
-          { dismissedAt: new Date() },
-          { session: dbSession },
-        );
+          };
+          if (removedMemberIds.length > 0) {
+            await Notification.deleteMany({
+              ...reminderFilter,
+              userId: { $in: removedMemberIds },
+              type: { $in: ["task_due_soon", "task_overdue"] },
+            }).session(dbSession);
+          }
+
+          if (removedAdminIds.length > 0) {
+            await Notification.deleteMany({
+              ...reminderFilter,
+              userId: { $in: removedAdminIds },
+              type: "task_due_soon",
+            }).session(dbSession);
+          }
+
+          if (removedManagerIds.length > 0) {
+            await Notification.deleteMany({
+              ...reminderFilter,
+              userId: { $in: removedManagerIds },
+              type: "task_due_soon",
+              eventKey: /:24h$/,
+            }).session(dbSession);
+          }
+        }
       }
 
       if (completing && completionEventKey) {

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { TaskCard } from "./TaskCard";
 import { useTaskColumn, type TaskFilters } from "./queries";
 import type { Task, TaskStatus, TaskView } from "./api";
+import { useOrgDetails } from "@/features/org/queries";
 
 const COLUMN_LABELS: Record<TaskStatus, string> = {
   todo: "To do",
@@ -33,6 +34,7 @@ export function TaskColumn({
   onStatusChange,
   onTaskClick,
 }: TaskColumnProps) {
+  const { data: organization } = useOrgDetails(orgId);
   const {
     data,
     isPending,
@@ -77,6 +79,7 @@ export function TaskColumn({
             <TaskCard
               key={task._id}
               task={task}
+              timeZone={organization?.timeZone ?? "UTC"}
               members={members}
               canChangeStatus={view === "active" && canChangeStatus(task)}
               onStatusChange={onStatusChange}

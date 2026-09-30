@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PLANS } from "../../constants/plans.js";
+import { isValidTimeZone } from "../../lib/timezone.js";
 
 export const createOrgSchema = z
   .object({
@@ -11,8 +12,13 @@ export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 
 export const updateOrgSchema = z
   .object({
-    name: z.string().trim().min(2).max(80),
+    name: z.string().trim().min(2).max(80).optional(),
+    timeZone: z
+      .string()
+      .refine(isValidTimeZone, "Invalid IANA time zone")
+      .optional(),
   })
+  .refine((input) => input.name !== undefined || input.timeZone !== undefined)
   .strict();
 
 export type UpdateOrgInput = z.infer<typeof updateOrgSchema>;
