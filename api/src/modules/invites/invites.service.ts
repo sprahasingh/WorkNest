@@ -96,6 +96,36 @@ export async function createInvite(input: CreateInviteInput) {
         );
       }
 
+      const pending = await Invite.findOne({
+        email: input.email,
+        status: "pending",
+      }).session(dbSession);
+
+      if (pending && !input.replaceExisting) {
+        throw new AppError(
+          409,
+          "INVITE_ALREADY_PENDING",
+          "This person already has a pending invite",
+          [{ invitedAt: pending.createdAt, expiresAt: pending.expiresAt }],
+        );
+      }
+
+      // A fresh link replaces the old one, which stops working.
+      if (pending) {
+        pending.status = "revoked";
+        await pending.save({ session: dbSession });
+        await releaseSeat(tenantId, dbSession);
+        await recordAudit(
+          {
+            action: "invite.revoked",
+            entityType: "Invite",
+            entityId: pending._id,
+            metadata: { email: pending.email, replaced: true },
+          },
+          dbSession,
+        );
+      }
+
       await reserveSeat(tenantId, dbSession);
 
       rawToken = randomToken();
@@ -129,7 +159,10 @@ export async function createInvite(input: CreateInviteInput) {
       invite = created;
     });
 
-    return { invite: invite!, rawToken: rawToken! };
+    // Someone who already has an account also sees the invite in the app.
+    const existingUser = Boolean(await User.exists({ email: input.email }));
+
+    return { invite: invite!, rawToken: rawToken!, existingUser };
   } finally {
     await dbSession.endSession();
   }
@@ -147,7 +180,16 @@ export async function listPendingInvites() {
       invites = await Invite.find({ status: "pending" }).session(dbSession);
     });
 
-    return invites!;
+    const pending = invites! as Array<InstanceType<typeof Invite>>;
+    const registered = await User.find({
+      email: { $in: pending.map((invite) => invite.email) },
+    }).select("email");
+    const registeredEmails = new Set(registered.map((user) => user.email));
+
+    return pending.map((invite) => ({
+      ...invite.toJSON(),
+      existingUser: registeredEmails.has(invite.email),
+    }));
   } finally {
     await dbSession.endSession();
   }
@@ -186,19 +228,20 @@ export async function revokeInvite(inviteId: string) {
   }
 }
 
-export async function acceptInvite(
-  rawToken: string,
+// Finds a pending invite addressed to this user and makes them a member.
+// Accepting when already a member (e.g. two invites) just frees the seat.
+async function acceptPendingInvite(
+  filter: { tokenHash: string } | { _id: string },
   userId: string,
   userEmail: string,
 ) {
-  const tokenHash = sha256(rawToken);
   const dbSession = await mongoose.startSession();
 
   try {
     let membershipResult;
 
     await dbSession.withTransaction(async () => {
-      const invite = await Invite.findOne({ tokenHash })
+      const invite = await Invite.findOne(filter)
         .session(dbSession)
         .setOptions({ skipTenant: true });
 
@@ -236,6 +279,19 @@ export async function acceptInvite(
         );
       }
 
+      const existing = await Membership.findOne({
+        tenantId: invite.tenantId,
+        userId,
+      })
+        .session(dbSession)
+        .setOptions({ skipTenant: true });
+
+      if (existing) {
+        await releaseSeat(invite.tenantId.toString(), dbSession);
+        membershipResult = existing;
+        return;
+      }
+
       const membership = new Membership({
         tenantId: invite.tenantId,
         userId,
@@ -271,6 +327,101 @@ export async function acceptInvite(
   } finally {
     await dbSession.endSession();
   }
+}
+
+export async function acceptInvite(
+  rawToken: string,
+  userId: string,
+  userEmail: string,
+) {
+  return acceptPendingInvite(
+    { tokenHash: sha256(rawToken) },
+    userId,
+    userEmail,
+  );
+}
+
+export async function declineInviteByToken(
+  rawToken: string,
+  userId: string,
+  userEmail: string,
+) {
+  return declineInvite({ tokenHash: sha256(rawToken) }, userId, userEmail);
+}
+
+export async function acceptInviteById(
+  inviteId: string,
+  userId: string,
+  userEmail: string,
+) {
+  return acceptPendingInvite({ _id: inviteId }, userId, userEmail);
+}
+
+export async function declineInvite(
+  filter: { tokenHash: string } | { _id: string },
+  userId: string,
+  userEmail: string,
+) {
+  const dbSession = await mongoose.startSession();
+
+  try {
+    await dbSession.withTransaction(async () => {
+      const invite = await Invite.findOneAndUpdate(
+        { ...filter, email: userEmail.toLowerCase(), status: "pending" },
+        { status: "declined" },
+        { session: dbSession },
+      ).setOptions({ skipTenant: true });
+
+      if (!invite) {
+        throw new AppError(404, "NOT_FOUND", "Invite not found");
+      }
+
+      await releaseSeat(invite.tenantId.toString(), dbSession);
+
+      await recordAudit(
+        {
+          action: "invite.declined",
+          entityType: "Invite",
+          entityId: invite._id,
+          metadata: { email: invite.email, role: invite.role },
+          tenantId: invite.tenantId,
+          actorId: userId,
+        },
+        dbSession,
+      );
+    });
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
+// Pending invites addressed to this user's email, across every org.
+export async function listMyInvites(userEmail: string) {
+  const invites = await Invite.find({
+    email: userEmail.toLowerCase(),
+    status: "pending",
+    expiresAt: { $gt: new Date() },
+  })
+    .sort({ createdAt: -1 })
+    .setOptions({ skipTenant: true })
+    .populate<{
+      tenantId: { _id: mongoose.Types.ObjectId; name: string } | null;
+    }>("tenantId", "name")
+    .populate<{ invitedBy: { name: string } | null }>("invitedBy", "name");
+
+  return invites
+    .filter((invite) => invite.tenantId !== null)
+    .map((invite) => ({
+      _id: invite._id.toString(),
+      organization: {
+        id: invite.tenantId!._id.toString(),
+        name: invite.tenantId!.name,
+      },
+      role: invite.role,
+      invitedBy: invite.invitedBy ? { name: invite.invitedBy.name } : null,
+      createdAt: invite.createdAt,
+      expiresAt: invite.expiresAt,
+    }));
 }
 
 export async function signupViaInvite(
@@ -385,11 +536,15 @@ export async function getInviteByToken(rawToken: string) {
     invite.status === "expired" ||
     (invite.status === "pending" && invite.expiresAt < new Date());
 
+  const accountExists = Boolean(await User.exists({ email: invite.email }));
+
   return {
     organizationName: invite.tenantId.name,
     email: invite.email,
     role: invite.role,
     expired: isExpired,
-    status: invite.status,
+    status: isExpired ? "expired" : invite.status,
+    // Lets the invite page offer "log in to accept" instead of sign-up.
+    accountExists,
   };
 }
