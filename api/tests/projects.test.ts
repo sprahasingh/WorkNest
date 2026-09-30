@@ -164,7 +164,7 @@ describe("project archive and delete", () => {
       .get(`/api/orgs/${org.orgId}/projects`)
       .set(auth);
     expect(list.status).toBe(200);
-    expect(list.body.counts).toEqual({ active: 2, archived: 1 });
+    expect(list.body.counts).toEqual({ active: 2, archived: 1, bin: 0 });
 
     const byId = new Map(
       (
@@ -188,7 +188,7 @@ describe("project archive and delete", () => {
       .get(`/api/orgs/${org.orgId}/projects`)
       .query({ archived: "true" })
       .set(auth);
-    expect(archivedList.body.counts).toEqual({ active: 2, archived: 1 });
+    expect(archivedList.body.counts).toEqual({ active: 2, archived: 1, bin: 0 });
     expect(archivedList.body.projects).toHaveLength(1);
   });
 
