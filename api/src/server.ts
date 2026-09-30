@@ -1,6 +1,10 @@
 import { createApp } from "./app.js";
 import { connectDB } from "./db/connect.js";
-import { migrateLegacyTaskAssignees, syncPlanLimits } from "./db/migrations.js";
+import {
+  ensureNotificationEventIndex,
+  migrateLegacyTaskAssignees,
+  syncPlanLimits,
+} from "./db/migrations.js";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { purgeExpiredProjects } from "./modules/projects/projects.service.js";
@@ -10,6 +14,7 @@ async function main(): Promise<void> {
   await connectDB();
   await migrateLegacyTaskAssignees();
   await syncPlanLimits();
+  await ensureNotificationEventIndex();
 
   // Projects left in the bin past their 30 days are deleted for good. Lists
   // also clean up on read, so this just keeps the database tidy.

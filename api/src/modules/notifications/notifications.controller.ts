@@ -2,8 +2,10 @@ import type { Request, Response } from "express";
 import {
   listNotifications,
   markNotificationsRead,
+  dismissTaskNotifications,
 } from "./notifications.service.js";
 import type {
+  DismissNotificationsInput,
   ListNotificationsQuery,
   MarkReadInput,
 } from "./notifications.schemas.js";
@@ -23,5 +25,14 @@ export async function markReadController(
 ): Promise<void> {
   const { ids } = req.validated!.body as MarkReadInput;
   await markNotificationsRead(ids);
+  res.status(204).send();
+}
+
+export async function dismissNotificationsController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const { ids } = req.validated!.body as DismissNotificationsInput;
+  await dismissTaskNotifications(ids);
   res.status(204).send();
 }

@@ -5,11 +5,16 @@ import { cn } from "@/lib/cn";
 import { formatFullTime, formatRelativeTime } from "@/lib/time";
 import { ActivityIcon } from "@/features/tasks/ActivityIcon";
 import {
+  isTaskReminder,
   notificationLink,
   type Notification,
   type NotificationStatus,
 } from "./api";
-import { useMarkNotificationsRead, useNotifications } from "./queries";
+import {
+  useDismissNotifications,
+  useMarkNotificationsRead,
+  useNotifications,
+} from "./queries";
 import { useMyInvites } from "@/features/invites/myInvites";
 import { MyInvitations } from "@/features/invites/MyInvitations";
 
@@ -52,9 +57,11 @@ function PanelBody({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<NotificationStatus>("unread");
   const { data, isPending, isError, refetch } = useNotifications(orgId, tab);
   const markRead = useMarkNotificationsRead(orgId);
+  const dismiss = useDismissNotifications(orgId);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const unreadCount = data?.unreadCount ?? 0;
+  const readableUnreadCount = data?.readableUnreadCount ?? 0;
   const notifications = data?.notifications ?? [];
   const invites = useMyInvites().data ?? [];
 
@@ -74,7 +81,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const handleSelect = (notification: Notification) => {
-    if (!notification.readAt) {
+    if (!notification.readAt && !isTaskReminder(notification.type)) {
       markRead.mutate([notification._id]);
     }
     const link = notificationLink(orgId, notification);
@@ -165,10 +172,10 @@ function PanelBody({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={() => markRead.mutate(undefined)}
-              disabled={unreadCount === 0 || markRead.isPending}
+              disabled={readableUnreadCount === 0 || markRead.isPending}
               className="text-sm font-medium text-teal-700 hover:underline disabled:cursor-default disabled:text-slate-400 disabled:no-underline dark:text-teal-400 dark:disabled:text-slate-500"
             >
-              Mark all as read
+              Mark activity read
             </button>
           </div>
         </header>
@@ -239,7 +246,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
                 </p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   {tab === "unread"
-                    ? "New update requests, updates and questions will show up here."
+                    ? "Task reminders, completions and team updates will show up here."
                     : "You'll be notified when someone asks you for an update, posts one, or asks a question."}
                 </p>
                 {tab === "unread" && (
@@ -257,50 +264,72 @@ function PanelBody({ onClose }: { onClose: () => void }) {
           {!isPending && !isError && notifications.length > 0 && (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
               {notifications.map((notification) => {
-                const unread = !notification.readAt;
+                const unread =
+                  !notification.readAt && !notification.dismissedAt;
+                const isReminder = isTaskReminder(notification.type);
                 const linked = notificationLink(orgId, notification) !== null;
                 return (
                   <li key={notification._id}>
-                    <button
-                      type="button"
-                      onClick={() => handleSelect(notification)}
+                    <div
                       className={cn(
-                        "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60",
+                        "flex items-start gap-1 px-2",
                         unread && "bg-teal-50/60 dark:bg-teal-900/10",
                       )}
                     >
-                      <ActivityIcon type={notification.type} />
-                      <span className="min-w-0 flex-1">
-                        <span
-                          className={cn(
-                            "block text-sm",
-                            unread
-                              ? "font-medium text-slate-900 dark:text-slate-50"
-                              : "text-slate-600 dark:text-slate-300",
-                          )}
-                        >
-                          {notification.message}
-                        </span>
-                        <span className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400">
-                          {notification.projectName && (
-                            <>{notification.projectName} · </>
-                          )}
-                          <time
-                            dateTime={notification.createdAt}
-                            title={formatFullTime(notification.createdAt)}
+                      <button
+                        type="button"
+                        onClick={() => handleSelect(notification)}
+                        className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-2 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                      >
+                        <ActivityIcon type={notification.type} />
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "block text-sm",
+                              unread
+                                ? "font-medium text-slate-900 dark:text-slate-50"
+                                : "text-slate-600 dark:text-slate-300",
+                            )}
                           >
-                            {formatRelativeTime(notification.createdAt)}
-                          </time>
-                          {!linked && " · no longer available"}
+                            {notification.message}
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400">
+                            {notification.projectName && (
+                              <>{notification.projectName} · </>
+                            )}
+                            {notification.dueDate && (
+                              <>Due {formatFullTime(notification.dueDate)} · </>
+                            )}
+                            <time
+                              dateTime={notification.createdAt}
+                              title={formatFullTime(notification.createdAt)}
+                            >
+                              {formatRelativeTime(notification.createdAt)}
+                            </time>
+                            {!linked && " · no longer available"}
+                            {notification.dismissedAt && " · dismissed"}
+                          </span>
                         </span>
-                      </span>
-                      {unread && (
-                        <span
-                          className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-teal-500"
-                          aria-label="Unread"
-                        />
+                        {unread && (
+                          <span
+                            className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-teal-500"
+                            aria-label="Unread"
+                          />
+                        )}
+                      </button>
+                      {isReminder && !notification.dismissedAt && (
+                        <button
+                          type="button"
+                          onClick={() => dismiss.mutate([notification._id])}
+                          disabled={dismiss.isPending}
+                          aria-label={`Dismiss reminder: ${notification.message}`}
+                          title="Dismiss reminder"
+                          className="mt-2 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                        >
+                          <CloseIcon />
+                        </button>
                       )}
-                    </button>
+                    </div>
                   </li>
                 );
               })}
@@ -309,8 +338,8 @@ function PanelBody({ onClose }: { onClose: () => void }) {
         </div>
 
         <footer className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-          Opening a task or a project&apos;s updates marks its notifications as
-          read.
+          Reminders stay unread until you dismiss them. Opening other
+          notifications marks them as read.
         </footer>
       </section>
     </div>
