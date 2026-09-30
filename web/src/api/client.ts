@@ -8,11 +8,14 @@ interface RefreshResponse {
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
+  _wakeRetried?: boolean;
 };
 
 let accessToken: string | null = null;
 let refreshPromise: Promise<string> | null = null;
+let serverWakePromise: Promise<void> | null = null;
 let onAuthFailure: (() => void) | null = null;
+let onServerWakeChange: ((isWaking: boolean) => void) | null = null;
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
@@ -46,6 +49,12 @@ export function setAuthFailureHandler(handler: (() => void) | null): void {
   onAuthFailure = handler;
 }
 
+export function setServerWakeHandler(
+  handler: ((isWaking: boolean) => void) | null,
+): void {
+  onServerWakeChange = handler;
+}
+
 export const apiClient = axios.create({
   baseURL: "/api",
   withCredentials: true,
@@ -68,10 +77,54 @@ async function refreshAccessToken(): Promise<string> {
   return response.data.accessToken;
 }
 
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function waitForServer(): Promise<void> {
+  serverWakePromise ??= (async () => {
+    onServerWakeChange?.(true);
+    try {
+      while (true) {
+        try {
+          await refreshClient.get("/health", { timeout: 10_000 });
+          return;
+        } catch {
+          await delay(2_000);
+        }
+      }
+    } finally {
+      onServerWakeChange?.(false);
+      serverWakePromise = null;
+    }
+  })();
+
+  return serverWakePromise;
+}
+
+function isServerUnavailable(error: AxiosError): boolean {
+  return (
+    !error.response ||
+    error.response.status === 502 ||
+    error.response.status === 503 ||
+    error.response.status === 504
+  );
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiErrorBody>) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
+    if (
+      originalRequest &&
+      !originalRequest._wakeRetried &&
+      isServerUnavailable(error)
+    ) {
+      originalRequest._wakeRetried = true;
+      await waitForServer();
+      return apiClient(originalRequest);
+    }
+
     const isTokenExpired =
       error.response?.status === 401 &&
       error.response.data?.error?.code === "TOKEN_EXPIRED";
