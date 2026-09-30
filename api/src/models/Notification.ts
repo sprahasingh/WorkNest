@@ -10,25 +10,43 @@ const notificationSchema = new Schema(
     },
     projectId: { type: Schema.Types.ObjectId, ref: "Project", default: null },
     taskId: { type: Schema.Types.ObjectId, ref: "Task", default: null },
+    dueDate: { type: Date, default: null },
     activityId: {
       type: Schema.Types.ObjectId,
       ref: "TaskActivity",
-      required: true,
+      default: null,
     },
     // What happened, so the UI can label it; null on older notifications.
     type: {
       type: String,
-      enum: ["update_request", "update", "question", "reply"],
+      enum: [
+        "update_request",
+        "update",
+        "question",
+        "reply",
+        "task_completed",
+        "task_due_soon",
+        "task_overdue",
+      ],
       default: null,
     },
     actorId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     message: { type: String, required: true },
     readAt: { type: Date, default: null },
+    dismissedAt: { type: Date, default: null },
+    eventKey: { type: String, default: null },
   },
   { timestamps: true },
 );
 
 notificationSchema.index({ userId: 1, tenantId: 1, readAt: 1, _id: -1 });
+notificationSchema.index(
+  { userId: 1, eventKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { eventKey: { $type: "string" } },
+  },
+);
 
 export type NotificationDocument = InferSchemaType<typeof notificationSchema>;
 export const Notification = model("Notification", notificationSchema);

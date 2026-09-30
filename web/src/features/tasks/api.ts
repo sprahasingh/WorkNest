@@ -4,6 +4,8 @@ import type { Plan } from "@/api/auth";
 export type TaskStatus = "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "medium" | "high";
 export type ActivityType = "update_request" | "update" | "question" | "reply";
+export type TaskNotificationType =
+  "task_completed" | "task_due_soon" | "task_overdue";
 
 export interface Task {
   _id: string;
@@ -121,10 +123,7 @@ export async function updateTask(
   return response.data.task;
 }
 
-export async function deleteTask(
-  orgId: string,
-  taskId: string,
-): Promise<void> {
+export async function deleteTask(orgId: string, taskId: string): Promise<void> {
   await apiClient.delete(`/orgs/${orgId}/tasks/${taskId}`);
 }
 
@@ -141,8 +140,7 @@ export async function getTaskStats(
 // Activity lives either on one task, or on the project as a whole (e.g. an
 // update request sent to every assignee in the project).
 export type ActivityScope =
-  | { kind: "task"; id: string }
-  | { kind: "project"; id: string };
+  { kind: "task"; id: string } | { kind: "project"; id: string };
 
 function activityPath(orgId: string, scope: ActivityScope): string {
   return scope.kind === "task"

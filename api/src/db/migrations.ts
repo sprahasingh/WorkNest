@@ -1,7 +1,18 @@
 import { Task } from "../models/Task.js";
 import { Organization } from "../models/Organization.js";
+import { Notification } from "../models/Notification.js";
 import { PLAN_LIMITS, PLANS } from "../constants/plans.js";
 import { logger } from "../lib/logger.js";
+
+export async function ensureNotificationEventIndex(): Promise<void> {
+  await Notification.collection.createIndex(
+    { userId: 1, eventKey: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { eventKey: { $type: "string" } },
+    },
+  );
+}
 
 // Each organization stores its seat and project limits. When a plan's limits
 // change, bring existing organizations on that plan up to date. Anyone
