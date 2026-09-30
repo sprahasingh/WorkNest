@@ -6,6 +6,7 @@ import {
   logout,
   createSession,
   deleteAccount,
+  updatePersonalInformation,
 } from "./auth.service.js";
 import {
   setRefreshCookie,
@@ -15,7 +16,11 @@ import {
 import { signAccessToken } from "../../lib/jwt.js";
 import { AppError } from "../../lib/errors.js";
 import { User } from "../../models/User.js";
-import type { RegisterInput, LoginInput } from "./auth.schemas.js";
+import type {
+  LoginInput,
+  RegisterInput,
+  UpdatePersonalInformationInput,
+} from "./auth.schemas.js";
 import { Membership } from "../../models/Membership.js";
 
 export async function registerController(
@@ -105,4 +110,20 @@ export async function deleteAccountController(
   await deleteAccount(req.auth!.userId);
   clearRefreshCookie(res);
   res.status(204).send();
+}
+
+export async function updatePersonalInformationController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as UpdatePersonalInformationInput;
+  const user = await updatePersonalInformation(
+    req.auth!.userId,
+    input,
+    getRefreshCookie(req.cookies),
+  );
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+  res.status(200).json({ user });
 }
