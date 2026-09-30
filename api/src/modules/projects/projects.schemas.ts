@@ -25,6 +25,7 @@ export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
 export const listProjectsQuerySchema = z
   .object({
     archived: z.enum(["true", "false"]).optional(),
+    view: z.enum(["active", "archived", "bin"]).optional(),
   })
   .strict();
 

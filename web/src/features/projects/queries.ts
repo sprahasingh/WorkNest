@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { dashboardKeys } from "@/features/dashboard/queries";
+import { orgKeys } from "@/features/org/queries";
 import {
   archiveProject,
   createProject,
   deleteProject,
+  deleteProjectPermanently,
+  restoreProject,
+  unarchiveProject,
   getProject,
   listProjects,
   type CreateProjectInput,
@@ -61,16 +65,47 @@ export function useArchiveProject(orgId: string) {
   });
 }
 
-export function useDeleteProject(orgId: string) {
+// Any change to a project's state refreshes project lists, the dashboard and
+// the org's usage (bin moves free or take a project slot).
+function useProjectStateMutation<T>(
+  orgId: string,
+  mutationFn: (projectId: string) => Promise<T>,
+) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (projectId: string) => deleteProject(orgId, projectId),
+    mutationFn,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) });
       void queryClient.invalidateQueries({
         queryKey: dashboardKeys.all(orgId),
       });
+      void queryClient.invalidateQueries({ queryKey: orgKeys.detail(orgId) });
     },
   });
+}
+
+// Moves a project to the bin.
+export function useDeleteProject(orgId: string) {
+  return useProjectStateMutation(orgId, (projectId) =>
+    deleteProject(orgId, projectId),
+  );
+}
+
+export function useUnarchiveProject(orgId: string) {
+  return useProjectStateMutation(orgId, (projectId) =>
+    unarchiveProject(orgId, projectId),
+  );
+}
+
+export function useRestoreProject(orgId: string) {
+  return useProjectStateMutation(orgId, (projectId) =>
+    restoreProject(orgId, projectId),
+  );
+}
+
+export function useDeleteProjectPermanently(orgId: string) {
+  return useProjectStateMutation(orgId, (projectId) =>
+    deleteProjectPermanently(orgId, projectId),
+  );
 }

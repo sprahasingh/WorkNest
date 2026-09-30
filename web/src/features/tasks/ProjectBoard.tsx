@@ -5,7 +5,7 @@ import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
 import { useMembers } from "@/features/members/queries";
-import { useProject } from "@/features/projects/queries";
+import { useProject, useUnarchiveProject } from "@/features/projects/queries";
 import { parseApiError } from "@/lib/apiError";
 import { NotFound } from "@/pages/NotFound";
 import { Button } from "@/components/ui/Button";
@@ -44,6 +44,7 @@ export function ProjectBoard() {
   const canUpdateOwn = useCan("task:update:own");
   const canCreate = useCan("task:create");
   const canLead = useCan("task:request-update");
+  const canManageProject = useCan("project:write");
 
   const [drawerState, setDrawerState] = useState<DrawerState>(null);
 
@@ -62,6 +63,7 @@ export function ProjectBoard() {
   const membersQuery = useMembers(orgId);
   const members = membersQuery.data ?? [];
   const projectQuery = useProject(orgId, projectId ?? "");
+  const unarchiveProject = useUnarchiveProject(orgId);
   const statsQuery = useTaskStats(orgId, projectId ?? "");
   const linkedTaskQuery = useTask(orgId, linkedTaskId);
   const updateStatus = useUpdateTaskStatus(orgId, projectId ?? "", filters);
@@ -123,6 +125,29 @@ export function ProjectBoard() {
   const currentUserId = auth.user?.id ?? "";
   const isArchived = projectQuery.data?.archivedAt != null;
 
+  // Deleted or in the bin (or never existed): say so instead of an empty board.
+  if (projectQuery.isError) {
+    return (
+      <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
+        <div className="mx-auto max-w-lg rounded-xl border border-slate-200 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-900">
+          <p className="font-medium text-slate-800 dark:text-slate-100">
+            This project isn&apos;t available
+          </p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            It may have been moved to the bin or deleted. Projects in the bin
+            can be restored from the Projects page.
+          </p>
+          <Link
+            to={`/orgs/${orgId}/projects`}
+            className="mt-4 inline-block text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
+          >
+            ← Back to projects
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const stats = statsQuery.data;
   const atTaskLimit =
     stats?.activeLimit != null && stats.activeCount >= stats.activeLimit;
@@ -152,7 +177,10 @@ export function ProjectBoard() {
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={() => setParam("updates", "1")}>
+            <Button
+              variant="secondary"
+              onClick={() => setParam("updates", "1")}
+            >
               Project updates
             </Button>
             {canCreate && !isArchived && (
@@ -223,10 +251,29 @@ export function ProjectBoard() {
         )}
 
         {isArchived && (
-          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-            This project is archived. Existing tasks are still visible, but
-            new tasks can&apos;t be created here.
-          </p>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+            <p>
+              This project is archived. Existing tasks are still visible, but
+              new tasks can&apos;t be created here.
+            </p>
+            {canManageProject && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                loading={unarchiveProject.isPending}
+                onClick={() =>
+                  unarchiveProject.mutate(projectId, {
+                    onSuccess: () => toast.success("Project unarchived"),
+                    onError: (error) =>
+                      toast.error(parseApiError(error).message),
+                  })
+                }
+              >
+                Unarchive
+              </Button>
+            )}
+          </div>
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-3">

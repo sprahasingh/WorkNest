@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import mongoose from "mongoose";
 import { Organization } from "../src/models/Organization.js";
+import { Project } from "../src/models/Project.js";
+import { Task } from "../src/models/Task.js";
 
 const app = createApp();
 
@@ -56,7 +59,8 @@ describe("project limits", () => {
     const deleteRes = await request(app)
       .delete(`/api/orgs/${org.orgId}/projects/${first.body.project._id}`)
       .set("Authorization", `Bearer ${org.accessToken}`);
-    expect(deleteRes.status).toBe(204);
+    // Deleting moves it to the bin, which frees its slot.
+    expect(deleteRes.status).toBe(200);
 
     const afterDelete = await createProject(org.orgId, org.accessToken, "PE");
     expect(afterDelete.status).toBe(201);
@@ -160,7 +164,7 @@ describe("project archive and delete", () => {
       .get(`/api/orgs/${org.orgId}/projects`)
       .set(auth);
     expect(list.status).toBe(200);
-    expect(list.body.counts).toEqual({ active: 2, archived: 1 });
+    expect(list.body.counts).toEqual({ active: 2, archived: 1, bin: 0 });
 
     const byId = new Map(
       (
@@ -184,30 +188,118 @@ describe("project archive and delete", () => {
       .get(`/api/orgs/${org.orgId}/projects`)
       .query({ archived: "true" })
       .set(auth);
-    expect(archivedList.body.counts).toEqual({ active: 2, archived: 1 });
+    expect(archivedList.body.counts).toEqual({ active: 2, archived: 1, bin: 0 });
     expect(archivedList.body.projects).toHaveLength(1);
   });
 
-  it("deleting a project also deletes its tasks", async () => {
+  it("deleting moves a project to the bin, hiding its tasks until restored or deleted for good", async () => {
     const org = await registerOrg("proj-cascade@example.com", "Cascade Org");
     const created = await createProject(org.orgId, org.accessToken, "CAS");
     const projectId = created.body.project._id as string;
+    const auth = { Authorization: `Bearer ${org.accessToken}` };
+    const base = `/api/orgs/${org.orgId}`;
 
     const taskRes = await request(app)
-      .post(`/api/orgs/${org.orgId}/projects/${projectId}/tasks`)
-      .set("Authorization", `Bearer ${org.accessToken}`)
+      .post(`${base}/projects/${projectId}/tasks`)
+      .set(auth)
       .send({ title: "Doomed task" });
     const taskId = taskRes.body.task._id as string;
 
-    const deleteRes = await request(app)
-      .delete(`/api/orgs/${org.orgId}/projects/${projectId}`)
-      .set("Authorization", `Bearer ${org.accessToken}`);
-    expect(deleteRes.status).toBe(204);
+    const binned = await request(app)
+      .delete(`${base}/projects/${projectId}`)
+      .set(auth);
+    expect(binned.status).toBe(200);
+    expect(binned.body.project.deletedAt).not.toBeNull();
 
-    const taskAfterDelete = await request(app)
-      .get(`/api/orgs/${org.orgId}/tasks/${taskId}`)
-      .set("Authorization", `Bearer ${org.accessToken}`);
-    expect(taskAfterDelete.status).toBe(404);
+    expect(
+      (await request(app).get(`${base}/tasks/${taskId}`).set(auth)).status,
+    ).toBe(404);
+    expect(
+      (await request(app).get(`${base}/projects/${projectId}`).set(auth))
+        .status,
+    ).toBe(404);
+
+    const bin = await request(app)
+      .get(`${base}/projects`)
+      .query({ view: "bin" })
+      .set(auth);
+    expect(bin.body.projects).toHaveLength(1);
+    expect(bin.body.projects[0].purgeAt).toBeTruthy();
+    expect(bin.body.counts).toMatchObject({ active: 0, bin: 1 });
+
+    const restored = await request(app)
+      .post(`${base}/projects/${projectId}/restore`)
+      .set(auth);
+    expect(restored.status).toBe(200);
+    expect(
+      (await request(app).get(`${base}/tasks/${taskId}`).set(auth)).status,
+    ).toBe(200);
+
+    // Permanent deletion only works from the bin.
+    const tooSoon = await request(app)
+      .delete(`${base}/projects/${projectId}/permanent`)
+      .set(auth);
+    expect(tooSoon.status).toBe(404);
+
+    await request(app).delete(`${base}/projects/${projectId}`).set(auth);
+    const gone = await request(app)
+      .delete(`${base}/projects/${projectId}/permanent`)
+      .set(auth);
+    expect(gone.status).toBe(204);
+    expect(
+      await Task.collection.findOne({
+        _id: new mongoose.Types.ObjectId(taskId),
+      }),
+    ).toBeNull();
+  });
+
+  it("unarchives, needs a free slot to restore, guards keys in the bin, and empties the bin after 30 days", async () => {
+    const org = await registerOrg("proj-bin@example.com", "Bin Org");
+    const auth = { Authorization: `Bearer ${org.accessToken}` };
+    const base = `/api/orgs/${org.orgId}`;
+
+    const a = await createProject(org.orgId, org.accessToken, "AAA");
+    const aId = a.body.project._id as string;
+
+    await request(app).post(`${base}/projects/${aId}/archive`).set(auth);
+    const unarchived = await request(app)
+      .post(`${base}/projects/${aId}/unarchive`)
+      .set(auth);
+    expect(unarchived.status).toBe(200);
+    expect(unarchived.body.project.archivedAt).toBeNull();
+
+    await request(app).delete(`${base}/projects/${aId}`).set(auth);
+
+    const sameKey = await createProject(org.orgId, org.accessToken, "AAA");
+    expect(sameKey.status).toBe(409);
+    expect(sameKey.body.error.message).toMatch(/in the bin/);
+
+    // Fill every slot, then restoring needs one back.
+    await createProject(org.orgId, org.accessToken, "BBB");
+    await createProject(org.orgId, org.accessToken, "CCC");
+    await createProject(org.orgId, org.accessToken, "DDD");
+    const blocked = await request(app)
+      .post(`${base}/projects/${aId}/restore`)
+      .set(auth);
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error.code).toBe("PROJECT_LIMIT_REACHED");
+
+    // Past 30 days in the bin, it's deleted for good.
+    await Project.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(aId) },
+      { $set: { deletedAt: new Date(Date.now() - 31 * 86_400_000) } },
+    );
+    const bin = await request(app)
+      .get(`${base}/projects`)
+      .query({ view: "bin" })
+      .set(auth);
+    expect(bin.body.projects).toHaveLength(0);
+    expect(
+      await Project.exists({ _id: aId }).setOptions({
+        includeDeleted: true,
+        skipTenant: true,
+      }),
+    ).toBeNull();
   });
 });
 

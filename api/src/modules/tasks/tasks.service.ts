@@ -50,6 +50,14 @@ async function getAdminAndManagerIds(): Promise<mongoose.Types.ObjectId[]> {
 
 // Members may only see tasks assigned to them, or tasks that aren't assigned
 // to anyone above them (an admin or a manager).
+// A task is reachable only while its project isn't in the bin.
+export async function findTaskInLiveProject(taskId: string) {
+  const task = await Task.findById(taskId);
+  if (!task) return null;
+  const projectLive = await Project.exists({ _id: task.projectId });
+  return projectLive ? task : null;
+}
+
 export async function memberVisibilityFilter(userId: string) {
   const higherRoleIds = await getAdminAndManagerIds();
   return {
@@ -225,6 +233,10 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
   const userId = context.userId;
   const limit = query.limit ?? 20;
 
+  if (!(await Project.exists({ _id: projectId }))) {
+    throw new AppError(404, "NOT_FOUND", "Project not found");
+  }
+
   const filter: Record<string, unknown> = { projectId };
 
   if (query.status) filter.status = query.status;
@@ -260,7 +272,7 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
 }
 
 export async function getTask(taskId: string) {
-  const task = await Task.findById(taskId);
+  const task = await findTaskInLiveProject(taskId);
 
   if (!task) {
     throw new AppError(404, "NOT_FOUND", "Task not found");
@@ -289,7 +301,7 @@ function comparableValue(field: string, value: unknown): unknown {
 export async function updateTask(taskId: string, input: UpdateTaskInput) {
   const context = getTenantContext()!;
   const tenantId = requireTenantId();
-  const task = await Task.findById(taskId);
+  const task = await findTaskInLiveProject(taskId);
 
   if (!task) {
     throw new AppError(404, "NOT_FOUND", "Task not found");
@@ -387,7 +399,7 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
 
 export async function deleteTask(taskId: string) {
   const context = getTenantContext()!;
-  const task = await Task.findById(taskId);
+  const task = await findTaskInLiveProject(taskId);
 
   if (!task) {
     throw new AppError(404, "NOT_FOUND", "Task not found");
