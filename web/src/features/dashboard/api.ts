@@ -25,14 +25,16 @@ export interface DashboardUsage {
   projectLimit: number;
 }
 
-// A number of days, or everything since the org started.
-export type DashboardRange = number | "all";
+// A number of days, everything since the org started, or a custom span of
+// calendar days ("YYYY-MM-DD", both ends included).
+export type DashboardRange = number | "all" | { from: string; to: string };
 
 export interface DashboardTrend {
   // How points are grouped; long "all time" spans use weeks or months.
   granularity: "day" | "week" | "month";
-  // First day of the range, YYYY-MM-DD, in the viewer's time zone.
+  // First and last day of the range, YYYY-MM-DD, in the viewer's time zone.
   since: string;
+  until: string;
   // Today in that time zone; the last point is still in progress.
   today: string;
   timeZone: string;
@@ -62,7 +64,7 @@ export async function getDashboard(
     // Days are counted in the viewer's own time zone.
     {
       params: {
-        days,
+        ...(typeof days === "object" ? days : { days }),
         tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
       },
     },
