@@ -25,15 +25,46 @@ interface TopAssignee {
   openTaskCount: number;
 }
 
-function startOfUtcDay(date: Date): Date {
-  const day = new Date(date);
-  day.setUTCHours(0, 0, 0, 0);
-  return day;
+// Dates below are calendar days in the viewer's time zone, held as
+// "YYYY-MM-DD" keys and handled as UTC-midnight Dates for arithmetic.
+const DAY_MS = 86_400_000;
+
+export function isValidTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The calendar day an instant falls on in `timeZone`.
+function localDayKey(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function keyToDate(key: string): Date {
+  return new Date(`${key}T00:00:00Z`);
+}
+
+function dateToKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
 }
 
 // The first day of the day, Monday-based week, or month holding `date`.
 function bucketStart(date: Date, granularity: TrendGranularity): Date {
-  const start = startOfUtcDay(date);
+  const start = new Date(date);
   if (granularity === "week") {
     start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
   } else if (granularity === "month") {
@@ -67,25 +98,34 @@ async function findOrgStart(tenantId: string): Promise<Date> {
     : new Date();
 }
 
-export async function getDashboard(range: DashboardRange = 14) {
+export async function getDashboard(
+  range: DashboardRange = 14,
+  timeZone = "UTC",
+) {
   const tenantId = requireTenantId();
   const tenantObjectId = new mongoose.Types.ObjectId(tenantId);
-  const today = startOfUtcDay(new Date());
+  const tz = isValidTimeZone(timeZone) ? timeZone : "UTC";
+  const today = keyToDate(localDayKey(new Date(), tz));
 
   let rangeStart: Date;
+  // The equally long period just before, to compare against.
+  let previousStart: Date | null = null;
   if (range === "all") {
-    rangeStart = startOfUtcDay(await findOrgStart(tenantId));
+    rangeStart = keyToDate(localDayKey(await findOrgStart(tenantId), tz));
   } else {
     const clampedDays = Math.min(Math.max(range, 7), 90);
-    rangeStart = new Date(today);
-    rangeStart.setUTCDate(rangeStart.getUTCDate() - (clampedDays - 1));
+    rangeStart = addDays(today, -(clampedDays - 1));
+    previousStart = addDays(rangeStart, -clampedDays);
   }
 
   // Long spans are grouped by week or month so the trend stays readable.
   const spanDays =
-    Math.round((today.getTime() - rangeStart.getTime()) / 86_400_000) + 1;
+    Math.round((today.getTime() - rangeStart.getTime()) / DAY_MS) + 1;
   const granularity: TrendGranularity =
     spanDays <= 90 ? "day" : spanDays <= 730 ? "week" : "month";
+
+  // Query a day early: local days start up to 14h before UTC midnight.
+  const queryFrom = addDays(previousStart ?? rangeStart, -1);
 
   const [
     byStatus,
@@ -103,11 +143,15 @@ export async function getDashboard(range: DashboardRange = 14) {
       { $group: { _id: "$priority", count: { $sum: 1 } } },
     ]),
     Task.aggregate<{ _id: string; count: number }>([
-      { $match: { createdAt: { $gte: rangeStart } } },
+      { $match: { createdAt: { $gte: queryFrom } } },
       {
         $group: {
           _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$createdAt",
+              timezone: tz,
+            },
           },
           count: { $sum: 1 },
         },
@@ -157,11 +201,13 @@ export async function getDashboard(range: DashboardRange = 14) {
     }),
   ]);
 
+  const startKey = dateToKey(rangeStart);
+  const previousKey = previousStart ? dateToKey(previousStart) : null;
+  const inRange = createdPerDayRaw.filter((entry) => entry._id >= startKey);
+
   const countsByBucket = new Map<string, number>();
-  for (const entry of createdPerDayRaw) {
-    const key = bucketStart(new Date(entry._id), granularity)
-      .toISOString()
-      .slice(0, 10);
+  for (const entry of inRange) {
+    const key = dateToKey(bucketStart(keyToDate(entry._id), granularity));
     countsByBucket.set(key, (countsByBucket.get(key) ?? 0) + entry.count);
   }
 
@@ -172,12 +218,15 @@ export async function getDashboard(range: DashboardRange = 14) {
     bucket <= today;
     bucket = nextBucket(bucket, granularity)
   ) {
-    const dateKey = bucket.toISOString().slice(0, 10);
+    const dateKey = dateToKey(bucket);
     createdPerDay.push({
       date: dateKey,
       count: countsByBucket.get(dateKey) ?? 0,
     });
   }
+
+  const sum = (entries: { count: number }[]) =>
+    entries.reduce((total, entry) => total + entry.count, 0);
 
   const topAssignees: TopAssignee[] = topAssigneesRaw.map((entry) => ({
     userId: entry._id.toString(),
@@ -192,8 +241,19 @@ export async function getDashboard(range: DashboardRange = 14) {
     tasksCreatedPerDay: createdPerDay,
     trend: {
       granularity,
-      since: rangeStart.toISOString().slice(0, 10),
-      total: createdPerDayRaw.reduce((sum, entry) => sum + entry.count, 0),
+      since: startKey,
+      // The last point is today / this week / this month, still in progress.
+      today: dateToKey(today),
+      timeZone: tz,
+      total: sum(inRange),
+      // Tasks created in the equally long period before; null for all time.
+      previousTotal: previousKey
+        ? sum(
+            createdPerDayRaw.filter(
+              (entry) => entry._id >= previousKey && entry._id < startKey,
+            ),
+          )
+        : null,
     },
     topAssignees,
     overdueCount,
