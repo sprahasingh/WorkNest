@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
-import { registerAndVerify } from "./emailDeliveryMock.js";
+import { registerAndVerify, takeInvitationEmail } from "./emailDeliveryMock.js";
 
 const app = createApp();
 
@@ -26,6 +26,27 @@ async function registerAndGetOrg(email: string, orgName: string) {
 }
 
 describe("invite seat limits under concurrency", () => {
+  it("emails the invite link with the organization and assigned role", async () => {
+    const { accessToken, orgId } = await registerAndGetOrg(
+      "invite-admin@example.com",
+      "Northstar Studio",
+    );
+
+    const response = await request(app)
+      .post(`/api/orgs/${orgId}/invites`)
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ email: "new-teammate@example.com", role: "manager" });
+
+    expect(response.status).toBe(201);
+    expect(response.body.emailSent).toBe(true);
+    expect(response.body.inviteUrl).toBeUndefined();
+
+    const invitation = takeInvitationEmail("new-teammate@example.com");
+    expect(invitation.organizationName).toBe("Northstar Studio");
+    expect(invitation.role).toBe("manager");
+    expect(invitation.inviteUrl).toMatch(/\/invite\/.+/);
+  });
+
   it("allows exactly one success when 10 concurrent invites compete for 1 remaining seat", async () => {
     const { accessToken, orgId } = await registerAndGetOrg(
       "seat-race-admin@example.com",
