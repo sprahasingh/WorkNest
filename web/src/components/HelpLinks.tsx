@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { useAuth } from "@/auth/auth-context";
 import { feedbackMailto } from "@/lib/feedback";
 
 const linkStyles =
@@ -31,6 +32,9 @@ export function HelpLinks({
   from?: string;
   onNavigate?: () => void;
 }) {
+  const auth = useAuth();
+  const sender = auth.status === "authenticated" ? auth.user : null;
+
   return (
     <div className="space-y-0.5">
       <Link
@@ -45,7 +49,7 @@ export function HelpLinks({
         How to use
       </Link>
       <a
-        href={feedbackMailto(from)}
+        href={feedbackMailto(from, sender)}
         onClick={onNavigate}
         className={linkStyles}
       >
