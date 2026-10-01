@@ -55,8 +55,11 @@ interface ConfirmTarget {
   action: ConfirmAction;
 }
 
-const VIEWS: { value: ProjectView; label: string }[] = [
+type ProjectListView = ProjectView | "completed";
+
+const VIEWS: { value: ProjectListView; label: string }[] = [
   { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
   { value: "archived", label: "Archived" },
   { value: "bin", label: "Bin" },
 ];
@@ -81,14 +84,34 @@ export function ProjectsPage() {
     null,
   );
   const [formError, setFormError] = useState<string | null>(null);
-  const [view, setView] = useState<ProjectView>("active");
+  const [view, setView] = useState<ProjectListView>("active");
 
-  const { data, isPending, isError } = useProjects(orgId, { view });
+  const apiView = view === "completed" ? "active" : view;
+  const { data, isPending, isError } = useProjects(orgId, { view: apiView });
   // The active list is always loaded, so every tab count shows and returning
   // to it is instant.
   const activeList = useProjects(orgId, { view: "active" });
-  const projects = data?.projects;
+  const completedProjects = (activeList.data?.projects ?? []).filter(
+    (project) =>
+      project.taskCount > 0 && project.completedTaskCount === project.taskCount,
+  );
+  const projects =
+    view === "completed"
+      ? completedProjects
+      : view === "active"
+        ? data?.projects.filter(
+            (project) =>
+              project.taskCount === 0 ||
+              project.completedTaskCount !== project.taskCount,
+          )
+        : data?.projects;
   const counts = data?.counts ?? activeList.data?.counts;
+  const activeProjectCount = activeList.data
+    ? activeList.data.projects.length - completedProjects.length
+    : undefined;
+  const completedProjectCount = activeList.data
+    ? completedProjects.length
+    : undefined;
   const retentionDays = data?.binRetentionDays ?? 30;
 
   const org = useOrgDetails(orgId).data;
@@ -305,7 +328,13 @@ export function ProjectsPage() {
             >
               {tab.label}
               <TabCount
-                value={counts?.[tab.value]}
+                value={
+                  tab.value === "active"
+                    ? activeProjectCount
+                    : tab.value === "completed"
+                      ? completedProjectCount
+                      : counts?.[tab.value]
+                }
                 selected={view === tab.value}
               />
             </button>
@@ -346,10 +375,17 @@ export function ProjectsPage() {
               <p className="text-slate-600 dark:text-slate-300">
                 {view === "archived"
                   ? "No archived projects."
-                  : view === "bin"
-                    ? "The bin is empty."
-                    : "No projects yet."}
+                  : view === "completed"
+                    ? "No completed projects yet."
+                    : view === "bin"
+                      ? "The bin is empty."
+                      : "No projects yet."}
               </p>
+              {view === "completed" && (
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Projects appear here once every task is finished.
+                </p>
+              )}
               {view === "active" && canWrite && (
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   Create your first project to start tracking tasks.
@@ -434,7 +470,11 @@ export function ProjectsPage() {
                   )}
                   <TaskCounts
                     project={project}
-                    limit={view === "active" ? activeTaskLimit : null}
+                    limit={
+                      view === "active" || view === "completed"
+                        ? activeTaskLimit
+                        : null
+                    }
                   />
                   {canWrite && (
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-sm dark:border-slate-700/60">
@@ -443,7 +483,7 @@ export function ProjectsPage() {
                           Edit
                         </ActionButton>
                       )}
-                      {view === "active" && (
+                      {(view === "active" || view === "completed") && (
                         <ActionButton
                           onClick={() =>
                             setConfirmTarget({ project, action: "archive" })

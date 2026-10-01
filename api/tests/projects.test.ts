@@ -172,16 +172,19 @@ describe("project archive and delete", () => {
         list.body.projects as Array<{
           _id: string;
           activeTaskCount: number;
+          completedTaskCount: number;
           taskCount: number;
         }>
       ).map((p) => [p._id, p]),
     );
     expect(byId.get(busyId)).toMatchObject({
       activeTaskCount: 2,
+      completedTaskCount: 1,
       taskCount: 3,
     });
     expect(byId.get(idle.body.project._id as string)).toMatchObject({
       activeTaskCount: 0,
+      completedTaskCount: 0,
       taskCount: 0,
     });
 
