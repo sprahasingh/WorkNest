@@ -7,6 +7,7 @@ import {
   migrateLegacyTaskAssignees,
   migrateCompletedTaskTimestamps,
   syncPlanLimits,
+  syncActiveProjectCounts,
 } from "./db/migrations.js";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
@@ -23,6 +24,7 @@ async function main(): Promise<void> {
   await migrateDateOnlyTaskDueDates();
   await migrateCompletedTaskTimestamps();
   await syncPlanLimits();
+  await syncActiveProjectCounts();
   await ensureNotificationEventIndex();
   await ensureCompletedTaskIndex();
 

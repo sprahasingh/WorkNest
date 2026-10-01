@@ -7,6 +7,7 @@ import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
 import { PLAN_LIMITS, type Plan } from "../../constants/plans.js";
+import { Project } from "../../models/Project.js";
 import { dateKeyInTimeZone, dateOnlyDueDate } from "../../lib/timezone.js";
 import type { UpdateOrgInput } from "./orgs.schemas.js";
 
@@ -277,6 +278,45 @@ export async function reserveProjectSlot(
       "No project slots remaining on the current plan",
     );
   }
+}
+
+export async function projectConsumesSlot(
+  projectId: string | mongoose.Types.ObjectId,
+  dbSession: mongoose.ClientSession,
+): Promise<boolean> {
+  const project = await Project.findById(projectId).session(dbSession);
+  if (!project || project.archivedAt) return false;
+
+  const [taskCounts] = await Task.aggregate<{
+    total: number;
+    unfinished: number;
+  }>([
+    { $match: { projectId: project._id, deletedAt: null } },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: 1 },
+        unfinished: {
+          $sum: { $cond: [{ $ne: ["$status", "done"] }, 1, 0] },
+        },
+      },
+    },
+  ]).session(dbSession);
+
+  return !taskCounts || taskCounts.total === 0 || taskCounts.unfinished > 0;
+}
+
+export async function syncProjectSlot(
+  tenantId: string,
+  projectId: string | mongoose.Types.ObjectId,
+  wasActive: boolean,
+  dbSession: mongoose.ClientSession,
+): Promise<void> {
+  const isActive = await projectConsumesSlot(projectId, dbSession);
+  if (wasActive === isActive) return;
+
+  if (isActive) await reserveProjectSlot(tenantId, dbSession);
+  else await releaseProjectSlot(tenantId, dbSession);
 }
 
 export async function releaseProjectSlot(
