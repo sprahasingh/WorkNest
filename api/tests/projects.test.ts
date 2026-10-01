@@ -312,6 +312,7 @@ describe("project archive and delete", () => {
     );
     expect(byId.get(busyId)).toMatchObject({
       priority: "high",
+      completedAt: expect.any(String),
       activeTaskCount: 2,
       completedTaskCount: 1,
       todoTaskCount: 1,

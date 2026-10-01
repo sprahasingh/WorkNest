@@ -34,7 +34,16 @@ export type TaskView = (typeof TASK_VIEWS)[number];
 export const listTasksQuerySchema = z
   .object({
     view: z.enum(TASK_VIEWS).optional(),
-    sortBy: z.enum(["dueDate", "createdAt"]).optional(),
+    sortBy: z
+      .enum([
+        "dueDate",
+        "createdAt",
+        "completedAt",
+        "archivedAt",
+        "deletedAt",
+        "priority",
+      ])
+      .optional(),
     sortOrder: z.enum(["asc", "desc"]).optional(),
     status: z.enum(["todo", "in_progress", "done"]).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
