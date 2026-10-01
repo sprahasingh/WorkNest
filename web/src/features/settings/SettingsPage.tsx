@@ -586,10 +586,23 @@ function EmailAddressSection() {
             {user?.email ?? "Unavailable"}
           </p>
           {user?.pendingEmail && (
-            <p className="mt-1 break-all text-sm text-amber-700 dark:text-amber-300">
-              Verification pending for {user.pendingEmail}. Your current email
-              remains active until confirmed.
-            </p>
+            <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <p className="break-all text-sm text-amber-700 dark:text-amber-300">
+                Verification pending for {user.pendingEmail}. Your current email
+                remains active until confirmed.
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void cancelPendingEmailChange()}
+                disabled={isCanceling}
+                loading={isCanceling}
+                className="w-fit shrink-0"
+              >
+                Cancel email change
+              </Button>
+            </div>
           )}
         </div>
         {!isEditing && user && (
@@ -602,18 +615,6 @@ function EmailAddressSection() {
             >
               Change email
             </Button>
-            {user.pendingEmail && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void cancelPendingEmailChange()}
-                disabled={isCanceling}
-                loading={isCanceling}
-                className="w-full sm:w-auto"
-              >
-                Cancel pending change
-              </Button>
-            )}
           </div>
         )}
       </div>
