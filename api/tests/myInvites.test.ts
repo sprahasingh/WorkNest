@@ -3,7 +3,7 @@ import request from "supertest";
 import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
 import { User } from "../src/models/User.js";
-import { registerAndVerify } from "./emailDeliveryMock.js";
+import { registerAndVerify, takeInvitationEmail } from "./emailDeliveryMock.js";
 
 // The auth rate limit allows 10 sign-ups per file; this file uses 8.
 const app = createApp();
@@ -140,7 +140,9 @@ describe("inviting an email that already has a pending invite", () => {
       .set(admin.auth)
       .send({ email, role: "member" });
     expect(first.body.existingUser).toBe(false);
-    const oldToken = (first.body.inviteUrl as string).split("/invite/")[1];
+    const oldToken = new URL(takeInvitationEmail(email).inviteUrl).pathname
+      .split("/")
+      .at(-1);
     const seats = await seatsUsed(admin.orgId);
 
     const duplicate = await request(app)
@@ -156,6 +158,12 @@ describe("inviting an email that already has a pending invite", () => {
       .send({ email, role: "manager", replaceExisting: true });
     expect(replaced.status).toBe(201);
     expect(await seatsUsed(admin.orgId)).toBe(seats);
+    const replacementToken = new URL(
+      takeInvitationEmail(email).inviteUrl,
+    ).pathname
+      .split("/")
+      .at(-1);
+    expect(replacementToken).not.toBe(oldToken);
 
     const oldPreview = await request(app).get(`/api/invites/${oldToken}`);
     expect(oldPreview.body).toMatchObject({
