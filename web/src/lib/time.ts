@@ -30,6 +30,17 @@ export function formatDateInTimeZone(iso: string, timeZone: string): string {
   return new Date(iso).toLocaleDateString(undefined, { timeZone });
 }
 
+export function formatDateTimeInTimeZone(
+  iso: string,
+  timeZone: string,
+): string {
+  return new Date(iso).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone,
+  });
+}
+
 export function dateInputValueInTimeZone(
   iso: string,
   timeZone: string,

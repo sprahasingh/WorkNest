@@ -17,6 +17,12 @@ const ICON_PATHS: Record<
     "M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z",
   ],
   reply: ["M9 17 4 12l5-5", "M20 18v-2a4 4 0 0 0-4-4H4"],
+  task_assigned: [
+    "M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2",
+    "M10 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8",
+    "M20 8v6",
+    "M23 11h-6",
+  ],
   task_completed: ["M20 6 9 17l-5-5"],
   task_due_soon: ["M12 8v4l3 2", "M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z"],
   task_overdue: [

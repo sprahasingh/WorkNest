@@ -1,6 +1,6 @@
 import type { Member } from "@/features/members/api";
 import type { Task, TaskStatus } from "./api";
-import { formatDateInTimeZone } from "@/lib/time";
+import { formatDateInTimeZone, formatDateTimeInTimeZone } from "@/lib/time";
 
 const PRIORITY_STYLES: Record<Task["priority"], string> = {
   low: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
@@ -90,7 +90,9 @@ export function TaskCard({
           <span
             className={`text-xs ${overdue ? "font-medium text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}
           >
-            {formatDateInTimeZone(task.dueDate, timeZone)}
+            {task.dueDateIsDateOnly === false
+              ? formatDateTimeInTimeZone(task.dueDate, timeZone)
+              : formatDateInTimeZone(task.dueDate, timeZone)}
           </span>
         )}
       </div>
