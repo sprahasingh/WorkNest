@@ -2,11 +2,12 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
+import { registerAndVerify } from "./emailDeliveryMock.js";
 
 const app = createApp();
 
 async function registerAndGetOrg(email: string, orgName: string) {
-  const res = await request(app).post("/api/auth/register").send({
+  const res = await registerAndVerify(app, {
     name: "Test User",
     email,
     password: "password123",

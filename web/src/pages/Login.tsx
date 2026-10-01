@@ -16,7 +16,7 @@ import {
 } from "@/api/client";
 
 const loginFormSchema = z.object({
-  email: z
+  identifier: z
     .string()
     .trim()
     .min(1, "Email is required")
@@ -26,7 +26,7 @@ const loginFormSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
-const LOGIN_FIELDS = ["email", "password"] as const;
+const LOGIN_FIELDS = ["identifier", "password"] as const;
 const LOGIN_TIMEOUT_MS = 120_000;
 
 export function Login() {
@@ -125,12 +125,16 @@ export function Login() {
 
         <ErrorBanner message={formError} />
 
-        <Field label="Email" htmlFor="email" error={errors.email?.message}>
+        <Field
+          label="Email"
+          htmlFor="identifier"
+          error={errors.identifier?.message}
+        >
           <input
-            id="email"
+            id="identifier"
             type="email"
             autoComplete="email"
-            {...register("email")}
+            {...register("identifier")}
             className={inputStyles}
           />
         </Field>

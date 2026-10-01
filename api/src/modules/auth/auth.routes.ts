@@ -5,7 +5,10 @@ import { authenticate } from "../../auth/authenticate.js";
 import {
   registerSchema,
   loginSchema,
+  requestEmailChangeSchema,
   updatePersonalInformationSchema,
+  verifyEmailChangeSchema,
+  verifyRegistrationSchema,
 } from "./auth.schemas.js";
 import {
   registerController,
@@ -14,7 +17,10 @@ import {
   logoutController,
   meController,
   deleteAccountController,
+  requestEmailChangeController,
   updatePersonalInformationController,
+  verifyEmailChangeController,
+  verifyRegistrationController,
 } from "./auth.controller.js";
 
 const router = Router();
@@ -33,11 +39,24 @@ const accountUpdateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const verificationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 router.post(
   "/register",
   authLimiter,
   validate({ body: registerSchema }),
   registerController,
+);
+router.post(
+  "/verify-registration",
+  verificationLimiter,
+  validate({ body: verifyRegistrationSchema }),
+  verifyRegistrationController,
 );
 
 router.post(
@@ -49,6 +68,12 @@ router.post(
 
 router.post("/refresh", authLimiter, refreshController);
 router.post("/logout", logoutController);
+router.post(
+  "/verify-email-change",
+  verificationLimiter,
+  validate({ body: verifyEmailChangeSchema }),
+  verifyEmailChangeController,
+);
 router.get("/me", authenticate, meController);
 router.patch(
   "/me",
@@ -56,6 +81,13 @@ router.patch(
   authenticate,
   validate({ body: updatePersonalInformationSchema }),
   updatePersonalInformationController,
+);
+router.post(
+  "/me/email-change",
+  accountUpdateLimiter,
+  authenticate,
+  validate({ body: requestEmailChangeSchema }),
+  requestEmailChangeController,
 );
 router.delete("/me", authenticate, deleteAccountController);
 

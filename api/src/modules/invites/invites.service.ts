@@ -8,7 +8,12 @@ import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
 import bcrypt from "bcryptjs";
 import { User } from "../../models/User.js";
+import { PendingRegistration } from "../../models/PendingRegistration.js";
 import { env } from "../../config/env.js";
+import {
+  isEmailDeliveryConfigured,
+  sendVerificationEmail,
+} from "../../lib/email.js";
 import type {
   CreateInviteInput,
   InviteSignupInput,
@@ -429,96 +434,71 @@ export async function signupViaInvite(
   input: InviteSignupInput,
 ) {
   const tokenHash = sha256(rawToken);
-  const dbSession = await mongoose.startSession();
-
-  try {
-    let result: { userId: mongoose.Types.ObjectId } | undefined;
-
-    await dbSession.withTransaction(async () => {
-      const invite = await Invite.findOne({ tokenHash })
-        .session(dbSession)
-        .setOptions({ skipTenant: true });
-
-      if (!invite) {
-        throw new AppError(404, "NOT_FOUND", "Invite not found");
-      }
-
-      if (invite.status !== "pending" || invite.expiresAt < new Date()) {
-        throw new AppError(
-          410,
-          "INVITE_EXPIRED",
-          "This invite is no longer valid",
-        );
-      }
-
-      const existingUser = await User.findOne({ email: invite.email }).session(
-        dbSession,
-      );
-
-      if (existingUser) {
-        throw new AppError(
-          409,
-          "EMAIL_ALREADY_REGISTERED",
-          "An account with this email already exists; please log in and accept the invite instead",
-        );
-      }
-
-      const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_COST);
-
-      const [user] = await User.create(
-        [{ name: input.name, email: invite.email, passwordHash }],
-        { session: dbSession },
-      );
-
-      const updated = await Invite.findOneAndUpdate(
-        { _id: invite._id, status: "pending" },
-        { status: "accepted" },
-        { session: dbSession },
-      ).setOptions({ skipTenant: true });
-
-      if (!updated) {
-        throw new AppError(
-          410,
-          "INVITE_EXPIRED",
-          "This invite is no longer valid",
-        );
-      }
-
-      const membership = new Membership({
-        tenantId: invite.tenantId,
-        userId: user._id,
-        role: invite.role,
-      });
-      membership.$locals.skipTenant = true;
-      await membership.save({ session: dbSession });
-
-      if (invite.role === "admin") {
-        await Organization.findByIdAndUpdate(
-          invite.tenantId,
-          { $inc: { adminCount: 1 } },
-          { session: dbSession },
-        ).setOptions({ skipTenant: true });
-      }
-
-      await recordAudit(
-        {
-          action: "invite.accepted",
-          entityType: "Invite",
-          entityId: invite._id,
-          metadata: { email: invite.email, role: invite.role, viaSignup: true },
-          tenantId: invite.tenantId,
-          actorId: user._id,
-        },
-        dbSession,
-      );
-
-      result = { userId: user._id };
-    });
-
-    return result!;
-  } finally {
-    await dbSession.endSession();
+  const invite = await Invite.findOne({ tokenHash }).setOptions({
+    skipTenant: true,
+  });
+  if (!invite) {
+    throw new AppError(404, "NOT_FOUND", "Invite not found");
   }
+
+  if (invite.status !== "pending" || invite.expiresAt <= new Date()) {
+    throw new AppError(410, "INVITE_EXPIRED", "This invite is no longer valid");
+  }
+
+  const existingUser = await User.findOne({ email: invite.email }).select(
+    "_id",
+  );
+  if (existingUser) {
+    throw new AppError(
+      409,
+      "EMAIL_ALREADY_REGISTERED",
+      "An account with this email already exists; please log in and accept the invite instead",
+    );
+  }
+  if (!isEmailDeliveryConfigured()) {
+    throw new AppError(
+      503,
+      "EMAIL_DELIVERY_UNAVAILABLE",
+      "Email verification is not configured. Contact your administrator.",
+    );
+  }
+
+  const registrationToken = randomToken();
+  const registrationTokenHash = sha256(registrationToken);
+  const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_COST);
+  const pending = await PendingRegistration.findOneAndUpdate(
+    { email: invite.email },
+    {
+      $set: {
+        kind: "invite",
+        name: input.name,
+        passwordHash,
+        orgName: null,
+        inviteId: invite._id,
+        tokenHash: registrationTokenHash,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  );
+
+  const verificationUrl = new URL("/verify-email", env.CLIENT_ORIGIN);
+  verificationUrl.searchParams.set("token", registrationToken);
+  try {
+    await sendVerificationEmail(
+      invite.email,
+      verificationUrl.toString(),
+      "registration",
+    );
+  } catch (error) {
+    await PendingRegistration.deleteOne({
+      _id: pending._id,
+      tokenHash: registrationTokenHash,
+    });
+    throw error;
+  }
+
+  return { email: invite.email };
 }
 
 export async function getInviteByToken(rawToken: string) {

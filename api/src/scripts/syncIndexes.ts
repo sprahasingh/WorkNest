@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { logger } from "../lib/logger.js";
 import { Organization } from "../models/Organization.js";
 import { User } from "../models/User.js";
+import { PendingRegistration } from "../models/PendingRegistration.js";
 import { Session } from "../models/Session.js";
 import { Membership } from "../models/Membership.js";
 import { Invite } from "../models/Invite.js";
@@ -14,6 +15,7 @@ import { AuditLog } from "../models/AuditLog.js";
 const models = [
   Organization,
   User,
+  PendingRegistration,
   Session,
   Membership,
   Invite,
