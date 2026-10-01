@@ -10,6 +10,8 @@ import {
   verifyRegistration,
   updatePersonalInformation,
   verifyEmailChange,
+  requestPasswordReset,
+  resetPassword,
 } from "./auth.service.js";
 import {
   setRefreshCookie,
@@ -26,6 +28,8 @@ import type {
   UpdatePersonalInformationInput,
   VerifyEmailChangeInput,
   VerifyRegistrationInput,
+  RequestPasswordResetInput,
+  ResetPasswordInput,
 } from "./auth.schemas.js";
 import { Membership } from "../../models/Membership.js";
 
@@ -74,6 +78,26 @@ export async function loginController(
   const accessToken = signAccessToken(userId.toString());
 
   res.status(200).json({ accessToken });
+}
+
+export async function requestPasswordResetController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as RequestPasswordResetInput;
+  await requestPasswordReset(input);
+  res.status(202).json({
+    message: "If an account exists for that email, a reset link has been sent.",
+  });
+}
+
+export async function resetPasswordController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as ResetPasswordInput;
+  await resetPassword(input);
+  res.status(200).json({ message: "Your password has been reset." });
 }
 
 export async function refreshController(

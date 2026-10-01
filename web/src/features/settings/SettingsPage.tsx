@@ -16,6 +16,7 @@ import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Card } from "@/components/ui/Card";
 import {
   requestEmailChange,
@@ -448,12 +449,10 @@ function PersonalInformationCard() {
               htmlFor="profile-current-password"
               error={errors.currentPassword?.message}
             >
-              <input
+              <PasswordInput
                 id="profile-current-password"
-                type="password"
                 autoComplete="current-password"
                 {...register("currentPassword")}
-                className={inputStyles}
               />
             </Field>
             <Field
@@ -461,12 +460,10 @@ function PersonalInformationCard() {
               htmlFor="profile-new-password"
               error={errors.newPassword?.message}
             >
-              <input
+              <PasswordInput
                 id="profile-new-password"
-                type="password"
                 autoComplete="new-password"
                 {...register("newPassword")}
-                className={inputStyles}
               />
             </Field>
             <Field
@@ -474,12 +471,10 @@ function PersonalInformationCard() {
               htmlFor="profile-confirm-password"
               error={errors.confirmNewPassword?.message}
             >
-              <input
+              <PasswordInput
                 id="profile-confirm-password"
-                type="password"
                 autoComplete="new-password"
                 {...register("confirmNewPassword")}
-                className={inputStyles}
               />
             </Field>
           </div>
@@ -598,12 +593,10 @@ function EmailAddressCard() {
           htmlFor="email-current-password"
           error={errors.currentPassword?.message}
         >
-          <input
+          <PasswordInput
             id="email-current-password"
-            type="password"
             autoComplete="current-password"
             {...register("currentPassword")}
-            className={inputStyles}
           />
         </Field>
         <Button
