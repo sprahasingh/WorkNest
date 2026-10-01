@@ -271,7 +271,7 @@ export function InviteAccept() {
               <span className="font-medium text-slate-800 dark:text-slate-100">
                 {preview.email}
               </span>{" "}
-              already has a WorkNest account. Log in to join — your other
+              already has a WorkNest account. Log in to join. Your other
               organizations stay as they are.
             </p>
             <Link

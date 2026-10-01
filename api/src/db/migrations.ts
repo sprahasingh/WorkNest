@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { dateOnlyDueDate, isValidTimeZone } from "../lib/timezone.js";
 import { Task } from "../models/Task.js";
+import { Project } from "../models/Project.js";
 import { Organization } from "../models/Organization.js";
 import { Notification } from "../models/Notification.js";
 import { PLAN_LIMITS, PLANS } from "../constants/plans.js";
@@ -179,6 +180,67 @@ export async function syncPlanLimits(): Promise<void> {
         "Synced organization plan limits",
       );
     }
+  }
+}
+
+export async function syncActiveProjectCounts(): Promise<void> {
+  const counts = await Project.collection
+    .aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
+      { $match: { archivedAt: null, deletedAt: null } },
+      {
+        $lookup: {
+          from: Task.collection.name,
+          let: { projectId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$projectId", "$$projectId"] },
+                    { $eq: [{ $ifNull: ["$deletedAt", null] }, null] },
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                unfinished: {
+                  $sum: { $cond: [{ $ne: ["$status", "done"] }, 1, 0] },
+                },
+              },
+            },
+          ],
+          as: "taskCounts",
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { "taskCounts.0": { $exists: false } },
+            {
+              $expr: {
+                $gt: [{ $arrayElemAt: ["$taskCounts.unfinished", 0] }, 0],
+              },
+            },
+          ],
+        },
+      },
+      { $group: { _id: "$tenantId", count: { $sum: 1 } } },
+    ])
+    .toArray();
+
+  await Organization.collection.updateMany({}, { $set: { projectCount: 0 } });
+  if (counts.length > 0) {
+    await Organization.collection.bulkWrite(
+      counts.map(({ _id, count }) => ({
+        updateOne: {
+          filter: { _id },
+          update: { $set: { projectCount: count } },
+        },
+      })),
+    );
   }
 }
 

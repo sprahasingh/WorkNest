@@ -12,7 +12,7 @@ export function markOnboardingSeen(): void {
   try {
     localStorage.setItem(STORAGE_KEY, "true");
   } catch {
-    // Ignore storage failures (private browsing, etc.) — the tour just
+    // Ignore storage failures, such as private browsing. The tour just
     // reappears next visit, which is a harmless fallback.
   }
 }
