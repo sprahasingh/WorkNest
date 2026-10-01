@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, afterEach } from "vitest";
+import "./emailDeliveryMock.js";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 

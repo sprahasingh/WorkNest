@@ -5,11 +5,15 @@ import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
 import { Task } from "../src/models/Task.js";
 import { migrateLegacyTaskAssignees } from "../src/db/migrations.js";
+import {
+  registerAndVerify,
+  signupInviteAndVerify,
+} from "./emailDeliveryMock.js";
 
 const app = createApp();
 
 async function registerOrg(email: string, orgName: string) {
-  const res = await request(app).post("/api/auth/register").send({
+  const res = await registerAndVerify(app, {
     name: "Admin User",
     email,
     password: "password123",
@@ -37,9 +41,10 @@ async function addMember(
     .set("Authorization", `Bearer ${adminToken}`)
     .send({ email, role });
   const token = (inviteRes.body.inviteUrl as string).split("/invite/")[1];
-  const signup = await request(app)
-    .post(`/api/invites/${token}/signup`)
-    .send({ name: `User ${email}`, password: "password123" });
+  const signup = await signupInviteAndVerify(app, token, email, {
+    name: `User ${email}`,
+    password: "password123",
+  });
   const accessToken = signup.body.accessToken as string;
   const me = await request(app)
     .get("/api/auth/me")
