@@ -90,10 +90,10 @@ export async function register(input: RegisterInput) {
     { email: input.email },
     {
       $set: {
-        kind: "organization",
+        kind: input.accountType === "admin" ? "organization" : "user",
         name: input.name,
         passwordHash,
-        orgName: input.orgName,
+        orgName: input.orgName ?? null,
         tokenHash,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       },
@@ -234,7 +234,7 @@ export async function verifyRegistration(input: VerifyRegistrationInput) {
           },
           dbSession,
         );
-      } else {
+      } else if (currentPending.kind === "organization") {
         if (!currentPending.orgName) {
           throw new AppError(
             400,

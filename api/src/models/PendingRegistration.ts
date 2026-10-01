@@ -5,7 +5,7 @@ const pendingRegistrationSchema = new Schema(
     email: { type: String, required: true, unique: true, lowercase: true },
     kind: {
       type: String,
-      enum: ["organization", "invite"],
+      enum: ["organization", "user", "invite"],
       required: true,
       default: "organization",
     },
