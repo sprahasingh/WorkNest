@@ -74,6 +74,7 @@ export interface CreateActivityInput {
 
 export interface ListTasksParams {
   view?: TaskView;
+  sortBy?: "dueDate" | "createdAt";
   sortOrder?: "asc" | "desc";
   status?: TaskStatus;
   priority?: TaskPriority;

@@ -64,6 +64,8 @@ export function ProjectBoard() {
     priority:
       (searchParams.get("priority") as TaskPriority | null) ?? undefined,
     mine: searchParams.get("mine") === "true" ? true : undefined,
+    sortBy:
+      searchParams.get("sortBy") === "createdAt" ? "createdAt" : "dueDate",
     sortOrder: searchParams.get("sortOrder") === "asc" ? "asc" : "desc",
   };
   const requestedView = searchParams.get("view");
@@ -194,27 +196,29 @@ export function ProjectBoard() {
   return (
     <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <Link
               to={`/orgs/${orgId}/projects`}
               className="text-sm text-slate-500 hover:text-teal-700 hover:underline dark:text-slate-400 dark:hover:text-teal-400"
             >
               ← Projects
             </Link>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">
+            <h1 className="mt-1 break-words text-2xl font-bold text-slate-900 dark:text-slate-50">
               {projectQuery.data?.name ?? "Loading…"}
             </h1>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full gap-2 sm:w-auto">
             <Button
               variant="secondary"
+              className="flex-1 sm:flex-none"
               onClick={() => setParam("updates", "1")}
             >
               Project updates
             </Button>
             {canCreate && !isArchived && (
               <Button
+                className="flex-1 sm:flex-none"
                 onClick={() => setDrawerState({ mode: "create" })}
                 disabled={atTaskLimit}
                 title={
@@ -306,13 +310,13 @@ export function ProjectBoard() {
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="mt-4 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-3">
           <select
             value={filters.priority ?? ""}
             onChange={(event) =>
               setParam("priority", event.target.value || null)
             }
-            className={selectStyles}
+            className={`${selectStyles} w-full sm:w-auto`}
           >
             <option value="">All priorities</option>
             <option value="low">Low</option>
@@ -325,7 +329,7 @@ export function ProjectBoard() {
             onChange={(event) =>
               setParam("assignee", event.target.value || null)
             }
-            className={selectStyles}
+            className={`${selectStyles} w-full sm:w-auto`}
           >
             <option value="">Everyone</option>
             {members.map((member) => (
@@ -335,7 +339,9 @@ export function ProjectBoard() {
             ))}
           </select>
 
-          <label className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+          <label
+            className={`flex min-h-9 items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300 ${boardView === "active" ? "col-span-2 sm:col-span-1" : ""}`}
+          >
             <input
               type="checkbox"
               checked={filters.mine ?? false}
@@ -346,20 +352,30 @@ export function ProjectBoard() {
             />
             My tasks
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <span className="whitespace-nowrap">Date {sortLabel}</span>
+          {boardView === "active" && (
             <select
-              aria-label={`Sort by ${sortLabel} date`}
-              value={filters.sortOrder}
+              aria-label="Sort active tasks by date"
+              value={filters.sortBy}
               onChange={(event) =>
-                setParam("sortOrder", event.target.value || null)
+                setParam("sortBy", event.target.value || null)
               }
-              className={selectStyles}
+              className={`${selectStyles} w-full sm:w-auto`}
             >
-              <option value="desc">Newest first</option>
-              <option value="asc">Oldest first</option>
+              <option value="dueDate">Due date</option>
+              <option value="createdAt">Date created</option>
             </select>
-          </label>
+          )}
+          <select
+            aria-label={`Sort by ${boardView === "active" ? (filters.sortBy === "dueDate" ? "due date" : "creation date") : `${sortLabel} date`}`}
+            value={filters.sortOrder}
+            onChange={(event) =>
+              setParam("sortOrder", event.target.value || null)
+            }
+            className={`${selectStyles} w-full sm:w-auto`}
+          >
+            <option value="desc">Latest first</option>
+            <option value="asc">Earliest first</option>
+          </select>
         </div>
 
         <div
@@ -396,12 +412,7 @@ export function ProjectBoard() {
                 : "Finished tasks move to Completed. Archive them to hide them from everyday work."}
         </p>
 
-        {boardView === "active" && (
-          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400 sm:hidden">
-            Swipe to see To do and In progress
-          </p>
-        )}
-        <div className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
+        <div className="mt-4 flex flex-col gap-4 pb-4 md:flex-row md:overflow-x-auto">
           {visibleStatuses.map((status) => (
             <TaskColumn
               key={status ?? boardView}

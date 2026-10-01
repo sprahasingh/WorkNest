@@ -27,7 +27,11 @@ import {
 } from "./queries";
 import { useMarkReadWhenViewed } from "@/features/notifications/queries";
 import { useOrgDetails } from "@/features/org/queries";
-import { dateInputValueInTimeZone, formatDateTimeInTimeZone } from "@/lib/time";
+import {
+  dateInputValueInTimeZone,
+  formatDateInTimeZone,
+  formatDateTimeInTimeZone,
+} from "@/lib/time";
 
 const taskFormSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
@@ -388,6 +392,15 @@ export function TaskDrawer({
           className="space-y-4"
         >
           <ErrorBanner message={formError} />
+
+          {task && (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-slate-700 dark:text-slate-300">
+                Date created:
+              </span>{" "}
+              {formatDateInTimeZone(task.createdAt, timeZone)}
+            </p>
+          )}
 
           {isBinned ? (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-200">

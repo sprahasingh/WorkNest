@@ -10,7 +10,7 @@ import {
 import { useOrgDetails } from "@/features/org/queries";
 import { ActivityIcon } from "@/features/tasks/ActivityIcon";
 import {
-  isTaskReminder,
+  isReminder,
   notificationLink,
   type Notification,
   type NotificationStatus,
@@ -88,7 +88,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const handleSelect = (notification: Notification) => {
-    if (!notification.readAt && !isTaskReminder(notification.type)) {
+    if (!notification.readAt && !isReminder(notification.type)) {
       markRead.mutate([notification._id]);
     }
     const link = notificationLink(orgId, notification);
@@ -273,7 +273,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
               {notifications.map((notification) => {
                 const unread =
                   !notification.readAt && !notification.dismissedAt;
-                const isReminder = isTaskReminder(notification.type);
+                const reminder = isReminder(notification.type);
                 const linked = notificationLink(orgId, notification) !== null;
                 return (
                   <li key={notification._id}>
@@ -331,7 +331,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
                           />
                         )}
                       </button>
-                      {isReminder && !notification.dismissedAt && (
+                      {reminder && !notification.dismissedAt && (
                         <button
                           type="button"
                           onClick={() => dismiss.mutate([notification._id])}
