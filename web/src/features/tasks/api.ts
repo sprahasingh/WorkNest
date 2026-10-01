@@ -6,7 +6,7 @@ export type TaskPriority = "low" | "medium" | "high";
 export type TaskView = "active" | "completed" | "archived" | "bin";
 export type ActivityType = "update_request" | "update" | "question" | "reply";
 export type TaskNotificationType =
-  "task_completed" | "task_due_soon" | "task_overdue";
+  "task_assigned" | "task_completed" | "task_due_soon" | "task_overdue";
 
 export interface Task {
   _id: string;

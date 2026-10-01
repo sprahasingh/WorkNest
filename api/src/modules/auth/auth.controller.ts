@@ -7,6 +7,7 @@ import {
   createSession,
   deleteAccount,
   requestEmailChange,
+  cancelEmailChange,
   verifyRegistration,
   updatePersonalInformation,
   verifyEmailChange,
@@ -185,6 +186,17 @@ export async function requestEmailChangeController(
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
   res.status(user.pendingEmail ? 202 : 200).json({ user });
+}
+
+export async function cancelEmailChangeController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const user = await cancelEmailChange(req.auth!.userId);
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+  res.status(200).json({ user });
 }
 
 export async function verifyEmailChangeController(

@@ -24,6 +24,7 @@ const notificationSchema = new Schema(
         "update",
         "question",
         "reply",
+        "task_assigned",
         "task_completed",
         "task_due_soon",
         "task_overdue",
