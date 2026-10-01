@@ -504,14 +504,6 @@ export async function requestEmailChange(
     return User.findById(userId).select("+pendingEmail");
   }
 
-  if (!isEmailDeliveryConfigured()) {
-    throw new AppError(
-      503,
-      "EMAIL_DELIVERY_UNAVAILABLE",
-      "Email verification is not configured. Contact your administrator.",
-    );
-  }
-
   const existing = await User.findOne({
     email: input.email,
     _id: { $ne: user._id },
@@ -521,6 +513,24 @@ export async function requestEmailChange(
       409,
       "EMAIL_ALREADY_REGISTERED",
       "An account with this email already exists",
+    );
+  }
+
+  if (env.EMAIL_VERIFICATION_BYPASS_EMAILS.includes(input.email)) {
+    user.email = input.email;
+    user.emailVerifiedAt = new Date();
+    user.pendingEmail = null;
+    user.emailChangeTokenHash = null;
+    user.emailChangeExpiresAt = null;
+    await user.save();
+    return User.findById(userId).select("+pendingEmail");
+  }
+
+  if (!isEmailDeliveryConfigured()) {
+    throw new AppError(
+      503,
+      "EMAIL_DELIVERY_UNAVAILABLE",
+      "Email verification is not configured. Contact your administrator.",
     );
   }
 
