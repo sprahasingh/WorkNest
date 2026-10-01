@@ -12,6 +12,12 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
+import {
+  compareLifecycleItems,
+  defaultLifecycleSort,
+  getLifecycleSortOptions,
+  type LifecycleSort,
+} from "@/lib/lifecycleSorting";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import { PLAN_LIMITS, PLAN_NAMES } from "@/lib/plans";
 import { dateInputValueInTimeZone, formatDateInTimeZone } from "@/lib/time";
@@ -58,13 +64,7 @@ interface ConfirmTarget {
 }
 
 type ProjectListView = ProjectView | "completed";
-type ProjectSort =
-  | "dueDate:asc"
-  | "dueDate:desc"
-  | "createdAt:asc"
-  | "createdAt:desc"
-  | "priority:desc"
-  | "priority:asc";
+type ProjectSort = LifecycleSort;
 
 const VIEWS: { value: ProjectListView; label: string }[] = [
   { value: "active", label: "Active" },
@@ -115,39 +115,13 @@ export function ProjectsPage() {
               project.completedTaskCount !== project.taskCount,
           )
         : data?.projects;
-  const sortedProjects = [...(projects ?? [])].sort((left, right) => {
-    const [field, direction] = sortBy.split(":") as [
-      "dueDate" | "createdAt" | "priority",
-      "asc" | "desc",
-    ];
-    if (field === "priority") {
-      const priorityOrder =
-        direction === "desc"
-          ? { high: 0, medium: 1, low: 2 }
-          : { low: 0, medium: 1, high: 2 };
-      return priorityOrder[left.priority] - priorityOrder[right.priority];
-    }
-
-    if (field === "dueDate" && (!left.dueDate || !right.dueDate)) {
-      if (!left.dueDate && !right.dueDate) return 0;
-      const noDateOrder = direction === "asc" ? 1 : -1;
-      return !left.dueDate ? noDateOrder : -noDateOrder;
-    }
-
-    const leftTime = new Date(
-      field === "dueDate" ? left.dueDate! : left.createdAt,
-    ).getTime();
-    const rightTime = new Date(
-      field === "dueDate" ? right.dueDate! : right.createdAt,
-    ).getTime();
-    const dateOrder = (leftTime - rightTime) * (direction === "asc" ? 1 : -1);
-    const priorityOrder = { high: 0, medium: 1, low: 2 };
-    return (
-      dateOrder ||
-      priorityOrder[left.priority] - priorityOrder[right.priority] ||
-      left.name.localeCompare(right.name)
-    );
-  });
+  const sortOptions = getLifecycleSortOptions(view);
+  const selectedSort = sortOptions.some((option) => option.value === sortBy)
+    ? sortBy
+    : defaultLifecycleSort(view);
+  const sortedProjects = [...(projects ?? [])].sort((left, right) =>
+    compareLifecycleItems(left, right, selectedSort),
+  );
   const counts = data?.counts ?? activeList.data?.counts;
   const activeProjectCount = activeList.data
     ? activeList.data.projects.length - completedProjects.length
@@ -411,16 +385,15 @@ export function ProjectsPage() {
           <span className="shrink-0">Sort projects</span>
           <select
             aria-label="Sort projects"
-            value={sortBy}
+            value={selectedSort}
             onChange={(event) => setSortBy(event.target.value as ProjectSort)}
             className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:w-auto sm:min-w-60"
           >
-            <option value="createdAt:desc">Date created, newest first</option>
-            <option value="createdAt:asc">Date created, oldest first</option>
-            <option value="dueDate:asc">Due date, soonest first</option>
-            <option value="dueDate:desc">Due date, latest first</option>
-            <option value="priority:desc">Priority, high first</option>
-            <option value="priority:asc">Priority, low first</option>
+            {sortOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
 
