@@ -33,7 +33,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 backdrop-blur-sm sm:items-center sm:px-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4"
       onClick={onClose}
     >
       <div
@@ -42,7 +42,7 @@ export function Modal({
         aria-labelledby="modal-title"
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          "flex max-h-[90vh] w-full flex-col rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl dark:bg-slate-800",
+          "flex max-h-[90dvh] min-h-0 w-full flex-col rounded-2xl bg-white p-4 shadow-xl sm:p-6 dark:bg-slate-800",
           size === "lg" ? "sm:max-w-2xl" : "sm:max-w-md",
         )}
       >
@@ -74,7 +74,9 @@ export function Modal({
             </svg>
           </button>
         </div>
-        <div className="mt-4 overflow-y-auto">{children}</div>
+        <div className="mt-4 min-h-0 overflow-y-auto overscroll-contain">
+          {children}
+        </div>
       </div>
     </div>
   );

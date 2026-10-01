@@ -10,6 +10,7 @@ export const createProjectSchema = z
       .trim()
       .regex(/^[A-Z]{2,6}$/),
     description: z.string().trim().max(500).optional(),
+    priority: z.enum(["low", "medium", "high"]).optional(),
     dueDate: dueDateInputSchema.optional(),
   })
   .strict();
@@ -20,6 +21,7 @@ export const updateProjectSchema = z
   .object({
     name: z.string().trim().min(2).max(80).optional(),
     description: z.string().trim().max(500).optional(),
+    priority: z.enum(["low", "medium", "high"]).optional(),
     dueDate: dueDateInputSchema.nullable().optional(),
   })
   .strict();
