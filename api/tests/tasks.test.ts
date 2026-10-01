@@ -7,6 +7,7 @@ import { Task } from "../src/models/Task.js";
 import {
   registerAndVerify,
   signupInviteAndVerify,
+  takeInvitationToken,
 } from "./emailDeliveryMock.js";
 
 const app = createApp();
@@ -82,8 +83,7 @@ describe("task ownership rules", () => {
       .set("Authorization", `Bearer ${admin.accessToken}`)
       .send({ email: "member-owner@example.com", role: "member" });
 
-    const inviteUrl = inviteRes.body.inviteUrl as string;
-    const token = inviteUrl.split("/invite/")[1];
+    const token = takeInvitationToken("member-owner@example.com");
 
     const signupRes = await signupInviteAndVerify(
       app,

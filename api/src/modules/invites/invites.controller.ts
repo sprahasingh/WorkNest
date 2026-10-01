@@ -18,15 +18,31 @@ import type {
   InviteSignupInput,
 } from "./invites.schemas.js";
 import { env } from "../../config/env.js";
+import { sendInviteEmail } from "../../lib/email.js";
+import { logger } from "../../lib/logger.js";
 
 export async function createInviteController(
   req: Request,
   res: Response,
 ): Promise<void> {
   const input = req.validated!.body as CreateInviteInput;
-  const { invite, rawToken, existingUser } = await createInvite(input);
-  const inviteUrl = `${env.CLIENT_ORIGIN}/invite/${rawToken}`;
-  res.status(201).json({ invite, inviteUrl, existingUser });
+  const { invite, rawToken, existingUser, organizationName } =
+    await createInvite(input);
+  const inviteUrl = new URL(
+    `/invite/${rawToken}`,
+    env.CLIENT_ORIGIN,
+  ).toString();
+
+  try {
+    await sendInviteEmail(input.email, organizationName, input.role, inviteUrl);
+    res.status(201).json({ invite, existingUser, emailSent: true });
+  } catch (error) {
+    logger.error(
+      { err: error, inviteId: invite._id },
+      "Invite email delivery failed",
+    );
+    res.status(201).json({ invite, existingUser, emailSent: false, inviteUrl });
+  }
 }
 
 export async function listInvitesController(
