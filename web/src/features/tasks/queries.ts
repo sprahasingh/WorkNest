@@ -35,7 +35,13 @@ export interface TaskFilters {
   assigneeId?: string;
   priority?: TaskPriority;
   mine?: true;
-  sortBy?: "dueDate" | "createdAt";
+  sortBy?:
+    | "dueDate"
+    | "createdAt"
+    | "completedAt"
+    | "archivedAt"
+    | "deletedAt"
+    | "priority";
   sortOrder?: "asc" | "desc";
 }
 

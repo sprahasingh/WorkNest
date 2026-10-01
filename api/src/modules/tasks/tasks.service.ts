@@ -359,196 +359,143 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
     includeDeleted: view === "bin",
   });
 
-  const timestampField =
-    view === "active"
-      ? query.sortBy === "createdAt"
-        ? "createdAt"
-        : "dueDate"
+  const sortBy =
+    query.sortBy ??
+    (view === "active"
+      ? "dueDate"
       : view === "completed"
         ? "completedAt"
         : view === "archived"
-          ? "completedAt"
-          : view === "bin"
-            ? "deletedAt"
-            : "createdAt";
-  const sortDirection = query.sortOrder === "asc" ? 1 : -1;
-  if (view === "active") {
-    const cursorMatch: Record<string, unknown> | null = query.cursor
-      ? await (async () => {
-          const [timestamp, rankOrTaskId, cursorTaskId] =
-            query.cursor!.split("_");
-          const isLegacyCursor = cursorTaskId === undefined;
-          const taskId = cursorTaskId ?? rankOrTaskId;
-          const previousTask = isLegacyCursor
-            ? await Task.findById(taskId).select("priority").lean()
-            : null;
-          const priorityRanks = { high: 0, medium: 1, low: 2 } as const;
-          const rank = isLegacyCursor
-            ? priorityRanks[previousTask?.priority ?? "medium"]
-            : Number(rankOrTaskId);
-          const id = new mongoose.Types.ObjectId(taskId);
-          const idComparison = sortDirection === 1 ? "$gt" : "$lt";
-          const rankAfterCursor = { _priorityRank: { $gt: rank } };
-          const sameRankAfterCursor = {
-            _priorityRank: rank,
-            _id: { [idComparison]: id },
-          };
+          ? "archivedAt"
+          : "deletedAt");
+  const priorityRanks = { high: 0, medium: 1, low: 2 } as const;
+  const sortDirection =
+    sortBy === "priority"
+      ? query.sortOrder === "asc"
+        ? -1
+        : 1
+      : query.sortOrder === "asc"
+        ? 1
+        : -1;
+  const cursorMatch: Record<string, unknown> | null = query.cursor
+    ? (() => {
+        const cursorParts = query.cursor!.split("_");
+        if (cursorParts.length === 1) {
+          return { _id: { $lt: new mongoose.Types.ObjectId(query.cursor) } };
+        }
 
-          if (timestampField === "dueDate" && timestamp === "null") {
-            return {
-              $or: [
-                {
-                  dueDate: null,
-                  $or: [rankAfterCursor, sameRankAfterCursor],
-                },
-                ...(sortDirection === -1 ? [{ dueDate: { $ne: null } }] : []),
-              ],
-            };
-          }
+        const [sortValue, cursorRankValue, cursorTaskId] =
+          cursorParts.length === 3
+            ? cursorParts
+            : [cursorParts[0], "0", cursorParts[1]];
+        const cursorRank = Number(cursorRankValue);
+        const taskId = new mongoose.Types.ObjectId(cursorTaskId);
+        const idComparison = sortDirection === 1 ? "$gt" : "$lt";
 
-          const cursorDate = new Date(Number(timestamp));
+        if (sortBy === "priority") {
+          const rankComparison = sortDirection === 1 ? "$gt" : "$lt";
           return {
             $or: [
+              { _priorityRank: { [rankComparison]: Number(sortValue) } },
               {
-                [timestampField]: {
-                  [sortDirection === 1 ? "$gt" : "$lt"]: cursorDate,
-                  ...(timestampField === "dueDate" ? { $ne: null } : {}),
-                },
+                _priorityRank: Number(sortValue),
+                _id: { [idComparison]: taskId },
               },
-              {
-                [timestampField]: cursorDate,
-                ...rankAfterCursor,
-              },
-              {
-                [timestampField]: cursorDate,
-                ...sameRankAfterCursor,
-              },
-              ...(timestampField === "dueDate" && sortDirection === 1
-                ? [{ dueDate: null }]
-                : []),
             ],
           };
-        })()
-      : null;
+        }
 
-    const tasks = await Task.aggregate([
-      {
-        $match: {
-          ...filter,
-          projectId: new mongoose.Types.ObjectId(projectId),
-        },
-      },
-      {
-        $addFields: {
-          _priorityRank: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$priority", "high"] }, then: 0 },
-                { case: { $eq: ["$priority", "medium"] }, then: 1 },
-              ],
-              default: 2,
+        if (sortValue === "null") {
+          return {
+            _sortMissing: 1,
+            $or: [
+              { _priorityRank: { $gt: cursorRank } },
+              {
+                _priorityRank: cursorRank,
+                _id: { [idComparison]: taskId },
+              },
+            ],
+          };
+        }
+
+        const cursorDate = new Date(Number(sortValue));
+        const dateComparison = sortDirection === 1 ? "$gt" : "$lt";
+        return {
+          $or: [
+            { _sortMissing: 0, [sortBy]: { [dateComparison]: cursorDate } },
+            {
+              _sortMissing: 0,
+              [sortBy]: cursorDate,
+              _priorityRank: { $gt: cursorRank },
             },
-          },
-          _dueDateMissing: {
-            $cond: [{ $eq: [{ $ifNull: ["$dueDate", null] }, null] }, 1, 0],
-          },
-        },
-      },
-      ...(cursorMatch ? [{ $match: cursorMatch }] : []),
-      {
-        $sort: {
-          ...(timestampField === "dueDate"
-            ? { _dueDateMissing: sortDirection }
-            : {}),
-          [timestampField]: sortDirection,
-          _priorityRank: 1,
-          _id: sortDirection,
-        },
-      },
-      { $limit: limit + 1 },
-      { $project: { _priorityRank: 0, _dueDateMissing: 0 } },
-    ]);
-    const hasMore = tasks.length > limit;
-    const items = hasMore ? tasks.slice(0, limit) : tasks;
-    const lastItem = items[items.length - 1] as
-      | (Record<string, unknown> & {
-          _id: mongoose.Types.ObjectId;
-          priority: "high" | "medium" | "low";
-          dueDate?: Date | null;
-        })
-      | undefined;
-    const lastTimestamp =
-      timestampField === "dueDate" && !lastItem?.dueDate
-        ? "null"
-        : lastItem
-          ? String(
-              (lastItem[timestampField] as Date | undefined)?.getTime() ?? 0,
-            )
-          : "0";
-    const priorityRank = lastItem
-      ? { high: 0, medium: 1, low: 2 }[lastItem.priority]
-      : 0;
-
-    return {
-      items,
-      nextCursor: hasMore
-        ? `${lastTimestamp}_${priorityRank}_${String(lastItem?._id)}`
-        : null,
-      total,
-      binRetentionDays: BIN_RETENTION_DAYS,
-    };
-  }
-
-  if (query.cursor) {
-    if (timestampField && query.cursor.includes("_")) {
-      const [timestamp, taskId] = query.cursor.split("_");
-      const comparison = sortDirection === 1 ? "$gt" : "$lt";
-      if (timestampField === "dueDate" && timestamp === "null") {
-        filter.$or = [
-          { dueDate: null, _id: { [comparison]: taskId } },
-          ...(sortDirection === 1 ? [{ dueDate: { $ne: null } }] : []),
-        ];
-      } else {
-        const cursorDate = new Date(Number(timestamp));
-        filter.$or = [
-          { [timestampField]: { [comparison]: cursorDate } },
-          { [timestampField]: cursorDate, _id: { [comparison]: taskId } },
-          ...(timestampField === "dueDate" && sortDirection === -1
-            ? [{ dueDate: null }]
-            : []),
-        ];
-      }
-    } else {
-      filter._id = { $lt: query.cursor };
-    }
-  }
-
-  const taskQuery = Task.find(filter).setOptions({
-    includeDeleted: view === "bin",
-  });
-  const sortedTaskQuery = taskQuery.sort({
-    [timestampField]: sortDirection,
-    _id: sortDirection,
-  });
-  const tasks = await sortedTaskQuery.limit(limit + 1).lean();
-
-  const hasMore = tasks.length > limit;
-  const items = hasMore ? tasks.slice(0, limit) : tasks;
-  const lastItem = items[items.length - 1];
-  const lastItemTimestamp =
-    timestampField === "dueDate" && !lastItem?.dueDate
-      ? "null"
-      : lastItem
-        ? ((lastItem as unknown as Record<string, Date | null>)[
-            timestampField
-          ]?.getTime() ?? 0)
-        : 0;
-  const nextCursor = hasMore
-    ? timestampField
-      ? `${lastItemTimestamp}_${String(lastItem?._id)}`
-      : String(lastItem?._id)
+            {
+              _sortMissing: 0,
+              [sortBy]: cursorDate,
+              _priorityRank: cursorRank,
+              _id: { [idComparison]: taskId },
+            },
+            { _sortMissing: 1 },
+          ],
+        };
+      })()
     : null;
 
+  const tasks = await Task.aggregate([
+    {
+      $match: {
+        ...filter,
+        projectId: new mongoose.Types.ObjectId(projectId),
+      },
+    },
+    {
+      $addFields: {
+        _priorityRank: {
+          $switch: {
+            branches: [
+              { case: { $eq: ["$priority", "high"] }, then: 0 },
+              { case: { $eq: ["$priority", "medium"] }, then: 1 },
+            ],
+            default: 2,
+          },
+        },
+        _sortMissing: {
+          $cond: [{ $eq: [{ $ifNull: [`$${sortBy}`, null] }, null] }, 1, 0],
+        },
+      },
+    },
+    ...(cursorMatch ? [{ $match: cursorMatch }] : []),
+    {
+      $sort:
+        sortBy === "priority"
+          ? { _priorityRank: sortDirection, _id: sortDirection }
+          : {
+              _sortMissing: 1,
+              [sortBy]: sortDirection,
+              _priorityRank: 1,
+              _id: sortDirection,
+            },
+    },
+    { $limit: limit + 1 },
+    { $project: { _priorityRank: 0, _sortMissing: 0 } },
+  ]);
+  const hasMore = tasks.length > limit;
+  const items = hasMore ? tasks.slice(0, limit) : tasks;
+  const lastItem = items[items.length - 1] as
+    | (Record<string, unknown> & {
+        _id: mongoose.Types.ObjectId;
+        priority: "high" | "medium" | "low";
+      })
+    | undefined;
+  const lastValue = lastItem?.[sortBy];
+  const cursorValue =
+    sortBy === "priority"
+      ? String(lastItem ? priorityRanks[lastItem.priority] : 0)
+      : lastValue
+        ? String(new Date(lastValue as Date).getTime())
+        : "null";
+  const nextCursor = hasMore
+    ? `${cursorValue}_${lastItem ? priorityRanks[lastItem.priority] : 0}_${String(lastItem?._id)}`
+    : null;
   const retentionMs = BIN_RETENTION_DAYS * 86_400_000;
   return {
     items: items.map((task) => {
