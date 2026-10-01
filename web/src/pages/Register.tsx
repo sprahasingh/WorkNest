@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useNavigate } from "react-router";
@@ -12,20 +12,33 @@ import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 
-const registerFormSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(100),
-  email: z
-    .string()
-    .trim()
-    .min(1, "Email is required")
-    .email("Enter a valid email"),
-  password: z.string().min(8, "Password must be at least 8 characters").max(72),
-  orgName: z
-    .string()
-    .trim()
-    .min(2, "Organization name must be at least 2 characters")
-    .max(80),
-});
+const registerFormSchema = z
+  .object({
+    accountType: z.enum(["admin", "user"]),
+    name: z.string().trim().min(1, "Name is required").max(100),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Email is required")
+      .email("Enter a valid email"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(72),
+    orgName: z.string().trim().max(80).optional(),
+  })
+  .superRefine((values, context) => {
+    if (
+      values.accountType === "admin" &&
+      (!values.orgName || values.orgName.length < 2)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["orgName"],
+        message: "Organization name must be at least 2 characters",
+      });
+    }
+  });
 
 type RegisterFormValues = z.infer<typeof registerFormSchema>;
 
@@ -41,12 +54,16 @@ export function Register() {
 
   const {
     register,
+    control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerFormSchema),
+    defaultValues: { accountType: "admin" },
+    shouldUnregister: true,
   });
+  const accountType = useWatch({ control, name: "accountType" });
 
   const onSubmit = async (values: RegisterFormValues) => {
     setFormError(null);
@@ -92,8 +109,8 @@ export function Register() {
             </h1>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               We sent a verification link to{" "}
-              <strong>{verificationEmail}</strong>. Your account and
-              organization will be created after you confirm this address.
+              <strong>{verificationEmail}</strong>. Your account will be created
+              after you confirm this address.
             </p>
           </div>
           <Link
@@ -119,11 +136,52 @@ export function Register() {
             Create your account
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Sets up your account and your first organization.
+            Choose how you want to get started. You can join an organization
+            later.
           </p>
         </div>
 
         <ErrorBanner message={formError} />
+
+        <fieldset className="space-y-2">
+          <legend className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+            Account type
+          </legend>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="cursor-pointer">
+              <input
+                type="radio"
+                value="admin"
+                {...register("accountType")}
+                className="peer sr-only"
+              />
+              <span className="block h-full rounded-lg border border-slate-200 p-3 transition-colors peer-checked:border-teal-600 peer-checked:bg-teal-50/70 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-600 dark:border-slate-700 dark:peer-checked:border-teal-500 dark:peer-checked:bg-teal-950/40">
+                <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Admin
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  Create and manage an organization
+                </span>
+              </span>
+            </label>
+            <label className="cursor-pointer">
+              <input
+                type="radio"
+                value="user"
+                {...register("accountType")}
+                className="peer sr-only"
+              />
+              <span className="block h-full rounded-lg border border-slate-200 p-3 transition-colors peer-checked:border-teal-600 peer-checked:bg-teal-50/70 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-600 dark:border-slate-700 dark:peer-checked:border-teal-500 dark:peer-checked:bg-teal-950/40">
+                <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  User
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  Join an organization later
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
 
         <Field label="Your name" htmlFor="name" error={errors.name?.message}>
           <input
@@ -177,19 +235,21 @@ export function Register() {
           />
         </Field>
 
-        <Field
-          label="Organization name"
-          htmlFor="orgName"
-          error={errors.orgName?.message}
-        >
-          <input
-            id="orgName"
-            type="text"
-            autoComplete="organization"
-            {...register("orgName")}
-            className={inputStyles}
-          />
-        </Field>
+        {accountType === "admin" && (
+          <Field
+            label="Organization name"
+            htmlFor="orgName"
+            error={errors.orgName?.message}
+          >
+            <input
+              id="orgName"
+              type="text"
+              autoComplete="organization"
+              {...register("orgName")}
+              className={inputStyles}
+            />
+          </Field>
+        )}
 
         <Button
           type="submit"
