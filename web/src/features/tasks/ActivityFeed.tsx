@@ -58,9 +58,9 @@ export function ActivityFeed({
       const count = result.notifiedCount;
       const successMessages: Record<ActivityType, string> = {
         update_request:
-          isProject && count !== undefined
+          count !== undefined
             ? `Update request sent to ${count} ${count === 1 ? "person" : "people"}`
-            : "Update requested from the assignees",
+            : "Update request sent",
         update: "Update posted",
         question: "Question sent",
         reply: "Reply posted",
@@ -81,8 +81,8 @@ export function ActivityFeed({
   const busy = createActivity.isPending;
   const audienceHint = canLead
     ? isProject
-      ? "Requests and replies notify everyone assigned to an open task in this project."
-      : "Requests and replies notify this task's assignees."
+      ? "Requests and replies notify other people assigned to open tasks; you won't be notified about your own request."
+      : "Requests and replies notify this task's other assignees; you won't be notified about your own request."
     : isProject
       ? "Updates and questions notify your admins and managers."
       : "Updates and questions notify your admins, managers and anyone else on this task.";

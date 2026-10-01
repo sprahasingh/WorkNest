@@ -318,8 +318,15 @@ export function TaskDrawer({
       return;
     }
     try {
-      await requestUpdate.mutateAsync({ type: "update_request" });
-      toast.success("Update requested from the assignees");
+      const result = await requestUpdate.mutateAsync({
+        type: "update_request",
+      });
+      const count = result.notifiedCount;
+      toast.success(
+        count === undefined
+          ? "Update request sent"
+          : `Update request sent to ${count} ${count === 1 ? "person" : "people"}`,
+      );
     } catch (error) {
       toast.error(parseApiError(error).message);
     }
