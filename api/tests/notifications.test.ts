@@ -906,3 +906,73 @@ describe("task notifications", () => {
     expect(afterRepeatedUpdate.body.unreadCount).toBe(2);
   });
 });
+
+describe("project due reminders", () => {
+  it("notifies every org member when a project is due soon", async () => {
+    const admin = await registerOrg(
+      "project-due-soon-admin@example.com",
+      "Project Due Soon Org",
+    );
+    const member = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "project-due-soon-member@example.com",
+    );
+    const dueDate = new Date(Date.now() + 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const created = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ name: "Upcoming project", key: "UP", dueDate });
+    const projectId = created.body.project._id as string;
+
+    for (const recipient of [admin, member]) {
+      const reminders = await getUnread(admin.orgId, recipient.accessToken);
+      expect(reminders.body.notifications).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            projectId,
+            taskId: null,
+            type: "project_due_soon",
+            message: 'Project "Upcoming project" is due soon',
+          }),
+        ]),
+      );
+    }
+  });
+
+  it("notifies every org member when a project is overdue", async () => {
+    const admin = await registerOrg(
+      "project-reminder-admin@example.com",
+      "Project Reminder Org",
+    );
+    const member = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "project-reminder-member@example.com",
+    );
+    const overdueDate = new Date(Date.now() - 2 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const created = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ name: "Overdue project", key: "OVD", dueDate: overdueDate });
+    const projectId = created.body.project._id as string;
+
+    for (const recipient of [admin, member]) {
+      const reminders = await getUnread(admin.orgId, recipient.accessToken);
+      expect(reminders.body.notifications).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            projectId,
+            taskId: null,
+            type: "project_overdue",
+            message: 'Project "Overdue project" is overdue',
+          }),
+        ]),
+      );
+    }
+  });
+});

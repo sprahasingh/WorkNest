@@ -6,6 +6,9 @@ export interface Project {
   name: string;
   key: string;
   description?: string;
+  dueDate: string | null;
+  dueDateIsDateOnly?: boolean;
+  reminderCycle?: number;
   archivedAt: string | null;
   // Set while the project is in the bin.
   deletedAt?: string | null;
@@ -35,11 +38,13 @@ export interface CreateProjectInput {
   name: string;
   key: string;
   description?: string;
+  dueDate?: string;
 }
 
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
+  dueDate?: string | null;
 }
 
 export type ProjectView = "active" | "archived" | "bin";
