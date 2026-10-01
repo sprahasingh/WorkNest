@@ -526,7 +526,7 @@ describe("task notifications", () => {
       admin.accessToken,
       {
         assigneeIds: [assignee.userId, manager.userId, admin.userId],
-        dueDate: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        dueDate: new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString(),
       },
     );
     const overdueTask = await createTask(

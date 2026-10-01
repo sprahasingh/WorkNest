@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useRef, useState } from "react";
+import { useController, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { getCountryForTimezone } from "countries-and-timezones";
 import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
@@ -45,6 +46,217 @@ const TIME_ZONE_GROUPS = TIME_ZONE_VALUES.reduce<Record<string, string[]>>(
   },
   {},
 );
+
+function buildTimeZoneSearchText(timeZone: string) {
+  const [region = "Other", ...areaParts] = timeZone.split("/");
+  const country = getCountryForTimezone(timeZone);
+  const displayName = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "long",
+  })
+    .formatToParts(new Date())
+    .find((part) => part.type === "timeZoneName")?.value;
+
+  return [
+    timeZoneAreaLabel(timeZone),
+    timeZone,
+    region,
+    ...areaParts.map((part) => part.replaceAll("_", " ")),
+    country?.name,
+    country?.id,
+    country?.id === "US" ? "USA US" : undefined,
+    timeZone === "Asia/Calcutta" ? "Kolkata Asia/Kolkata" : undefined,
+    displayName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase();
+}
+
+const TIME_ZONE_SEARCH_TEXT = new Map(
+  TIME_ZONE_VALUES.map((timeZone) => [
+    timeZone,
+    buildTimeZoneSearchText(timeZone),
+  ]),
+);
+
+function TimeZoneSelect({
+  control,
+  disabled,
+}: {
+  control: ReturnType<
+    typeof useForm<OrganizationSettingsFormValues>
+  >["control"];
+  disabled: boolean;
+}) {
+  const { field } = useController({ name: "timeZone", control });
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const matchesSearch = (timeZone: string) =>
+    !normalizedSearch ||
+    (
+      TIME_ZONE_SEARCH_TEXT.get(timeZone) ?? buildTimeZoneSearchText(timeZone)
+    ).includes(normalizedSearch);
+  const savedTimeZone =
+    field.value && !TIME_ZONE_VALUES.includes(field.value) ? field.value : null;
+  const visibleGroups = Object.entries(TIME_ZONE_GROUPS)
+    .map(
+      ([region, timeZones]) =>
+        [region, timeZones.filter(matchesSearch)] as const,
+    )
+    .filter(([, timeZones]) => timeZones.length > 0);
+  const visibleTimeZones = visibleGroups.flatMap(([, timeZones]) => timeZones);
+  const visibleSavedTimeZone = savedTimeZone && matchesSearch(savedTimeZone);
+  const visibleOptionValues = [
+    ...(visibleSavedTimeZone && savedTimeZone ? [savedTimeZone] : []),
+    ...visibleTimeZones,
+  ];
+  const closeDropdown = () => {
+    setIsOpen(false);
+    setSearch("");
+  };
+
+  const handleOptionKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const nextIndex =
+        (index +
+          (event.key === "ArrowDown" ? 1 : -1) +
+          visibleOptionValues.length) %
+        visibleOptionValues.length;
+      optionRefs.current[nextIndex]?.focus();
+    } else if (event.key === "Escape") {
+      closeDropdown();
+      triggerRef.current?.focus();
+    }
+  };
+
+  let optionIndex = 0;
+  const renderOption = (timeZone: string) => {
+    const index = optionIndex++;
+    return (
+      <button
+        key={timeZone}
+        ref={(element) => {
+          optionRefs.current[index] = element;
+        }}
+        type="button"
+        tabIndex={-1}
+        role="option"
+        aria-selected={field.value === timeZone}
+        onKeyDown={(event) => handleOptionKeyDown(event, index)}
+        onClick={() => {
+          field.onChange(timeZone);
+          closeDropdown();
+          triggerRef.current?.focus();
+        }}
+        className="block w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none dark:text-slate-200 dark:hover:bg-slate-700 dark:focus:bg-slate-700"
+      >
+        {timeZoneAreaLabel(timeZone)}
+      </button>
+    );
+  };
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          field.onBlur();
+          setIsOpen(false);
+          setSearch("");
+        }
+      }}
+    >
+      <button
+        ref={(element) => {
+          triggerRef.current = element;
+          field.ref(element);
+        }}
+        id="timeZone"
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-controls="timeZone-options"
+        onClick={() => {
+          if (isOpen) {
+            closeDropdown();
+          } else {
+            setIsOpen(true);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setIsOpen(true);
+          }
+        }}
+        className={cn(
+          inputStyles,
+          "flex items-center justify-between text-left",
+        )}
+      >
+        <span>{timeZoneAreaLabel(field.value)}</span>
+        <span aria-hidden="true" className="ml-2 text-slate-500">
+          ▾
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+          <input
+            type="search"
+            autoFocus
+            aria-label="Search time zones"
+            placeholder="Search time zones"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                closeDropdown();
+                triggerRef.current?.focus();
+              } else if (event.key === "ArrowDown") {
+                event.preventDefault();
+                optionRefs.current[0]?.focus();
+              }
+            }}
+            className={cn(inputStyles, "mt-0")}
+          />
+          <div
+            id="timeZone-options"
+            role="listbox"
+            aria-label="Time zones"
+            className="max-h-64 overflow-y-auto"
+          >
+            {visibleSavedTimeZone &&
+              savedTimeZone &&
+              renderOption(savedTimeZone)}
+            {visibleGroups.map(([region, timeZones]) => (
+              <div key={region} role="group" aria-label={region}>
+                <p className="px-3 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {region}
+                </p>
+                {timeZones.map(renderOption)}
+              </div>
+            ))}
+            {visibleTimeZones.length === 0 && !visibleSavedTimeZone && (
+              <p className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
+                No time zones found
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const organizationSettingsFormSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(80),
@@ -336,6 +548,7 @@ export function SettingsPage() {
   const changePlan = useChangePlan(orgId);
 
   const {
+    control,
     register,
     handleSubmit,
     setError,
@@ -488,30 +701,7 @@ export function SettingsPage() {
                 htmlFor="timeZone"
                 error={errors.timeZone?.message}
               >
-                <select
-                  id="timeZone"
-                  disabled={!canUpdateOrg}
-                  {...register("timeZone")}
-                  className={inputStyles}
-                >
-                  {org?.timeZone &&
-                    !TIME_ZONE_VALUES.includes(org.timeZone) && (
-                      <option value={org.timeZone}>
-                        {timeZoneAreaLabel(org.timeZone)}
-                      </option>
-                    )}
-                  {Object.entries(TIME_ZONE_GROUPS).map(
-                    ([region, timeZones]) => (
-                      <optgroup key={region} label={region}>
-                        {timeZones.map((timeZone) => (
-                          <option key={timeZone} value={timeZone}>
-                            {timeZoneAreaLabel(timeZone)}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ),
-                  )}
-                </select>
+                <TimeZoneSelect control={control} disabled={!canUpdateOrg} />
               </Field>
             </div>
 
