@@ -14,9 +14,11 @@ import { purgeExpiredProjects } from "./modules/projects/projects.service.js";
 import { purgeExpiredTasks } from "./modules/tasks/tasks.service.js";
 import { ensureDueNotificationsForAllUsers } from "./modules/notifications/notifications.service.js";
 import mongoose from "mongoose";
+import { PendingRegistration } from "./models/PendingRegistration.js";
 
 async function main(): Promise<void> {
   await connectDB();
+  await PendingRegistration.createIndexes();
   await migrateLegacyTaskAssignees();
   await migrateDateOnlyTaskDueDates();
   await migrateCompletedTaskTimestamps();

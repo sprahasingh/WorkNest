@@ -3,11 +3,15 @@ import request from "supertest";
 import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
 import { Membership } from "../src/models/Membership.js";
+import {
+  registerAndVerify,
+  signupInviteAndVerify,
+} from "./emailDeliveryMock.js";
 
 const app = createApp();
 
 async function registerAndGetOrg(email: string, orgName: string) {
-  const res = await request(app).post("/api/auth/register").send({
+  const res = await registerAndVerify(app, {
     name: "Test User",
     email,
     password: "password123",
@@ -39,9 +43,10 @@ async function inviteAndSignup(
 
   const token = (inviteRes.body.inviteUrl as string).split("/invite/")[1];
 
-  const signupRes = await request(app)
-    .post(`/api/invites/${token}/signup`)
-    .send({ name: "Invited User", password: "password123" });
+  const signupRes = await signupInviteAndVerify(app, token, email, {
+    name: "Invited User",
+    password: "password123",
+  });
 
   const accessToken = signupRes.body.accessToken as string;
 
@@ -83,7 +88,7 @@ describe("member role changes and the last-admin rule", () => {
       userId: userA,
     } = await registerAndGetOrg("admin-a@example.com", "Concurrent Org");
 
-    const inviteeRes = await request(app).post("/api/auth/register").send({
+    const inviteeRes = await registerAndVerify(app, {
       name: "Admin B",
       email: "admin-b@example.com",
       password: "password123",
@@ -144,7 +149,10 @@ describe("member role changes and the last-admin rule", () => {
 
 describe("leaving an organization", () => {
   it("lets a non-admin member remove themselves and releases their seat", async () => {
-    const admin = await registerAndGetOrg("leave-admin@example.com", "Leave Org");
+    const admin = await registerAndGetOrg(
+      "leave-admin@example.com",
+      "Leave Org",
+    );
     const member = await inviteAndSignup(
       admin.orgId,
       admin.accessToken,

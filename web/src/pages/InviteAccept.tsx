@@ -51,6 +51,9 @@ export function InviteAccept() {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
   const [declined, setDeclined] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(
+    null,
+  );
 
   const previewQuery = useQuery({
     queryKey: ["invites", token],
@@ -117,6 +120,29 @@ export function InviteAccept() {
     );
   }
 
+  if (verificationEmail) {
+    return (
+      <AuthShell>
+        <div className="space-y-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+              Verify your email
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              We sent a verification link to{" "}
+              <strong>{verificationEmail}</strong>. Your account will be created
+              and you&apos;ll join {preview.organizationName}
+              after confirming this address.
+            </p>
+          </div>
+          <Link to="/login" className={secondaryLinkStyles}>
+            Return to login
+          </Link>
+        </div>
+      </AuthShell>
+    );
+  }
+
   const isMatchingUser =
     isSignedIn && auth.user.email.toLowerCase() === preview.email.toLowerCase();
   const isOtherUser = isSignedIn && !isMatchingUser;
@@ -151,12 +177,8 @@ export function InviteAccept() {
   const onSubmit = async (values: SignupFormValues) => {
     setFormError(null);
     try {
-      const { accessToken } = await signupViaInvite(token, values);
-      const me = await auth.establishSession(accessToken);
-      const orgId = me.memberships[0]?.tenantId.id;
-      navigate(orgId ? `/orgs/${orgId}/dashboard` : "/orgs", {
-        replace: true,
-      });
+      const result = await signupViaInvite(token, values);
+      setVerificationEmail(result.email);
     } catch (error) {
       const parsed = parseApiError(error);
       if (Object.keys(parsed.fieldErrors).length === 0) {

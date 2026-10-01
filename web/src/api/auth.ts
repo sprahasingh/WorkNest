@@ -17,7 +17,7 @@ export interface RegisterInput {
 }
 
 export interface LoginInput {
-  email: string;
+  identifier: string;
   password: string;
 }
 
@@ -29,6 +29,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  emailVerifiedAt?: string | null;
+  pendingEmail?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,9 +58,13 @@ export interface MeResponse {
 
 export interface UpdatePersonalInformationInput {
   name: string;
-  email: string;
   currentPassword: string;
   newPassword?: string;
+}
+
+export interface RequestEmailChangeInput {
+  email: string;
+  currentPassword: string;
 }
 
 export async function updatePersonalInformation(
@@ -68,12 +74,40 @@ export async function updatePersonalInformation(
   return response.data.user;
 }
 
+export async function requestEmailChange(
+  input: RequestEmailChangeInput,
+): Promise<User> {
+  const response = await apiClient.post<{ user: User }>(
+    "/auth/me/email-change",
+    input,
+  );
+  return response.data.user;
+}
+
+export async function verifyEmailChange(token: string): Promise<User> {
+  const response = await apiClient.post<{ user: User }>(
+    "/auth/verify-email-change",
+    { token },
+  );
+  return response.data.user;
+}
+
 export async function register(
   input: RegisterInput,
-): Promise<AuthTokenResponse> {
-  const response = await apiClient.post<AuthTokenResponse>(
+): Promise<{ email: string }> {
+  const response = await apiClient.post<{ email: string }>(
     "/auth/register",
     input,
+  );
+  return response.data;
+}
+
+export async function verifyRegistration(
+  token: string,
+): Promise<AuthTokenResponse> {
+  const response = await apiClient.post<AuthTokenResponse>(
+    "/auth/verify-registration",
+    { token },
   );
   return response.data;
 }

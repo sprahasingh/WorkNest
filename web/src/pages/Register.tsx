@@ -2,10 +2,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
-import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
@@ -18,10 +17,7 @@ const registerFormSchema = z.object({
     .trim()
     .min(1, "Email is required")
     .email("Enter a valid email"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(72),
+  password: z.string().min(8, "Password must be at least 8 characters").max(72),
   orgName: z
     .string()
     .trim()
@@ -35,8 +31,10 @@ const REGISTER_FIELDS = ["name", "email", "password", "orgName"] as const;
 
 export function Register() {
   const { register: registerUser } = useAuth();
-  const navigate = useNavigate();
   const [formError, setFormError] = useState<string | null>(null);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(
+    null,
+  );
 
   const {
     register,
@@ -50,8 +48,8 @@ export function Register() {
   const onSubmit = async (values: RegisterFormValues) => {
     setFormError(null);
     try {
-      const me = await registerUser(values);
-      navigate(resolvePostAuthPath(me.memberships), { replace: true });
+      const result = await registerUser(values);
+      setVerificationEmail(result.email);
     } catch (error) {
       const parsed = parseApiError(error);
       if (parsed.code === "EMAIL_ALREADY_REGISTERED") {
@@ -75,6 +73,31 @@ export function Register() {
       }
     }
   };
+
+  if (verificationEmail) {
+    return (
+      <AuthShell>
+        <div className="space-y-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+              Verify your email
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              We sent a verification link to{" "}
+              <strong>{verificationEmail}</strong>. Your account and
+              organization will be created after you confirm this address.
+            </p>
+          </div>
+          <Link
+            to="/login"
+            className="inline-block text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
+          >
+            Return to login
+          </Link>
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell>
@@ -119,7 +142,10 @@ export function Register() {
             className={inputStyles}
           />
           {errors.email?.type === "exists" && (
-            <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
+            <p
+              role="alert"
+              className="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
               {errors.email.message}{" "}
               <Link
                 to="/login"
