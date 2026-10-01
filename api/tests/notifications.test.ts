@@ -5,11 +5,15 @@ import { Membership } from "../src/models/Membership.js";
 import { Notification } from "../src/models/Notification.js";
 import { migrateDateOnlyTaskDueDates } from "../src/db/migrations.js";
 import { ensureDueNotificationsForAllUsers } from "../src/modules/notifications/notifications.service.js";
+import {
+  registerAndVerify,
+  signupInviteAndVerify,
+} from "./emailDeliveryMock.js";
 
 const app = createApp();
 
 async function registerOrg(email: string, orgName: string) {
-  const response = await request(app).post("/api/auth/register").send({
+  const response = await registerAndVerify(app, {
     name: "Admin User",
     email,
     password: "password123",
@@ -38,9 +42,10 @@ async function addMember(
     .set("Authorization", `Bearer ${adminToken}`)
     .send({ email, role });
   const token = (invitation.body.inviteUrl as string).split("/invite/")[1];
-  const signup = await request(app)
-    .post(`/api/invites/${token}/signup`)
-    .send({ name: email, password: "password123" });
+  const signup = await signupInviteAndVerify(app, token, email, {
+    name: email,
+    password: "password123",
+  });
   const accessToken = signup.body.accessToken as string;
   const me = await request(app)
     .get("/api/auth/me")

@@ -4,6 +4,10 @@ import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
 import { Task } from "../src/models/Task.js";
+import {
+  registerAndVerify,
+  signupInviteAndVerify,
+} from "./emailDeliveryMock.js";
 
 const app = createApp();
 app.set("trust proxy", 1);
@@ -11,15 +15,11 @@ let registrationIp = 0;
 
 async function registerOrg(email: string, orgName: string) {
   registrationIp += 1;
-  const res = await request(app)
-    .post("/api/auth/register")
-    .set("X-Forwarded-For", `198.51.100.${registrationIp}`)
-    .send({
-      name: "Test User",
-      email,
-      password: "password123",
-      orgName,
-    });
+  const res = await registerAndVerify(
+    app,
+    { name: "Test User", email, password: "password123", orgName },
+    `198.51.100.${registrationIp}`,
+  );
 
   const accessToken = res.body.accessToken as string;
 
@@ -85,9 +85,12 @@ describe("task ownership rules", () => {
     const inviteUrl = inviteRes.body.inviteUrl as string;
     const token = inviteUrl.split("/invite/")[1];
 
-    const signupRes = await request(app)
-      .post(`/api/invites/${token}/signup`)
-      .send({ name: "Regular Member", password: "password123" });
+    const signupRes = await signupInviteAndVerify(
+      app,
+      token,
+      "member-owner@example.com",
+      { name: "Regular Member", password: "password123" },
+    );
 
     const memberToken = signupRes.body.accessToken as string;
 

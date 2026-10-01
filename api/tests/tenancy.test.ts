@@ -5,6 +5,7 @@ import { runWithTenant, getTenantContext } from "../src/tenancy/context.js";
 import { AppError } from "../src/lib/errors.js";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { registerAndVerify } from "./emailDeliveryMock.js";
 
 function fakeId(): string {
   return new mongoose.Types.ObjectId().toString();
@@ -14,7 +15,7 @@ describe("tenant isolation", () => {
   it("returns 404 when a user requests an organization they are not a member of", async () => {
     const app = createApp();
 
-    const registerRes = await request(app).post("/api/auth/register").send({
+    const registerRes = await registerAndVerify(app, {
       name: "Org A User",
       email: "orga@example.com",
       password: "password123",

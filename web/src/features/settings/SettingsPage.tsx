@@ -17,7 +17,11 @@ import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { updatePersonalInformation, type Plan } from "@/api/auth";
+import {
+  requestEmailChange,
+  updatePersonalInformation,
+  type Plan,
+} from "@/api/auth";
 import { cn } from "@/lib/cn";
 import {
   PLAN_LIMITS,
@@ -287,7 +291,6 @@ const personalInformationSchema = z
       .trim()
       .min(2, "Name must be at least 2 characters")
       .max(100),
-    email: z.string().trim().email("Enter a valid email"),
     currentPassword: z.string().min(1, "Enter your current password"),
     newPassword: z.string().max(72).optional(),
     confirmNewPassword: z.string().optional(),
@@ -313,7 +316,6 @@ type PersonalInformationFormValues = z.infer<typeof personalInformationSchema>;
 
 const PERSONAL_INFORMATION_FIELDS = [
   "name",
-  "email",
   "currentPassword",
   "newPassword",
 ] as const;
@@ -332,7 +334,6 @@ function PersonalInformationCard() {
     resolver: zodResolver(personalInformationSchema),
     defaultValues: {
       name: user?.name ?? "",
-      email: user?.email ?? "",
       currentPassword: "",
       newPassword: "",
       confirmNewPassword: "",
@@ -342,7 +343,6 @@ function PersonalInformationCard() {
   const cancelEditing = () => {
     reset({
       name: user?.name ?? "",
-      email: user?.email ?? "",
       currentPassword: "",
       newPassword: "",
       confirmNewPassword: "",
@@ -356,14 +356,12 @@ function PersonalInformationCard() {
     try {
       const updatedUser = await updatePersonalInformation({
         name: values.name,
-        email: values.email,
         currentPassword: values.currentPassword,
         ...(values.newPassword ? { newPassword: values.newPassword } : {}),
       });
       updateCurrentUser(updatedUser);
       reset({
         name: updatedUser.name,
-        email: updatedUser.email,
         currentPassword: "",
         newPassword: "",
         confirmNewPassword: "",
@@ -443,19 +441,6 @@ function PersonalInformationCard() {
               />
             </Field>
             <Field
-              label="Email"
-              htmlFor="profile-email"
-              error={errors.email?.message}
-            >
-              <input
-                id="profile-email"
-                type="email"
-                autoComplete="email"
-                {...register("email")}
-                className={inputStyles}
-              />
-            </Field>
-            <Field
               label="Current password"
               htmlFor="profile-current-password"
               error={errors.currentPassword?.message}
@@ -520,6 +505,112 @@ function PersonalInformationCard() {
           </div>
         </form>
       )}
+    </Card>
+  );
+}
+
+const emailChangeFormSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email"),
+  currentPassword: z.string().min(1, "Enter your current password"),
+});
+
+type EmailChangeFormValues = z.infer<typeof emailChangeFormSchema>;
+const EMAIL_CHANGE_FIELDS = ["email", "currentPassword"] as const;
+
+function EmailAddressCard() {
+  const { user, updateCurrentUser } = useAuth();
+  const [formError, setFormError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    setError,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<EmailChangeFormValues>({
+    resolver: zodResolver(emailChangeFormSchema),
+    defaultValues: { email: "", currentPassword: "" },
+  });
+
+  const onSubmit = async (values: EmailChangeFormValues) => {
+    setFormError(null);
+    try {
+      const updatedUser = await requestEmailChange(values);
+      updateCurrentUser(updatedUser);
+      reset({ email: "", currentPassword: "" });
+      toast.success(
+        updatedUser.pendingEmail
+          ? `Verification link sent to ${updatedUser.pendingEmail}`
+          : "Email address unchanged",
+      );
+    } catch (error) {
+      const parsed = parseApiError(error);
+      if (Object.keys(parsed.fieldErrors).length === 0) {
+        setFormError(parsed.message);
+        return;
+      }
+      const unmatched = applyFieldErrors(
+        parsed.fieldErrors,
+        EMAIL_CHANGE_FIELDS,
+        setError,
+      );
+      if (unmatched.length > 0) setFormError(unmatched.join(" "));
+    }
+  };
+
+  return (
+    <Card>
+      <h2 className="font-medium text-slate-800 dark:text-slate-100">
+        Email address
+      </h2>
+      <p className="mt-2 break-all text-sm font-medium text-slate-800 dark:text-slate-200">
+        {user?.email ?? "Unavailable"}
+      </p>
+      {user?.pendingEmail && (
+        <p className="mt-1 break-all text-sm text-amber-700 dark:text-amber-300">
+          Waiting for verification at {user.pendingEmail}. Your current email
+          remains active until confirmed.
+        </p>
+      )}
+      <form
+        onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+        noValidate
+        className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+      >
+        <ErrorBanner message={formError} />
+        <Field
+          label="New email"
+          htmlFor="new-email"
+          error={errors.email?.message}
+        >
+          <input
+            id="new-email"
+            type="email"
+            autoComplete="email"
+            {...register("email")}
+            className={inputStyles}
+          />
+        </Field>
+        <Field
+          label="Current password"
+          htmlFor="email-current-password"
+          error={errors.currentPassword?.message}
+        >
+          <input
+            id="email-current-password"
+            type="password"
+            autoComplete="current-password"
+            {...register("currentPassword")}
+            className={inputStyles}
+          />
+        </Field>
+        <Button
+          type="submit"
+          disabled={isSubmitting || !user}
+          loading={isSubmitting}
+        >
+          {isSubmitting ? "Sending…" : "Send verification link"}
+        </Button>
+      </form>
     </Card>
   );
 }
@@ -667,6 +758,7 @@ export function SettingsPage() {
         </h1>
 
         <PersonalInformationCard />
+        <EmailAddressCard />
 
         <Card>
           <h2 className="font-medium text-slate-800 dark:text-slate-100">
