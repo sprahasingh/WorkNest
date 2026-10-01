@@ -480,7 +480,7 @@ describe("task pagination", () => {
       return titles;
     };
 
-    expect(await listTitles()).toEqual(["Undated", "Later", "Soon"]);
+    expect(await listTitles()).toEqual(["Later", "Soon", "Undated"]);
     expect(await listTitles("asc")).toEqual(["Soon", "Later", "Undated"]);
 
     const createdDateSort = await request(app)
@@ -511,13 +511,19 @@ describe("task pagination", () => {
       { $set: { createdAt: sameDate, dueDate: sameDate } },
     );
 
-    const getTitles = async (sortBy?: "createdAt") => {
+    const getTitles = async (
+      params: {
+        sortBy?: "createdAt" | "priority" | "archivedAt";
+        sortOrder?: "asc" | "desc";
+        view?: "active" | "archived";
+      } = {},
+    ) => {
       const titles: string[] = [];
       let cursor: string | null = null;
       do {
         const page: request.Response = await request(app)
           .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
-          .query({ sortBy, limit: 1, cursor: cursor ?? undefined })
+          .query({ ...params, limit: 1, cursor: cursor ?? undefined })
           .set(auth);
         expect(page.status).toBe(200);
         titles.push(page.body.items[0].title);
@@ -528,7 +534,42 @@ describe("task pagination", () => {
 
     expect(createdTasks.every((task) => task.status === 201)).toBe(true);
     expect(await getTitles()).toEqual(["high", "medium", "low"]);
-    expect(await getTitles("createdAt")).toEqual(["high", "medium", "low"]);
+    expect(await getTitles({ sortBy: "createdAt" })).toEqual([
+      "high",
+      "medium",
+      "low",
+    ]);
+    expect(await getTitles({ sortBy: "priority", sortOrder: "desc" })).toEqual([
+      "high",
+      "medium",
+      "low",
+    ]);
+    expect(await getTitles({ sortBy: "priority", sortOrder: "asc" })).toEqual([
+      "low",
+      "medium",
+      "high",
+    ]);
+
+    const projectObjectId = new mongoose.Types.ObjectId(projectId);
+    await Promise.all(
+      ["low", "medium", "high"].map((title, index) =>
+        Task.collection.updateOne(
+          { projectId: projectObjectId, title },
+          {
+            $set: {
+              archivedAt: new Date(`2025-0${index + 1}-01T00:00:00.000Z`),
+            },
+          },
+        ),
+      ),
+    );
+    expect(
+      await getTitles({
+        view: "archived",
+        sortBy: "archivedAt",
+        sortOrder: "desc",
+      }),
+    ).toEqual(["high", "medium", "low"]);
   });
 
   it("returns every item exactly once across pages, even with concurrent inserts", async () => {

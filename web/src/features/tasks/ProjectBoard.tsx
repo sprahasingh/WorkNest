@@ -22,6 +22,11 @@ import {
 import { canChangeTaskStatus } from "./ownership";
 import { useMarkReadWhenViewed } from "@/features/notifications/queries";
 import { PLAN_NAMES } from "@/lib/plans";
+import {
+  defaultLifecycleSort,
+  getLifecycleSortOptions,
+  type LifecycleSort,
+} from "@/lib/lifecycleSorting";
 import type { Task, TaskStatus, TaskPriority, TaskView } from "./api";
 
 const ACTIVE_STATUSES: TaskStatus[] = ["todo", "in_progress"];
@@ -59,21 +64,31 @@ export function ProjectBoard() {
   const linkedTaskId = searchParams.get("task");
   const updatesOpen = searchParams.get("updates") === "1";
 
-  const filters: TaskFilters = {
-    assigneeId: searchParams.get("assignee") ?? undefined,
-    priority:
-      (searchParams.get("priority") as TaskPriority | null) ?? undefined,
-    mine: searchParams.get("mine") === "true" ? true : undefined,
-    sortBy:
-      searchParams.get("sortBy") === "createdAt" ? "createdAt" : "dueDate",
-    sortOrder: searchParams.get("sortOrder") === "asc" ? "asc" : "desc",
-  };
   const requestedView = searchParams.get("view");
   const boardView: TaskView = TASK_VIEWS.some(
     (view) => view.value === requestedView,
   )
     ? (requestedView as TaskView)
     : "active";
+  const sortOptions = getLifecycleSortOptions(boardView);
+  const requestedSort = `${searchParams.get("sortBy")}:${searchParams.get("sortOrder")}`;
+  const selectedSort = sortOptions.some(
+    (option) => option.value === requestedSort,
+  )
+    ? (requestedSort as LifecycleSort)
+    : defaultLifecycleSort(boardView);
+  const [sortBy, sortOrder] = selectedSort.split(":") as [
+    NonNullable<TaskFilters["sortBy"]>,
+    "asc" | "desc",
+  ];
+  const filters: TaskFilters = {
+    assigneeId: searchParams.get("assignee") ?? undefined,
+    priority:
+      (searchParams.get("priority") as TaskPriority | null) ?? undefined,
+    mine: searchParams.get("mine") === "true" ? true : undefined,
+    sortBy,
+    sortOrder,
+  };
   const visibleStatuses: (TaskStatus | undefined)[] =
     boardView === "active"
       ? ACTIVE_STATUSES
@@ -342,49 +357,23 @@ export function ProjectBoard() {
             <span className="shrink-0">Sort by</span>
             <select
               aria-label="Sort tasks"
-              value={`${filters.sortBy}:${filters.sortOrder}`}
+              value={selectedSort}
               onChange={(event) => {
-                const [sortBy, sortOrder] = event.target.value.split(":");
-                if (boardView === "active") {
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    if (sortBy === "createdAt") next.set("sortBy", sortBy);
-                    else next.delete("sortBy");
-                    if (sortOrder === "asc") next.set("sortOrder", sortOrder);
-                    else next.delete("sortOrder");
-                    return next;
-                  });
-                } else {
-                  setParam("sortOrder", sortOrder);
-                }
+                const [field, order] = event.target.value.split(":");
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set("sortBy", field);
+                  next.set("sortOrder", order);
+                  return next;
+                });
               }}
               className={`${selectStyles} w-full min-w-0 sm:w-auto sm:min-w-64`}
             >
-              {boardView === "active" ? (
-                <>
-                  <option value="dueDate:asc">Due date, soonest first</option>
-                  <option value="dueDate:desc">Due date, latest first</option>
-                  <option value="createdAt:desc">
-                    Date created, newest first
-                  </option>
-                  <option value="createdAt:asc">
-                    Date created, oldest first
-                  </option>
-                </>
-              ) : (
-                <>
-                  <option value={`${filters.sortBy}:desc`}>
-                    {boardView === "bin"
-                      ? "Newest deleted first"
-                      : "Newest completed first"}
-                  </option>
-                  <option value={`${filters.sortBy}:asc`}>
-                    {boardView === "bin"
-                      ? "Oldest deleted first"
-                      : "Oldest completed first"}
-                  </option>
-                </>
-              )}
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>
