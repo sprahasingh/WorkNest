@@ -218,8 +218,13 @@ export function TaskDrawer({
         await updateTask.mutateAsync({ taskId: task._id, input });
         if (values.status === "done" && task.status !== "done") {
           setTaskView("completed");
+          toast.success("Task marked complete", {
+            description:
+              "Finished tasks move to Completed. Archive them to hide them from everyday work.",
+          });
+        } else {
+          toast.success("Task saved");
         }
-        toast.success("Task saved");
       } else {
         const input: CreateTaskInput = {
           title: values.title,
