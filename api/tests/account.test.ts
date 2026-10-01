@@ -150,6 +150,40 @@ describe("personal information", () => {
     expect(duplicateEmail.body.error.code).toBe("EMAIL_ALREADY_REGISTERED");
   });
 
+  it("cancels a pending email change and invalidates its verification link", async () => {
+    const account = await registerOrg("cancel-email@example.com", "Cancel Org");
+    const changeRequest = await request(app)
+      .post("/api/auth/me/email-change")
+      .set("Authorization", `Bearer ${account.accessToken}`)
+      .send({
+        email: "cancelled@example.com",
+        currentPassword: "password123",
+      });
+    expect(changeRequest.status).toBe(202);
+    const token = takeVerificationToken(
+      "cancelled@example.com",
+      "email-change",
+    );
+
+    const canceled = await request(app)
+      .delete("/api/auth/me/email-change")
+      .set("Authorization", `Bearer ${account.accessToken}`);
+
+    expect(canceled.status).toBe(200);
+    expect(canceled.body.user).toMatchObject({
+      email: "cancel-email@example.com",
+      pendingEmail: null,
+    });
+
+    const staleVerification = await request(app)
+      .post("/api/auth/verify-email-change")
+      .send({ token });
+    expect(staleVerification.status).toBe(400);
+    expect(staleVerification.body.error.code).toBe(
+      "EMAIL_VERIFICATION_INVALID",
+    );
+  });
+
   it("updates email immediately for configured verification-bypass addresses", async () => {
     const account = await registerOrg("bypass-owner@example.com", "Bypass Org");
     const originalBypassEmails = env.EMAIL_VERIFICATION_BYPASS_EMAILS;

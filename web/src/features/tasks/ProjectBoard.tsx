@@ -27,7 +27,7 @@ import type { Task, TaskStatus, TaskPriority, TaskView } from "./api";
 const ACTIVE_STATUSES: TaskStatus[] = ["todo", "in_progress"];
 const TASK_VIEWS: { value: TaskView; label: string }[] = [
   { value: "active", label: "Active" },
-  { value: "completed", label: "Recently completed" },
+  { value: "completed", label: "Completed" },
   { value: "archived", label: "Archived" },
   { value: "bin", label: "Bin" },
 ];
@@ -370,7 +370,7 @@ export function ProjectBoard() {
               ? "Archived tasks are hidden from everyday work and can be unarchived."
               : boardView === "bin"
                 ? "Binned tasks can be restored for 30 days before permanent deletion."
-                : "Finished tasks move to Recently completed. Archive them to hide them from everyday work."}
+                : "Finished tasks move to Completed. Archive them to hide them from everyday work."}
         </p>
 
         <div className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">

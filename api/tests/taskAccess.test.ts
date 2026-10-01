@@ -209,11 +209,12 @@ describe("update requests and questions", () => {
     const aliceInbox = await request(app)
       .get(`/api/orgs/${admin.orgId}/notifications`)
       .set("Authorization", `Bearer ${alice.accessToken}`);
-    expect(aliceInbox.body.notifications).toHaveLength(1);
-    expect(aliceInbox.body.notifications[0]).toMatchObject({
-      taskId,
-      projectId,
-    });
+    expect(aliceInbox.body.notifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ taskId, projectId, type: "task_assigned" }),
+        expect.objectContaining({ taskId, projectId, type: "update_request" }),
+      ]),
+    );
 
     const nonAssigneeQuestion = await request(app)
       .post(`/api/orgs/${admin.orgId}/tasks/${taskId}/activity`)
@@ -297,8 +298,12 @@ describe("update requests and questions", () => {
     const aliceInbox = await request(app)
       .get(`/api/orgs/${admin.orgId}/notifications`)
       .set("Authorization", `Bearer ${alice.accessToken}`);
-    expect(aliceInbox.body.notifications).toHaveLength(1);
-    expect(aliceInbox.body.notifications[0].taskId).toBeNull();
+    const projectRequestNotifications = aliceInbox.body.notifications.filter(
+      (notification: { type: string }) =>
+        notification.type === "update_request",
+    );
+    expect(projectRequestNotifications).toHaveLength(1);
+    expect(projectRequestNotifications[0].taskId).toBeNull();
 
     const carolPosts = await request(app)
       .post(`/api/orgs/${admin.orgId}/projects/${projectId}/activity`)
@@ -390,8 +395,11 @@ describe("notification inbox and shared updates", () => {
     const bobUnread = await request(app)
       .get(`${base}/notifications?status=unread`)
       .set("Authorization", `Bearer ${bob.accessToken}`);
-    expect(bobUnread.body.unreadCount).toBe(1);
-    expect(bobUnread.body.notifications[0]).toMatchObject({
+    expect(bobUnread.body.unreadCount).toBe(2);
+    const updateNotification = bobUnread.body.notifications.find(
+      (notification: { type: string }) => notification.type === "update",
+    );
+    expect(updateNotification).toMatchObject({
       type: "update",
       actorId: alice.userId,
       taskId: shared.body.task._id,
@@ -401,25 +409,36 @@ describe("notification inbox and shared updates", () => {
     const aliceInbox = await request(app)
       .get(`${base}/notifications`)
       .set("Authorization", `Bearer ${alice.accessToken}`);
-    expect(aliceInbox.body.notifications).toHaveLength(0);
+    expect(aliceInbox.body.notifications).toEqual([
+      expect.objectContaining({
+        taskId: shared.body.task._id,
+        type: "task_assigned",
+      }),
+    ]);
 
     await request(app)
       .patch(`${base}/notifications/read`)
       .set("Authorization", `Bearer ${bob.accessToken}`)
-      .send({ ids: [bobUnread.body.notifications[0]._id] })
+      .send({ ids: [updateNotification._id] })
       .expect(204);
 
     const bobAfter = await request(app)
       .get(`${base}/notifications?status=unread`)
       .set("Authorization", `Bearer ${bob.accessToken}`);
-    expect(bobAfter.body.unreadCount).toBe(0);
-    expect(bobAfter.body.notifications).toHaveLength(0);
+    expect(bobAfter.body.unreadCount).toBe(1);
+    expect(bobAfter.body.notifications).toEqual([
+      expect.objectContaining({ type: "task_assigned" }),
+    ]);
 
     const bobAll = await request(app)
       .get(`${base}/notifications?status=all`)
       .set("Authorization", `Bearer ${bob.accessToken}`);
-    expect(bobAll.body.notifications).toHaveLength(1);
-    expect(bobAll.body.notifications[0].readAt).not.toBeNull();
+    expect(bobAll.body.notifications).toHaveLength(2);
+    expect(
+      bobAll.body.notifications.find(
+        (notification: { type: string }) => notification.type === "update",
+      ).readAt,
+    ).not.toBeNull();
 
     const badStatus = await request(app)
       .get(`${base}/notifications?status=everything`)

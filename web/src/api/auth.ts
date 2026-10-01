@@ -88,6 +88,13 @@ export async function requestEmailChange(
   return response.data.user;
 }
 
+export async function cancelEmailChange(): Promise<User> {
+  const response = await apiClient.delete<{ user: User }>(
+    "/auth/me/email-change",
+  );
+  return response.data.user;
+}
+
 export async function verifyEmailChange(token: string): Promise<User> {
   const response = await apiClient.post<{ user: User }>(
     "/auth/verify-email-change",
