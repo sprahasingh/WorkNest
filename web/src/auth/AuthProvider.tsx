@@ -6,6 +6,7 @@ import {
   logout as logoutRequest,
   refresh as refreshRequest,
   register as registerRequest,
+  verifyRegistration as verifyRegistrationRequest,
   deleteAccount as deleteAccountRequest,
   type AuthRequestOptions,
   type LoginInput,
@@ -99,8 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const register = useCallback(
-    async (input: RegisterInput) => {
-      const { accessToken } = await registerRequest(input);
+    (input: RegisterInput) => registerRequest(input),
+    [],
+  );
+
+  const verifyRegistration = useCallback(
+    async (token: string) => {
+      const { accessToken } = await verifyRegistrationRequest(token);
       return establishSession(accessToken);
     },
     [establishSession],
@@ -160,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ...state,
     login,
     register,
+    verifyRegistration,
     logout,
     isLoggingOut,
     deleteAccount,

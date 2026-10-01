@@ -95,7 +95,7 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 ## Features
 
 - **Tenant isolation:** one Mongoose plugin scopes every query, write and aggregation to the current org. The current org lives in `AsyncLocalStorage` for the length of the request, and a query with no org context fails instead of leaking data.
-- **Accounts:** short-lived JWT access tokens (15 minutes) and rotating refresh tokens. Only hashes of refresh tokens are stored. Reusing an old refresh token signs out that whole chain of sessions. People can delete their own account; it's soft-deleted so the audit history still makes sense, and the email is freed up for a new sign-up.
+- **Accounts:** email must be verified before an account or its first organization is created. Email changes require the current password and confirmation at the new address. Short-lived JWT access tokens (15 minutes) and rotating refresh tokens are used; only hashes of refresh tokens are stored. Reusing an old refresh token signs out that whole chain of sessions. People can delete their own account; it's soft-deleted so the audit history still makes sense, and the email is freed up for a new sign-up.
 - **Roles:** admin, manager and member, checked on the server for every request. The UI hides what a role can't use, but the API is what actually says no.
 - **Organizations and plans:** Free, Pro and Premium plans with limits on seats, projects and active tasks per project (see [Plans](#plans)). Upgrades are simulated. A downgrade is blocked while current usage is over the smaller plan's limits, and the error says what's over.
 - **Invites:** admins get a one-time invite link (only a hash of the token is stored), and a seat is reserved safely even if several invites go out at once. If the person already has an account, the invitation also shows up in their app under the bell and on their organizations page, where they can join or decline. Inviting an email that already has a pending invite offers a fresh link instead of a vague error.
@@ -160,7 +160,7 @@ cd WorkNest
 ```bash
 cd api
 npm install
-cp .env.example .env   # fill in MONGODB_URI and JWT_ACCESS_SECRET
+cp .env.example .env   # fill in MONGODB_URI, JWT_ACCESS_SECRET, SMTP_URL, and SMTP_FROM
 npm run dev            # runs on http://localhost:4000
 ```
 
@@ -173,6 +173,7 @@ npm run dev             # runs on http://localhost:5173 and proxies /api to loca
 ```
 
 Open `http://localhost:5173` and register, or load the demo data first (below).
+New registrations and email changes require SMTP delivery for verification links. Configure `SMTP_URL` and `SMTP_FROM` in `api/.env`; the app does not include a paid email provider, and provider free-tier terms may vary.
 
 ### Seed Demo Data
 

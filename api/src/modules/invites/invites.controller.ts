@@ -11,9 +11,6 @@ import {
   signupViaInvite,
   getInviteByToken,
 } from "./invites.service.js";
-import { createSession } from "../auth/auth.service.js";
-import { setRefreshCookie } from "../../lib/cookies.js";
-import { signAccessToken } from "../../lib/jwt.js";
 import { AppError } from "../../lib/errors.js";
 import { User } from "../../models/User.js";
 import type {
@@ -120,13 +117,8 @@ export async function signupViaInviteController(
   const { token } = req.params;
   const input = req.validated!.body as InviteSignupInput;
 
-  const { userId } = await signupViaInvite(token as string, input);
-
-  const { rawToken, expiresAt } = await createSession(userId);
-  setRefreshCookie(res, rawToken, expiresAt);
-  const accessToken = signAccessToken(userId.toString());
-
-  res.status(201).json({ accessToken });
+  const result = await signupViaInvite(token as string, input);
+  res.status(202).json({ ...result, verificationRequired: true });
 }
 
 export async function getInviteByTokenController(

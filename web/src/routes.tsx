@@ -7,6 +7,8 @@ import { Landing } from "@/pages/Landing";
 import { HowToUse } from "@/pages/HowToUse";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
+import { VerifyEmailChange } from "@/pages/VerifyEmailChange";
+import { VerifyRegistration } from "@/pages/VerifyRegistration";
 import { InviteAccept } from "@/pages/InviteAccept";
 import { OrgPicker } from "@/pages/OrgPicker";
 import { AppLayout } from "@/components/AppLayout";
@@ -39,6 +41,8 @@ export function AppRoutes() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/how-to-use" element={<HowToUse />} />
+        <Route path="/verify-email-change" element={<VerifyEmailChange />} />
+        <Route path="/verify-email" element={<VerifyRegistration />} />
         <Route element={<GuestRoute />}>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />

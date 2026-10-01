@@ -1,12 +1,18 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import {
+  registerAndVerify,
+  takeVerificationToken,
+} from "./emailDeliveryMock.js";
+import { User } from "../src/models/User.js";
+import { Organization } from "../src/models/Organization.js";
 
 const app = createApp();
 
 describe("auth flow", () => {
   it("registers, logs in, and fetches the current user", async () => {
-    const registerRes = await request(app).post("/api/auth/register").send({
+    const registerRes = await registerAndVerify(app, {
       name: "Test User",
       email: "test@example.com",
       password: "password123",
@@ -34,7 +40,7 @@ describe("auth flow", () => {
   });
 
   it("rejects login with a wrong password", async () => {
-    await request(app).post("/api/auth/register").send({
+    await registerAndVerify(app, {
       name: "Test User",
       email: "test@example.com",
       password: "password123",
@@ -51,7 +57,7 @@ describe("auth flow", () => {
   });
 
   it("rotates the refresh token and fails on old-cookie reuse", async () => {
-    await request(app).post("/api/auth/register").send({
+    await registerAndVerify(app, {
       name: "Test User",
       email: "test@example.com",
       password: "password123",
@@ -85,5 +91,33 @@ describe("auth flow", () => {
       .set("Cookie", newCookie);
 
     expect(cascadeRes.status).toBe(401);
+  });
+
+  it("does not create an account or organization before email verification", async () => {
+    const pending = await request(app).post("/api/auth/register").send({
+      name: "Pending User",
+      email: "pending@example.com",
+      password: "password123",
+      orgName: "Pending Org",
+    });
+
+    expect(pending.status).toBe(202);
+    expect(await User.findOne({ email: "pending@example.com" })).toBeNull();
+    expect(await Organization.findOne({ name: "Pending Org" })).toBeNull();
+
+    const token = takeVerificationToken("pending@example.com", "registration");
+    const verified = await request(app)
+      .post("/api/auth/verify-registration")
+      .send({ token });
+    expect(verified.status).toBe(201);
+
+    const user = await User.findOne({ email: "pending@example.com" });
+    expect(user?.emailVerifiedAt).toBeInstanceOf(Date);
+    expect(await Organization.findOne({ name: "Pending Org" })).not.toBeNull();
+
+    const reused = await request(app)
+      .post("/api/auth/verify-registration")
+      .send({ token });
+    expect(reused.status).toBe(400);
   });
 });

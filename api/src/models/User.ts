@@ -9,6 +9,10 @@ const userSchema = new Schema(
       lowercase: true,
       trim: true,
     },
+    emailVerifiedAt: { type: Date, default: null },
+    pendingEmail: { type: String, default: null, select: false },
+    emailChangeTokenHash: { type: String, default: null, select: false },
+    emailChangeExpiresAt: { type: Date, default: null, select: false },
     name: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
     status: {
@@ -25,6 +29,8 @@ const userSchema = new Schema(
       transform: (_doc, ret) => {
         const obj = ret as Record<string, unknown>;
         delete obj.passwordHash;
+        delete obj.emailChangeTokenHash;
+        delete obj.emailChangeExpiresAt;
         delete obj.__v;
         obj.id = obj._id;
         delete obj._id;

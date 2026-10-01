@@ -5,11 +5,12 @@ import mongoose from "mongoose";
 import { Organization } from "../src/models/Organization.js";
 import { Project } from "../src/models/Project.js";
 import { Task } from "../src/models/Task.js";
+import { registerAndVerify } from "./emailDeliveryMock.js";
 
 const app = createApp();
 
 async function registerOrg(email: string, orgName: string) {
-  const res = await request(app).post("/api/auth/register").send({
+  const res = await registerAndVerify(app, {
     name: "Test User",
     email,
     password: "password123",
@@ -188,7 +189,11 @@ describe("project archive and delete", () => {
       .get(`/api/orgs/${org.orgId}/projects`)
       .query({ archived: "true" })
       .set(auth);
-    expect(archivedList.body.counts).toEqual({ active: 2, archived: 1, bin: 0 });
+    expect(archivedList.body.counts).toEqual({
+      active: 2,
+      archived: 1,
+      bin: 0,
+    });
     expect(archivedList.body.projects).toHaveLength(1);
   });
 

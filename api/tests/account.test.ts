@@ -1,11 +1,16 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import {
+  registerAndVerify,
+  signupInviteAndVerify,
+  takeVerificationToken,
+} from "./emailDeliveryMock.js";
 
 const app = createApp();
 
 async function registerOrg(email: string, orgName: string) {
-  const res = await request(app).post("/api/auth/register").send({
+  const res = await registerAndVerify(app, {
     name: "Admin User",
     email,
     password: "password123",
@@ -35,9 +40,10 @@ async function addMember(
     .set("Authorization", `Bearer ${adminToken}`)
     .send({ email, role });
   const token = (inviteRes.body.inviteUrl as string).split("/invite/")[1];
-  const signup = await request(app)
-    .post(`/api/invites/${token}/signup`)
-    .send({ name: `User ${email}`, password: "password123" });
+  const signup = await signupInviteAndVerify(app, token, email, {
+    name: `User ${email}`,
+    password: "password123",
+  });
   const accessToken = signup.body.accessToken as string;
   const me = await request(app)
     .get("/api/auth/me")
@@ -76,26 +82,39 @@ describe("personal information", () => {
       .set("Cookie", account.refreshCookie!)
       .send({
         name: "Updated Person",
-        email: "updated@example.com",
         currentPassword: "password123",
         newPassword: "new-password-456",
       });
 
     expect(updated.status).toBe(200);
-    expect(updated.body.user).toMatchObject({
-      name: "Updated Person",
-      email: "updated@example.com",
-    });
+    expect(updated.body.user).toMatchObject({ name: "Updated Person" });
     expect(updated.body.user.passwordHash).toBeUndefined();
 
-    const oldCredentials = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "profile@example.com", password: "password123" });
-    expect(oldCredentials.status).toBe(401);
+    const changeRequest = await request(app)
+      .post("/api/auth/me/email-change")
+      .set("Authorization", `Bearer ${account.accessToken}`)
+      .send({
+        email: "updated@example.com",
+        currentPassword: "new-password-456",
+      });
+    expect(changeRequest.status).toBe(202);
+    expect(changeRequest.body.user).toMatchObject({
+      email: "profile@example.com",
+      pendingEmail: "updated@example.com",
+    });
+    const token = takeVerificationToken("updated@example.com", "email-change");
 
-    const newCredentials = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "updated@example.com", password: "new-password-456" });
+    const emailVerified = await request(app)
+      .post("/api/auth/verify-email-change")
+      .send({ token });
+    expect(emailVerified.status).toBe(200);
+    expect(emailVerified.body.user.email).toBe("updated@example.com");
+    expect(emailVerified.body.user.emailChangeTokenHash).toBeUndefined();
+
+    const newCredentials = await request(app).post("/api/auth/login").send({
+      identifier: "updated@example.com",
+      password: "new-password-456",
+    });
     expect(newCredentials.status).toBe(200);
 
     const refresh = await request(app)
@@ -113,17 +132,15 @@ describe("personal information", () => {
       .set("Authorization", `Bearer ${first.accessToken}`)
       .send({
         name: "Changed Person",
-        email: "first-profile@example.com",
         currentPassword: "wrong-password",
       });
     expect(incorrectPassword.status).toBe(401);
     expect(incorrectPassword.body.error.code).toBe("CURRENT_PASSWORD_INVALID");
 
     const duplicateEmail = await request(app)
-      .patch("/api/auth/me")
+      .post("/api/auth/me/email-change")
       .set("Authorization", `Bearer ${first.accessToken}`)
       .send({
-        name: "Admin User",
         email: "taken-profile@example.com",
         currentPassword: "password123",
       });
@@ -172,7 +189,7 @@ describe("account deletion", () => {
       .send({ email: "stayer@example.com", password: "password123" });
     expect(login.status).toBe(401);
 
-    const again = await request(app).post("/api/auth/register").send({
+    const again = await registerAndVerify(app, {
       name: "Back Again",
       email: "stayer@example.com",
       password: "password123",

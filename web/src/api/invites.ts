@@ -41,7 +41,8 @@ export interface InviteSignupInput {
 }
 
 export interface InviteSignupResponse {
-  accessToken: string;
+  email: string;
+  verificationRequired: boolean;
 }
 
 export async function getInvitePreview(token: string): Promise<InvitePreview> {
