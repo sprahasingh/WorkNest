@@ -16,6 +16,10 @@ export interface RegisterInput {
   orgName: string;
 }
 
+export type RegisterResponse =
+  | { verificationRequired: true; email: string }
+  | { verificationRequired: false; accessToken: string };
+
 export interface LoginInput {
   identifier: string;
   password: string;
@@ -94,8 +98,8 @@ export async function verifyEmailChange(token: string): Promise<User> {
 
 export async function register(
   input: RegisterInput,
-): Promise<{ email: string }> {
-  const response = await apiClient.post<{ email: string }>(
+): Promise<RegisterResponse> {
+  const response = await apiClient.post<RegisterResponse>(
     "/auth/register",
     input,
   );
