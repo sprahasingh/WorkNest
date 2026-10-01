@@ -177,15 +177,6 @@ export function ProjectBoard() {
     stats?.activeLimit != null && stats.activeCount >= stats.activeLimit;
   const canPostProjectUpdates = canLead || (stats?.assignedToMe ?? false);
   const planName = stats ? PLAN_NAMES[stats.plan] : "";
-  const sortLabel =
-    boardView === "completed"
-      ? "completed"
-      : boardView === "archived"
-        ? "completed"
-        : boardView === "bin"
-          ? "deleted"
-          : "created";
-
   // A linked task (from a notification or the project feed) wins over one
   // opened from the board, so following a link always shows what it points to.
   const openDrawer: DrawerState =
@@ -312,6 +303,7 @@ export function ProjectBoard() {
 
         <div className="mt-4 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-3">
           <select
+            aria-label="Filter by priority"
             value={filters.priority ?? ""}
             onChange={(event) =>
               setParam("priority", event.target.value || null)
@@ -325,6 +317,7 @@ export function ProjectBoard() {
           </select>
 
           <select
+            aria-label="Filter by assignee"
             value={filters.assigneeId ?? ""}
             onChange={(event) =>
               setParam("assignee", event.target.value || null)
@@ -339,43 +332,55 @@ export function ProjectBoard() {
             ))}
           </select>
 
-          <label
-            className={`flex min-h-9 items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300 ${boardView === "active" ? "col-span-2 sm:col-span-1" : ""}`}
-          >
-            <input
-              type="checkbox"
-              checked={filters.mine ?? false}
-              onChange={(event) =>
-                setParam("mine", event.target.checked ? "true" : null)
-              }
-              className="accent-teal-600"
-            />
-            My tasks
-          </label>
-          {boardView === "active" && (
+          <label className="col-span-2 flex min-h-9 items-center gap-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-1">
+            <span className="shrink-0">Sort by</span>
             <select
-              aria-label="Sort active tasks by date"
-              value={filters.sortBy}
-              onChange={(event) =>
-                setParam("sortBy", event.target.value || null)
-              }
-              className={`${selectStyles} w-full sm:w-auto`}
+              aria-label="Sort tasks"
+              value={`${filters.sortBy}:${filters.sortOrder}`}
+              onChange={(event) => {
+                const [sortBy, sortOrder] = event.target.value.split(":");
+                if (boardView === "active") {
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    if (sortBy === "createdAt") next.set("sortBy", sortBy);
+                    else next.delete("sortBy");
+                    if (sortOrder === "asc") next.set("sortOrder", sortOrder);
+                    else next.delete("sortOrder");
+                    return next;
+                  });
+                } else {
+                  setParam("sortOrder", sortOrder);
+                }
+              }}
+              className={`${selectStyles} min-w-0 w-full sm:w-auto`}
             >
-              <option value="dueDate">Due date</option>
-              <option value="createdAt">Date created</option>
+              {boardView === "active" ? (
+                <>
+                  <option value="dueDate:desc">Due date, latest first</option>
+                  <option value="dueDate:asc">Due date, earliest first</option>
+                  <option value="createdAt:desc">
+                    Date created, newest first
+                  </option>
+                  <option value="createdAt:asc">
+                    Date created, oldest first
+                  </option>
+                </>
+              ) : (
+                <>
+                  <option value={`${filters.sortBy}:desc`}>
+                    {boardView === "bin"
+                      ? "Newest deleted first"
+                      : "Newest completed first"}
+                  </option>
+                  <option value={`${filters.sortBy}:asc`}>
+                    {boardView === "bin"
+                      ? "Oldest deleted first"
+                      : "Oldest completed first"}
+                  </option>
+                </>
+              )}
             </select>
-          )}
-          <select
-            aria-label={`Sort by ${boardView === "active" ? (filters.sortBy === "dueDate" ? "due date" : "creation date") : `${sortLabel} date`}`}
-            value={filters.sortOrder}
-            onChange={(event) =>
-              setParam("sortOrder", event.target.value || null)
-            }
-            className={`${selectStyles} w-full sm:w-auto`}
-          >
-            <option value="desc">Latest first</option>
-            <option value="asc">Earliest first</option>
-          </select>
+          </label>
         </div>
 
         <div
@@ -411,6 +416,18 @@ export function ProjectBoard() {
                 ? "Binned tasks can be restored for 30 days before permanent deletion."
                 : "Finished tasks move to Completed. Archive them to hide them from everyday work."}
         </p>
+
+        <label className="mt-2 flex min-h-9 items-center justify-end gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+          <input
+            type="checkbox"
+            checked={filters.mine ?? false}
+            onChange={(event) =>
+              setParam("mine", event.target.checked ? "true" : null)
+            }
+            className="accent-teal-600"
+          />
+          My tasks
+        </label>
 
         <div className="mt-4 flex flex-col gap-4 pb-4 md:flex-row md:overflow-x-auto">
           {visibleStatuses.map((status) => (

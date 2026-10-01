@@ -122,6 +122,7 @@ export async function listProjects(view: ProjectView) {
     _id: mongoose.Types.ObjectId;
     total: number;
     active: number;
+    completed: number;
   }>([
     {
       $match: {
@@ -147,6 +148,9 @@ export async function listProjects(view: ProjectView) {
             ],
           },
         },
+        completed: {
+          $sum: { $cond: [{ $eq: ["$status", "done"] }, 1, 0] },
+        },
       },
     },
   ]);
@@ -160,6 +164,7 @@ export async function listProjects(view: ProjectView) {
       return {
         ...project.toJSON(),
         activeTaskCount: counts?.active ?? 0,
+        completedTaskCount: counts?.completed ?? 0,
         taskCount: counts?.total ?? 0,
         // When a project in the bin will be deleted for good.
         purgeAt: project.deletedAt
