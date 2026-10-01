@@ -7,6 +7,7 @@ import {
 } from "./emailDeliveryMock.js";
 import { User } from "../src/models/User.js";
 import { Organization } from "../src/models/Organization.js";
+import { env } from "../src/config/env.js";
 
 const app = createApp();
 
@@ -119,5 +120,29 @@ describe("auth flow", () => {
       .post("/api/auth/verify-registration")
       .send({ token });
     expect(reused.status).toBe(400);
+  });
+
+  it("skips email verification only for configured addresses", async () => {
+    const originalBypassEmails = env.EMAIL_VERIFICATION_BYPASS_EMAILS;
+    env.EMAIL_VERIFICATION_BYPASS_EMAILS = ["dummy@example.com"];
+
+    try {
+      const response = await request(app).post("/api/auth/register").send({
+        name: "Dummy User",
+        email: "dummy@example.com",
+        password: "password123",
+        orgName: "Dummy Org",
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body.accessToken).toBeDefined();
+      expect(response.body.verificationRequired).toBe(false);
+
+      const user = await User.findOne({ email: "dummy@example.com" });
+      expect(user?.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(await Organization.findOne({ name: "Dummy Org" })).not.toBeNull();
+    } finally {
+      env.EMAIL_VERIFICATION_BYPASS_EMAILS = originalBypassEmails;
+    }
   });
 });
