@@ -114,7 +114,13 @@ export function takeInvitationToken(recipient: string): string {
 
 export async function registerAndVerify(
   app: Express,
-  input: { name: string; email: string; password: string; orgName: string },
+  input: {
+    name: string;
+    email: string;
+    password: string;
+    accountType?: "admin" | "user";
+    orgName?: string;
+  },
   forwardedFor?: string,
 ) {
   const clientIp = testIp(app, forwardedFor);

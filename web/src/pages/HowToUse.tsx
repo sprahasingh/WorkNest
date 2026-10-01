@@ -11,9 +11,9 @@ interface GuideStep {
 
 const STEPS: GuideStep[] = [
   {
-    title: "Create your account and organization",
+    title: "Choose your account type",
     description:
-      "Register with your name, email, and a password. Registering also creates your first organization — you're automatically its admin.",
+      "Register with your name, email, and a password. Choose Admin to create an organization and manage it, or User to create an account without an organization and join one later.",
   },
   {
     title: "Create a project",
@@ -186,7 +186,11 @@ function useBackLink(): { to: string; label: string } {
   const auth = useAuth();
   const from = (location.state as { from?: unknown } | null)?.from;
 
-  if (typeof from === "string" && from.startsWith("/") && !from.startsWith("//")) {
+  if (
+    typeof from === "string" &&
+    from.startsWith("/") &&
+    !from.startsWith("//")
+  ) {
     return { to: from, label: "Back" };
   }
   if (auth.status === "authenticated") {
@@ -230,9 +234,8 @@ export function HowToUse() {
           How to use WorkNest
         </h1>
         <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-400">
-          Everything you need to get a team up and running: the core
-          concepts, the common tasks, and exactly who&apos;s allowed to do
-          what.
+          Everything you need to get a team up and running: the core concepts,
+          the common tasks, and exactly who&apos;s allowed to do what.
         </p>
 
         <section className="mt-12">
@@ -245,9 +248,8 @@ export function HowToUse() {
                 Organization
               </h3>
               <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-                Your team&apos;s workspace. Its data, projects, and members
-                are completely isolated from every other organization on
-                WorkNest.
+                Your team&apos;s workspace. Its data, projects, and members are
+                completely isolated from every other organization on WorkNest.
               </p>
             </Card>
             <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
@@ -255,9 +257,9 @@ export function HowToUse() {
                 Project
               </h3>
               <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-                A container for related tasks, identified by a short key
-                (e.g. ENG-12). Projects can be archived once they&apos;re
-                done, without deleting their history.
+                A container for related tasks, identified by a short key (e.g.
+                ENG-12). Projects can be archived once they&apos;re done,
+                without deleting their history.
               </p>
             </Card>
             <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
@@ -266,8 +268,8 @@ export function HowToUse() {
               </h3>
               <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                 A single unit of work with a status, priority, optional due
-                date, and one or more assignees, tracked on its
-                project&apos;s board.
+                date, and one or more assignees, tracked on its project&apos;s
+                board.
               </p>
             </Card>
             <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
@@ -275,9 +277,9 @@ export function HowToUse() {
                 Members &amp; roles
               </h3>
               <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-                Every person in an organization is an Admin, Manager, or
-                Member. Roles decide exactly what they can see and do — see
-                the table below.
+                Every person in an organization is an Admin, Manager, or Member.
+                Roles decide exactly what they can see and do — see the table
+                below.
               </p>
             </Card>
           </div>
@@ -322,12 +324,8 @@ export function HowToUse() {
                 <tr>
                   <th className="px-4 py-3 font-medium">Capability</th>
                   <th className="px-4 py-3 text-center font-medium">Admin</th>
-                  <th className="px-4 py-3 text-center font-medium">
-                    Manager
-                  </th>
-                  <th className="px-4 py-3 text-center font-medium">
-                    Member
-                  </th>
+                  <th className="px-4 py-3 text-center font-medium">Manager</th>
+                  <th className="px-4 py-3 text-center font-medium">Member</th>
                 </tr>
               </thead>
               <tbody>

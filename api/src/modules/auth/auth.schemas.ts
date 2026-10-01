@@ -4,10 +4,23 @@ const emailSchema = z.string().trim().toLowerCase().email();
 
 export const registerSchema = z
   .object({
+    accountType: z.enum(["admin", "user"]).default("admin"),
     name: z.string().trim().min(1).max(100),
     email: emailSchema,
     password: z.string().min(8).max(72),
-    orgName: z.string().trim().min(2).max(80),
+    orgName: z.string().trim().max(80).optional(),
+  })
+  .superRefine((input, context) => {
+    if (
+      input.accountType === "admin" &&
+      (!input.orgName || input.orgName.length < 2)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["orgName"],
+        message: "Organization name must be at least 2 characters",
+      });
+    }
   })
   .strict();
 
