@@ -166,8 +166,14 @@ export async function createInvite(input: CreateInviteInput) {
 
     // Someone who already has an account also sees the invite in the app.
     const existingUser = Boolean(await User.exists({ email: input.email }));
+    const organization = await Organization.findById(tenantId).select("name");
 
-    return { invite: invite!, rawToken: rawToken!, existingUser };
+    return {
+      invite: invite!,
+      rawToken: rawToken!,
+      existingUser,
+      organizationName: String(organization?.name ?? "your organization"),
+    };
   } finally {
     await dbSession.endSession();
   }

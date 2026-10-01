@@ -8,6 +8,7 @@ import { ensureDueNotificationsForAllUsers } from "../src/modules/notifications/
 import {
   registerAndVerify,
   signupInviteAndVerify,
+  takeInvitationToken,
 } from "./emailDeliveryMock.js";
 
 const app = createApp();
@@ -37,11 +38,11 @@ async function addMember(
   email: string,
   role: "member" | "manager" = "member",
 ) {
-  const invitation = await request(app)
+  await request(app)
     .post(`/api/orgs/${orgId}/invites`)
     .set("Authorization", `Bearer ${adminToken}`)
     .send({ email, role });
-  const token = (invitation.body.inviteUrl as string).split("/invite/")[1];
+  const token = takeInvitationToken(email);
   const signup = await signupInviteAndVerify(app, token, email, {
     name: email,
     password: "password123",

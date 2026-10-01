@@ -28,8 +28,9 @@ export interface CreateInviteInput {
 
 export interface CreateInviteResponse {
   invite: Invite;
-  inviteUrl: string;
   existingUser: boolean;
+  emailSent: boolean;
+  inviteUrl?: string;
 }
 
 export async function listInvites(orgId: string): Promise<Invite[]> {

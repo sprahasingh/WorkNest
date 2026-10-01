@@ -8,6 +8,7 @@ import { migrateLegacyTaskAssignees } from "../src/db/migrations.js";
 import {
   registerAndVerify,
   signupInviteAndVerify,
+  takeInvitationToken,
 } from "./emailDeliveryMock.js";
 
 const app = createApp();
@@ -36,11 +37,11 @@ async function addMember(
   email: string,
   role: "member" | "manager" = "member",
 ) {
-  const inviteRes = await request(app)
+  await request(app)
     .post(`/api/orgs/${orgId}/invites`)
     .set("Authorization", `Bearer ${adminToken}`)
     .send({ email, role });
-  const token = (inviteRes.body.inviteUrl as string).split("/invite/")[1];
+  const token = takeInvitationToken(email);
   const signup = await signupInviteAndVerify(app, token, email, {
     name: `User ${email}`,
     password: "password123",

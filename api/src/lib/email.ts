@@ -13,7 +13,7 @@ async function sendEmail(
   recipient: string,
   subject: string,
   text: string,
-  purpose: "verification" | "password reset",
+  purpose: "verification" | "password reset" | "invitation",
 ): Promise<void> {
   if (!isEmailDeliveryConfigured()) {
     throw new AppError(
@@ -120,5 +120,27 @@ export async function sendPasswordResetEmail(
     "Reset your WorkNest password",
     text,
     "password reset",
+  );
+}
+
+export async function sendInviteEmail(
+  recipient: string,
+  organizationName: string,
+  role: string,
+  inviteUrl: string,
+): Promise<void> {
+  const text = [
+    `You've been invited to join ${organizationName} on WorkNest as a ${role}.`,
+    "",
+    `Accept your invitation: ${inviteUrl}`,
+    "",
+    "This invitation expires in seven days. If you weren't expecting it, you can ignore this email.",
+  ].join("\n");
+
+  await sendEmail(
+    recipient,
+    `You're invited to join ${organizationName} on WorkNest`,
+    text,
+    "invitation",
   );
 }

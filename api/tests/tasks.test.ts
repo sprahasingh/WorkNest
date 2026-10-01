@@ -7,6 +7,7 @@ import { Task } from "../src/models/Task.js";
 import {
   registerAndVerify,
   signupInviteAndVerify,
+  takeInvitationToken,
 } from "./emailDeliveryMock.js";
 
 const app = createApp();
@@ -77,13 +78,12 @@ describe("task ownership rules", () => {
     const admin = await registerOrg("owner-admin@example.com", "Owner Org");
     const projectId = await createProject(admin.orgId, admin.accessToken, "OW");
 
-    const inviteRes = await request(app)
+    await request(app)
       .post(`/api/orgs/${admin.orgId}/invites`)
       .set("Authorization", `Bearer ${admin.accessToken}`)
       .send({ email: "member-owner@example.com", role: "member" });
 
-    const inviteUrl = inviteRes.body.inviteUrl as string;
-    const token = inviteUrl.split("/invite/")[1];
+    const token = takeInvitationToken("member-owner@example.com");
 
     const signupRes = await signupInviteAndVerify(
       app,
