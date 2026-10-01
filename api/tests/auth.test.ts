@@ -70,7 +70,8 @@ describe("auth flow", () => {
     const requestReset = await request(app)
       .post("/api/auth/forgot-password")
       .send({ email: "reset@example.com" });
-    expect(requestReset.status).toBe(202);
+    expect(requestReset.status).toBe(200);
+    expect(requestReset.body.message).toContain("Password reset email sent");
 
     const token = takePasswordResetToken("reset@example.com");
     const reset = await request(app)
@@ -96,13 +97,14 @@ describe("auth flow", () => {
     expect(reusedToken.body.error.code).toBe("PASSWORD_RESET_INVALID");
   });
 
-  it("returns the same response when a password reset email is unknown", async () => {
+  it("returns an account-not-found error for an unknown password reset email", async () => {
     const response = await request(app)
       .post("/api/auth/forgot-password")
       .send({ email: "unknown@example.com" });
 
-    expect(response.status).toBe(202);
-    expect(response.body.message).toContain("If an account exists");
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe("ACCOUNT_NOT_FOUND");
+    expect(response.body.error.message).toContain("No account was found");
   });
 
   it("rotates the refresh token and fails on old-cookie reuse", async () => {
