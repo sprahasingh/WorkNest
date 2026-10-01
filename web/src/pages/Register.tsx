@@ -9,6 +9,7 @@ import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 
 const registerFormSchema = z.object({
@@ -169,12 +170,10 @@ export function Register() {
           htmlFor="password"
           error={errors.password?.message}
         >
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             {...register("password")}
-            className={inputStyles}
           />
         </Field>
 

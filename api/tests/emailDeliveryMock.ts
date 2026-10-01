@@ -5,7 +5,7 @@ import type { Express } from "express";
 interface VerificationEmail {
   recipient: string;
   verificationUrl: string;
-  purpose: "registration" | "email-change";
+  purpose: "registration" | "email-change" | "password-reset";
 }
 
 const emailCapture = vi.hoisted(() => ({
@@ -30,11 +30,18 @@ vi.mock("../src/lib/email.js", () => ({
       emailCapture.sent.push({ recipient, verificationUrl, purpose });
     },
   ),
+  sendPasswordResetEmail: vi.fn(async (recipient: string, resetUrl: string) => {
+    emailCapture.sent.push({
+      recipient,
+      verificationUrl: resetUrl,
+      purpose: "password-reset",
+    });
+  }),
 }));
 
 export function takeVerificationToken(
   recipient: string,
-  purpose: VerificationEmail["purpose"],
+  purpose: Exclude<VerificationEmail["purpose"], "password-reset">,
 ): string {
   const index = sentVerificationEmails.findLastIndex(
     (email) => email.recipient === recipient && email.purpose === purpose,
@@ -47,6 +54,20 @@ export function takeVerificationToken(
   const [email] = sentVerificationEmails.splice(index, 1);
   const token = new URL(email!.verificationUrl).searchParams.get("token");
   if (!token) throw new Error("Verification email did not contain a token");
+  return token;
+}
+
+export function takePasswordResetToken(recipient: string): string {
+  const index = sentVerificationEmails.findLastIndex(
+    (email) =>
+      email.recipient === recipient && email.purpose === "password-reset",
+  );
+  if (index < 0) {
+    throw new Error(`No password reset email was sent to ${recipient}`);
+  }
+  const [email] = sentVerificationEmails.splice(index, 1);
+  const token = new URL(email!.verificationUrl).searchParams.get("token");
+  if (!token) throw new Error("Password reset email did not contain a token");
   return token;
 }
 

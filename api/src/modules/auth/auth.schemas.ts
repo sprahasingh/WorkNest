@@ -63,3 +63,20 @@ export const verifyRegistrationSchema = z
   .strict();
 
 export type VerifyRegistrationInput = z.infer<typeof verifyRegistrationSchema>;
+
+export const requestPasswordResetSchema = z
+  .object({ email: emailSchema })
+  .strict();
+
+export type RequestPasswordResetInput = z.infer<
+  typeof requestPasswordResetSchema
+>;
+
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().min(1),
+    password: z.string().min(8).max(72),
+  })
+  .strict();
+
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
