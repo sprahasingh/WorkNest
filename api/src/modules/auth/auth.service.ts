@@ -314,8 +314,6 @@ export async function login(input: LoginInput) {
 }
 
 export async function requestPasswordReset(input: RequestPasswordResetInput) {
-  if (!isEmailDeliveryConfigured()) return;
-
   const user = await User.findOne({ email: input.email }).select(
     "+status +passwordResetTokenHash +passwordResetExpiresAt",
   );
@@ -323,7 +321,11 @@ export async function requestPasswordReset(input: RequestPasswordResetInput) {
     !user ||
     (user as unknown as Record<string, unknown>).status === "deleted"
   ) {
-    return;
+    throw new AppError(
+      404,
+      "ACCOUNT_NOT_FOUND",
+      "No account was found with that email.",
+    );
   }
 
   const token = randomToken();
@@ -345,6 +347,11 @@ export async function requestPasswordReset(input: RequestPasswordResetInput) {
           passwordResetExpiresAt: null,
         },
       },
+    );
+    throw new AppError(
+      503,
+      "EMAIL_DELIVERY_FAILED",
+      "The password reset email could not be sent. Please try again later.",
     );
   }
 }
