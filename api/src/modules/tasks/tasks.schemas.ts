@@ -42,7 +42,7 @@ export const listTasksQuerySchema = z
     mine: z.enum(["true"]).optional(),
     cursor: z
       .string()
-      .regex(/^(?:[a-f\d]{24}|(?:\d{1,16}|null)_[a-f\d]{24})$/i)
+      .regex(/^(?:[a-f\d]{24}|(?:\d{1,16}|null)(?:_[0-2])?_[a-f\d]{24})$/i)
       .optional(),
     limit: z.coerce.number().int().min(1).max(50).optional(),
   })

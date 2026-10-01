@@ -18,6 +18,11 @@ const projectSchema = new Schema(
     },
     key: { type: String, required: true, trim: true, uppercase: true },
     description: { type: String, trim: true, maxlength: 500 },
+    priority: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      default: "medium",
+    },
     dueDate: { type: Date, default: null },
     dueDateIsDateOnly: { type: Boolean, default: false },
     reminderCycle: { type: Number, default: 0 },
