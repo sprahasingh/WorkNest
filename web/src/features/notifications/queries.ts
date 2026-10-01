@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   listNotifications,
   dismissNotifications,
-  isTaskReminder,
+  isReminder,
   markNotificationsRead,
   type NotificationStatus,
 } from "./api";
@@ -78,7 +78,7 @@ export function useMarkReadWhenViewed(
     const ids = data.notifications
       .filter(
         (n) =>
-          !isTaskReminder(n.type) &&
+          !isReminder(n.type) &&
           (targetKind === "task"
             ? n.taskId === targetId
             : n.projectId === targetId && n.taskId === null),

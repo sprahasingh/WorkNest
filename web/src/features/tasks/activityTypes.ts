@@ -1,4 +1,5 @@
 import type { ActivityType, TaskNotificationType } from "./api";
+import type { ProjectNotificationType } from "@/features/notifications/api";
 
 // One vocabulary for task/project updates, shared by the activity feeds and
 // the notifications panel so the same event always looks the same.
@@ -28,4 +29,14 @@ export const TASK_NOTIFICATION_BADGE_STYLES: Record<
   task_due_soon:
     "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
   task_overdue: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+};
+
+export const PROJECT_NOTIFICATION_BADGE_STYLES: Record<
+  ProjectNotificationType,
+  string
+> = {
+  project_due_soon:
+    "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  project_overdue:
+    "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 };

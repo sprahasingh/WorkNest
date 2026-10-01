@@ -358,7 +358,9 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
 
   const timestampField =
     view === "active"
-      ? "createdAt"
+      ? query.sortBy === "createdAt"
+        ? "createdAt"
+        : "dueDate"
       : view === "completed"
         ? "completedAt"
         : view === "archived"
@@ -370,12 +372,22 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
   if (query.cursor) {
     if (timestampField && query.cursor.includes("_")) {
       const [timestamp, taskId] = query.cursor.split("_");
-      const cursorDate = new Date(Number(timestamp));
       const comparison = sortDirection === 1 ? "$gt" : "$lt";
-      filter.$or = [
-        { [timestampField]: { [comparison]: cursorDate } },
-        { [timestampField]: cursorDate, _id: { [comparison]: taskId } },
-      ];
+      if (timestampField === "dueDate" && timestamp === "null") {
+        filter.$or = [
+          { dueDate: null, _id: { [comparison]: taskId } },
+          ...(sortDirection === 1 ? [{ dueDate: { $ne: null } }] : []),
+        ];
+      } else {
+        const cursorDate = new Date(Number(timestamp));
+        filter.$or = [
+          { [timestampField]: { [comparison]: cursorDate } },
+          { [timestampField]: cursorDate, _id: { [comparison]: taskId } },
+          ...(timestampField === "dueDate" && sortDirection === -1
+            ? [{ dueDate: null }]
+            : []),
+        ];
+      }
     } else {
       filter._id = { $lt: query.cursor };
     }
@@ -393,9 +405,17 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
   const hasMore = tasks.length > limit;
   const items = hasMore ? tasks.slice(0, limit) : tasks;
   const lastItem = items[items.length - 1];
+  const lastItemTimestamp =
+    timestampField === "dueDate" && !lastItem?.dueDate
+      ? "null"
+      : lastItem
+        ? ((lastItem as unknown as Record<string, Date | null>)[
+            timestampField
+          ]?.getTime() ?? 0)
+        : 0;
   const nextCursor = hasMore
     ? timestampField
-      ? `${(lastItem as unknown as Record<string, Date | null>)[timestampField]?.getTime() ?? 0}_${String(lastItem?._id)}`
+      ? `${lastItemTimestamp}_${String(lastItem?._id)}`
       : String(lastItem?._id)
     : null;
 

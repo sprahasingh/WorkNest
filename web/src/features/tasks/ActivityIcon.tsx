@@ -1,12 +1,14 @@
 import { cn } from "@/lib/cn";
 import type { ActivityType, TaskNotificationType } from "./api";
+import type { ProjectNotificationType } from "@/features/notifications/api";
 import {
   ACTIVITY_BADGE_STYLES,
+  PROJECT_NOTIFICATION_BADGE_STYLES,
   TASK_NOTIFICATION_BADGE_STYLES,
 } from "./activityTypes";
 
 const ICON_PATHS: Record<
-  ActivityType | TaskNotificationType | "default",
+  ActivityType | TaskNotificationType | ProjectNotificationType | "default",
   string[]
 > = {
   update_request: ["M12 8v4l3 2", "M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z"],
@@ -30,6 +32,12 @@ const ICON_PATHS: Record<
     "M12 17h.01",
     "M10.3 3.9 1.8 18.6A1.6 1.6 0 0 0 3.2 21h17.6a1.6 1.6 0 0 0 1.4-2.4L13.7 3.9a2 2 0 0 0-3.4 0Z",
   ],
+  project_due_soon: ["M12 8v4l3 2", "M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z"],
+  project_overdue: [
+    "M12 9v4",
+    "M12 17h.01",
+    "M10.3 3.9 1.8 18.6A1.6 1.6 0 0 0 3.2 21h17.6a1.6 1.6 0 0 0 1.4-2.4L13.7 3.9a2 2 0 0 0-3.4 0Z",
+  ],
   default: [
     "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9",
     "M13.73 21a2 2 0 0 1-3.46 0",
@@ -40,7 +48,7 @@ export function ActivityIcon({
   type,
   className,
 }: {
-  type: ActivityType | TaskNotificationType | null;
+  type: ActivityType | TaskNotificationType | ProjectNotificationType | null;
   className?: string;
 }) {
   return (
@@ -51,7 +59,11 @@ export function ActivityIcon({
         type
           ? type in ACTIVITY_BADGE_STYLES
             ? ACTIVITY_BADGE_STYLES[type as ActivityType]
-            : TASK_NOTIFICATION_BADGE_STYLES[type as TaskNotificationType]
+            : type in PROJECT_NOTIFICATION_BADGE_STYLES
+              ? PROJECT_NOTIFICATION_BADGE_STYLES[
+                  type as ProjectNotificationType
+                ]
+              : TASK_NOTIFICATION_BADGE_STYLES[type as TaskNotificationType]
           : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300",
         className,
       )}

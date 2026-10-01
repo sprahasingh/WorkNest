@@ -28,6 +28,8 @@ const notificationSchema = new Schema(
         "task_completed",
         "task_due_soon",
         "task_overdue",
+        "project_due_soon",
+        "project_overdue",
       ],
       default: null,
     },
