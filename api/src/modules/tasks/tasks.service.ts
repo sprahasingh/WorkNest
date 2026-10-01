@@ -357,20 +357,24 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
   });
 
   const timestampField =
-    view === "completed"
-      ? "completedAt"
-      : view === "archived"
-        ? "archivedAt"
-        : view === "bin"
-          ? "deletedAt"
-          : null;
+    view === "active"
+      ? "createdAt"
+      : view === "completed"
+        ? "completedAt"
+        : view === "archived"
+          ? "completedAt"
+          : view === "bin"
+            ? "deletedAt"
+            : "createdAt";
+  const sortDirection = query.sortOrder === "asc" ? 1 : -1;
   if (query.cursor) {
     if (timestampField && query.cursor.includes("_")) {
       const [timestamp, taskId] = query.cursor.split("_");
       const cursorDate = new Date(Number(timestamp));
+      const comparison = sortDirection === 1 ? "$gt" : "$lt";
       filter.$or = [
-        { [timestampField]: { $lt: cursorDate } },
-        { [timestampField]: cursorDate, _id: { $lt: taskId } },
+        { [timestampField]: { [comparison]: cursorDate } },
+        { [timestampField]: cursorDate, _id: { [comparison]: taskId } },
       ];
     } else {
       filter._id = { $lt: query.cursor };
@@ -380,9 +384,10 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
   const taskQuery = Task.find(filter).setOptions({
     includeDeleted: view === "bin",
   });
-  const sortedTaskQuery = timestampField
-    ? taskQuery.sort({ [timestampField]: -1, _id: -1 })
-    : taskQuery.sort({ _id: -1 });
+  const sortedTaskQuery = taskQuery.sort({
+    [timestampField]: sortDirection,
+    _id: sortDirection,
+  });
   const tasks = await sortedTaskQuery.limit(limit + 1).lean();
 
   const hasMore = tasks.length > limit;

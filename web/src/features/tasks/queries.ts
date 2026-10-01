@@ -35,6 +35,7 @@ export interface TaskFilters {
   assigneeId?: string;
   priority?: TaskPriority;
   mine?: true;
+  sortOrder?: "asc" | "desc";
 }
 
 export const taskKeys = {
