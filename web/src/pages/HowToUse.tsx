@@ -23,17 +23,22 @@ const STEPS: GuideStep[] = [
   {
     title: "Invite your team",
     description:
-      "Go to Members → Invite someone. Enter their email and pick a role. You'll get a one-time invite link to send them — only admins can send invites.",
+      "Open Members and choose Invite someone. Enter their email and choose a role. Admins can send invitations. People who already use WorkNest can accept from their notifications or Organizations page.",
   },
   {
     title: "Create and assign a task",
     description:
-      "Open a project and click New task. Set a title, priority, optional due date, and tick one or more assignees. Admins and managers can assign anyone; a task a member creates is assigned to them. Each plan caps how many active (not done) tasks a project can hold: 10 on Free, 50 on Pro, unlimited on Premium.",
+      "Open a project and choose New task. Add a title, priority, optional due date, and one or more assignees. Admins and managers can assign anyone; a task created by a member is assigned to them. Each plan limits active tasks per project: 10 on Free, 50 on Pro, and unlimited on Premium. Done, archived, and binned tasks do not use this allowance. Reopening or restoring an active task uses a slot again.",
   },
   {
     title: "Move a task through its board",
     description:
-      "Each task has a status dropdown right on its card — To do, In progress, or Done. Members can edit and move the tasks assigned to them; admins and managers can edit and move any task.",
+      "Use the status menu on a task to move it between To do, In progress, and Done. Members can edit and move tasks assigned to them. Admins and managers can edit and move any task.",
+  },
+  {
+    title: "Keep project lists current",
+    description:
+      "A project moves to Completed when all its tasks are done. Archive a project to hide it from everyday work, or move it to the Bin to remove it temporarily. Completed, archived, and binned projects do not use a project slot. Unarchiving or restoring a project with unfinished work, or reopening work in a completed project, uses a slot again and may be blocked when your plan is full. Binned projects can be restored for 30 days.",
   },
   {
     title: "Ask for and share updates",
@@ -48,12 +53,12 @@ const STEPS: GuideStep[] = [
   {
     title: "Review the audit log",
     description:
-      "Admins can see a full history of who changed what — renamed the org, removed a member, deleted a task — and when it happened.",
+      "Admins can see who changed what and when, including organization settings, membership, projects, tasks, and plans.",
   },
   {
     title: "Manage your plan",
     description:
-      "Settings → Plan shows your usage and all three plans side by side. Free: 5 seats, 3 projects, 10 active tasks per project. Pro: 30 seats, 25 projects, 50 active tasks per project. Premium: 100 seats, 50 projects, unlimited tasks. Admins can switch plans any time; a downgrade waits until your usage fits the smaller plan.",
+      "Open Settings to compare plans and check usage. Free includes 5 seats, 3 active projects, and 10 active tasks per project. Pro includes 30 seats, 25 active projects, and 50 active tasks per project. Premium includes 100 seats, 50 active projects, and unlimited active tasks per project. Only admins can change plans. A downgrade is available once your usage fits the lower limits.",
   },
 ];
 
@@ -160,7 +165,7 @@ function Check({ value }: { value: boolean }) {
     </span>
   ) : (
     <span className="text-slate-300 dark:text-slate-600" aria-label="No">
-      &mdash;
+      No
     </span>
   );
 }
@@ -278,7 +283,7 @@ export function HowToUse() {
               </h3>
               <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                 Every person in an organization is an Admin, Manager, or Member.
-                Roles decide exactly what they can see and do — see the table
+                Roles decide what each person can see and do. See the table
                 below.
               </p>
             </Card>
@@ -313,7 +318,7 @@ export function HowToUse() {
             Who can do what
           </h2>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            Roles are enforced on the server, not just hidden in the UI — a
+            Roles are enforced on the server, not just hidden in the UI. A
             Member can&apos;t do an Admin-only action even by calling the API
             directly.
           </p>

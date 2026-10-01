@@ -95,7 +95,7 @@ describe("dashboard aggregation", () => {
       dueDate: yesterday,
     });
 
-    // Overdue-looking (past due date) but already done — must not count as overdue.
+    // Past-due tasks that are already done must not count as overdue.
     const overdueButDoneId = await createTask(
       org.orgId,
       projectId,

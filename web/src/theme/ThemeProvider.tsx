@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ThemeContext,
   type ResolvedTheme,
@@ -25,18 +31,14 @@ function readStoredTheme(): ThemePreference {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemePreference>(readStoredTheme);
-  const [systemPrefersDark, setSystemPrefersDark] = useState(
-    getSystemPrefersDark,
-  );
+  const [systemPrefersDark, setSystemPrefersDark] =
+    useState(getSystemPrefersDark);
 
   const resolvedTheme: ResolvedTheme =
     theme === "system" ? (systemPrefersDark ? "dark" : "light") : theme;
 
   useEffect(() => {
-    document.documentElement.classList.toggle(
-      "dark",
-      resolvedTheme === "dark",
-    );
+    document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
   }, [resolvedTheme]);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem(STORAGE_KEY, next);
     } catch {
-      // Ignore storage failures — the preference just won't persist.
+      // Ignore storage failures. The preference just won't persist.
     }
   }, []);
 
