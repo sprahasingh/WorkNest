@@ -184,7 +184,7 @@ export async function requestEmailChangeController(
   if (!user) {
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
-  res.status(202).json({ user });
+  res.status(user.pendingEmail ? 202 : 200).json({ user });
 }
 
 export async function verifyEmailChangeController(

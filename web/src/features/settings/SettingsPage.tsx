@@ -527,6 +527,7 @@ function EmailAddressSection() {
 
   const onSubmit = async (values: EmailChangeFormValues) => {
     setFormError(null);
+    const currentEmail = user?.email;
     try {
       const updatedUser = await requestEmailChange(values);
       updateCurrentUser(updatedUser);
@@ -535,7 +536,9 @@ function EmailAddressSection() {
       toast.success(
         updatedUser.pendingEmail
           ? `Verification link sent to ${updatedUser.pendingEmail}`
-          : "Email address unchanged",
+          : updatedUser.email !== currentEmail
+            ? "Email address updated"
+            : "Email address unchanged",
       );
     } catch (error) {
       const parsed = parseApiError(error);
