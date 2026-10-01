@@ -16,6 +16,7 @@ import {
   type TaskOwnershipFields,
 } from "../../auth/ownership.js";
 import { PLAN_LIMITS, PLAN_NAMES, type Plan } from "../../constants/plans.js";
+import { projectConsumesSlot, syncProjectSlot } from "../orgs/orgs.service.js";
 import { recordAudit } from "../audit/audit.service.js";
 import type { Role } from "../../constants/roles.js";
 import type {
@@ -187,7 +188,7 @@ async function assertRoomForActiveTask(
   throw new AppError(
     400,
     "TASK_LIMIT_REACHED",
-    `${PLAN_NAMES[plan]} plan projects are limited to ${limit} active tasks. ${nextStep}, or upgrade your plan.`,
+    `${PLAN_NAMES[plan]} plan allows up to ${limit} active tasks per project. ${nextStep}, or upgrade your plan.`,
   );
 }
 
@@ -265,6 +266,7 @@ export async function createTask(
     let task;
 
     await dbSession.withTransaction(async () => {
+      const wasActive = await projectConsumesSlot(projectId, dbSession);
       const [created] = await Task.create(
         [
           {
@@ -280,6 +282,7 @@ export async function createTask(
         ],
         { session: dbSession },
       );
+      await syncProjectSlot(tenantId, projectId, wasActive, dbSession);
 
       await notifyTaskAssignees(
         created,
@@ -686,6 +689,7 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
 
   try {
     await dbSession.withTransaction(async () => {
+      const wasActive = await projectConsumesSlot(task.projectId, dbSession);
       const diff: Record<string, { from: unknown; to: unknown }> = {};
       const trackedFields = [
         "title",
@@ -716,6 +720,7 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
         task.reminderCycle = (task.reminderCycle ?? 0) + 1;
       }
       await task.save({ session: dbSession });
+      await syncProjectSlot(tenantId, task.projectId, wasActive, dbSession);
 
       if (completing) {
         await Notification.updateMany(
@@ -1004,12 +1009,19 @@ export async function moveTaskToBin(taskId: string) {
   try {
     let binnedTask;
     await dbSession.withTransaction(async () => {
+      const wasActive = await projectConsumesSlot(task.projectId, dbSession);
       binnedTask = await Task.findOneAndUpdate(
         { _id: taskId, deletedAt: null },
         { deletedAt: new Date(), deletedBy: context.userId },
         { new: true, session: dbSession },
       );
       if (!binnedTask) throw new AppError(404, "NOT_FOUND", "Task not found");
+      await syncProjectSlot(
+        requireTenantId(),
+        task.projectId,
+        wasActive,
+        dbSession,
+      );
       await recordAudit(
         {
           action: "task.binned",
@@ -1059,6 +1071,10 @@ export async function restoreTask(taskId: string) {
   try {
     let task;
     await dbSession.withTransaction(async () => {
+      const wasActive = await projectConsumesSlot(
+        binnedTask.projectId,
+        dbSession,
+      );
       task = await Task.findOneAndUpdate(
         { _id: taskId, deletedAt: { $ne: null } },
         { deletedAt: null, deletedBy: null },
@@ -1067,6 +1083,12 @@ export async function restoreTask(taskId: string) {
       if (!task) {
         throw new AppError(404, "NOT_FOUND", "Task not found in the bin");
       }
+      await syncProjectSlot(
+        requireTenantId(),
+        task.projectId,
+        wasActive,
+        dbSession,
+      );
       await recordAudit(
         {
           action: "task.restored",

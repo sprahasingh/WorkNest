@@ -351,8 +351,7 @@ export function ProjectsPage() {
                 >
                   {org.projectCount} of {org.projectLimit}
                 </span>{" "}
-                projects used on the {PLAN_NAMES[org.plan]} plan
-                {counts && counts.archived > 0 && " (archived ones count too)"}
+                active project slots used on the {PLAN_NAMES[org.plan]} plan
               </p>
             )}
           </div>
@@ -362,23 +361,27 @@ export function ProjectsPage() {
         <div
           role="tablist"
           aria-label="Project lists"
-          className="mt-4 flex gap-1 border-b border-slate-200 dark:border-slate-800"
+          className="mt-4 grid grid-cols-4 gap-1 border-b border-slate-200 dark:border-slate-800"
         >
           {VIEWS.map((tab) => (
             <button
               key={tab.value}
               type="button"
               role="tab"
+              aria-label={tab.label}
               aria-selected={view === tab.value}
               onClick={() => setView(tab.value)}
               className={cn(
-                "flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors",
+                "flex min-w-0 items-center justify-center gap-0.5 whitespace-nowrap px-0 py-2 text-[10px] font-medium transition-colors sm:gap-2 sm:px-3 sm:text-sm",
                 view === tab.value
                   ? "border-b-2 border-teal-600 text-teal-700 dark:text-teal-400"
                   : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
               )}
             >
-              {tab.label}
+              <span className="sm:hidden">
+                {tab.value === "completed" ? "Complete" : tab.label}
+              </span>
+              <span className="hidden sm:inline">{tab.label}</span>
               <TabCount
                 value={
                   tab.value === "active"
@@ -767,7 +770,7 @@ function TabCount({
   return (
     <span
       className={cn(
-        "min-w-[1.25rem] rounded-full px-1.5 py-px text-center text-xs font-semibold",
+        "min-w-3.5 rounded-full px-0.5 py-px text-center text-[9px] font-semibold sm:min-w-[1.25rem] sm:px-1.5 sm:text-xs",
         selected
           ? "bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300"
           : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400",

@@ -34,7 +34,7 @@ export type ProjectPriority = "low" | "medium" | "high";
 
 export interface ListProjectsResponse {
   projects: ProjectSummary[];
-  // How many projects are active and archived, whichever list was asked for.
+  // Counts by lifecycle view. Active excludes completed projects.
   counts: { active: number; archived: number; bin: number };
   // Days a project stays in the bin before it's deleted for good.
   binRetentionDays: number;

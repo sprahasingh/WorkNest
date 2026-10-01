@@ -23,7 +23,7 @@ interface RemoveTarget {
 function showLastAdminOrGenericError(error: unknown): void {
   const parsed = parseApiError(error);
   if (parsed.code === "LAST_ADMIN") {
-    toast.error("Can't do that — an organization needs at least one admin", {
+    toast.error("Can't do that. An organization needs at least one admin.", {
       description: "Promote another member to admin first.",
     });
     return;
