@@ -86,8 +86,8 @@ export async function requestPasswordResetController(
 ): Promise<void> {
   const input = req.validated!.body as RequestPasswordResetInput;
   await requestPasswordReset(input);
-  res.status(202).json({
-    message: "If an account exists for that email, a reset link has been sent.",
+  res.status(200).json({
+    message: "Password reset email sent. Check your inbox and spam folder.",
   });
 }
 
