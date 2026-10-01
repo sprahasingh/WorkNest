@@ -9,11 +9,35 @@ import {
 import { User } from "../src/models/User.js";
 import { Organization } from "../src/models/Organization.js";
 import { Session } from "../src/models/Session.js";
+import { Membership } from "../src/models/Membership.js";
 import { env } from "../src/config/env.js";
 
 const app = createApp();
 
 describe("auth flow", () => {
+  it("creates a standalone user account without an organization", async () => {
+    const verification = await registerAndVerify(app, {
+      accountType: "user",
+      name: "Standalone User",
+      email: "standalone@example.com",
+      password: "password123",
+    });
+
+    expect(verification.status).toBe(201);
+    const user = await User.findOne({ email: "standalone@example.com" });
+    expect(user).not.toBeNull();
+    expect(
+      await Membership.countDocuments({ userId: user?._id }).setOptions({
+        skipTenant: true,
+      }),
+    ).toBe(0);
+    expect(
+      await Organization.countDocuments({ createdBy: user?._id }).setOptions({
+        skipTenant: true,
+      }),
+    ).toBe(0);
+  });
+
   it("registers, logs in, and fetches the current user", async () => {
     const registerRes = await registerAndVerify(app, {
       name: "Test User",

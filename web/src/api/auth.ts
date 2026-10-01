@@ -10,10 +10,11 @@ export type Role = "admin" | "manager" | "member";
 export type Plan = "free" | "pro" | "premium";
 
 export interface RegisterInput {
+  accountType: "admin" | "user";
   name: string;
   email: string;
   password: string;
-  orgName: string;
+  orgName?: string;
 }
 
 export type RegisterResponse =
