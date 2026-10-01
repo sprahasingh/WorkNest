@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
-import { inputStyles } from "@/components/ui/Field";
 import { parseApiError } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
 import { formatFullTime, formatRelativeTime } from "@/lib/time";
@@ -9,6 +8,10 @@ import type { ActivityScope, ActivityType } from "./api";
 import { ACTIVITY_BADGE_STYLES, ACTIVITY_LABELS } from "./activityTypes";
 import { ActivityIcon } from "./ActivityIcon";
 import { useActivity, useCreateActivity } from "./queries";
+import { useMembers } from "@/features/members/queries";
+import { MentionTextarea } from "./MentionTextarea";
+import type { ActivityMentions } from "./MentionTextarea";
+import { ActivityConfirmation } from "./ActivityConfirmation";
 
 interface ActivityFeedProps {
   orgId: string;
@@ -30,9 +33,20 @@ export function ActivityFeed({
 }: ActivityFeedProps) {
   const { data: activities, isPending, isError } = useActivity(orgId, scope);
   const createActivity = useCreateActivity(orgId, scope);
+  const { data: members = [] } = useMembers(orgId);
   const [content, setContent] = useState("");
+  const [mentions, setMentions] = useState<ActivityMentions>({
+    memberIds: [],
+    roles: [],
+  });
   const [contentError, setContentError] = useState<string | null>(null);
   const [pendingType, setPendingType] = useState<ActivityType | null>(null);
+  const [pendingSend, setPendingSend] = useState<{
+    type: ActivityType;
+    content?: string;
+    mentionMemberIds: string[];
+    mentionRoles: ActivityMentions["roles"];
+  } | null>(null);
   const listRef = useRef<HTMLOListElement>(null);
 
   const isProject = scope.kind === "project";
@@ -46,15 +60,27 @@ export function ActivityFeed({
     if (list) list.scrollTop = list.scrollHeight;
   }, [entryCount]);
 
-  const post = async (type: ActivityType) => {
+  const preparePost = (type: ActivityType) => {
+    setPendingSend({
+      type,
+      content: content.trim() || undefined,
+      mentionMemberIds: mentions.memberIds,
+      mentionRoles: mentions.roles,
+    });
+  };
+
+  const post = async () => {
+    if (!pendingSend) return;
+    const sentType = pendingSend.type;
     setContentError(null);
-    setPendingType(type);
+    setPendingType(sentType);
     try {
       const result = await createActivity.mutateAsync({
-        type,
-        content: content.trim() || undefined,
+        ...pendingSend,
       });
       setContent("");
+      setMentions({ memberIds: [], roles: [] });
+      setPendingSend(null);
       const count = result.notifiedCount;
       const successMessages: Record<ActivityType, string> = {
         update_request:
@@ -65,7 +91,7 @@ export function ActivityFeed({
         question: "Question sent",
         reply: "Reply posted",
       };
-      toast.success(successMessages[type]);
+      toast.success(successMessages[sentType]);
     } catch (error) {
       const parsed = parseApiError(error);
       if (parsed.fieldErrors.content) {
@@ -77,6 +103,32 @@ export function ActivityFeed({
       setPendingType(null);
     }
   };
+
+  const mentionedLabels = [
+    ...members
+      .filter((member) => mentions.memberIds.includes(member.userId.id))
+      .map((member) => `${member.userId.name} (${member.userId.email})`),
+    ...mentions.roles.map((role) =>
+      role === "assignee"
+        ? "Task assignees"
+        : `All ${role === "member" ? "members" : `${role}s`}`,
+    ),
+  ];
+  const isUpdateRequest = pendingSend?.type === "update_request";
+  const confirmationAudience = isUpdateRequest
+    ? isProject
+      ? "the assignees of open tasks in this project"
+      : "the assignees of this task"
+    : pendingSend?.type === "reply"
+      ? isProject
+        ? "the assignees of open tasks in this project"
+        : "the assignees of this task"
+      : isProject
+        ? "the admins and managers of this workspace"
+        : "the admins, managers and assignees of this task";
+  const confirmationMessage = isUpdateRequest
+    ? `This request will ask ${confirmationAudience} for an update.`
+    : `This ${pendingSend?.type ?? "message"} will be sent to ${confirmationAudience}.`;
 
   const busy = createActivity.isPending;
   const audienceHint = canLead
@@ -186,21 +238,22 @@ export function ActivityFeed({
           >
             Message
           </label>
-          <textarea
+          <MentionTextarea
             id={`activity-${scope.kind}-${scope.id}`}
             rows={3}
             placeholder={
               canLead
-                ? "Add a note (optional when requesting an update)…"
-                : "Share your progress, or ask a question…"
+                ? "Add a note (optional when requesting an update)… Use @ to mention someone"
+                : "Share your progress, or ask a question… Use @ to mention someone"
             }
             value={content}
-            onChange={(e) => {
-              setContent(e.target.value);
+            onChange={(value) => {
+              setContent(value);
               setContentError(null);
             }}
-            maxLength={2000}
-            className={inputStyles}
+            members={members}
+            mentions={mentions}
+            onMentionsChange={setMentions}
           />
           {contentError && (
             <p className="text-sm text-red-600 dark:text-red-400">
@@ -213,7 +266,7 @@ export function ActivityFeed({
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => void post("question")}
+                  onClick={() => preparePost("question")}
                   disabled={busy || !hasText}
                   loading={pendingType === "question"}
                 >
@@ -221,7 +274,7 @@ export function ActivityFeed({
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => void post("update")}
+                  onClick={() => preparePost("update")}
                   disabled={busy || !hasText}
                   loading={pendingType === "update"}
                 >
@@ -234,7 +287,7 @@ export function ActivityFeed({
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => void post("reply")}
+                  onClick={() => preparePost("reply")}
                   disabled={busy || !hasText}
                   loading={pendingType === "reply"}
                 >
@@ -242,7 +295,7 @@ export function ActivityFeed({
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => void post("update_request")}
+                  onClick={() => preparePost("update_request")}
                   disabled={busy}
                   loading={pendingType === "update_request"}
                 >
@@ -264,6 +317,16 @@ export function ActivityFeed({
             : "Only this task's assignees, managers and admins can post here."}
         </p>
       )}
+      <ActivityConfirmation
+        open={pendingSend !== null}
+        title={isUpdateRequest ? "Send update request?" : "Send activity?"}
+        message={confirmationMessage}
+        mentions={mentionedLabels}
+        confirmLabel={isUpdateRequest ? "Send request" : "Send"}
+        isPending={busy}
+        onCancel={() => setPendingSend(null)}
+        onConfirm={() => void post()}
+      />
     </div>
   );
 }
