@@ -18,6 +18,9 @@ const projectSchema = new Schema(
     },
     key: { type: String, required: true, trim: true, uppercase: true },
     description: { type: String, trim: true, maxlength: 500 },
+    dueDate: { type: Date, default: null },
+    dueDateIsDateOnly: { type: Boolean, default: false },
+    reminderCycle: { type: Number, default: 0 },
     archivedAt: { type: Date, default: null },
     // Set when the project is moved to the bin; it's permanently deleted
     // BIN_RETENTION_DAYS later unless restored.
