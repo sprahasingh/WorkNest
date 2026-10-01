@@ -6,6 +6,7 @@ export interface Project {
   name: string;
   key: string;
   description?: string;
+  priority: ProjectPriority;
   dueDate: string | null;
   dueDateIsDateOnly?: boolean;
   reminderCycle?: number;
@@ -22,10 +23,14 @@ export interface Project {
 export interface ProjectSummary extends Project {
   activeTaskCount: number;
   completedTaskCount: number;
+  todoTaskCount: number;
+  inProgressTaskCount: number;
   taskCount: number;
   // When a project in the bin will be deleted for good.
   purgeAt: string | null;
 }
+
+export type ProjectPriority = "low" | "medium" | "high";
 
 export interface ListProjectsResponse {
   projects: ProjectSummary[];
@@ -39,12 +44,14 @@ export interface CreateProjectInput {
   name: string;
   key: string;
   description?: string;
+  priority?: ProjectPriority;
   dueDate?: string;
 }
 
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
+  priority?: ProjectPriority;
   dueDate?: string | null;
 }
 

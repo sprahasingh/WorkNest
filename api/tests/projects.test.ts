@@ -144,6 +144,10 @@ describe("project archive and delete", () => {
     const old = await createProject(org.orgId, org.accessToken, "OLD");
     const busyId = busy.body.project._id as string;
     const auth = { Authorization: `Bearer ${org.accessToken}` };
+    await request(app)
+      .patch(`/api/orgs/${org.orgId}/projects/${busyId}`)
+      .set(auth)
+      .send({ priority: "high" });
 
     const taskIds: string[] = [];
     for (const title of ["One", "Two", "Three"]) {
@@ -158,6 +162,10 @@ describe("project archive and delete", () => {
       .set(auth)
       .send({ status: "done" });
     await request(app)
+      .patch(`/api/orgs/${org.orgId}/tasks/${taskIds[1]}`)
+      .set(auth)
+      .send({ status: "in_progress" });
+    await request(app)
       .post(`/api/orgs/${org.orgId}/projects/${old.body.project._id}/archive`)
       .set(auth);
 
@@ -171,20 +179,28 @@ describe("project archive and delete", () => {
       (
         list.body.projects as Array<{
           _id: string;
+          priority: string;
           activeTaskCount: number;
           completedTaskCount: number;
+          todoTaskCount: number;
+          inProgressTaskCount: number;
           taskCount: number;
         }>
       ).map((p) => [p._id, p]),
     );
     expect(byId.get(busyId)).toMatchObject({
+      priority: "high",
       activeTaskCount: 2,
       completedTaskCount: 1,
+      todoTaskCount: 1,
+      inProgressTaskCount: 1,
       taskCount: 3,
     });
     expect(byId.get(idle.body.project._id as string)).toMatchObject({
       activeTaskCount: 0,
       completedTaskCount: 0,
+      todoTaskCount: 0,
+      inProgressTaskCount: 0,
       taskCount: 0,
     });
 
