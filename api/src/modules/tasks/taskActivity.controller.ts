@@ -22,8 +22,11 @@ export async function createTaskActivityController(
 ): Promise<void> {
   const { taskId } = req.params;
   const input = req.validated!.body as CreateActivityInput;
-  const activity = await createTaskActivity(taskId as string, input);
-  res.status(201).json({ activity });
+  const { activity, notifiedCount } = await createTaskActivity(
+    taskId as string,
+    input,
+  );
+  res.status(201).json({ activity, notifiedCount });
 }
 
 export async function listProjectActivitiesController(

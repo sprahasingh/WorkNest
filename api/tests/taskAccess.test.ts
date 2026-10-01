@@ -246,6 +246,85 @@ describe("update requests and questions", () => {
     expect(markRead.status).toBe(400);
   });
 
+  it("does not let a manager request an update from themselves", async () => {
+    const admin = await registerOrg(
+      "self-request-admin@example.com",
+      "Self Request Org",
+    );
+    const manager = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "self-request-manager@example.com",
+      "manager",
+    );
+    const alice = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "self-request-alice@example.com",
+    );
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "SELF",
+    );
+    const task = await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "Shared assignment",
+      assigneeIds: [manager.userId],
+    });
+    const taskId = task.body.task._id as string;
+    const activityPath = `/api/orgs/${admin.orgId}/tasks/${taskId}/activity`;
+
+    const selfRequest = await request(app)
+      .post(activityPath)
+      .set("Authorization", `Bearer ${manager.accessToken}`)
+      .send({ type: "update_request" });
+    expect(selfRequest.status).toBe(400);
+    expect(selfRequest.body.error.code).toBe("SELF_UPDATE_REQUEST");
+    expect(selfRequest.body.error.message).toContain(
+      "can't request an update from yourself",
+    );
+
+    const projectSelfRequest = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects/${projectId}/activity`)
+      .set("Authorization", `Bearer ${manager.accessToken}`)
+      .send({ type: "update_request" });
+    expect(projectSelfRequest.status).toBe(400);
+    expect(projectSelfRequest.body.error.code).toBe("SELF_UPDATE_REQUEST");
+
+    await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ assigneeIds: [manager.userId, alice.userId] })
+      .expect(200);
+
+    const coAssigneeRequest = await request(app)
+      .post(activityPath)
+      .set("Authorization", `Bearer ${manager.accessToken}`)
+      .send({ type: "update_request" });
+    expect(coAssigneeRequest.status).toBe(201);
+    expect(coAssigneeRequest.body.notifiedCount).toBe(1);
+
+    const aliceInbox = await request(app)
+      .get(`/api/orgs/${admin.orgId}/notifications`)
+      .set("Authorization", `Bearer ${alice.accessToken}`);
+    expect(
+      aliceInbox.body.notifications.filter(
+        (notification: { type: string }) =>
+          notification.type === "update_request",
+      ),
+    ).toHaveLength(1);
+
+    const managerInbox = await request(app)
+      .get(`/api/orgs/${admin.orgId}/notifications`)
+      .set("Authorization", `Bearer ${manager.accessToken}`);
+    expect(
+      managerInbox.body.notifications.some(
+        (notification: { type: string }) =>
+          notification.type === "update_request",
+      ),
+    ).toBe(false);
+  });
+
   it("sends a project-wide update request to every open task's assignees once", async () => {
     const admin = await registerOrg(
       "project-req@example.com",
