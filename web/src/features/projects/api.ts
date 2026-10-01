@@ -21,6 +21,7 @@ export interface Project {
 // done, the count the plan's per-project task limit is measured against.
 export interface ProjectSummary extends Project {
   activeTaskCount: number;
+  completedTaskCount: number;
   taskCount: number;
   // When a project in the bin will be deleted for good.
   purgeAt: string | null;
