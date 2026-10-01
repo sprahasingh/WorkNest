@@ -68,7 +68,11 @@ export async function register(input: RegisterInput) {
     );
   }
 
-  if (!isEmailDeliveryConfigured()) {
+  const bypassVerification = env.EMAIL_VERIFICATION_BYPASS_EMAILS.includes(
+    input.email,
+  );
+
+  if (!bypassVerification && !isEmailDeliveryConfigured()) {
     throw new AppError(
       503,
       "EMAIL_DELIVERY_UNAVAILABLE",
@@ -94,6 +98,11 @@ export async function register(input: RegisterInput) {
     { new: true, upsert: true, setDefaultsOnInsert: true },
   );
 
+  if (bypassVerification) {
+    const { userId } = await verifyRegistration({ token });
+    return { userId, verificationRequired: false as const };
+  }
+
   const verificationUrl = new URL("/verify-email", env.CLIENT_ORIGIN);
   verificationUrl.searchParams.set("token", token);
   try {
@@ -107,7 +116,7 @@ export async function register(input: RegisterInput) {
     throw error;
   }
 
-  return { email: input.email };
+  return { email: input.email, verificationRequired: true as const };
 }
 
 export async function verifyRegistration(input: VerifyRegistrationInput) {

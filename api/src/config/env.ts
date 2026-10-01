@@ -22,6 +22,16 @@ const envSchema = z
       (value) => (value === "" ? undefined : value),
       z.string().email().optional(),
     ),
+    EMAIL_VERIFICATION_BYPASS_EMAILS: z.preprocess(
+      (value) =>
+        typeof value === "string"
+          ? value
+              .split(",")
+              .map((email) => email.trim().toLowerCase())
+              .filter(Boolean)
+          : [],
+      z.array(z.string().email()),
+    ),
   })
   .superRefine((values, context) => {
     if (Boolean(values.SMTP_URL) !== Boolean(values.SMTP_FROM)) {
