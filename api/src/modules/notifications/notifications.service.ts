@@ -89,6 +89,22 @@ async function ensureMyDueNotifications(): Promise<void> {
     );
   }
 
+  const overdueTaskIds = tasks
+    .filter((task) => task.dueDate! <= now)
+    .map((task) => task._id);
+  if (overdueTaskIds.length > 0) {
+    await Notification.updateMany(
+      {
+        userId,
+        tenantId,
+        taskId: { $in: overdueTaskIds },
+        type: "task_due_soon",
+        dismissedAt: null,
+      },
+      { dismissedAt: now },
+    );
+  }
+
   const operations = tasks.flatMap((task) => {
     const dueDate = task.dueDate!;
     const isAssignee = task.assigneeIds.some((assigneeId) =>

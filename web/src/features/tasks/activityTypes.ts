@@ -22,6 +22,7 @@ export const TASK_NOTIFICATION_BADGE_STYLES: Record<
   TaskNotificationType,
   string
 > = {
+  task_assigned: "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
   task_completed:
     "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
   task_due_soon:

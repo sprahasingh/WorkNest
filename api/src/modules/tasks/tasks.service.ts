@@ -64,6 +64,54 @@ async function getAdminAndManagerIds(): Promise<mongoose.Types.ObjectId[]> {
   return memberships.map((m) => m.userId);
 }
 
+async function notifyTaskAssignees(
+  task: {
+    _id: mongoose.Types.ObjectId;
+    projectId: mongoose.Types.ObjectId;
+    title: string;
+    updatedAt?: Date;
+  },
+  assigneeIds: string[],
+  actorId: string,
+  tenantId: string,
+  dbSession: mongoose.ClientSession,
+): Promise<void> {
+  const recipientIds = [...new Set(assigneeIds)].filter(
+    (assigneeId) => assigneeId !== actorId,
+  );
+  if (recipientIds.length === 0) return;
+
+  const actor = await User.findById(actorId)
+    .select("name")
+    .session(dbSession)
+    .lean();
+  const eventKey = `${task._id}:task_assigned:${task.updatedAt?.getTime() ?? Date.now()}`;
+  await Notification.bulkWrite(
+    recipientIds.map((assigneeId) => ({
+      updateOne: {
+        filter: { userId: new mongoose.Types.ObjectId(assigneeId), eventKey },
+        update: {
+          $setOnInsert: {
+            userId: new mongoose.Types.ObjectId(assigneeId),
+            tenantId: new mongoose.Types.ObjectId(tenantId),
+            projectId: task.projectId,
+            taskId: task._id,
+            activityId: null,
+            type: "task_assigned" as const,
+            actorId: new mongoose.Types.ObjectId(actorId),
+            message: `${actor?.name ?? "Someone"} assigned "${task.title}" to you`,
+            eventKey,
+            readAt: null,
+            dismissedAt: null,
+          },
+        },
+        upsert: true,
+      },
+    })),
+    { session: dbSession, ordered: true },
+  );
+}
+
 // Members may only see tasks assigned to them, or tasks that aren't assigned
 // to anyone above them (an admin or a manager).
 // A task is reachable only while its project isn't in the bin.
@@ -231,6 +279,14 @@ export async function createTask(
           },
         ],
         { session: dbSession },
+      );
+
+      await notifyTaskAssignees(
+        created,
+        assigneeIds,
+        context.userId,
+        tenantId,
+        dbSession,
       );
 
       await recordAudit(
@@ -533,7 +589,9 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
           { dismissedAt: new Date() },
           { session: dbSession },
         );
-      } else if (diff.assigneeIds) {
+      }
+
+      if (diff.assigneeIds) {
         const previousAssigneeIds = (
           (diff.assigneeIds.from as mongoose.Types.ObjectId[] | undefined) ?? []
         ).map((userId) => userId.toString());
@@ -589,6 +647,22 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
               eventKey: /:24h$/,
             }).session(dbSession);
           }
+        }
+
+        const previousAssigneeIdSet = new Set(previousAssigneeIds);
+        const addedAssigneeIds = (
+          (diff.assigneeIds.to as mongoose.Types.ObjectId[] | undefined) ?? []
+        )
+          .map((userId) => userId.toString())
+          .filter((userId) => !previousAssigneeIdSet.has(userId));
+        if (addedAssigneeIds.length > 0) {
+          await notifyTaskAssignees(
+            task,
+            addedAssigneeIds,
+            context.userId,
+            tenantId,
+            dbSession,
+          );
         }
       }
 
