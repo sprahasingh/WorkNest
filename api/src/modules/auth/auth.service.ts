@@ -13,6 +13,7 @@ import type { RegisterInput } from "./auth.schemas.js";
 import { randomToken, sha256 } from "../../lib/crypto.js";
 import {
   isEmailDeliveryConfigured,
+  sendPasswordResetEmail,
   sendVerificationEmail,
 } from "../../lib/email.js";
 import { Session } from "../../models/Session.js";
@@ -22,6 +23,8 @@ import type {
   RequestEmailChangeInput,
   UpdatePersonalInformationInput,
   VerifyEmailChangeInput,
+  RequestPasswordResetInput,
+  ResetPasswordInput,
   VerifyRegistrationInput,
 } from "./auth.schemas.js";
 import { generateSlug } from "../orgs/orgs.service.js";
@@ -308,6 +311,91 @@ export async function login(input: LoginInput) {
   }
 
   return { userId: user._id };
+}
+
+export async function requestPasswordReset(input: RequestPasswordResetInput) {
+  if (!isEmailDeliveryConfigured()) return;
+
+  const user = await User.findOne({ email: input.email }).select(
+    "+status +passwordResetTokenHash +passwordResetExpiresAt",
+  );
+  if (
+    !user ||
+    (user as unknown as Record<string, unknown>).status === "deleted"
+  ) {
+    return;
+  }
+
+  const token = randomToken();
+  const tokenHash = sha256(token);
+  user.passwordResetTokenHash = tokenHash;
+  user.passwordResetExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  await user.save();
+
+  const resetUrl = new URL("/reset-password", env.CLIENT_ORIGIN);
+  resetUrl.searchParams.set("token", token);
+  try {
+    await sendPasswordResetEmail(input.email, resetUrl.toString());
+  } catch {
+    await User.updateOne(
+      { _id: user._id, passwordResetTokenHash: tokenHash },
+      {
+        $set: {
+          passwordResetTokenHash: null,
+          passwordResetExpiresAt: null,
+        },
+      },
+    );
+  }
+}
+
+export async function resetPassword(input: ResetPasswordInput) {
+  const tokenHash = sha256(input.token);
+  const user = await User.findOne({
+    passwordResetTokenHash: tokenHash,
+    passwordResetExpiresAt: { $gt: new Date() },
+  }).select("+status");
+
+  if (
+    !user ||
+    (user as unknown as Record<string, unknown>).status === "deleted"
+  ) {
+    throw new AppError(
+      400,
+      "PASSWORD_RESET_INVALID",
+      "This password reset link is invalid or has expired",
+    );
+  }
+
+  const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_COST);
+  const updatedUser = await User.findOneAndUpdate(
+    {
+      _id: user._id,
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { $gt: new Date() },
+    },
+    {
+      $set: {
+        passwordHash,
+        passwordResetTokenHash: null,
+        passwordResetExpiresAt: null,
+      },
+    },
+    { returnDocument: "after" },
+  ).select("_id");
+
+  if (!updatedUser) {
+    throw new AppError(
+      400,
+      "PASSWORD_RESET_INVALID",
+      "This password reset link is invalid or has expired",
+    );
+  }
+
+  await Session.updateMany(
+    { userId: updatedUser._id, revokedAt: null },
+    { revokedAt: new Date() },
+  );
 }
 
 export async function updatePersonalInformation(

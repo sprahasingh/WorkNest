@@ -10,6 +10,7 @@ import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import {
   ServerWakeTimeoutError,
   subscribeServerWakeChange,
@@ -144,14 +145,21 @@ export function Login() {
           htmlFor="password"
           error={errors.password?.message}
         >
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             {...register("password")}
-            className={inputStyles}
           />
         </Field>
+
+        <div className="-mt-2 flex justify-end">
+          <Link
+            to="/forgot-password"
+            className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
         <Button
           type="submit"

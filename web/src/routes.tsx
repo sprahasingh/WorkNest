@@ -6,6 +6,8 @@ import { OrgRoute } from "@/auth/OrgRoute";
 import { Landing } from "@/pages/Landing";
 import { HowToUse } from "@/pages/HowToUse";
 import { Login } from "@/pages/Login";
+import { ForgotPassword } from "@/pages/ForgotPassword";
+import { ResetPassword } from "@/pages/ResetPassword";
 import { Register } from "@/pages/Register";
 import { VerifyEmailChange } from "@/pages/VerifyEmailChange";
 import { VerifyRegistration } from "@/pages/VerifyRegistration";
@@ -43,8 +45,10 @@ export function AppRoutes() {
         <Route path="/how-to-use" element={<HowToUse />} />
         <Route path="/verify-email-change" element={<VerifyEmailChange />} />
         <Route path="/verify-email" element={<VerifyRegistration />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<GuestRoute />}>
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/register" element={<Register />} />
         </Route>
         <Route path="/invite/:token" element={<InviteAccept />} />
