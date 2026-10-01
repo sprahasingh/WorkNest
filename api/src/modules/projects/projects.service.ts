@@ -66,6 +66,7 @@ export async function createProject(
             name: input.name,
             key: input.key,
             description: input.description,
+            priority: input.priority,
             dueDate,
             dueDateIsDateOnly: typeof input.dueDate === "string",
             createdBy,
@@ -123,6 +124,8 @@ export async function listProjects(view: ProjectView) {
     total: number;
     active: number;
     completed: number;
+    todo: number;
+    inProgress: number;
   }>([
     {
       $match: {
@@ -151,6 +154,12 @@ export async function listProjects(view: ProjectView) {
         completed: {
           $sum: { $cond: [{ $eq: ["$status", "done"] }, 1, 0] },
         },
+        todo: {
+          $sum: { $cond: [{ $eq: ["$status", "todo"] }, 1, 0] },
+        },
+        inProgress: {
+          $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
+        },
       },
     },
   ]);
@@ -165,6 +174,8 @@ export async function listProjects(view: ProjectView) {
         ...project.toJSON(),
         activeTaskCount: counts?.active ?? 0,
         completedTaskCount: counts?.completed ?? 0,
+        todoTaskCount: counts?.todo ?? 0,
+        inProgressTaskCount: counts?.inProgress ?? 0,
         taskCount: counts?.total ?? 0,
         // When a project in the bin will be deleted for good.
         purgeAt: project.deletedAt

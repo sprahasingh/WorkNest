@@ -114,7 +114,13 @@ export function ProjectBoard() {
       { task, newStatus },
       {
         onSuccess: () => {
-          if (newStatus === "done") setParam("view", "completed");
+          if (newStatus === "done") {
+            setParam("view", "completed");
+            toast.success("Task marked complete", {
+              description:
+                "Finished tasks move to Completed. Archive them to hide them from everyday work.",
+            });
+          }
         },
         onError: (error) => {
           const parsed = parseApiError(error);
@@ -332,7 +338,7 @@ export function ProjectBoard() {
             ))}
           </select>
 
-          <label className="col-span-2 flex min-h-9 items-center gap-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-1 lg:ml-auto lg:flex-nowrap lg:whitespace-nowrap">
+          <label className="col-span-2 flex min-h-9 min-w-0 flex-col items-start gap-1.5 text-sm text-slate-600 dark:text-slate-300 sm:col-span-1 sm:flex-row sm:items-center sm:gap-2 lg:ml-auto lg:flex-nowrap lg:whitespace-nowrap">
             <span className="shrink-0">Sort by</span>
             <select
               aria-label="Sort tasks"
@@ -352,12 +358,12 @@ export function ProjectBoard() {
                   setParam("sortOrder", sortOrder);
                 }
               }}
-              className={`${selectStyles} min-w-0 w-full sm:w-auto`}
+              className={`${selectStyles} w-full min-w-0 sm:w-auto sm:min-w-64`}
             >
               {boardView === "active" ? (
                 <>
+                  <option value="dueDate:asc">Due date, soonest first</option>
                   <option value="dueDate:desc">Due date, latest first</option>
-                  <option value="dueDate:asc">Due date, earliest first</option>
                   <option value="createdAt:desc">
                     Date created, newest first
                   </option>
@@ -407,15 +413,15 @@ export function ProjectBoard() {
           ))}
         </div>
 
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          {boardView === "completed"
-            ? "Completed tasks are kept here. Reopen one to return it to active work."
-            : boardView === "archived"
-              ? "Archived tasks are hidden from everyday work and can be unarchived."
-              : boardView === "bin"
-                ? "Binned tasks can be restored for 30 days before permanent deletion."
-                : "Finished tasks move to Completed. Archive them to hide them from everyday work."}
-        </p>
+        {boardView !== "active" && (
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            {boardView === "completed"
+              ? "Completed tasks are kept here. Reopen one to return it to active work."
+              : boardView === "archived"
+                ? "Archived tasks are hidden from everyday work and can be unarchived."
+                : "Binned tasks can be restored for 30 days before permanent deletion."}
+          </p>
+        )}
 
         <label className="mt-2 flex min-h-9 items-center justify-end gap-1.5 text-sm text-slate-600 dark:text-slate-300">
           <input

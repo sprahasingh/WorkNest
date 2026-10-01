@@ -36,6 +36,7 @@ const createProjectFormSchema = z.object({
     .toUpperCase()
     .regex(/^[A-Z]{2,6}$/, "Key must be 2-6 uppercase letters"),
   description: z.string().trim().max(500).optional(),
+  priority: z.enum(["low", "medium", "high"]),
   dueDate: z.string().optional(),
 });
 
@@ -45,6 +46,7 @@ const CREATE_PROJECT_FIELDS = [
   "name",
   "key",
   "description",
+  "priority",
   "dueDate",
 ] as const;
 
@@ -56,6 +58,13 @@ interface ConfirmTarget {
 }
 
 type ProjectListView = ProjectView | "completed";
+type ProjectSort =
+  | "dueDate:asc"
+  | "dueDate:desc"
+  | "createdAt:asc"
+  | "createdAt:desc"
+  | "priority:desc"
+  | "priority:asc";
 
 const VIEWS: { value: ProjectListView; label: string }[] = [
   { value: "active", label: "Active" },
@@ -85,6 +94,7 @@ export function ProjectsPage() {
   );
   const [formError, setFormError] = useState<string | null>(null);
   const [view, setView] = useState<ProjectListView>("active");
+  const [sortBy, setSortBy] = useState<ProjectSort>("createdAt:desc");
 
   const apiView = view === "completed" ? "active" : view;
   const { data, isPending, isError } = useProjects(orgId, { view: apiView });
@@ -105,6 +115,39 @@ export function ProjectsPage() {
               project.completedTaskCount !== project.taskCount,
           )
         : data?.projects;
+  const sortedProjects = [...(projects ?? [])].sort((left, right) => {
+    const [field, direction] = sortBy.split(":") as [
+      "dueDate" | "createdAt" | "priority",
+      "asc" | "desc",
+    ];
+    if (field === "priority") {
+      const priorityOrder =
+        direction === "desc"
+          ? { high: 0, medium: 1, low: 2 }
+          : { low: 0, medium: 1, high: 2 };
+      return priorityOrder[left.priority] - priorityOrder[right.priority];
+    }
+
+    if (field === "dueDate" && (!left.dueDate || !right.dueDate)) {
+      if (!left.dueDate && !right.dueDate) return 0;
+      const noDateOrder = direction === "asc" ? 1 : -1;
+      return !left.dueDate ? noDateOrder : -noDateOrder;
+    }
+
+    const leftTime = new Date(
+      field === "dueDate" ? left.dueDate! : left.createdAt,
+    ).getTime();
+    const rightTime = new Date(
+      field === "dueDate" ? right.dueDate! : right.createdAt,
+    ).getTime();
+    const dateOrder = (leftTime - rightTime) * (direction === "asc" ? 1 : -1);
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    return (
+      dateOrder ||
+      priorityOrder[left.priority] - priorityOrder[right.priority] ||
+      left.name.localeCompare(right.name)
+    );
+  });
   const counts = data?.counts ?? activeList.data?.counts;
   const activeProjectCount = activeList.data
     ? activeList.data.projects.length - completedProjects.length
@@ -151,6 +194,7 @@ export function ProjectsPage() {
           input: {
             name: values.name,
             description: values.description,
+            priority: values.priority,
             dueDate: values.dueDate || null,
           },
         });
@@ -158,6 +202,7 @@ export function ProjectsPage() {
       } else {
         await createProject.mutateAsync({
           ...values,
+          priority: values.priority,
           dueDate: values.dueDate || undefined,
         });
       }
@@ -195,7 +240,13 @@ export function ProjectsPage() {
 
   const openCreateModal = () => {
     setEditingProject(null);
-    reset({ name: "", key: "", description: "", dueDate: "" });
+    reset({
+      name: "",
+      key: "",
+      description: "",
+      priority: "medium",
+      dueDate: "",
+    });
     setFormError(null);
     setIsCreateOpen(true);
   };
@@ -206,6 +257,7 @@ export function ProjectsPage() {
       name: project.name,
       key: project.key,
       description: project.description ?? "",
+      priority: project.priority ?? "medium",
       dueDate: project.dueDate
         ? dateInputValueInTimeZone(project.dueDate, org?.timeZone ?? "UTC")
         : "",
@@ -352,6 +404,23 @@ export function ProjectsPage() {
           </p>
         )}
 
+        <label className="mt-5 flex min-w-0 flex-col items-start gap-1.5 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:gap-2">
+          <span className="shrink-0">Sort projects</span>
+          <select
+            aria-label="Sort projects"
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value as ProjectSort)}
+            className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:w-auto sm:min-w-60"
+          >
+            <option value="createdAt:desc">Date created, newest first</option>
+            <option value="createdAt:asc">Date created, oldest first</option>
+            <option value="dueDate:asc">Due date, soonest first</option>
+            <option value="dueDate:desc">Due date, latest first</option>
+            <option value="priority:desc">Priority, high first</option>
+            <option value="priority:asc">Priority, low first</option>
+          </select>
+        </label>
+
         <div className="mt-6">
           {isPending && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -394,9 +463,9 @@ export function ProjectsPage() {
             </Card>
           )}
 
-          {!isPending && !isError && projects && projects.length > 0 && (
+          {!isPending && !isError && sortedProjects.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {projects.map((project) => (
+              {sortedProjects.map((project) => (
                 <Card key={project._id} className="flex flex-col p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -415,6 +484,18 @@ export function ProjectsPage() {
                       <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
                         {project.key}
                       </p>
+                      <span
+                        className={cn(
+                          "mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize",
+                          project.priority === "high"
+                            ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                            : project.priority === "medium"
+                              ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                              : "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300",
+                        )}
+                      >
+                        {project.priority}
+                      </span>
                     </div>
                     {view === "bin" && project.purgeAt ? (
                       <span
@@ -592,8 +673,25 @@ export function ProjectsPage() {
             />
           </Field>
 
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="ghost" onClick={closeCreateModal}>
+          <Field label="Priority" htmlFor="projectPriority">
+            <select
+              id="projectPriority"
+              {...register("priority")}
+              className={inputStyles}
+            >
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </Field>
+
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full sm:w-auto"
+              onClick={closeCreateModal}
+            >
               Cancel
             </Button>
             <Button
@@ -608,6 +706,7 @@ export function ProjectsPage() {
                 createProject.isPending ||
                 updateProject.isPending
               }
+              className="w-full sm:w-auto"
             >
               {isSubmitting ||
               createProject.isPending ||
@@ -717,6 +816,11 @@ function TaskCounts({
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {total} {total === 1 ? "task" : "tasks"} in total
         </p>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+        <span>To do {project.todoTaskCount}</span>
+        <span>In progress {project.inProgressTaskCount}</span>
+        <span>Completed {project.completedTaskCount}</span>
       </div>
       {limit !== null && (
         <div
