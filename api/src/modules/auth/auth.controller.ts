@@ -6,7 +6,10 @@ import {
   logout,
   createSession,
   deleteAccount,
+  requestEmailChange,
+  verifyRegistration,
   updatePersonalInformation,
+  verifyEmailChange,
 } from "./auth.service.js";
 import {
   setRefreshCookie,
@@ -19,7 +22,10 @@ import { User } from "../../models/User.js";
 import type {
   LoginInput,
   RegisterInput,
+  RequestEmailChangeInput,
   UpdatePersonalInformationInput,
+  VerifyEmailChangeInput,
+  VerifyRegistrationInput,
 } from "./auth.schemas.js";
 import { Membership } from "../../models/Membership.js";
 
@@ -29,7 +35,16 @@ export async function registerController(
 ): Promise<void> {
   const input = req.validated!.body as RegisterInput;
 
-  const { userId } = await register(input);
+  const result = await register(input);
+  res.status(202).json({ ...result, verificationRequired: true });
+}
+
+export async function verifyRegistrationController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as VerifyRegistrationInput;
+  const { userId } = await verifyRegistration(input);
   const { rawToken, expiresAt } = await createSession(userId);
 
   setRefreshCookie(res, rawToken, expiresAt);
@@ -90,7 +105,7 @@ export async function logoutController(
 }
 
 export async function meController(req: Request, res: Response): Promise<void> {
-  const user = await User.findById(req.auth!.userId);
+  const user = await User.findById(req.auth!.userId).select("+pendingEmail");
 
   if (!user) {
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
@@ -122,6 +137,30 @@ export async function updatePersonalInformationController(
     input,
     getRefreshCookie(req.cookies),
   );
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+  res.status(200).json({ user });
+}
+
+export async function requestEmailChangeController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as RequestEmailChangeInput;
+  const user = await requestEmailChange(req.auth!.userId, input);
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+  res.status(202).json({ user });
+}
+
+export async function verifyEmailChangeController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as VerifyEmailChangeInput;
+  const user = await verifyEmailChange(input);
   if (!user) {
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }

@@ -3,19 +3,18 @@ import request from "supertest";
 import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
 import { User } from "../src/models/User.js";
+import { registerAndVerify } from "./emailDeliveryMock.js";
 
 // The auth rate limit allows 10 sign-ups per file; this file uses 8.
 const app = createApp();
 
 async function register(email: string, orgName: string) {
-  const res = await request(app)
-    .post("/api/auth/register")
-    .send({
-      name: `${orgName} Owner`,
-      email,
-      password: "password123",
-      orgName,
-    });
+  const res = await registerAndVerify(app, {
+    name: `${orgName} Owner`,
+    email,
+    password: "password123",
+    orgName,
+  });
   const accessToken = res.body.accessToken as string;
   const me = await request(app)
     .get("/api/auth/me")

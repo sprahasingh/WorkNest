@@ -3,11 +3,12 @@ import request from "supertest";
 import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { Task } from "../src/models/Task.js";
+import { registerAndVerify } from "./emailDeliveryMock.js";
 
 const app = createApp();
 
 async function registerOrg(email: string, orgName: string) {
-  const res = await request(app).post("/api/auth/register").send({
+  const res = await registerAndVerify(app, {
     name: "Test User",
     email,
     password: "password123",
