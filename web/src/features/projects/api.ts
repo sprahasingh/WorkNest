@@ -11,6 +11,7 @@ export interface Project {
   dueDateIsDateOnly?: boolean;
   reminderCycle?: number;
   archivedAt: string | null;
+  completedAt?: string | null;
   // Set while the project is in the bin.
   deletedAt?: string | null;
   createdBy: string;

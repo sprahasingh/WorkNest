@@ -128,6 +128,7 @@ export async function listProjects(view: ProjectView) {
     total: number;
     active: number;
     completed: number;
+    completedAt: Date | null;
     todo: number;
     inProgress: number;
   }>([
@@ -160,6 +161,11 @@ export async function listProjects(view: ProjectView) {
         completed: {
           $sum: { $cond: [{ $eq: ["$status", "done"] }, 1, 0] },
         },
+        completedAt: {
+          $max: {
+            $cond: [{ $eq: ["$status", "done"] }, "$completedAt", null],
+          },
+        },
         todo: {
           $sum: { $cond: [{ $eq: ["$status", "todo"] }, 1, 0] },
         },
@@ -184,6 +190,7 @@ export async function listProjects(view: ProjectView) {
         ...project.toJSON(),
         activeTaskCount: counts?.active ?? 0,
         completedTaskCount: counts?.completed ?? 0,
+        completedAt: counts?.completedAt ?? null,
         todoTaskCount: counts?.todo ?? 0,
         inProgressTaskCount: counts?.inProgress ?? 0,
         taskCount: counts?.total ?? 0,
