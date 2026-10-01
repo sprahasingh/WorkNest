@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Card } from "@/components/ui/Card";
 import {
+  cancelEmailChange,
   requestEmailChange,
   updatePersonalInformation,
   type Plan,
@@ -513,6 +514,7 @@ const EMAIL_CHANGE_FIELDS = ["email", "currentPassword"] as const;
 function EmailAddressSection() {
   const { user, updateCurrentUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
@@ -561,6 +563,18 @@ function EmailAddressSection() {
     setIsEditing(false);
   };
 
+  const cancelPendingEmailChange = async () => {
+    setIsCanceling(true);
+    try {
+      updateCurrentUser(await cancelEmailChange());
+      toast.success("Pending email change canceled");
+    } catch (error) {
+      toast.error(parseApiError(error).message);
+    } finally {
+      setIsCanceling(false);
+    }
+  };
+
   return (
     <section className="mt-5 border-t border-slate-200 pt-5 dark:border-slate-700">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -579,14 +593,28 @@ function EmailAddressSection() {
           )}
         </div>
         {!isEditing && user && (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setIsEditing(true)}
-            className="w-full shrink-0 sm:w-auto"
-          >
-            Change email
-          </Button>
+          <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsEditing(true)}
+              className="w-full sm:w-auto"
+            >
+              Change email
+            </Button>
+            {user.pendingEmail && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void cancelPendingEmailChange()}
+                disabled={isCanceling}
+                loading={isCanceling}
+                className="w-full sm:w-auto"
+              >
+                Cancel pending change
+              </Button>
+            )}
+          </div>
         )}
       </div>
 

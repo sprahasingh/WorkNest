@@ -20,6 +20,7 @@ import {
   meController,
   deleteAccountController,
   requestEmailChangeController,
+  cancelEmailChangeController,
   updatePersonalInformationController,
   verifyEmailChangeController,
   verifyRegistrationController,
@@ -111,6 +112,12 @@ router.post(
   authenticate,
   validate({ body: requestEmailChangeSchema }),
   requestEmailChangeController,
+);
+router.delete(
+  "/me/email-change",
+  accountUpdateLimiter,
+  authenticate,
+  cancelEmailChangeController,
 );
 router.delete("/me", authenticate, deleteAccountController);
 

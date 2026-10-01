@@ -562,6 +562,25 @@ export async function requestEmailChange(
   return User.findById(userId).select("+pendingEmail");
 }
 
+export async function cancelEmailChange(userId: string) {
+  const user = await User.findById(userId).select(
+    "+status +pendingEmail +emailChangeTokenHash +emailChangeExpiresAt",
+  );
+  if (
+    !user ||
+    (user as unknown as Record<string, unknown>).status === "deleted"
+  ) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+
+  user.pendingEmail = null;
+  user.emailChangeTokenHash = null;
+  user.emailChangeExpiresAt = null;
+  await user.save();
+
+  return User.findById(userId).select("+pendingEmail");
+}
+
 export async function verifyEmailChange(input: VerifyEmailChangeInput) {
   const user = await User.findOne({
     emailChangeTokenHash: sha256(input.token),

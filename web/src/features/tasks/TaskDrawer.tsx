@@ -27,7 +27,7 @@ import {
 } from "./queries";
 import { useMarkReadWhenViewed } from "@/features/notifications/queries";
 import { useOrgDetails } from "@/features/org/queries";
-import { dateInputValueInTimeZone } from "@/lib/time";
+import { dateInputValueInTimeZone, formatDateTimeInTimeZone } from "@/lib/time";
 
 const taskFormSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
@@ -393,7 +393,7 @@ export function TaskDrawer({
           ) : isArchived ? (
             <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
               This task is archived and read-only. Unarchive it to return it to
-              Recently completed.
+              Completed.
             </p>
           ) : isCompleted ? (
             <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
@@ -451,6 +451,14 @@ export function TaskDrawer({
                   {...register("dueDate")}
                   className={inputStyles}
                 />
+                {task?.dueDate && task.dueDateIsDateOnly === false && (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Specific deadline:{" "}
+                    {formatDateTimeInTimeZone(task.dueDate, timeZone)} (
+                    {timeZone}). Changing the date resets it to an all-day
+                    deadline.
+                  </p>
+                )}
               </Field>
             </div>
 
