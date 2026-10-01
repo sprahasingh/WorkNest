@@ -755,7 +755,7 @@ export function SettingsPage() {
         }
         if (detail.projectCount > detail.targetProjectLimit) {
           reasons.push(
-            `${detail.projectCount} projects (${name} allows ${detail.targetProjectLimit})`,
+            `${detail.projectCount} active projects (${name} allows ${detail.targetProjectLimit})`,
           );
         }
         if (detail.projectsOverTaskLimit && detail.targetActiveTaskLimit) {
@@ -888,7 +888,9 @@ export function SettingsPage() {
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500 dark:text-slate-400">Projects</dt>
+              <dt className="text-slate-500 dark:text-slate-400">
+                Active projects
+              </dt>
               <dd className="text-slate-700 dark:text-slate-300">
                 {org.projectCount} / {org.projectLimit}
               </dd>
@@ -930,7 +932,7 @@ export function SettingsPage() {
                   </div>
                   <ul className="mt-3 flex-1 space-y-1 text-sm text-slate-600 dark:text-slate-300">
                     <li>{limits.seatLimit} seats</li>
-                    <li>{limits.projectLimit} projects</li>
+                    <li>{limits.projectLimit} active projects</li>
                     <li>
                       {limits.activeTaskLimit === null
                         ? "Unlimited active tasks"

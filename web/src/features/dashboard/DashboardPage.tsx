@@ -345,7 +345,7 @@ export function DashboardPage() {
             sub={`${data.usage.seatsUsed} / ${data.usage.seatLimit} seats`}
           />
           <StatCard
-            label="Projects"
+            label="Active projects"
             value={`${data.usage.projectCount} / ${data.usage.projectLimit}`}
           />
           <StatCard
