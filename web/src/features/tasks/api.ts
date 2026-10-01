@@ -70,6 +70,8 @@ export interface UpdateTaskInput {
 export interface CreateActivityInput {
   type: ActivityType;
   content?: string;
+  mentionMemberIds?: string[];
+  mentionRoles?: Array<"admin" | "manager" | "member" | "assignee">;
 }
 
 export interface ListTasksParams {

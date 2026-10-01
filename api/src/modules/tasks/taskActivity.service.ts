@@ -49,6 +49,47 @@ async function getAdminAndManagerIds(): Promise<Id[]> {
   return memberships.map((m) => m.userId);
 }
 
+async function getMentionRecipients(
+  input: CreateActivityInput,
+  assigneeIds: Id[],
+): Promise<Id[]> {
+  const roleMentions = input.mentionRoles ?? [];
+  const mentionedIds = (input.mentionMemberIds ?? []).map(
+    (id) => new mongoose.Types.ObjectId(id),
+  );
+  if (mentionedIds.length === 0 && roleMentions.length === 0) return [];
+
+  const mentionedRoles = roleMentions.filter((role) => role !== "assignee");
+  let memberships: Array<{ userId: Id }> = [];
+  if (mentionedIds.length > 0 || mentionedRoles.length > 0) {
+    memberships = await Membership.find({
+      $or: [
+        ...(mentionedIds.length > 0 ? [{ userId: { $in: mentionedIds } }] : []),
+        ...(mentionedRoles.length > 0
+          ? [{ role: { $in: mentionedRoles } }]
+          : []),
+      ],
+    })
+      .select("userId")
+      .lean();
+  }
+  const foundIds = new Set(
+    memberships.map((membership) => String(membership.userId)),
+  );
+  const missingIds = mentionedIds.filter((id) => !foundIds.has(String(id)));
+  if (missingIds.length > 0) {
+    throw new AppError(
+      400,
+      "INVALID_MENTION",
+      "A mentioned person is no longer a member of this workspace",
+    );
+  }
+  return [
+    ...memberships.map((membership) => membership.userId),
+    ...(roleMentions.includes("assignee") ? assigneeIds : []),
+  ];
+}
+
 async function getAuthorName(userId: string): Promise<string> {
   const author = await User.findById(userId).select("name");
   return author?.name ? String(author.name) : "Someone";
@@ -183,6 +224,7 @@ export async function createTaskActivity(
   const recipients = LEAD_ONLY_TYPES.includes(input.type)
     ? assignees
     : [...(await getAdminAndManagerIds()), ...assignees];
+  recipients.push(...(await getMentionRecipients(input, assignees)));
 
   const result = await recordActivity({
     projectId: task.projectId,
@@ -233,6 +275,7 @@ export async function createProjectActivity(
   }
 
   let recipients: Id[];
+  let openAssigneeIds: Id[] = [];
   if (LEAD_ONLY_TYPES.includes(input.type)) {
     const openTasks = await Task.find({
       projectId,
@@ -243,6 +286,7 @@ export async function createProjectActivity(
       .select("assigneeIds")
       .lean();
     recipients = openTasks.flatMap((t) => t.assigneeIds ?? []);
+    openAssigneeIds = recipients;
 
     if (input.type === "update_request" && recipients.length === 0) {
       throw new AppError(
@@ -263,7 +307,19 @@ export async function createProjectActivity(
     }
   } else {
     recipients = await getAdminAndManagerIds();
+    if (input.mentionRoles?.includes("assignee")) {
+      const openTasks = await Task.find({
+        projectId,
+        status: { $ne: "done" },
+        archivedAt: null,
+        deletedAt: null,
+      })
+        .select("assigneeIds")
+        .lean();
+      openAssigneeIds = openTasks.flatMap((task) => task.assigneeIds ?? []);
+    }
   }
+  recipients.push(...(await getMentionRecipients(input, openAssigneeIds)));
 
   const authorName = await getAuthorName(context.userId);
   const messages: Record<ActivityType, string> = {

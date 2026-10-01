@@ -167,6 +167,90 @@ describe("task editing and visibility", () => {
 });
 
 describe("update requests and questions", () => {
+  it("notifies named members, mentioned roles and project assignees", async () => {
+    const admin = await registerOrg("mention-admin@example.com", "Mention Org");
+    const alice = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "mention-alice@example.com",
+    );
+    const bob = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "mention-bob@example.com",
+    );
+    const manager = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "mention-manager@example.com",
+      "manager",
+    );
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "MEN",
+    );
+    const task = await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "Mentioned work",
+      assigneeIds: [alice.userId],
+    });
+
+    const taskRequest = await request(app)
+      .post(`/api/orgs/${admin.orgId}/tasks/${task.body.task._id}/activity`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({
+        type: "update_request",
+        mentionMemberIds: [bob.userId],
+        mentionRoles: ["manager"],
+      });
+    expect(taskRequest.status).toBe(201);
+    expect(taskRequest.body.notifiedCount).toBe(3);
+
+    for (const member of [alice, bob, manager]) {
+      const inbox = await request(app)
+        .get(`/api/orgs/${admin.orgId}/notifications`)
+        .set("Authorization", `Bearer ${member.accessToken}`);
+      expect(
+        inbox.body.notifications.some(
+          (notification: { type: string }) =>
+            notification.type === "update_request",
+        ),
+      ).toBe(true);
+    }
+
+    const projectUpdate = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects/${projectId}/activity`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({
+        type: "update",
+        content: "Project progress",
+        mentionRoles: ["assignee"],
+      });
+    expect(projectUpdate.status).toBe(201);
+    expect(projectUpdate.body.notifiedCount).toBe(2);
+
+    const aliceInbox = await request(app)
+      .get(`/api/orgs/${admin.orgId}/notifications`)
+      .set("Authorization", `Bearer ${alice.accessToken}`);
+    expect(
+      aliceInbox.body.notifications.some(
+        (notification: { type: string; taskId: string | null }) =>
+          notification.type === "update" && notification.taskId === null,
+      ),
+    ).toBe(true);
+
+    const outsider = await registerOrg(
+      "mention-outsider@example.com",
+      "Other Mention Org",
+    );
+    const invalidMention = await request(app)
+      .post(`/api/orgs/${admin.orgId}/tasks/${task.body.task._id}/activity`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ type: "update_request", mentionMemberIds: [outsider.userId] });
+    expect(invalidMention.status).toBe(400);
+    expect(invalidMention.body.error.code).toBe("INVALID_MENTION");
+  });
+
   it("notifies task assignees on request and leads on questions", async () => {
     const admin = await registerOrg(
       "activity-admin@example.com",
