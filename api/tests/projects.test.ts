@@ -337,3 +337,29 @@ describe("cross-tenant project access", () => {
     expect(deleteRes.status).toBe(404);
   });
 });
+
+describe("project due dates", () => {
+  it("stores date-only deadlines and supports clearing them", async () => {
+    const org = await registerOrg("proj-due-date@example.com", "Due Date Org");
+    const created = await request(app)
+      .post(`/api/orgs/${org.orgId}/projects`)
+      .set("Authorization", `Bearer ${org.accessToken}`)
+      .send({ name: "Deadline project", key: "DUE", dueDate: "2025-02-03" });
+
+    expect(created.status).toBe(201);
+    expect(created.body.project.dueDate).toBe("2025-02-03T23:59:59.999Z");
+    expect(created.body.project.dueDateIsDateOnly).toBe(true);
+
+    const updated = await request(app)
+      .patch(
+        `/api/orgs/${org.orgId}/projects/${created.body.project._id as string}`,
+      )
+      .set("Authorization", `Bearer ${org.accessToken}`)
+      .send({ dueDate: null });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.project.dueDate).toBeNull();
+    expect(updated.body.project.dueDateIsDateOnly).toBe(false);
+    expect(updated.body.project.reminderCycle).toBe(1);
+  });
+});

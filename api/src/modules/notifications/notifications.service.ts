@@ -13,7 +13,12 @@ import {
 
 const PAGE_SIZE = 50;
 const DUE_SOON_48H_WINDOW_MS = 48 * 60 * 60 * 1000;
-const REMINDER_TYPES = ["task_due_soon", "task_overdue"] as const;
+const REMINDER_TYPES = [
+  "task_due_soon",
+  "task_overdue",
+  "project_due_soon",
+  "project_overdue",
+] as const;
 let reminderSweepRunning = false;
 
 async function ensureMyDueNotifications(): Promise<void> {
@@ -46,8 +51,6 @@ async function ensureMyDueNotifications(): Promise<void> {
     .sort({ dueDate: 1 })
     .select("_id projectId title dueDate assigneeIds reminderCycle")
     .lean();
-
-  if (tasks.length === 0) return;
 
   const getDueSoonEventKey = (
     task: (typeof tasks)[number],
@@ -185,7 +188,112 @@ async function ensureMyDueNotifications(): Promise<void> {
   });
 
   try {
-    await Notification.bulkWrite(operations, { ordered: false });
+    if (operations.length > 0) {
+      await Notification.bulkWrite(operations, { ordered: false });
+    }
+  } catch (error) {
+    const writeErrors = (error as { writeErrors?: { code?: number }[] })
+      .writeErrors;
+    if (
+      !writeErrors?.length ||
+      writeErrors.some((item) => item.code !== 11000)
+    ) {
+      throw error;
+    }
+  }
+
+  const projects = await Project.find({
+    archivedAt: null,
+    dueDate: { $ne: null, $lte: reminderWindowEnd },
+  })
+    .sort({ dueDate: 1 })
+    .select("_id name dueDate reminderCycle")
+    .lean();
+
+  const dueTodayProjectEventKeys = projects.flatMap((project) => {
+    const dueDate = project.dueDate!;
+    const cycleSuffix = project.reminderCycle
+      ? `:cycle:${project.reminderCycle}`
+      : "";
+    const baseEventKey = `${project._id}:project_due_soon:${dueDate.getTime()}${cycleSuffix}`;
+    return dueDate > now && dateStartInTimeZone(dueDate, timeZone) <= now
+      ? [`${baseEventKey}:48h`]
+      : [];
+  });
+  if (dueTodayProjectEventKeys.length > 0) {
+    await Notification.updateMany(
+      {
+        userId,
+        tenantId,
+        type: "project_due_soon",
+        eventKey: { $in: dueTodayProjectEventKeys },
+        dismissedAt: null,
+      },
+      { dismissedAt: now },
+    );
+  }
+
+  const overdueProjectIds = projects
+    .filter((project) => project.dueDate! <= now)
+    .map((project) => project._id);
+  if (overdueProjectIds.length > 0) {
+    await Notification.updateMany(
+      {
+        userId,
+        tenantId,
+        projectId: { $in: overdueProjectIds },
+        type: "project_due_soon",
+        dismissedAt: null,
+      },
+      { dismissedAt: now },
+    );
+  }
+
+  const projectOperations = projects.map((project) => {
+    const dueDate = project.dueDate!;
+    const cycleSuffix = project.reminderCycle
+      ? `:cycle:${project.reminderCycle}`
+      : "";
+    const isOverdue = dueDate <= now;
+    const isDueToday = dateStartInTimeZone(dueDate, timeZone) <= now;
+    const type: "project_due_soon" | "project_overdue" = isOverdue
+      ? "project_overdue"
+      : "project_due_soon";
+    const eventKey = isOverdue
+      ? `${project._id}:${type}:${dueDate.getTime()}${cycleSuffix}`
+      : `${project._id}:${type}:${dueDate.getTime()}${cycleSuffix}:${isDueToday ? "24h" : "48h"}`;
+    const message = isOverdue
+      ? `Project "${project.name}" is overdue`
+      : `Project "${project.name}" is due ${isDueToday ? "today" : "soon"}`;
+
+    return {
+      updateOne: {
+        filter: { userId, eventKey },
+        update: {
+          $set: { message },
+          $setOnInsert: {
+            userId,
+            tenantId,
+            projectId: project._id,
+            taskId: null,
+            dueDate,
+            activityId: null,
+            type,
+            actorId: null,
+            eventKey,
+            readAt: null,
+            dismissedAt: null,
+          },
+        },
+        upsert: true,
+      },
+    };
+  });
+
+  try {
+    if (projectOperations.length > 0) {
+      await Notification.bulkWrite(projectOperations, { ordered: false });
+    }
   } catch (error) {
     const writeErrors = (error as { writeErrors?: { code?: number }[] })
       .writeErrors;

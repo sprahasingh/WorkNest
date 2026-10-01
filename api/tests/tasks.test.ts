@@ -421,6 +421,72 @@ describe("task archive and bin lifecycle", () => {
 });
 
 describe("task pagination", () => {
+  it("sorts active tasks by due date by default and paginates null dates", async () => {
+    const admin = await registerOrg(
+      "due-date-pages@example.com",
+      "Due Date Org",
+    );
+    const projectId = await createProject(admin.orgId, admin.accessToken, "DD");
+    const taskIds: Record<string, string> = {};
+
+    for (const title of ["Soon", "Later", "Undated"]) {
+      const created = await request(app)
+        .post(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+        .set("Authorization", `Bearer ${admin.accessToken}`)
+        .send({ title });
+      taskIds[title] = created.body.task._id as string;
+    }
+
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(taskIds.Soon) },
+      { $set: { dueDate: new Date("2025-02-01T00:00:00.000Z") } },
+    );
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(taskIds.Later) },
+      { $set: { dueDate: new Date("2025-03-01T00:00:00.000Z") } },
+    );
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(taskIds.Soon) },
+      { $set: { createdAt: new Date("2025-01-01T00:00:00.000Z") } },
+    );
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(taskIds.Later) },
+      { $set: { createdAt: new Date("2025-02-01T00:00:00.000Z") } },
+    );
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(taskIds.Undated) },
+      { $set: { createdAt: new Date("2025-03-01T00:00:00.000Z") } },
+    );
+
+    const listTitles = async (sortOrder?: "asc" | "desc") => {
+      const titles: string[] = [];
+      let cursor: string | null = null;
+      do {
+        const page: request.Response = await request(app)
+          .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+          .query({ limit: 1, sortOrder, cursor: cursor ?? undefined })
+          .set("Authorization", `Bearer ${admin.accessToken}`);
+        expect(page.status).toBe(200);
+        expect(
+          page.body.items,
+          `cursor: ${cursor ?? "first page"}`,
+        ).toHaveLength(1);
+        titles.push(page.body.items[0].title);
+        cursor = page.body.nextCursor;
+      } while (cursor);
+      return titles;
+    };
+
+    expect(await listTitles()).toEqual(["Later", "Soon", "Undated"]);
+    expect(await listTitles("asc")).toEqual(["Undated", "Soon", "Later"]);
+
+    const createdDateSort = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ sortBy: "createdAt", limit: 1 })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(createdDateSort.body.items[0].title).toBe("Undated");
+  });
+
   it("returns every item exactly once across pages, even with concurrent inserts", async () => {
     const admin = await registerOrg("page-admin@example.com", "Page Org");
     const projectId = await createProject(admin.orgId, admin.accessToken, "PG");
