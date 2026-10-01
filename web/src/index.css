@@ -7,8 +7,25 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+html {
+  background-color: rgb(248 250 252);
+  overscroll-behavior-y: none;
+}
+
 body {
+  min-height: 100vh;
+  background-color: rgb(248 250 252);
   font-feature-settings: "cv11", "ss01";
+}
+
+#root {
+  min-height: 100vh;
+  background-color: rgb(248 250 252);
+}
+
+.dark body,
+.dark #root {
+  background-color: rgb(2 6 23);
 }
 
 @keyframes panel-in {
