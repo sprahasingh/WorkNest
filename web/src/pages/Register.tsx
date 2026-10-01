@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
+import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 
 const registerFormSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
@@ -30,7 +31,8 @@ type RegisterFormValues = z.infer<typeof registerFormSchema>;
 const REGISTER_FIELDS = ["name", "email", "password", "orgName"] as const;
 
 export function Register() {
-  const { register: registerUser } = useAuth();
+  const { register: registerUser, establishSession } = useAuth();
+  const navigate = useNavigate();
   const [formError, setFormError] = useState<string | null>(null);
   const [verificationEmail, setVerificationEmail] = useState<string | null>(
     null,
@@ -49,7 +51,12 @@ export function Register() {
     setFormError(null);
     try {
       const result = await registerUser(values);
-      setVerificationEmail(result.email);
+      if (result.verificationRequired) {
+        setVerificationEmail(result.email);
+      } else {
+        const me = await establishSession(result.accessToken);
+        navigate(resolvePostAuthPath(me.memberships), { replace: true });
+      }
     } catch (error) {
       const parsed = parseApiError(error);
       if (parsed.code === "EMAIL_ALREADY_REGISTERED") {
