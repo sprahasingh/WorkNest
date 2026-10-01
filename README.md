@@ -160,7 +160,7 @@ cd WorkNest
 ```bash
 cd api
 npm install
-cp .env.example .env   # fill in MONGODB_URI, JWT_ACCESS_SECRET, SMTP_URL, and SMTP_FROM
+cp .env.example .env   # fill in MONGODB_URI, JWT_ACCESS_SECRET, and email delivery settings
 npm run dev            # runs on http://localhost:4000
 ```
 
@@ -173,7 +173,7 @@ npm run dev             # runs on http://localhost:5173 and proxies /api to loca
 ```
 
 Open `http://localhost:5173` and register, or load the demo data first (below).
-New registrations and email changes require SMTP delivery for verification links. Configure `SMTP_URL` and `SMTP_FROM` in `api/.env`; the app does not include a paid email provider, and provider free-tier terms may vary.
+New registrations and email changes require verification email delivery. For hosted deployments, configure Brevo in `api/.env` with `BREVO_API_KEY` and `BREVO_FROM` (a sender address verified in Brevo). Alternatively, configure `SMTP_URL` and `SMTP_FROM` for an SMTP provider.
 
 ### Seed Demo Data
 
