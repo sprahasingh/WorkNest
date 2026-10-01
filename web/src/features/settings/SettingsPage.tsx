@@ -394,17 +394,11 @@ function PersonalInformationCard() {
             Personal information
           </h2>
           {!isEditing && (
-            <dl className="mt-3 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+            <dl className="mt-3 text-sm">
               <div className="min-w-0">
                 <dt className="text-slate-500 dark:text-slate-400">Name</dt>
                 <dd className="break-words font-medium text-slate-800 dark:text-slate-200">
                   {user?.name ?? "Unavailable"}
-                </dd>
-              </div>
-              <div className="min-w-0">
-                <dt className="text-slate-500 dark:text-slate-400">Email</dt>
-                <dd className="break-all font-medium text-slate-800 dark:text-slate-200">
-                  {user?.email ?? "Unavailable"}
                 </dd>
               </div>
             </dl>
@@ -508,6 +502,7 @@ function PersonalInformationCard() {
           </div>
         </form>
       )}
+      <EmailAddressSection />
     </Card>
   );
 }
@@ -520,8 +515,9 @@ const emailChangeFormSchema = z.object({
 type EmailChangeFormValues = z.infer<typeof emailChangeFormSchema>;
 const EMAIL_CHANGE_FIELDS = ["email", "currentPassword"] as const;
 
-function EmailAddressCard() {
+function EmailAddressSection() {
   const { user, updateCurrentUser } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
@@ -540,6 +536,7 @@ function EmailAddressCard() {
       const updatedUser = await requestEmailChange(values);
       updateCurrentUser(updatedUser);
       reset({ email: "", currentPassword: "" });
+      setIsEditing(false);
       toast.success(
         updatedUser.pendingEmail
           ? `Verification link sent to ${updatedUser.pendingEmail}`
@@ -560,61 +557,98 @@ function EmailAddressCard() {
     }
   };
 
+  const cancelEditing = () => {
+    reset({ email: "", currentPassword: "" });
+    setFormError(null);
+    setIsEditing(false);
+  };
+
   return (
-    <Card>
-      <h2 className="font-medium text-slate-800 dark:text-slate-100">
-        Email address
-      </h2>
-      <p className="mt-2 break-all text-sm font-medium text-slate-800 dark:text-slate-200">
-        {user?.email ?? "Unavailable"}
-      </p>
-      {user?.pendingEmail && (
-        <p className="mt-1 break-all text-sm text-amber-700 dark:text-amber-300">
-          Waiting for verification at {user.pendingEmail}. Your current email
-          remains active until confirmed.
-        </p>
+    <section className="mt-5 border-t border-slate-200 pt-5 dark:border-slate-700">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-slate-800 dark:text-slate-100">
+            Email address
+          </h3>
+          <p className="mt-1 break-all text-sm font-medium text-slate-800 dark:text-slate-200">
+            {user?.email ?? "Unavailable"}
+          </p>
+          {user?.pendingEmail && (
+            <p className="mt-1 break-all text-sm text-amber-700 dark:text-amber-300">
+              Verification pending for {user.pendingEmail}. Your current email
+              remains active until confirmed.
+            </p>
+          )}
+        </div>
+        {!isEditing && user && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setIsEditing(true)}
+            className="w-full shrink-0 sm:w-auto"
+          >
+            Change email
+          </Button>
+        )}
+      </div>
+
+      {isEditing && (
+        <div className="mt-4 space-y-3">
+          <ErrorBanner message={formError} />
+          <form
+            onSubmit={(event) => void handleSubmit(onSubmit)(event)}
+            noValidate
+            className="grid gap-3 sm:grid-cols-2"
+          >
+            <Field
+              label="New email"
+              htmlFor="new-email"
+              error={errors.email?.message}
+            >
+              <input
+                id="new-email"
+                type="email"
+                autoComplete="email"
+                {...register("email")}
+                className={inputStyles}
+              />
+            </Field>
+            <Field
+              label="Current password"
+              htmlFor="email-current-password"
+              error={errors.currentPassword?.message}
+            >
+              <input
+                id="email-current-password"
+                type="password"
+                autoComplete="current-password"
+                {...register("currentPassword")}
+                className={inputStyles}
+              />
+            </Field>
+            <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={cancelEditing}
+                disabled={isSubmitting}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting || !user}
+                loading={isSubmitting}
+                className="w-full sm:w-auto"
+              >
+                {isSubmitting ? "Sending…" : "Send verification link"}
+              </Button>
+            </div>
+          </form>
+        </div>
       )}
-      <form
-        onSubmit={(event) => void handleSubmit(onSubmit)(event)}
-        noValidate
-        className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
-      >
-        <ErrorBanner message={formError} />
-        <Field
-          label="New email"
-          htmlFor="new-email"
-          error={errors.email?.message}
-        >
-          <input
-            id="new-email"
-            type="email"
-            autoComplete="email"
-            {...register("email")}
-            className={inputStyles}
-          />
-        </Field>
-        <Field
-          label="Current password"
-          htmlFor="email-current-password"
-          error={errors.currentPassword?.message}
-        >
-          <input
-            id="email-current-password"
-            type="password"
-            autoComplete="current-password"
-            {...register("currentPassword")}
-            className={inputStyles}
-          />
-        </Field>
-        <Button
-          type="submit"
-          disabled={isSubmitting || !user}
-          loading={isSubmitting}
-        >
-          {isSubmitting ? "Sending…" : "Send verification link"}
-        </Button>
-      </form>
-    </Card>
+    </section>
   );
 }
 
@@ -761,8 +795,6 @@ export function SettingsPage() {
         </h1>
 
         <PersonalInformationCard />
-        <EmailAddressCard />
-
         <Card>
           <h2 className="font-medium text-slate-800 dark:text-slate-100">
             Organization settings
