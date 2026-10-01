@@ -8,8 +8,16 @@ interface VerificationEmail {
   purpose: "registration" | "email-change" | "password-reset";
 }
 
+interface InvitationEmail {
+  recipient: string;
+  organizationName: string;
+  role: string;
+  inviteUrl: string;
+}
+
 const emailCapture = vi.hoisted(() => ({
   sent: [] as VerificationEmail[],
+  invitations: [] as InvitationEmail[],
 }));
 const sentVerificationEmails = emailCapture.sent;
 let nextTestIp = 1;
@@ -37,6 +45,21 @@ vi.mock("../src/lib/email.js", () => ({
       purpose: "password-reset",
     });
   }),
+  sendInviteEmail: vi.fn(
+    async (
+      recipient: string,
+      organizationName: string,
+      role: string,
+      inviteUrl: string,
+    ) => {
+      emailCapture.invitations.push({
+        recipient,
+        organizationName,
+        role,
+        inviteUrl,
+      });
+    },
+  ),
 }));
 
 export function takeVerificationToken(
@@ -68,6 +91,24 @@ export function takePasswordResetToken(recipient: string): string {
   const [email] = sentVerificationEmails.splice(index, 1);
   const token = new URL(email!.verificationUrl).searchParams.get("token");
   if (!token) throw new Error("Password reset email did not contain a token");
+  return token;
+}
+
+export function takeInvitationEmail(recipient: string): InvitationEmail {
+  const index = emailCapture.invitations.findLastIndex(
+    (email) => email.recipient === recipient,
+  );
+  if (index < 0) {
+    throw new Error(`No invitation email was sent to ${recipient}`);
+  }
+  return emailCapture.invitations.splice(index, 1)[0]!;
+}
+
+export function takeInvitationToken(recipient: string): string {
+  const token = new URL(takeInvitationEmail(recipient).inviteUrl).pathname
+    .split("/")
+    .at(-1);
+  if (!token) throw new Error("Invitation email did not contain a token");
   return token;
 }
 

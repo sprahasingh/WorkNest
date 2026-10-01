@@ -6,6 +6,7 @@ import { Membership } from "../src/models/Membership.js";
 import {
   registerAndVerify,
   signupInviteAndVerify,
+  takeInvitationToken,
 } from "./emailDeliveryMock.js";
 
 const app = createApp();
@@ -41,7 +42,7 @@ async function inviteAndSignup(
     .set("Authorization", `Bearer ${adminToken}`)
     .send({ email, role });
 
-  const token = (inviteRes.body.inviteUrl as string).split("/invite/")[1];
+  const token = takeInvitationToken(email);
 
   const signupRes = await signupInviteAndVerify(app, token, email, {
     name: "Invited User",

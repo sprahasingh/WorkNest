@@ -30,8 +30,9 @@ const INVITE_FIELDS = ["email", "role"] as const;
 
 interface RevealedInvite {
   email: string;
-  url: string;
   existingUser: boolean;
+  emailSent: boolean;
+  inviteUrl?: string;
 }
 
 // An invite the admin tried to send while one was already pending.
@@ -74,11 +75,17 @@ export function InvitesPanel() {
     setFormError(null);
     setConflict(null);
     try {
-      const { inviteUrl, existingUser } = await createInvite.mutateAsync({
-        ...values,
-        replaceExisting,
+      const { inviteUrl, existingUser, emailSent } =
+        await createInvite.mutateAsync({
+          ...values,
+          replaceExisting,
+        });
+      setRevealed({
+        email: values.email,
+        existingUser,
+        emailSent,
+        inviteUrl,
       });
-      setRevealed({ email: values.email, url: inviteUrl, existingUser });
       setCopied(false);
       reset({ email: "", role: "member" });
     } catch (error) {
@@ -234,8 +241,8 @@ export function InvitesPanel() {
                   {conflict.invitedAt
                     ? `Sent ${new Date(conflict.invitedAt).toLocaleDateString()}. `
                     : ""}
-                  Create a new link if the old one was lost — the old link will
-                  stop working, and no extra seat is used.
+                  Send a new invitation if the old email was lost. The old link
+                  will stop working, and no extra seat is used.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button
@@ -249,7 +256,7 @@ export function InvitesPanel() {
                       )
                     }
                   >
-                    Create a new link
+                    Send new invitation
                   </Button>
                   <Button
                     type="button"
@@ -264,37 +271,50 @@ export function InvitesPanel() {
             )}
 
             {revealed && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-900/10">
-                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                  Invite link for {revealed.email}
+              <div
+                role={revealed.emailSent ? "status" : "alert"}
+                className={cn(
+                  "rounded-lg border p-3",
+                  revealed.emailSent
+                    ? "border-teal-200 bg-teal-50 dark:border-teal-900/40 dark:bg-teal-900/10"
+                    : "border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-900/10",
+                )}
+              >
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                  {revealed.emailSent
+                    ? `Invitation emailed to ${revealed.email}`
+                    : `Invite created, but email could not be sent to ${revealed.email}`}
                 </p>
                 {revealed.existingUser && (
-                  <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                     They already have a WorkNest account, so the invite is also
-                    waiting in their app (under the bell). Sharing the link is
-                    optional.
+                    waiting in their app under the bell.
                   </p>
                 )}
-                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                  This link is shown once. Only its hash is stored, so it
-                  can&apos;t be displayed again — copy it now, or revoke and
-                  send a new invite later if it&apos;s lost.
-                </p>
-                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    readOnly
-                    value={revealed.url}
-                    className="flex-1 rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs dark:border-amber-900/40 dark:bg-slate-800 dark:text-slate-200"
-                    onFocus={(event) => event.target.select()}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleCopy(revealed.url)}
-                    className="shrink-0 rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700"
-                  >
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                </div>
+                {!revealed.emailSent && revealed.inviteUrl && (
+                  <>
+                    <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                      Share this one-time link manually. It expires in seven
+                      days.
+                    </p>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                      <input
+                        readOnly
+                        aria-label="Invitation link fallback"
+                        value={revealed.inviteUrl}
+                        className="flex-1 rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs dark:border-amber-900/40 dark:bg-slate-800 dark:text-slate-200"
+                        onFocus={(event) => event.target.select()}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleCopy(revealed.inviteUrl!)}
+                        className="shrink-0 rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700"
+                      >
+                        {copied ? "Copied" : "Copy"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </form>
