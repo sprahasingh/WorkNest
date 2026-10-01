@@ -37,7 +37,7 @@ async function inviteAndSignup(
   email: string,
   role: "manager" | "member",
 ) {
-  const inviteRes = await request(app)
+  await request(app)
     .post(`/api/orgs/${orgId}/invites`)
     .set("Authorization", `Bearer ${adminToken}`)
     .send({ email, role });
