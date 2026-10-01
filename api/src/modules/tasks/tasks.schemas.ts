@@ -63,6 +63,10 @@ export const createActivitySchema = z
   .object({
     type: z.enum(ACTIVITY_TYPES),
     content: z.string().trim().max(2000).optional(),
+    mentionMemberIds: z.array(z.string().regex(objectIdRegex)).default([]),
+    mentionRoles: z
+      .array(z.enum(["admin", "manager", "member", "assignee"]))
+      .default([]),
   })
   .strict()
   .refine((input) => input.type === "update_request" || !!input.content, {
