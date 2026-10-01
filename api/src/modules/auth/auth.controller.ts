@@ -36,7 +36,15 @@ export async function registerController(
   const input = req.validated!.body as RegisterInput;
 
   const result = await register(input);
-  res.status(202).json({ ...result, verificationRequired: true });
+  if (result.verificationRequired) {
+    res.status(202).json(result);
+    return;
+  }
+
+  const { rawToken, expiresAt } = await createSession(result.userId);
+  setRefreshCookie(res, rawToken, expiresAt);
+  const accessToken = signAccessToken(result.userId.toString());
+  res.status(201).json({ accessToken, verificationRequired: false });
 }
 
 export async function verifyRegistrationController(

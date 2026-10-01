@@ -5,6 +5,7 @@ import type {
   MeResponse,
   OrgMembership,
   RegisterInput,
+  RegisterResponse,
   User,
 } from "@/api/auth";
 
@@ -18,7 +19,7 @@ export type AuthContextValue = AuthState & {
     input: LoginInput,
     options?: AuthRequestOptions,
   ) => Promise<MeResponse>;
-  register: (input: RegisterInput) => Promise<{ email: string }>;
+  register: (input: RegisterInput) => Promise<RegisterResponse>;
   verifyRegistration: (token: string) => Promise<MeResponse>;
   logout: () => Promise<void>;
   isLoggingOut: boolean;
