@@ -54,6 +54,12 @@ async function getAuthorName(userId: string): Promise<string> {
   return author?.name ? String(author.name) : "Someone";
 }
 
+function getNotificationRecipients(recipients: Id[], authorId: string): Id[] {
+  return [
+    ...new Map(recipients.map((id) => [id.toString(), id])).values(),
+  ].filter((id) => id.toString() !== authorId);
+}
+
 async function recordActivity(options: {
   projectId: Id;
   taskId: Id | null;
@@ -64,9 +70,10 @@ async function recordActivity(options: {
   const context = getTenantContext()!;
   const tenantId = requireTenantId();
 
-  const recipientIds = [
-    ...new Set(options.recipients.map((id) => id.toString())),
-  ].filter((id) => id !== context.userId);
+  const recipientIds = getNotificationRecipients(
+    options.recipients,
+    context.userId,
+  ).map((id) => id.toString());
 
   const dbSession = await mongoose.startSession();
   try {
@@ -144,7 +151,7 @@ export async function createTaskActivity(
 
   const authorName = await getAuthorName(context.userId);
   const messages: Record<ActivityType, string> = {
-    update_request: `${authorName} requested an update on "${task.title}"`,
+    update_request: `${authorName} asked for an update on "${task.title}"`,
     reply: `${authorName} replied on "${task.title}"`,
     update: `${authorName} posted an update on "${task.title}"`,
     question: `${authorName} asked a question on "${task.title}"`,
@@ -159,6 +166,17 @@ export async function createTaskActivity(
     );
   }
 
+  if (
+    input.type === "update_request" &&
+    getNotificationRecipients(assignees, context.userId).length === 0
+  ) {
+    throw new AppError(
+      400,
+      "SELF_UPDATE_REQUEST",
+      "You can't request an update from yourself. Assign another person.",
+    );
+  }
+
   // Requests and replies go to the people doing the work. Updates and
   // questions go to admins and managers, and to the task's other assignees
   // so everyone on the task stays in the loop.
@@ -166,14 +184,14 @@ export async function createTaskActivity(
     ? assignees
     : [...(await getAdminAndManagerIds()), ...assignees];
 
-  const { activity } = await recordActivity({
+  const result = await recordActivity({
     projectId: task.projectId,
     taskId: task._id,
     input,
     recipients,
     message: messages[input.type],
   });
-  return activity;
+  return result;
 }
 
 export async function listTaskActivities(taskId: string) {
@@ -233,13 +251,23 @@ export async function createProjectActivity(
         "No open task in this project has an assignee to ask for an update",
       );
     }
+    if (
+      input.type === "update_request" &&
+      getNotificationRecipients(recipients, context.userId).length === 0
+    ) {
+      throw new AppError(
+        400,
+        "SELF_UPDATE_REQUEST",
+        "You can't request an update from yourself. Assign another person.",
+      );
+    }
   } else {
     recipients = await getAdminAndManagerIds();
   }
 
   const authorName = await getAuthorName(context.userId);
   const messages: Record<ActivityType, string> = {
-    update_request: `${authorName} requested updates on your tasks in "${project.name}"`,
+    update_request: `${authorName} asked for an update on your work in "${project.name}"`,
     reply: `${authorName} replied in "${project.name}"`,
     update: `${authorName} posted an update on "${project.name}"`,
     question: `${authorName} asked a question about "${project.name}"`,
