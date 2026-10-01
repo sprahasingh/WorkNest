@@ -460,6 +460,7 @@ describe("task pagination", () => {
 
     const listTitles = async (sortOrder?: "asc" | "desc") => {
       const titles: string[] = [];
+      const seenIds = new Set<string>();
       let cursor: string | null = null;
       do {
         const page: request.Response = await request(app)
@@ -471,20 +472,63 @@ describe("task pagination", () => {
           page.body.items,
           `cursor: ${cursor ?? "first page"}`,
         ).toHaveLength(1);
+        expect(seenIds.has(page.body.items[0]._id)).toBe(false);
+        seenIds.add(page.body.items[0]._id);
         titles.push(page.body.items[0].title);
         cursor = page.body.nextCursor;
       } while (cursor);
       return titles;
     };
 
-    expect(await listTitles()).toEqual(["Later", "Soon", "Undated"]);
-    expect(await listTitles("asc")).toEqual(["Undated", "Soon", "Later"]);
+    expect(await listTitles()).toEqual(["Undated", "Later", "Soon"]);
+    expect(await listTitles("asc")).toEqual(["Soon", "Later", "Undated"]);
 
     const createdDateSort = await request(app)
       .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
       .query({ sortBy: "createdAt", limit: 1 })
       .set("Authorization", `Bearer ${admin.accessToken}`);
     expect(createdDateSort.body.items[0].title).toBe("Undated");
+  });
+
+  it("uses priority to break equal date ties across pages", async () => {
+    const admin = await registerOrg(
+      "priority-sort@example.com",
+      "Priority Sort Org",
+    );
+    const projectId = await createProject(admin.orgId, admin.accessToken, "PS");
+    const auth = { Authorization: `Bearer ${admin.accessToken}` };
+    const createdTasks = await Promise.all(
+      (["low", "medium", "high"] as const).map((priority) =>
+        request(app)
+          .post(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+          .set(auth)
+          .send({ title: priority, priority, dueDate: "2025-02-01" }),
+      ),
+    );
+    const sameDate = new Date("2025-02-01T00:00:00.000Z");
+    await Task.collection.updateMany(
+      { projectId: new mongoose.Types.ObjectId(projectId) },
+      { $set: { createdAt: sameDate, dueDate: sameDate } },
+    );
+
+    const getTitles = async (sortBy?: "createdAt") => {
+      const titles: string[] = [];
+      let cursor: string | null = null;
+      do {
+        const page: request.Response = await request(app)
+          .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+          .query({ sortBy, limit: 1, cursor: cursor ?? undefined })
+          .set(auth);
+        expect(page.status).toBe(200);
+        titles.push(page.body.items[0].title);
+        cursor = page.body.nextCursor;
+      } while (cursor);
+      return titles;
+    };
+
+    expect(createdTasks.every((task) => task.status === 201)).toBe(true);
+    expect(await getTitles()).toEqual(["high", "medium", "low"]);
+    expect(await getTitles("createdAt")).toEqual(["high", "medium", "low"]);
   });
 
   it("returns every item exactly once across pages, even with concurrent inserts", async () => {
