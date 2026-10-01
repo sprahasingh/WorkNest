@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { env } from "../src/config/env.js";
 import {
   registerAndVerify,
   signupInviteAndVerify,
@@ -147,6 +148,33 @@ describe("personal information", () => {
       });
     expect(duplicateEmail.status).toBe(409);
     expect(duplicateEmail.body.error.code).toBe("EMAIL_ALREADY_REGISTERED");
+  });
+
+  it("updates email immediately for configured verification-bypass addresses", async () => {
+    const account = await registerOrg("bypass-owner@example.com", "Bypass Org");
+    const originalBypassEmails = env.EMAIL_VERIFICATION_BYPASS_EMAILS;
+    env.EMAIL_VERIFICATION_BYPASS_EMAILS = ["demo-change@example.com"];
+
+    try {
+      const response = await request(app)
+        .post("/api/auth/me/email-change")
+        .set("Authorization", `Bearer ${account.accessToken}`)
+        .send({
+          email: "DEMO-CHANGE@example.com",
+          currentPassword: "password123",
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.user).toMatchObject({
+        email: "demo-change@example.com",
+        pendingEmail: null,
+      });
+      expect(() =>
+        takeVerificationToken("demo-change@example.com", "email-change"),
+      ).toThrow("No email-change verification email was sent");
+    } finally {
+      env.EMAIL_VERIFICATION_BYPASS_EMAILS = originalBypassEmails;
+    }
   });
 });
 

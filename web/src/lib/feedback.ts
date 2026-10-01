@@ -1,11 +1,17 @@
-export const FEEDBACK_EMAIL = "sprahasinghwork@gmail.com";
+export const FEEDBACK_EMAIL = "spraha.worknest@gmail.com";
 
-// Opens the person's email app with a feedback message started, noting which
-// page they were on so it's easier to follow up.
-export function feedbackMailto(fromPath?: string): string {
+export function feedbackMailto(
+  fromPath?: string,
+  sender?: { name?: string; email?: string } | null,
+): string {
   const subject = "WorkNest feedback";
-  const body = fromPath ? `\n\n---\nSent from: ${fromPath}` : "";
-  return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}${
-    body ? `&body=${encodeURIComponent(body)}` : ""
-  }`;
+  const name = sender?.name?.trim();
+  const email = sender?.email?.trim();
+  const identity = name && email ? `${name} (${email})` : name || email;
+  const source =
+    identity ||
+    (fromPath === "/" ? "Landing page (not signed in)" : "WorkNest");
+  const page = fromPath && fromPath !== "/" ? `\nPage: ${fromPath}` : "";
+  const body = `\n\n---\nSent from: ${source}${page}`;
+  return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
