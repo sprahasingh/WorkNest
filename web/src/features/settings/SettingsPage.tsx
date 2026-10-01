@@ -99,13 +99,16 @@ function TimeZoneSelect({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
+  const selectedTimeZone = field.value ?? "UTC";
   const matchesSearch = (timeZone: string) =>
     !normalizedSearch ||
     (
       TIME_ZONE_SEARCH_TEXT.get(timeZone) ?? buildTimeZoneSearchText(timeZone)
     ).includes(normalizedSearch);
   const savedTimeZone =
-    field.value && !TIME_ZONE_VALUES.includes(field.value) ? field.value : null;
+    selectedTimeZone && !TIME_ZONE_VALUES.includes(selectedTimeZone)
+      ? selectedTimeZone
+      : null;
   const visibleGroups = Object.entries(TIME_ZONE_GROUPS)
     .map(
       ([region, timeZones]) =>
@@ -153,7 +156,7 @@ function TimeZoneSelect({
         type="button"
         tabIndex={-1}
         role="option"
-        aria-selected={field.value === timeZone}
+        aria-selected={selectedTimeZone === timeZone}
         onKeyDown={(event) => handleOptionKeyDown(event, index)}
         onClick={() => {
           field.onChange(timeZone);
@@ -207,7 +210,7 @@ function TimeZoneSelect({
           "flex items-center justify-between text-left",
         )}
       >
-        <span>{timeZoneAreaLabel(field.value)}</span>
+        <span>{timeZoneAreaLabel(selectedTimeZone)}</span>
         <span aria-hidden="true" className="ml-2 text-slate-500">
           ▾
         </span>
