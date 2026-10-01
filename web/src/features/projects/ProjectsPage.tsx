@@ -335,7 +335,7 @@ export function ProjectsPage() {
         <div
           role="tablist"
           aria-label="Project lists"
-          className="mt-4 grid grid-cols-4 gap-1 border-b border-slate-200 dark:border-slate-800"
+          className="mt-4 inline-flex max-w-full overflow-x-auto rounded-lg bg-slate-200 p-1 dark:bg-slate-800"
         >
           {VIEWS.map((tab) => (
             <button
@@ -346,10 +346,10 @@ export function ProjectsPage() {
               aria-selected={view === tab.value}
               onClick={() => setView(tab.value)}
               className={cn(
-                "flex min-w-0 items-center justify-center gap-0.5 whitespace-nowrap px-0 py-2 text-[10px] font-medium transition-colors sm:gap-2 sm:px-3 sm:text-sm",
+                "flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors sm:px-3 sm:text-sm",
                 view === tab.value
-                  ? "border-b-2 border-teal-600 text-teal-700 dark:text-teal-400"
-                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
               )}
             >
               <span className="sm:hidden">
@@ -462,7 +462,7 @@ export function ProjectsPage() {
                       </p>
                       <span
                         className={cn(
-                          "mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize",
+                          "mt-2 inline-flex self-start rounded-full px-2 py-0.5 text-xs font-medium capitalize",
                           project.priority === "high"
                             ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
                             : project.priority === "medium"
