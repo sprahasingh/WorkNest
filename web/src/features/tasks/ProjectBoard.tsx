@@ -332,7 +332,7 @@ export function ProjectBoard() {
             ))}
           </select>
 
-          <label className="col-span-2 flex min-h-9 items-center gap-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-1">
+          <label className="col-span-2 flex min-h-9 items-center gap-2 text-sm text-slate-600 dark:text-slate-300 sm:col-span-1 lg:ml-auto lg:flex-nowrap lg:whitespace-nowrap">
             <span className="shrink-0">Sort by</span>
             <select
               aria-label="Sort tasks"
