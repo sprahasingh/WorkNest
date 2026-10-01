@@ -363,14 +363,7 @@ export function Landing() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <BrandMark />
           <div className="hidden items-center gap-4 sm:flex">
-            <Link
-              to="/how-to-use"
-              className="text-sm font-medium text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-400"
-            >
-              How to use
-            </Link>
-            <ThemeToggle />
-            {isAuthenticated ? (
+            {isAuthenticated && (
               <>
                 {user && (
                   <div
@@ -400,34 +393,25 @@ export function Landing() {
                   {isLoggingOut ? "Signing out…" : "Log out"}
                 </button>
               </>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  Log in
-                </Link>
-                <Link
-                  to="/register"
-                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700"
-                >
-                  Register
-                </Link>
-              </>
             )}
+            <Link
+              to="/how-to-use"
+              className="text-sm font-medium text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-400"
+            >
+              How to use
+            </Link>
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open menu"
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <MenuIcon />
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open menu"
-            aria-haspopup="dialog"
-            aria-expanded={menuOpen}
-            className="hidden h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 sm:flex dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            <MenuIcon />
-          </button>
 
           {/* Phones: the main action stays visible; the rest lives in a menu. */}
           <div className="flex items-center gap-1 sm:hidden">
@@ -564,10 +548,12 @@ export function Landing() {
       </main>
 
       <footer className="border-t border-slate-100 dark:border-slate-800">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-8 text-sm text-slate-500 sm:flex-row sm:justify-between sm:px-6 dark:text-slate-400">
-          <BrandMark />
+        <div className="mx-auto grid max-w-6xl justify-items-center gap-6 px-4 py-8 text-sm text-slate-500 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:px-6 dark:text-slate-400">
+          <div className="sm:justify-self-start">
+            <BrandMark />
+          </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 sm:justify-self-center">
             {SOCIAL_LINKS.map(({ label, href, icon: Icon }) => (
               <a
                 key={label}
@@ -583,7 +569,7 @@ export function Landing() {
             ))}
           </div>
 
-          <p>
+          <p className="sm:justify-self-end">
             &copy; {new Date().getFullYear()} WorkNest. Built by Spraha Singh.
           </p>
         </div>
