@@ -25,7 +25,8 @@ export interface ParsedApiError {
   details: unknown[];
 }
 
-const DEFAULT_ERROR_MESSAGE = "Something went wrong. Please try again.";
+const DEFAULT_ERROR_MESSAGE =
+  "Something went wrong. Please refresh the page and try again.";
 
 export function parseApiError(error: unknown): ParsedApiError {
   if (!isAxiosError<ApiErrorBody>(error)) {

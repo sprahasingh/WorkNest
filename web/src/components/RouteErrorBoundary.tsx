@@ -24,14 +24,14 @@ export class RouteErrorBoundary extends Component<
         <div className="flex min-h-screen items-center justify-center bg-slate-100">
           <div className="text-center">
             <p className="text-lg font-medium text-slate-800">
-              Something went wrong.
+              Something went wrong. Please refresh the page and try again.
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
               className="mt-3 rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white"
             >
-              Reload
+              Refresh page
             </button>
           </div>
         </div>
