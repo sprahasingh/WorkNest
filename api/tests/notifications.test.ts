@@ -83,6 +83,66 @@ async function getUnread(orgId: string, token: string) {
 }
 
 describe("task notifications", () => {
+  it("notifies only newly assigned members", async () => {
+    const admin = await registerOrg(
+      "task-assignment-alert-admin@example.com",
+      "Task Assignment Alert Org",
+    );
+    const firstAssignee = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "task-assignment-first@example.com",
+    );
+    const secondAssignee = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "task-assignment-second@example.com",
+    );
+    const projectId = await createProject(admin.orgId, admin.accessToken, "TA");
+    const created = await createTask(
+      admin.orgId,
+      projectId,
+      admin.accessToken,
+      { assigneeIds: [firstAssignee.userId] },
+    );
+    const initialFirstNotifications = await getUnread(
+      admin.orgId,
+      firstAssignee.accessToken,
+    );
+    expect(initialFirstNotifications.body.notifications).toEqual([
+      expect.objectContaining({
+        taskId: created.body.task._id,
+        type: "task_assigned",
+      }),
+    ]);
+
+    const reassigned = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${created.body.task._id}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ assigneeIds: [firstAssignee.userId, secondAssignee.userId] });
+    expect(reassigned.status).toBe(200);
+
+    const firstNotifications = await getUnread(
+      admin.orgId,
+      firstAssignee.accessToken,
+    );
+    expect(firstNotifications.body.notifications).toHaveLength(1);
+    expect(firstNotifications.body.notifications[0]._id).toBe(
+      initialFirstNotifications.body.notifications[0]._id,
+    );
+    const secondNotifications = await getUnread(
+      admin.orgId,
+      secondAssignee.accessToken,
+    );
+    expect(secondNotifications.body.notifications).toEqual([
+      expect.objectContaining({
+        taskId: created.body.task._id,
+        type: "task_assigned",
+        message: 'Admin User assigned "Notification task" to you',
+      }),
+    ]);
+  });
+
   it("replaces the 48-hour reminder with a due-today reminder at local midnight", async () => {
     const admin = await registerOrg("reminders@example.com", "Reminder Org");
     const projectId = await createProject(admin.orgId, admin.accessToken, "RM");
@@ -295,6 +355,59 @@ describe("task notifications", () => {
     ).toHaveLength(1);
   });
 
+  it("replaces a pending due-today reminder with an overdue reminder", async () => {
+    const admin = await registerOrg(
+      "overdue-replaces-due-today@example.com",
+      "Overdue Replaces Due Today Org",
+    );
+    const projectId = await createProject(admin.orgId, admin.accessToken, "OR");
+    const dueDate = new Date(Date.now() + 60 * 60 * 1000);
+    const created = await createTask(
+      admin.orgId,
+      projectId,
+      admin.accessToken,
+      { assigneeIds: [admin.userId], dueDate: dueDate.toISOString() },
+    );
+
+    const dueToday = await getUnread(admin.orgId, admin.accessToken);
+    expect(dueToday.body.notifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: created.body.task._id,
+          type: "task_due_soon",
+        }),
+      ]),
+    );
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(dueDate.getTime() + 1));
+    try {
+      await ensureDueNotificationsForAllUsers();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const reminders = await Notification.find({
+      tenantId: admin.orgId,
+      userId: admin.userId,
+      taskId: created.body.task._id,
+    }).lean();
+    expect(
+      reminders.find((item) => item.type === "task_due_soon")?.dismissedAt,
+    ).toBeTruthy();
+    expect(
+      reminders.find((item) => item.type === "task_overdue")?.dismissedAt,
+    ).toBeNull();
+    const unread = await getUnread(admin.orgId, admin.accessToken);
+    expect(
+      unread.body.notifications
+        .filter(
+          (item: { taskId: string }) => item.taskId === created.body.task._id,
+        )
+        .map((item: { type: string }) => item.type),
+    ).toEqual(["task_overdue"]);
+  });
+
   it("migrates legacy midnight-UTC date-only tasks to end of day", async () => {
     const admin = await registerOrg(
       "legacy-date-reminder@example.com",
@@ -359,7 +472,12 @@ describe("task notifications", () => {
       admin.orgId,
       assignee.accessToken,
     );
-    expect(memberNotifications.body.notifications).toHaveLength(1);
+    expect(memberNotifications.body.notifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "task_assigned" }),
+        expect.objectContaining({ type: "task_due_soon" }),
+      ]),
+    );
     const managerNotifications = await getUnread(
       admin.orgId,
       manager.accessToken,
@@ -444,7 +562,7 @@ describe("task notifications", () => {
     );
 
     const initial = await getUnread(admin.orgId, manager.accessToken);
-    expect(initial.body.notifications).toHaveLength(3);
+    expect(initial.body.notifications).toHaveLength(4);
 
     const managerMembership = await Membership.findOne({
       tenantId: admin.orgId,
@@ -462,7 +580,7 @@ describe("task notifications", () => {
       admin.orgId,
       manager.accessToken,
     );
-    expect(afterManagerDemotion.body.notifications).toHaveLength(2);
+    expect(afterManagerDemotion.body.notifications).toHaveLength(3);
     expect(afterManagerDemotion.body.notifications).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -491,14 +609,18 @@ describe("task notifications", () => {
       admin.orgId,
       manager.accessToken,
     );
-    expect(afterAdminDemotion.body.notifications).toHaveLength(1);
-    expect(
-      afterAdminDemotion.body.notifications.every(
-        (item: { taskId: string; type: string }) =>
-          item.taskId === assignedDueSoonTask.body.task._id &&
-          item.type === "task_due_soon",
-      ),
-    ).toBe(true);
+    expect(afterAdminDemotion.body.notifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: assignedDueSoonTask.body.task._id,
+          type: "task_assigned",
+        }),
+        expect.objectContaining({
+          taskId: assignedDueSoonTask.body.task._id,
+          type: "task_due_soon",
+        }),
+      ]),
+    );
   });
 
   it("sends due-soon reminders to managers earlier and overdue reminders to admins and managers", async () => {
@@ -749,18 +871,29 @@ describe("task notifications", () => {
 
     for (const recipient of [admin, manager, otherAssignee]) {
       const notifications = await getUnread(admin.orgId, recipient.accessToken);
-      expect(notifications.body.unreadCount).toBe(1);
-      expect(notifications.body.notifications[0]).toMatchObject({
-        taskId,
-        type: "task_completed",
-      });
+      expect(notifications.body.notifications).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            taskId,
+            type: "task_completed",
+          }),
+        ]),
+      );
+      expect(notifications.body.unreadCount).toBe(
+        recipient.userId === otherAssignee.userId ? 2 : 1,
+      );
     }
 
     const actorNotifications = await getUnread(
       admin.orgId,
       completingAssignee.accessToken,
     );
-    expect(actorNotifications.body.unreadCount).toBe(0);
+    expect(actorNotifications.body.notifications).toEqual([
+      expect.objectContaining({
+        taskId,
+        type: "task_assigned",
+      }),
+    ]);
 
     await request(app)
       .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
@@ -770,6 +903,6 @@ describe("task notifications", () => {
       admin.orgId,
       otherAssignee.accessToken,
     );
-    expect(afterRepeatedUpdate.body.unreadCount).toBe(1);
+    expect(afterRepeatedUpdate.body.unreadCount).toBe(2);
   });
 });
