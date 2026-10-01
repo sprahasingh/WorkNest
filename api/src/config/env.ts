@@ -14,6 +14,14 @@ const envSchema = z
     ACCESS_TOKEN_TTL: z.string().default("15m"),
     CLIENT_ORIGIN: z.string().url("CLIENT_ORIGIN must be a valid URL"),
     BCRYPT_COST: z.coerce.number().int().min(4).max(15).default(12),
+    BREVO_API_KEY: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    BREVO_FROM: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().email().optional(),
+    ),
     SMTP_URL: z.preprocess(
       (value) => (value === "" ? undefined : value),
       z.string().url().optional(),
@@ -34,6 +42,14 @@ const envSchema = z
     ),
   })
   .superRefine((values, context) => {
+    if (Boolean(values.BREVO_API_KEY) !== Boolean(values.BREVO_FROM)) {
+      context.addIssue({
+        code: "custom",
+        path: [values.BREVO_API_KEY ? "BREVO_FROM" : "BREVO_API_KEY"],
+        message: "BREVO_API_KEY and BREVO_FROM must be configured together",
+      });
+    }
+
     if (Boolean(values.SMTP_URL) !== Boolean(values.SMTP_FROM)) {
       context.addIssue({
         code: "custom",
