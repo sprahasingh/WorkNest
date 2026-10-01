@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import { Organization } from "../src/models/Organization.js";
 import { Project } from "../src/models/Project.js";
 import { Task } from "../src/models/Task.js";
+import { syncActiveProjectCounts } from "../src/db/migrations.js";
 import { registerAndVerify } from "./emailDeliveryMock.js";
 
 const app = createApp();
@@ -39,6 +40,13 @@ async function createProject(
     .post(`/api/orgs/${orgId}/projects`)
     .set("Authorization", `Bearer ${token}`)
     .send({ name: name ?? `Project ${key}`, key });
+}
+
+async function createTask(orgId: string, token: string, projectId: string) {
+  return request(app)
+    .post(`/api/orgs/${orgId}/projects/${projectId}/tasks`)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ title: "Project task" });
 }
 
 describe("project limits", () => {
@@ -91,6 +99,120 @@ describe("project limits", () => {
 
     const orgAfter = await Organization.findById(org.orgId);
     expect(orgAfter!.projectCount).toBe(orgAfter!.projectLimit);
+  });
+
+  it("excludes archived projects and requires a slot to unarchive them", async () => {
+    const org = await registerOrg(
+      "proj-active-limit@example.com",
+      "Active Limit Org",
+    );
+    const projects = await Promise.all(
+      ["AA", "AB", "AC"].map((key) =>
+        createProject(org.orgId, org.accessToken, key),
+      ),
+    );
+    const archivedId = projects[0].body.project._id as string;
+
+    await request(app)
+      .post(`/api/orgs/${org.orgId}/projects/${archivedId}/archive`)
+      .set("Authorization", `Bearer ${org.accessToken}`);
+    expect((await Organization.findById(org.orgId))!.projectCount).toBe(2);
+
+    const fourth = await createProject(org.orgId, org.accessToken, "AD");
+    expect(fourth.status).toBe(201);
+
+    const unarchiveAtLimit = await request(app)
+      .post(`/api/orgs/${org.orgId}/projects/${archivedId}/unarchive`)
+      .set("Authorization", `Bearer ${org.accessToken}`);
+    expect(unarchiveAtLimit.status).toBe(409);
+    expect(unarchiveAtLimit.body.error.code).toBe("PROJECT_LIMIT_REACHED");
+
+    await request(app)
+      .delete(`/api/orgs/${org.orgId}/projects/${projects[1].body.project._id}`)
+      .set("Authorization", `Bearer ${org.accessToken}`);
+    const unarchiveWithRoom = await request(app)
+      .post(`/api/orgs/${org.orgId}/projects/${archivedId}/unarchive`)
+      .set("Authorization", `Bearer ${org.accessToken}`);
+    expect(unarchiveWithRoom.status).toBe(200);
+    expect((await Organization.findById(org.orgId))!.projectCount).toBe(3);
+  });
+
+  it("frees a slot when a project is completed and counts it again when reopened", async () => {
+    const org = await registerOrg(
+      "proj-completed-limit@example.com",
+      "Completed Limit Org",
+    );
+    const project = await createProject(org.orgId, org.accessToken, "CMP");
+    const task = await createTask(
+      org.orgId,
+      org.accessToken,
+      project.body.project._id as string,
+    );
+    const taskId = task.body.task._id as string;
+    const otherProjects = await Promise.all(
+      ["CN", "CO"].map((key) => createProject(org.orgId, org.accessToken, key)),
+    );
+
+    const completed = await request(app)
+      .patch(`/api/orgs/${org.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${org.accessToken}`)
+      .send({ status: "done" });
+    expect(completed.status).toBe(200);
+    expect((await Organization.findById(org.orgId))!.projectCount).toBe(2);
+
+    const replacement = await createProject(org.orgId, org.accessToken, "CP");
+    expect(replacement.status).toBe(201);
+
+    const reopenAtLimit = await request(app)
+      .patch(`/api/orgs/${org.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${org.accessToken}`)
+      .send({ status: "todo" });
+    expect(reopenAtLimit.status).toBe(409);
+    expect(reopenAtLimit.body.error.code).toBe("PROJECT_LIMIT_REACHED");
+
+    await request(app)
+      .delete(
+        `/api/orgs/${org.orgId}/projects/${otherProjects[0].body.project._id}`,
+      )
+      .set("Authorization", `Bearer ${org.accessToken}`);
+    const reopened = await request(app)
+      .patch(`/api/orgs/${org.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${org.accessToken}`)
+      .send({ status: "todo" });
+    expect(reopened.status).toBe(200);
+    expect((await Organization.findById(org.orgId))!.projectCount).toBe(3);
+  });
+
+  it("rebuilds stored usage from active projects on startup", async () => {
+    const org = await registerOrg("proj-sync@example.com", "Project Sync Org");
+    const active = await createProject(org.orgId, org.accessToken, "SYA");
+    const completed = await createProject(org.orgId, org.accessToken, "SYC");
+    const task = await createTask(
+      org.orgId,
+      org.accessToken,
+      completed.body.project._id as string,
+    );
+    await request(app)
+      .patch(`/api/orgs/${org.orgId}/tasks/${task.body.task._id}`)
+      .set("Authorization", `Bearer ${org.accessToken}`)
+      .send({ status: "done" });
+
+    const archived = await createProject(org.orgId, org.accessToken, "SYR");
+    await request(app)
+      .post(
+        `/api/orgs/${org.orgId}/projects/${archived.body.project._id}/archive`,
+      )
+      .set("Authorization", `Bearer ${org.accessToken}`);
+    const binned = await createProject(org.orgId, org.accessToken, "SYB");
+    await request(app)
+      .delete(`/api/orgs/${org.orgId}/projects/${binned.body.project._id}`)
+      .set("Authorization", `Bearer ${org.accessToken}`);
+
+    await Organization.findByIdAndUpdate(org.orgId, { projectCount: 99 });
+    await syncActiveProjectCounts();
+
+    expect((await Organization.findById(org.orgId))!.projectCount).toBe(1);
+    expect(active.status).toBe(201);
   });
 
   it("rejects a duplicate project key within the same tenant", async () => {

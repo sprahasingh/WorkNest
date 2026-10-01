@@ -32,12 +32,22 @@ const FEATURES: Feature[] = [
   {
     title: "Live usage dashboard",
     description:
-      "Track overdue tasks, team activity, and seat and project usage against your plan at a glance.",
+      "Track overdue work, team activity, and plan usage. Completed, archived, and binned projects do not use an active project slot.",
   },
   {
-    title: "Kanban task boards",
+    title: "Task boards that stay clear",
     description:
-      "Organize work by project with drag-free status columns, priorities, due dates, and assignees.",
+      "Move work between To do, In progress, and Done. Set priorities and due dates, assign several teammates, and keep completed, archived, and binned tasks out of the active-task allowance.",
+  },
+  {
+    title: "Project lifecycle controls",
+    description:
+      "Finish a project, archive it, or move it to the Bin. Restore binned projects for 30 days; projects use a plan slot again when they become active.",
+  },
+  {
+    title: "Updates and notifications",
+    description:
+      "Request task or project updates, ask questions, and keep replies together. Everyone involved gets an in-app notification.",
   },
   {
     title: "Secure by default",
@@ -130,7 +140,7 @@ function ProductPreview() {
         {[
           { label: "Overdue", value: "3" },
           { label: "Members", value: "3/5" },
-          { label: "Projects", value: "3/3" },
+          { label: "Active projects", value: "3/3" },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -452,10 +462,9 @@ export function Landing() {
                 One workspace, every team, properly isolated.
               </h1>
               <p className="mt-5 max-w-xl text-lg text-slate-600 dark:text-slate-400">
-                WorkNest is a project and task management workspace built for
-                organizations that need real tenant isolation, role-based
-                permissions, and a full audit trail, not just a shared todo list
-                with extra steps.
+                WorkNest helps teams organize projects, assign tasks, share
+                updates, and keep a clear record of changes, with organization
+                data and permissions kept separate.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 {isAuthenticated ? (

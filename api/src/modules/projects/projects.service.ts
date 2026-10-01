@@ -8,8 +8,10 @@ import { getTenantContext, requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { dateOnlyDueDate } from "../../lib/timezone.js";
 import {
+  projectConsumesSlot,
   reserveProjectSlot,
   releaseProjectSlot,
+  syncProjectSlot,
 } from "../orgs/orgs.service.js";
 import { recordAudit } from "../audit/audit.service.js";
 import type {
@@ -108,14 +110,16 @@ export async function listProjects(view: ProjectView) {
   // Clear out anything past its time in the bin before showing lists.
   await purgeExpiredProjects(requireTenantId());
 
-  const [projects, activeCount, archivedCount, binCount] = await Promise.all([
-    Project.find(VIEW_FILTERS[view]).sort(
-      view === "bin" ? { deletedAt: -1 } : { createdAt: -1 },
-    ),
-    Project.countDocuments(VIEW_FILTERS.active),
-    Project.countDocuments(VIEW_FILTERS.archived),
-    Project.countDocuments(VIEW_FILTERS.bin),
-  ]);
+  const [projects, activeProjects, archivedCount, binCount] = await Promise.all(
+    [
+      Project.find(VIEW_FILTERS[view]).sort(
+        view === "bin" ? { deletedAt: -1 } : { createdAt: -1 },
+      ),
+      Project.find(VIEW_FILTERS.active).select("_id").lean(),
+      Project.countDocuments(VIEW_FILTERS.archived),
+      Project.countDocuments(VIEW_FILTERS.bin),
+    ],
+  );
 
   // Per-project task totals. Active means not done, the same count the
   // plan's per-project task limit is measured against.
@@ -129,7 +133,9 @@ export async function listProjects(view: ProjectView) {
   }>([
     {
       $match: {
-        projectId: { $in: projects.map((p) => p._id) },
+        projectId: {
+          $in: [...activeProjects, ...projects].map((project) => project._id),
+        },
         deletedAt: null,
       },
     },
@@ -166,6 +172,10 @@ export async function listProjects(view: ProjectView) {
   const countsByProject = new Map(
     taskCounts.map((row) => [String(row._id), row]),
   );
+  const activeCount = activeProjects.filter((project) => {
+    const counts = countsByProject.get(String(project._id));
+    return !counts || counts.total === 0 || counts.completed < counts.total;
+  }).length;
 
   return {
     projects: projects.map((project) => {
@@ -308,6 +318,11 @@ export async function archiveProject(projectId: string) {
     let project;
 
     await dbSession.withTransaction(async () => {
+      const before = await Project.findById(projectId).session(dbSession);
+      if (!before) {
+        throw new AppError(404, "NOT_FOUND", "Project not found");
+      }
+      const wasActive = await projectConsumesSlot(before._id, dbSession);
       const updated = await Project.findByIdAndUpdate(
         projectId,
         { archivedAt: new Date() },
@@ -317,6 +332,12 @@ export async function archiveProject(projectId: string) {
       if (!updated) {
         throw new AppError(404, "NOT_FOUND", "Project not found");
       }
+      await syncProjectSlot(
+        String(updated.tenantId),
+        updated._id,
+        wasActive,
+        dbSession,
+      );
 
       await recordAudit(
         {
@@ -344,6 +365,13 @@ export async function unarchiveProject(projectId: string) {
     let project;
 
     await dbSession.withTransaction(async () => {
+      const before = await Project.findOne({
+        _id: projectId,
+        archivedAt: { $ne: null },
+      }).session(dbSession);
+      if (!before) {
+        throw new AppError(404, "NOT_FOUND", "Archived project not found");
+      }
       const updated = await Project.findOneAndUpdate(
         { _id: projectId, archivedAt: { $ne: null } },
         { archivedAt: null },
@@ -353,6 +381,12 @@ export async function unarchiveProject(projectId: string) {
       if (!updated) {
         throw new AppError(404, "NOT_FOUND", "Archived project not found");
       }
+      await syncProjectSlot(
+        String(updated.tenantId),
+        updated._id,
+        false,
+        dbSession,
+      );
 
       await recordAudit(
         {
@@ -384,6 +418,11 @@ export async function moveProjectToBin(projectId: string) {
     let project;
 
     await dbSession.withTransaction(async () => {
+      const before = await Project.findById(projectId).session(dbSession);
+      if (!before) {
+        throw new AppError(404, "NOT_FOUND", "Project not found");
+      }
+      const wasActive = await projectConsumesSlot(before._id, dbSession);
       const updated = await Project.findOneAndUpdate(
         { _id: projectId },
         { deletedAt: new Date(), deletedBy: userId },
@@ -394,7 +433,7 @@ export async function moveProjectToBin(projectId: string) {
         throw new AppError(404, "NOT_FOUND", "Project not found");
       }
 
-      await releaseProjectSlot(tenantId, dbSession);
+      await syncProjectSlot(tenantId, updated._id, wasActive, dbSession);
 
       await recordAudit(
         {
@@ -423,8 +462,15 @@ export async function restoreProject(projectId: string) {
     let project;
 
     await dbSession.withTransaction(async () => {
-      // Needs a free project slot again, like creating one.
-      await reserveProjectSlot(tenantId, dbSession);
+      const before = await Project.findOne({
+        _id: projectId,
+        deletedAt: { $ne: null },
+      })
+        .session(dbSession)
+        .setOptions({ includeDeleted: true });
+      if (!before) {
+        throw new AppError(404, "NOT_FOUND", "Project not found in the bin");
+      }
 
       const updated = await Project.findOneAndUpdate(
         { _id: projectId, deletedAt: { $ne: null } },
@@ -435,6 +481,7 @@ export async function restoreProject(projectId: string) {
       if (!updated) {
         throw new AppError(404, "NOT_FOUND", "Project not found in the bin");
       }
+      await syncProjectSlot(tenantId, updated._id, false, dbSession);
 
       await recordAudit(
         {

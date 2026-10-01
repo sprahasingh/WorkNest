@@ -28,7 +28,7 @@ const STEPS: Step[] = [
   {
     title: "Members have roles",
     description:
-      "Invite teammates as Admin, Manager, or Member. Each role can do different things — admins manage billing and members, managers run projects and tasks, members handle their own work.",
+      "Invite teammates as Admin, Manager, or Member. Admins manage billing and members, managers run projects and tasks, and members handle their own work.",
   },
   {
     title: "Dashboard and audit log",

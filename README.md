@@ -100,22 +100,24 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 - **Organizations and plans:** Free, Pro and Premium plans with limits on seats, projects and active tasks per project (see [Plans](#plans)). Upgrades are simulated. A downgrade is blocked while current usage is over the smaller plan's limits, and the error says what's over.
 - **Invites:** admins get a one-time invite link (only a hash of the token is stored), and a seat is reserved safely even if several invites go out at once. If the person already has an account, the invitation also shows up in their app under the bell and on their organizations page, where they can join or decline. Inviting an email that already has a pending invite offers a fresh link instead of a vague error.
 - **Members:** removing someone takes them out of that org only. Their account and other orgs stay as they are, their tasks in that org become unassigned, and they can be invited back later. If it happens while they're using the org, they're sent to their organizations page with a short note.
-- **Projects:** each card shows its active and total task counts. Projects can be archived and unarchived. Deleting a project moves it to a Bin tab, with an undo, where it can be restored for 30 days before it and its tasks are deleted for good. A project in the bin frees its slot, and its board, tasks, notifications and dashboard numbers are hidden until it's restored.
-- **Tasks:** boards with To do, In progress and Done columns, cursor pagination, and filters for priority, assignee and "my tasks". Tasks can have several assignees. Status changes on the board are optimistic and roll back if the server says no. Each plan limits how many active (not done) tasks a project can hold.
+- **Projects:** cards show active and total task counts. A project appears under Completed when all its tasks are done. Completed, archived, and binned projects do not use an active project slot. Unarchiving or restoring a project with unfinished work, or reopening work in a completed project, uses a slot again. Projects in the Bin can be restored for 30 days before the project and its tasks are permanently deleted.
+- **Tasks:** boards with To do, In progress, and Done columns, cursor pagination, and filters for priority, assignee, and "my tasks". Tasks can have several assignees. Status changes are optimistic and roll back if the server rejects them. Each plan limits active tasks per project. Done, archived, and binned tasks do not use that allowance. Reopening or restoring an active task uses it again.
 - **Updates and questions:** admins and managers can ask for an update on one task or on a whole project. Assignees can post updates or ask questions, and leads can reply. Everyone involved gets a notification, and opening the task or the project's updates marks them as read.
-- **Dashboard:** tasks by status and priority, top assignees, overdue tasks and plan usage, for admins and managers. The "Tasks created" chart covers the last 7 to 90 days or all time (grouped by week or month for long spans) and counts days in your own time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.
+- **Dashboard:** tasks by status and priority, top assignees, overdue tasks, and plan usage for admins and managers. Project usage shows active projects only. The "Tasks created" chart covers the last 7 to 90 days or all time, grouped by week or month for long spans, and counts days in your own time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.
 - **Audit log:** every change to orgs, members, invites, projects, tasks and plans is written in the same transaction as the change, so an action that rolls back never leaves an entry behind. The UI shows plain-language rows with filters.
-- **Around the app:** light and dark themes, a first-run tour, a "How to use" guide with the full permission table, a phone-friendly landing page menu, and a "Send feedback" link that opens an email.
+- **Around the app:** light and dark themes, a first-run tour, a "How to use" guide with the full permission table, a mobile-friendly landing page menu, and a "Send feedback" link that opens an email.
 
 ## Plans
 
-| Plan    | Seats | Projects | Active tasks per project |
-| ------- | ----- | -------- | ------------------------ |
-| Free    | 5     | 3        | 10                       |
-| Pro     | 30    | 25       | 50                       |
-| Premium | 100   | 50       | Unlimited                |
+| Plan    | Seats | Active projects | Active tasks per project |
+| ------- | ----- | --------------- | ------------------------ |
+| Free    | 5     | 3               | 10                       |
+| Pro     | 30    | 25              | 50                       |
+| Premium | 100   | 50              | Unlimited                |
 
-Archived projects count toward the project limit. Projects in the bin don't.
+Only active projects use a project slot. Completed, archived, and binned projects do not count. If a project becomes active again, it uses a slot and may need to wait until one is free.
+
+Each project also has a separate active-task limit. Done, archived, and binned tasks do not count toward it. Reopening or restoring an active task uses a task slot again.
 
 ## API Example
 
@@ -191,7 +193,7 @@ This creates two demo organizations. Every account uses the password `password12
 
 ```bash
 cd api
-npm test          # 62 tests in 15 files, run against an in-memory MongoDB replica set
+npm test          # runs against an in-memory MongoDB replica set
 npm run typecheck
 npm run lint
 ```
