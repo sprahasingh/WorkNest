@@ -13,6 +13,8 @@ const userSchema = new Schema(
     pendingEmail: { type: String, default: null, select: false },
     emailChangeTokenHash: { type: String, default: null, select: false },
     emailChangeExpiresAt: { type: Date, default: null, select: false },
+    passwordResetTokenHash: { type: String, default: null, select: false },
+    passwordResetExpiresAt: { type: Date, default: null, select: false },
     name: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
     status: {
@@ -31,6 +33,8 @@ const userSchema = new Schema(
         delete obj.passwordHash;
         delete obj.emailChangeTokenHash;
         delete obj.emailChangeExpiresAt;
+        delete obj.passwordResetTokenHash;
+        delete obj.passwordResetExpiresAt;
         delete obj.__v;
         obj.id = obj._id;
         delete obj._id;

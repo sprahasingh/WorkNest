@@ -3,10 +3,12 @@ import request from "supertest";
 import { createApp } from "../src/app.js";
 import {
   registerAndVerify,
+  takePasswordResetToken,
   takeVerificationToken,
 } from "./emailDeliveryMock.js";
 import { User } from "../src/models/User.js";
 import { Organization } from "../src/models/Organization.js";
+import { Session } from "../src/models/Session.js";
 import { env } from "../src/config/env.js";
 
 const app = createApp();
@@ -55,6 +57,52 @@ describe("auth flow", () => {
 
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe("INVALID_CREDENTIALS");
+  });
+
+  it("resets a password with a one-time email token", async () => {
+    await registerAndVerify(app, {
+      name: "Reset User",
+      email: "reset@example.com",
+      password: "password123",
+      orgName: "Reset Org",
+    });
+
+    const requestReset = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ email: "reset@example.com" });
+    expect(requestReset.status).toBe(202);
+
+    const token = takePasswordResetToken("reset@example.com");
+    const reset = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ token, password: "newpassword123" });
+    expect(reset.status).toBe(200);
+    expect(await Session.countDocuments({ revokedAt: null })).toBe(0);
+
+    const oldPasswordLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "reset@example.com", password: "password123" });
+    expect(oldPasswordLogin.status).toBe(401);
+
+    const newPasswordLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "reset@example.com", password: "newpassword123" });
+    expect(newPasswordLogin.status).toBe(200);
+
+    const reusedToken = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ token, password: "anotherpassword" });
+    expect(reusedToken.status).toBe(400);
+    expect(reusedToken.body.error.code).toBe("PASSWORD_RESET_INVALID");
+  });
+
+  it("returns the same response when a password reset email is unknown", async () => {
+    const response = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ email: "unknown@example.com" });
+
+    expect(response.status).toBe(202);
+    expect(response.body.message).toContain("If an account exists");
   });
 
   it("rotates the refresh token and fails on old-cookie reuse", async () => {

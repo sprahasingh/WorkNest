@@ -128,6 +128,17 @@ export async function login(
   return response.data;
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+  await apiClient.post("/auth/forgot-password", { email });
+}
+
+export async function resetPassword(
+  token: string,
+  password: string,
+): Promise<void> {
+  await apiClient.post("/auth/reset-password", { token, password });
+}
+
 export async function refresh(): Promise<AuthTokenResponse> {
   const response = await apiClient.post<AuthTokenResponse>("/auth/refresh");
   return response.data;

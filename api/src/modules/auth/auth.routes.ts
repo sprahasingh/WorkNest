@@ -9,6 +9,8 @@ import {
   updatePersonalInformationSchema,
   verifyEmailChangeSchema,
   verifyRegistrationSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
 } from "./auth.schemas.js";
 import {
   registerController,
@@ -21,6 +23,8 @@ import {
   updatePersonalInformationController,
   verifyEmailChangeController,
   verifyRegistrationController,
+  requestPasswordResetController,
+  resetPasswordController,
 } from "./auth.controller.js";
 
 const router = Router();
@@ -46,6 +50,13 @@ const verificationLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 router.post(
   "/register",
   authLimiter,
@@ -64,6 +75,18 @@ router.post(
   authLimiter,
   validate({ body: loginSchema }),
   loginController,
+);
+router.post(
+  "/forgot-password",
+  passwordResetLimiter,
+  validate({ body: requestPasswordResetSchema }),
+  requestPasswordResetController,
+);
+router.post(
+  "/reset-password",
+  passwordResetLimiter,
+  validate({ body: resetPasswordSchema }),
+  resetPasswordController,
 );
 
 router.post("/refresh", authLimiter, refreshController);
