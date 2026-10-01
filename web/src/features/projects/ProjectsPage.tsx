@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import { PLAN_LIMITS, PLAN_NAMES } from "@/lib/plans";
+import { dateInputValueInTimeZone, formatDateInTimeZone } from "@/lib/time";
 import { useOrgDetails } from "@/features/org/queries";
 import type { Project, ProjectSummary, ProjectView } from "./api";
 import {
@@ -24,6 +25,7 @@ import {
   useProjects,
   useRestoreProject,
   useUnarchiveProject,
+  useUpdateProject,
 } from "./queries";
 
 const createProjectFormSchema = z.object({
@@ -34,11 +36,17 @@ const createProjectFormSchema = z.object({
     .toUpperCase()
     .regex(/^[A-Z]{2,6}$/, "Key must be 2-6 uppercase letters"),
   description: z.string().trim().max(500).optional(),
+  dueDate: z.string().optional(),
 });
 
 type CreateProjectFormValues = z.infer<typeof createProjectFormSchema>;
 
-const CREATE_PROJECT_FIELDS = ["name", "key", "description"] as const;
+const CREATE_PROJECT_FIELDS = [
+  "name",
+  "key",
+  "description",
+  "dueDate",
+] as const;
 
 type ConfirmAction = "archive" | "bin" | "permanent";
 
@@ -68,6 +76,7 @@ export function ProjectsPage() {
   const canWrite = useCan("project:write");
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(
     null,
   );
@@ -86,6 +95,7 @@ export function ProjectsPage() {
   const activeTaskLimit = org ? PLAN_LIMITS[org.plan].activeTaskLimit : null;
   const atProjectLimit = org ? org.projectCount >= org.projectLimit : false;
   const createProject = useCreateProject(orgId);
+  const updateProject = useUpdateProject(orgId);
   const archiveProject = useArchiveProject(orgId);
   const deleteProject = useDeleteProject(orgId);
   const unarchiveProject = useUnarchiveProject(orgId);
@@ -104,6 +114,7 @@ export function ProjectsPage() {
 
   const closeCreateModal = () => {
     setIsCreateOpen(false);
+    setEditingProject(null);
     setFormError(null);
     reset();
   };
@@ -111,7 +122,22 @@ export function ProjectsPage() {
   const onCreateSubmit = async (values: CreateProjectFormValues) => {
     setFormError(null);
     try {
-      await createProject.mutateAsync(values);
+      if (editingProject) {
+        await updateProject.mutateAsync({
+          projectId: editingProject._id,
+          input: {
+            name: values.name,
+            description: values.description,
+            dueDate: values.dueDate || null,
+          },
+        });
+        toast.success("Project saved");
+      } else {
+        await createProject.mutateAsync({
+          ...values,
+          dueDate: values.dueDate || undefined,
+        });
+      }
       closeCreateModal();
     } catch (error) {
       const parsed = parseApiError(error);
@@ -142,6 +168,27 @@ export function ProjectsPage() {
         setFormError(unmatched.join(" "));
       }
     }
+  };
+
+  const openCreateModal = () => {
+    setEditingProject(null);
+    reset({ name: "", key: "", description: "", dueDate: "" });
+    setFormError(null);
+    setIsCreateOpen(true);
+  };
+
+  const openEditModal = (project: Project) => {
+    setEditingProject(project);
+    reset({
+      name: project.name,
+      key: project.key,
+      description: project.description ?? "",
+      dueDate: project.dueDate
+        ? dateInputValueInTimeZone(project.dueDate, org?.timeZone ?? "UTC")
+        : "",
+    });
+    setFormError(null);
+    setIsCreateOpen(true);
   };
 
   const showError = (error: unknown) => {
@@ -234,9 +281,7 @@ export function ProjectsPage() {
               </p>
             )}
           </div>
-          {canWrite && (
-            <Button onClick={() => setIsCreateOpen(true)}>New project</Button>
-          )}
+          {canWrite && <Button onClick={openCreateModal}>New project</Button>}
         </div>
 
         <div
@@ -378,12 +423,26 @@ export function ProjectsPage() {
                       {project.description}
                     </p>
                   )}
+                  {project.dueDate && (
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                      Due{" "}
+                      {formatDateInTimeZone(
+                        project.dueDate,
+                        org?.timeZone ?? "UTC",
+                      )}
+                    </p>
+                  )}
                   <TaskCounts
                     project={project}
                     limit={view === "active" ? activeTaskLimit : null}
                   />
                   {canWrite && (
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-sm dark:border-slate-700/60">
+                      {view !== "bin" && (
+                        <ActionButton onClick={() => openEditModal(project)}>
+                          Edit
+                        </ActionButton>
+                      )}
                       {view === "active" && (
                         <ActionButton
                           onClick={() =>
@@ -439,7 +498,11 @@ export function ProjectsPage() {
         </div>
       </div>
 
-      <Modal open={isCreateOpen} onClose={closeCreateModal} title="New project">
+      <Modal
+        open={isCreateOpen}
+        onClose={closeCreateModal}
+        title={editingProject ? "Edit project" : "New project"}
+      >
         <form
           onSubmit={(event) => void handleSubmit(onCreateSubmit)(event)}
           noValidate
@@ -462,6 +525,7 @@ export function ProjectsPage() {
               type="text"
               placeholder="e.g. OPS"
               {...register("key")}
+              readOnly={editingProject !== null}
               className={cn(inputStyles, "font-mono uppercase")}
             />
           </Field>
@@ -479,16 +543,41 @@ export function ProjectsPage() {
             />
           </Field>
 
+          <Field label="Due date" htmlFor="projectDueDate">
+            <input
+              id="projectDueDate"
+              type="date"
+              {...register("dueDate")}
+              className={inputStyles}
+            />
+          </Field>
+
           <div className="flex justify-end gap-3">
             <Button type="button" variant="ghost" onClick={closeCreateModal}>
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting}
-              loading={isSubmitting}
+              disabled={
+                isSubmitting ||
+                createProject.isPending ||
+                updateProject.isPending
+              }
+              loading={
+                isSubmitting ||
+                createProject.isPending ||
+                updateProject.isPending
+              }
             >
-              {isSubmitting ? "Creating…" : "Create project"}
+              {isSubmitting ||
+              createProject.isPending ||
+              updateProject.isPending
+                ? editingProject
+                  ? "Saving…"
+                  : "Creating…"
+                : editingProject
+                  ? "Save project"
+                  : "Create project"}
             </Button>
           </div>
         </form>

@@ -10,8 +10,10 @@ import {
   unarchiveProject,
   getProject,
   listProjects,
+  updateProject,
   type CreateProjectInput,
   type ListProjectsParams,
+  type UpdateProjectInput,
 } from "./api";
 
 export const projectKeys = {
@@ -44,6 +46,30 @@ export function useCreateProject(orgId: string) {
     mutationFn: (input: CreateProjectInput) => createProject(orgId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) });
+      void queryClient.invalidateQueries({
+        queryKey: dashboardKeys.all(orgId),
+      });
+    },
+  });
+}
+
+export function useUpdateProject(orgId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      input,
+    }: {
+      projectId: string;
+      input: UpdateProjectInput;
+    }) => updateProject(orgId, projectId, input),
+    onSuccess: (project) => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) });
+      void queryClient.setQueryData(
+        projectKeys.detail(orgId, project._id),
+        project,
+      );
       void queryClient.invalidateQueries({
         queryKey: dashboardKeys.all(orgId),
       });

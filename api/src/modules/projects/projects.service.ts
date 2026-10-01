@@ -3,8 +3,10 @@ import { BIN_RETENTION_DAYS, Project } from "../../models/Project.js";
 import { Task } from "../../models/Task.js";
 import { TaskActivity } from "../../models/TaskActivity.js";
 import { Notification } from "../../models/Notification.js";
+import { Organization } from "../../models/Organization.js";
 import { getTenantContext, requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
+import { dateOnlyDueDate } from "../../lib/timezone.js";
 import {
   reserveProjectSlot,
   releaseProjectSlot,
@@ -15,11 +17,25 @@ import type {
   UpdateProjectInput,
 } from "./projects.schemas.js";
 
+async function normalizeDueDate(
+  value: Date | string | null | undefined,
+  tenantId: string,
+): Promise<Date | null | undefined> {
+  if (typeof value !== "string") return value;
+  const organization = await Organization.findById(tenantId)
+    .select("timeZone")
+    .setOptions({ skipTenant: true });
+  const timeZone =
+    typeof organization?.timeZone === "string" ? organization.timeZone : "UTC";
+  return dateOnlyDueDate(value, timeZone);
+}
+
 export async function createProject(
   input: CreateProjectInput,
   createdBy: string,
 ) {
   const tenantId = requireTenantId();
+  const dueDate = await normalizeDueDate(input.dueDate, tenantId);
   const dbSession = await mongoose.startSession();
 
   try {
@@ -50,6 +66,8 @@ export async function createProject(
             name: input.name,
             key: input.key,
             description: input.description,
+            dueDate,
+            dueDateIsDateOnly: typeof input.dueDate === "string",
             createdBy,
           },
         ],
@@ -170,6 +188,21 @@ export async function updateProject(
   projectId: string,
   input: UpdateProjectInput,
 ) {
+  const tenantId = requireTenantId();
+  const changesToSave: UpdateProjectInput & { dueDateIsDateOnly?: boolean } = {
+    ...input,
+  };
+  if (Object.prototype.hasOwnProperty.call(changesToSave, "dueDate")) {
+    if (typeof changesToSave.dueDate === "string") {
+      changesToSave.dueDate = await normalizeDueDate(
+        changesToSave.dueDate,
+        tenantId,
+      );
+      changesToSave.dueDateIsDateOnly = true;
+    } else {
+      changesToSave.dueDateIsDateOnly = false;
+    }
+  }
   const dbSession = await mongoose.startSession();
 
   try {
@@ -183,24 +216,55 @@ export async function updateProject(
       }
 
       const changes: Record<string, { from: unknown; to: unknown }> = {};
-      if (input.name !== undefined && input.name !== before.name) {
-        changes.name = { from: before.name, to: input.name };
+      if (
+        changesToSave.name !== undefined &&
+        changesToSave.name !== before.name
+      ) {
+        changes.name = { from: before.name, to: changesToSave.name };
       }
       if (
-        input.description !== undefined &&
-        input.description !== before.description
+        changesToSave.description !== undefined &&
+        changesToSave.description !== before.description
       ) {
         changes.description = {
           from: before.description,
-          to: input.description,
+          to: changesToSave.description,
         };
       }
 
-      const updated = await Project.findByIdAndUpdate(projectId, input, {
-        new: true,
-        runValidators: true,
-        session: dbSession,
-      });
+      if (Object.prototype.hasOwnProperty.call(changesToSave, "dueDate")) {
+        const nextDueDate = changesToSave.dueDate;
+        const previousDueDate = before.dueDate ?? null;
+        const nextDate = nextDueDate ? new Date(nextDueDate) : null;
+        if (previousDueDate?.getTime() !== nextDate?.getTime()) {
+          changes.dueDate = { from: previousDueDate, to: nextDate };
+        }
+      }
+
+      const updated = await Project.findByIdAndUpdate(
+        projectId,
+        changesToSave,
+        {
+          new: true,
+          runValidators: true,
+          session: dbSession,
+        },
+      );
+
+      if (changes.dueDate) {
+        updated!.reminderCycle = (updated!.reminderCycle ?? 0) + 1;
+        await updated!.save({ session: dbSession });
+        await Notification.updateMany(
+          {
+            tenantId,
+            projectId: updated!._id,
+            type: { $in: ["project_due_soon", "project_overdue"] },
+            dismissedAt: null,
+          },
+          { dismissedAt: new Date() },
+          { session: dbSession },
+        );
+      }
 
       await recordAudit(
         {

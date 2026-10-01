@@ -1,10 +1,17 @@
 import { apiClient } from "@/api/client";
 import type { ActivityType, TaskNotificationType } from "@/features/tasks/api";
 
-export type NotificationType = ActivityType | TaskNotificationType;
+export type ProjectNotificationType = "project_due_soon" | "project_overdue";
+export type ReminderNotificationType =
+  TaskNotificationType | ProjectNotificationType;
+export type NotificationType = ActivityType | ReminderNotificationType;
 export const TASK_REMINDER_TYPES: TaskNotificationType[] = [
   "task_due_soon",
   "task_overdue",
+];
+export const PROJECT_REMINDER_TYPES: ProjectNotificationType[] = [
+  "project_due_soon",
+  "project_overdue",
 ];
 
 export interface Notification {
@@ -57,8 +64,11 @@ export async function dismissNotifications(
   await apiClient.patch(`/orgs/${orgId}/notifications/dismiss`, { ids });
 }
 
-export function isTaskReminder(type: NotificationType | null): boolean {
-  return TASK_REMINDER_TYPES.includes(type as TaskNotificationType);
+export function isReminder(type: NotificationType | null): boolean {
+  return (
+    TASK_REMINDER_TYPES.includes(type as TaskNotificationType) ||
+    PROJECT_REMINDER_TYPES.includes(type as ProjectNotificationType)
+  );
 }
 
 // Where a notification takes you: the task's updates, or the project's.
@@ -69,6 +79,8 @@ export function notificationLink(
   if (!notification.projectId) return null;
   const query = notification.taskId
     ? `task=${notification.taskId}`
-    : "updates=1";
-  return `/orgs/${orgId}/projects/${notification.projectId}?${query}`;
+    : isReminder(notification.type)
+      ? ""
+      : "updates=1";
+  return `/orgs/${orgId}/projects/${notification.projectId}${query ? `?${query}` : ""}`;
 }

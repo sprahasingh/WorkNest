@@ -34,6 +34,7 @@ export type TaskView = (typeof TASK_VIEWS)[number];
 export const listTasksQuerySchema = z
   .object({
     view: z.enum(TASK_VIEWS).optional(),
+    sortBy: z.enum(["dueDate", "createdAt"]).optional(),
     sortOrder: z.enum(["asc", "desc"]).optional(),
     status: z.enum(["todo", "in_progress", "done"]).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
@@ -41,7 +42,7 @@ export const listTasksQuerySchema = z
     mine: z.enum(["true"]).optional(),
     cursor: z
       .string()
-      .regex(/^(?:[a-f\d]{24}|\d{1,16}_[a-f\d]{24})$/i)
+      .regex(/^(?:[a-f\d]{24}|(?:\d{1,16}|null)_[a-f\d]{24})$/i)
       .optional(),
     limit: z.coerce.number().int().min(1).max(50).optional(),
   })
