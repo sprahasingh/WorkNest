@@ -64,6 +64,7 @@ export function ProjectBoard() {
     priority:
       (searchParams.get("priority") as TaskPriority | null) ?? undefined,
     mine: searchParams.get("mine") === "true" ? true : undefined,
+    sortOrder: searchParams.get("sortOrder") === "asc" ? "asc" : "desc",
   };
   const requestedView = searchParams.get("view");
   const boardView: TaskView = TASK_VIEWS.some(
@@ -174,6 +175,14 @@ export function ProjectBoard() {
     stats?.activeLimit != null && stats.activeCount >= stats.activeLimit;
   const canPostProjectUpdates = canLead || (stats?.assignedToMe ?? false);
   const planName = stats ? PLAN_NAMES[stats.plan] : "";
+  const sortLabel =
+    boardView === "completed"
+      ? "completed"
+      : boardView === "archived"
+        ? "completed"
+        : boardView === "bin"
+          ? "deleted"
+          : "created";
 
   // A linked task (from a notification or the project feed) wins over one
   // opened from the board, so following a link always shows what it points to.
@@ -337,6 +346,20 @@ export function ProjectBoard() {
             />
             My tasks
           </label>
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <span className="whitespace-nowrap">Date {sortLabel}</span>
+            <select
+              aria-label={`Sort by ${sortLabel} date`}
+              value={filters.sortOrder}
+              onChange={(event) =>
+                setParam("sortOrder", event.target.value || null)
+              }
+              className={selectStyles}
+            >
+              <option value="desc">Newest first</option>
+              <option value="asc">Oldest first</option>
+            </select>
+          </label>
         </div>
 
         <div
@@ -373,6 +396,11 @@ export function ProjectBoard() {
                 : "Finished tasks move to Completed. Archive them to hide them from everyday work."}
         </p>
 
+        {boardView === "active" && (
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400 sm:hidden">
+            Swipe to see To do and In progress
+          </p>
+        )}
         <div className="mt-4 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
           {visibleStatuses.map((status) => (
             <TaskColumn

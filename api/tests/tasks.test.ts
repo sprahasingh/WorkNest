@@ -399,6 +399,24 @@ describe("task archive and bin lifecycle", () => {
       .set("Authorization", `Bearer ${admin.accessToken}`);
     expect(secondPage.body.items[0].title).toBe("Older");
     expect(secondPage.body.nextCursor).toBeNull();
+
+    const oldestFirst = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({ view: "completed", sortOrder: "asc", limit: 1 })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(oldestFirst.body.items[0].title).toBe("Older");
+
+    const nextOldestPage = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .query({
+        view: "completed",
+        sortOrder: "asc",
+        limit: 1,
+        cursor: oldestFirst.body.nextCursor,
+      })
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(nextOldestPage.body.items[0].title).toBe("Newer");
+    expect(nextOldestPage.body.nextCursor).toBeNull();
   });
 });
 
