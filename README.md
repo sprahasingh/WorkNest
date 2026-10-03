@@ -20,6 +20,7 @@ WorkNest is a multi-tenant project and task manager. Teams sign up as organizati
 | 12  | [Seed Demo Data](#seed-demo-data)       |
 | 13  | [Testing](#testing)                     |
 | 14  | [Project Structure](#project-structure) |
+| 15  | [Known Limitations](#known-limitations) |
 
 ## Why I Built This
 
@@ -251,6 +252,14 @@ web/
     pages/          landing, login, register, invite, organizations and the how-to-use guide
     hooks/          useCan (permission checks), useOrg (current org)
 ```
+
+## Known Limitations
+
+These are deliberate trade-offs for a project of this size, not bugs.
+
+- **Single-instance Socket.IO:** online presence and live delivery rely on in-memory state in one server process. That's fine on a single instance. To scale out horizontally, I'd add Redis and the Socket.IO Redis adapter, and keep presence in Redis.
+- **Recurring meetings:** editing all upcoming dates of a repeating meeting across a daylight-saving change is a known edge case. The time shift is a fixed offset, with no special handling for the clock change, so a date after it can end up an hour off.
+- **Message search:** search uses application-level text matching over the chats you're in. At larger message volumes, MongoDB text indexes or Atlas Search would be the right tool.
 
 ## Author
 
