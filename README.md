@@ -27,9 +27,9 @@ I wanted a project that went further than CRUD and made me deal with the parts o
 
 ## Tech Stack
 
-**Backend:** Node.js, TypeScript (strict), Express 5, MongoDB Atlas, Mongoose, Zod, JWT and bcrypt, Vitest and Supertest
+**Backend:** Node.js, TypeScript (strict), Express 5, MongoDB Atlas, Mongoose, Zod, JWT and bcrypt, Socket.IO, Vitest and Supertest
 
-**Frontend:** React 19, Vite, TypeScript (strict), React Router, TanStack Query, React Hook Form with Zod, Axios, Tailwind CSS v4, Recharts
+**Frontend:** React 19, Vite, TypeScript (strict), React Router, TanStack Query, React Hook Form with Zod, Axios, Socket.IO client, Tailwind CSS v4, Recharts
 
 ## Architecture
 
@@ -104,6 +104,11 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 - **Tasks:** boards with To do, In progress, and Done columns, cursor pagination, and filters for priority, assignee, and "my tasks". Tasks can have several assignees. Status changes are optimistic and roll back if the server rejects them. Each plan limits active tasks per project. Done, archived, and binned tasks do not use that allowance. Reopening or restoring an active task uses it again.
 - **Updates and questions:** admins and managers can ask for an update on one task or on a whole project. Assignees can post updates or ask questions, and leads can reply. Everyone involved gets a notification, and opening the task or the project's updates marks them as read.
 - **Dashboard:** tasks by status and priority, top assignees, overdue tasks, and plan usage for admins and managers. Project usage shows active projects only. The "Tasks created" chart covers the last 7 to 90 days or all time, grouped by week or month for long spans, and counts days in your own time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.
+- **Messages:** anyone in an org can message anyone else in it, one to one or in a group. A chat is only visible to the people in it, and that includes org admins. Messages arrive live over Socket.IO, with typing indicators, online dots, unread counts and "Seen" receipts. You can reply, react with an emoji, @mention people, edit your own message for 10 minutes after sending it, and delete it whenever you like (it leaves a "This message was deleted" note). Group admins can rename the group and add or remove people, and anyone can leave. You can mute a chat (it stays quiet unless someone mentions you), search every chat you're in, and start a meeting from any chat. The tab title and icon show your unread count, and desktop notifications and a soft sound are available if you turn them on. If the live connection drops, the app falls back to refreshing every few seconds.
+- **Files in chat:** images and files are uploaded straight from the browser to Cloudinary as private files. There is no public link: the API checks that you are still in the organization and the conversation every time you open one, and the links it hands out stop working after about 10 to 20 minutes. Files are limited to 10 MB, checked on the server as well as in the browser. Drag them onto a chat or paste them, and click a picture to see it larger. The feature switches itself off if Cloudinary isn't set up.
+- **Chat history:** admins can choose how long messages are kept (forever by default, or 1 year, 6 months or 90 days). Older messages and their files are deleted automatically once a limit is set.
+- **Meetings:** schedule a meeting with a time, agenda, location, a join link (paste one, or create a free Jitsi room) and the people you want there. Only the organizer and the people invited can see it. Meetings can repeat daily, weekly or monthly, and can be linked to a project or a task (the task's Meetings tab and the project's Meetings button show them). Invitees reply Going, Maybe or Can't go, or suggest another time, which the organizer can accept or turn down. People are notified when a meeting is created, changed or cancelled, and get a reminder 15 minutes before it starts. Moving the time asks everyone to reply again. There's an upcoming and past list, a month calendar, a warning when you double-book yourself, "Meet now" for an instant call, and an "Add to calendar" download.
+- **When someone leaves:** if a member is removed or leaves an org, they're taken out of its group chats and meeting invites. If they organize upcoming meetings, the admin removing them (or they, when leaving) picks between cancelling those meetings and handing them to someone who stays. One to one chats stay for the other person but can't be continued.
 - **Audit log:** every change to orgs, members, invites, projects, tasks and plans is written in the same transaction as the change, so an action that rolls back never leaves an entry behind. The UI shows plain-language rows with filters.
 - **Around the app:** light and dark themes, a first-run tour, a "How to use" guide with the full permission table, a mobile-friendly landing page menu, and a "Send feedback" link that opens an email.
 
@@ -175,6 +180,10 @@ npm run dev             # runs on http://localhost:5173 and proxies /api to loca
 ```
 
 Open `http://localhost:5173` and register, or load the demo data first (below).
+
+In development the live connection for Messages goes through the same Vite proxy, so there's nothing extra to set up. For file attachments, add `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` to `api/.env`. Without them, Messages works but the attach button is hidden. Files are uploaded as private, so no upload preset is needed.
+
+When the frontend is on Vercel, its `/api` rewrite can't carry websockets. Set `VITE_SOCKET_URL` in Vercel to the API's address (for example `https://your-api.onrender.com`) and make sure `CLIENT_ORIGIN` on the API matches your Vercel URL exactly. If `VITE_SOCKET_URL` is left out, Messages still works, it just refreshes every few seconds instead of updating instantly.
 New registrations and email changes require verification email delivery. For hosted deployments, configure Brevo in `api/.env` with `BREVO_API_KEY` and `BREVO_FROM` (a sender address verified in Brevo). Alternatively, configure `SMTP_URL` and `SMTP_FROM` for an SMTP provider.
 
 ### Seed Demo Data
@@ -214,6 +223,13 @@ The backend tests cover:
 - the project bin, restore, permanent delete and the 30-day cleanup
 - plan limits, including active tasks per project and blocked downgrades
 - dashboard numbers, including time zones
+- direct and group chats staying private (even from admins), unread counts, replies, reactions, the 10 minute edit window and deleting
+- muting, @mentions and message search
+- private chat files: signed links, who can open them, and the server-side size check
+- chat retention and the cleanup of old messages
+- meeting visibility, RSVPs, rescheduling, cancelling and the reminder before a meeting starts
+- repeating meetings (replying to, editing and cancelling one date or all later ones), suggested times, and links to tasks and projects
+- what happens to chats and meetings when someone leaves an organization
 
 ## Project Structure
 
@@ -222,7 +238,8 @@ api/
   src/
     tenancy/        AsyncLocalStorage context, the isolation plugin, tenant resolution middleware
     auth/           authentication middleware, RBAC, ownership checks
-    modules/        one folder per area (auth, orgs, members, invites, projects, tasks, notifications, audit, dashboard)
+    modules/        one folder per area (auth, orgs, members, invites, projects, tasks, notifications, audit, dashboard, chat, meetings)
+    realtime/       the Socket.IO server (live messages, typing, who's online)
     models/         one Mongoose schema per collection
     db/             database connection and startup migrations
   tests/            Vitest and Supertest, against mongodb-memory-server

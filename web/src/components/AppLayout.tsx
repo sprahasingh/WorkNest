@@ -11,10 +11,15 @@ import { useUnreadCount } from "@/features/notifications/queries";
 import { useMyInvites } from "@/features/invites/myInvites";
 import { NotificationsPanel } from "@/features/notifications/NotificationsPanel";
 import { HelpLinks } from "@/components/HelpLinks";
+import { ChatRealtimeProvider } from "@/features/chat/ChatRealtimeProvider";
+import { useChatUnreadCount } from "@/features/chat/queries";
+import { useMeetingSummary } from "@/features/meetings/queries";
 
 interface NavItem {
   to: string;
   label: string;
+  // Shown as a small count, e.g. unread messages.
+  badge?: number;
 }
 
 function ChevronDownIcon({ className }: { className?: string }) {
@@ -254,10 +259,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const canViewDashboard = useCan("dashboard:read");
   const canViewAudit = useCan("audit:read");
+  const { orgId } = useOrg();
+  const unreadMessages = useChatUnreadCount(orgId);
+  const pendingInvites = useMeetingSummary(orgId).data?.pendingInvites ?? 0;
 
   const navItems: NavItem[] = [
     ...(canViewDashboard ? [{ to: "dashboard", label: "Dashboard" }] : []),
     { to: "projects", label: "Projects" },
+    { to: "messages", label: "Messages", badge: unreadMessages },
+    { to: "meetings", label: "Meetings", badge: pendingInvites },
     { to: "members", label: "Members" },
     ...(canViewAudit ? [{ to: "audit", label: "Audit log" }] : []),
     { to: "settings", label: "Settings" },
@@ -275,14 +285,31 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
-                "block rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 isActive
                   ? "bg-teal-600 text-white"
                   : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
               )
             }
           >
-            {item.label}
+            {({ isActive }) => (
+              <>
+                {item.label}
+                {item.badge ? (
+                  <span
+                    aria-label={`${item.badge} new`}
+                    className={cn(
+                      "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-bold",
+                      isActive
+                        ? "bg-white text-teal-700"
+                        : "bg-teal-600 text-white",
+                    )}
+                  >
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                ) : null}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -318,96 +345,98 @@ export function AppLayout() {
   }, [overlayOpen]);
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
-      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
-        <button
-          type="button"
-          onClick={() => setMobileNavOpen(true)}
-          aria-label="Open menu"
-          aria-expanded={mobileNavOpen}
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 md:hidden"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-6 w-6"
-            aria-hidden="true"
+    <ChatRealtimeProvider>
+      <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={mobileNavOpen}
+            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 md:hidden"
           >
-            <line x1="4" y1="6" x2="20" y2="6" />
-            <line x1="4" y1="12" x2="20" y2="12" />
-            <line x1="4" y1="18" x2="20" y2="18" />
-          </svg>
-        </button>
-        <BrandMark />
-        <HeaderControls
-          notificationsOpen={notificationsOpen}
-          onOpenNotifications={openNotifications}
-        />
-      </header>
-
-      <div className="md:flex">
-        <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:sticky md:top-16 md:block md:h-[calc(100vh-4rem)]">
-          <SidebarContent />
-        </aside>
-
-        <main className="min-w-0 flex-1">
-          <Outlet />
-        </main>
-      </div>
-
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setMobileNavOpen(false)}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-6 w-6"
+              aria-hidden="true"
+            >
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </button>
+          <BrandMark />
+          <HeaderControls
+            notificationsOpen={notificationsOpen}
+            onOpenNotifications={openNotifications}
           />
-          <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-              <span className="font-semibold text-slate-800 dark:text-slate-100">
-                Menu
-              </span>
-              <button
-                type="button"
-                onClick={() => setMobileNavOpen(false)}
-                aria-label="Close menu"
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-5 w-5"
-                  aria-hidden="true"
+        </header>
+
+        <div className="md:flex">
+          <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:sticky md:top-16 md:block md:h-[calc(100vh-4rem)]">
+            <SidebarContent />
+          </aside>
+
+          <main className="min-w-0 flex-1">
+            <Outlet />
+          </main>
+        </div>
+
+        {mobileNavOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setMobileNavOpen(false)}
+            />
+            <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+                <span className="font-semibold text-slate-800 dark:text-slate-100">
+                  Menu
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMobileNavOpen(false)}
+                  aria-label="Close menu"
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <SidebarContent onNavigate={() => setMobileNavOpen(false)} />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <SidebarContent onNavigate={() => setMobileNavOpen(false)} />
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <NotificationsPanel
-        open={notificationsOpen}
-        onClose={closeNotifications}
-      />
+        <NotificationsPanel
+          open={notificationsOpen}
+          onClose={closeNotifications}
+        />
 
-      {showOnboarding && (
-        <OnboardingTour onClose={() => setShowOnboarding(false)} />
-      )}
-    </div>
+        {showOnboarding && (
+          <OnboardingTour onClose={() => setShowOnboarding(false)} />
+        )}
+      </div>
+    </ChatRealtimeProvider>
   );
 }

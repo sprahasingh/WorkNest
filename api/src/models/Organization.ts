@@ -12,6 +12,8 @@ const organizationSchema = new Schema(
     projectLimit: { type: Number, required: true, default: 3 },
     projectCount: { type: Number, required: true, default: 0 },
     adminCount: { type: Number, required: true, default: 1 },
+    // Chat messages older than this many days are deleted; null keeps them.
+    chatRetentionDays: { type: Number, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   {

@@ -29,6 +29,9 @@ import {
 import { auditRouter } from "./modules/audit/audit.routes.js";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
+import { chatRouter } from "./modules/chat/chat.routes.js";
+import { meetingsRouter } from "./modules/meetings/meetings.routes.js";
+import { downloadChatFileController } from "./modules/chat/chatFiles.controller.js";
 
 export function createApp(): Express {
   const app = express();
@@ -68,8 +71,32 @@ export function createApp(): Express {
     limit: 300,
     standardHeaders: true,
     legacyHeaders: false,
+    // Chat has its own, more generous limit below: it refreshes often and a
+    // whole office can share one IP address.
+    skip: (req) =>
+      /^\/api\/orgs\/[^/]+\/chat(\/|$)/.test(req.path) ||
+      req.path.startsWith("/api/chat-files/"),
   });
   app.use(globalLimiter);
+
+  const chatLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 240,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.auth?.userId ?? "anonymous",
+    validate: { keyGeneratorIpFallback: false },
+  });
+
+  // Chat files load through <img> and links, which can't send a login header,
+  // so they carry a short-lived signed token and are checked on every open.
+  const fileLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.get("/api/chat-files/:token", fileLimiter, downloadChatFileController);
 
   app.use("/api/auth", authRouter);
   app.use("/api/invites", invitesPublicRouter);
@@ -93,6 +120,8 @@ export function createApp(): Express {
   orgRouter.use("/audit-logs", auditRouter);
   orgRouter.use("/dashboard", dashboardRouter);
   orgRouter.use("/notifications", notificationsRouter);
+  orgRouter.use("/chat", chatLimiter, chatRouter);
+  orgRouter.use("/meetings", meetingsRouter);
   app.use("/api/orgs/:orgId", authenticate, resolveTenant, orgRouter);
 
   app.use(notFound);
