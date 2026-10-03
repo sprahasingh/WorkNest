@@ -27,7 +27,9 @@ async function ensureMyDueNotifications(): Promise<void> {
   const userId = new mongoose.Types.ObjectId(context.userId);
   const now = new Date();
   const [membership, organization] = await Promise.all([
-    Membership.findOne({ userId }).select("role").lean(),
+    Membership.findOne({ userId })
+      .select("role +mutedProjectIds +mutedTaskIds")
+      .lean(),
     Organization.findById(tenantId).select("timeZone").lean(),
   ]);
   const isManager = membership?.role === "manager";
@@ -40,7 +42,13 @@ async function ensureMyDueNotifications(): Promise<void> {
   );
   if (activeProjectIds.length === 0) return;
 
-  const tasks = await Task.find({
+  // Reminders about your own tasks always come. Ones about other people's
+  // work (which admins and managers get) respect muted projects and tasks.
+  const mutedProjects = new Set(
+    (membership?.mutedProjectIds ?? []).map(String),
+  );
+  const mutedTasks = new Set((membership?.mutedTaskIds ?? []).map(String));
+  const allTasks = await Task.find({
     projectId: { $in: activeProjectIds },
     status: { $in: ["todo", "in_progress"] },
     archivedAt: null,
@@ -51,6 +59,12 @@ async function ensureMyDueNotifications(): Promise<void> {
     .sort({ dueDate: 1 })
     .select("_id projectId title dueDate assigneeIds reminderCycle")
     .lean();
+  const tasks = allTasks.filter(
+    (task) =>
+      task.assigneeIds.some((assigneeId) => assigneeId.equals(userId)) ||
+      (!mutedProjects.has(String(task.projectId)) &&
+        !mutedTasks.has(String(task._id))),
+  );
 
   const getDueSoonEventKey = (
     task: (typeof tasks)[number],
@@ -202,13 +216,15 @@ async function ensureMyDueNotifications(): Promise<void> {
     }
   }
 
-  const projects = await Project.find({
-    archivedAt: null,
-    dueDate: { $ne: null, $lte: reminderWindowEnd },
-  })
-    .sort({ dueDate: 1 })
-    .select("_id name dueDate reminderCycle")
-    .lean();
+  const projects = (
+    await Project.find({
+      archivedAt: null,
+      dueDate: { $ne: null, $lte: reminderWindowEnd },
+    })
+      .sort({ dueDate: 1 })
+      .select("_id name dueDate reminderCycle")
+      .lean()
+  ).filter((project) => !mutedProjects.has(String(project._id)));
 
   const dueTodayProjectEventKeys = projects.flatMap((project) => {
     const dueDate = project.dueDate!;

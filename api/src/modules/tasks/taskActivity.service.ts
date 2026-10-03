@@ -1,5 +1,8 @@
-import mongoose from "mongoose";
-import { TaskActivity } from "../../models/TaskActivity.js";
+import mongoose, { type HydratedDocument } from "mongoose";
+import {
+  TaskActivity,
+  type TaskActivityDocument,
+} from "../../models/TaskActivity.js";
 import { Task } from "../../models/Task.js";
 import { Project } from "../../models/Project.js";
 import { Membership } from "../../models/Membership.js";
@@ -10,7 +13,16 @@ import { getTenantContext, requireTenantId } from "../../tenancy/context.js";
 import { can } from "../../auth/rbac.js";
 import { isTaskAssignee } from "../../auth/ownership.js";
 import type { Role } from "../../constants/roles.js";
-import type { ActivityType, CreateActivityInput } from "./tasks.schemas.js";
+import type {
+  ActivityType,
+  CreateActivityInput,
+  MarkAnswerInput,
+} from "./tasks.schemas.js";
+import {
+  creatorIfInvolved,
+  getAdminAndManagerIds,
+  mutedAmong,
+} from "../notifications/audience.js";
 import {
   assertTaskVisible,
   findTaskInLiveProject,
@@ -38,15 +50,6 @@ function assertCanPostLeadActivity(type: ActivityType): void {
       "Only admins and managers can request updates",
     );
   }
-}
-
-async function getAdminAndManagerIds(): Promise<Id[]> {
-  const memberships = await Membership.find({
-    role: { $in: ["admin", "manager"] },
-  })
-    .select("userId")
-    .lean();
-  return memberships.map((m) => m.userId);
 }
 
 // Who a mention reaches. Whole-role mentions are for admins and managers
@@ -146,6 +149,60 @@ function getNotificationRecipients(recipients: Id[], authorId: string): Id[] {
 interface NotifyGroup {
   recipients: Id[];
   message: string;
+  // General chatter, which muting the project or task silences. Anything
+  // addressed to the person (a mention, a reply to them, a request) isn't.
+  mutable?: boolean;
+}
+
+// Works out each recipient's message: the first group that reaches them
+// wins, and people who muted this project or task skip the mutable groups,
+// so a later group addressed to them can still reach them.
+async function resolveRecipients(
+  groups: NotifyGroup[],
+  authorId: string,
+  projectId: Id,
+  taskId: Id | null,
+): Promise<Map<string, string>> {
+  const mutableIds = groups
+    .filter((group) => group.mutable)
+    .flatMap((group) => group.recipients);
+  const everyone = getNotificationRecipients(
+    groups.flatMap((group) => group.recipients),
+    authorId,
+  );
+  // People who have left the organization can't open anything here.
+  const [muted, members] = await Promise.all([
+    mutedAmong(mutableIds, projectId, taskId),
+    Membership.find({ userId: { $in: everyone } })
+      .select("userId")
+      .lean(),
+  ]);
+  const memberIds = new Set(members.map((m) => String(m.userId)));
+  const messageFor = new Map<string, string>();
+  for (const group of groups) {
+    for (const id of getNotificationRecipients(group.recipients, authorId)) {
+      const key = id.toString();
+      if (messageFor.has(key) || !memberIds.has(key)) continue;
+      if (group.mutable && muted.has(key)) continue;
+      messageFor.set(key, group.message);
+    }
+  }
+  return messageFor;
+}
+
+// A few names so the sender can see who was told.
+async function summarizeRecipients(recipientIds: string[]) {
+  const named = await User.find({ _id: { $in: recipientIds.slice(0, 3) } })
+    .select("name")
+    .lean();
+  const nameById = new Map(named.map((u) => [String(u._id), u.name]));
+  return {
+    notifiedCount: recipientIds.length,
+    notifiedNames: recipientIds
+      .slice(0, 3)
+      .map((id) => nameById.get(id))
+      .filter((name): name is string => !!name),
+  };
 }
 
 async function recordActivity(options: {
@@ -157,21 +214,17 @@ async function recordActivity(options: {
   parentId?: Id | null;
   replyToId?: Id | null;
   askedIds?: Id[];
+  notifyAll?: boolean;
 }) {
   const context = getTenantContext()!;
   const tenantId = requireTenantId();
 
-  const messageFor = new Map<string, string>();
-  for (const group of options.notify) {
-    for (const id of getNotificationRecipients(
-      group.recipients,
-      context.userId,
-    )) {
-      if (!messageFor.has(id.toString())) {
-        messageFor.set(id.toString(), group.message);
-      }
-    }
-  }
+  const messageFor = await resolveRecipients(
+    options.notify,
+    context.userId,
+    options.projectId,
+    options.taskId,
+  );
   const recipientIds = [...messageFor.keys()];
 
   const dbSession = await mongoose.startSession();
@@ -196,6 +249,7 @@ async function recordActivity(options: {
               options.askedIds ?? [],
               context.userId,
             ),
+            notifyAll: options.notifyAll ?? true,
           },
         ],
         { session: dbSession },
@@ -220,45 +274,13 @@ async function recordActivity(options: {
       activity = created;
     });
 
-    // A few names so the sender can see who was told.
-    const named = await User.find({ _id: { $in: recipientIds.slice(0, 3) } })
-      .select("name")
-      .lean();
-    const nameById = new Map(named.map((u) => [String(u._id), u.name]));
     return {
       activity: activity!,
-      notifiedCount: recipientIds.length,
-      notifiedNames: recipientIds
-        .slice(0, 3)
-        .map((id) => nameById.get(id))
-        .filter((name): name is string => !!name),
+      ...(await summarizeRecipients(recipientIds)),
     };
   } finally {
     await dbSession.endSession();
   }
-}
-
-// Whoever created a task or project counts as involved, as long as they're
-// still in the organization and can see it. A task assigned to an admin or
-// manager is hidden from other members.
-async function creatorIfInvolved(
-  creatorId: Id,
-  task: { assigneeIds?: Id[] | null } | null,
-): Promise<Id[]> {
-  const membership = await Membership.findOne({ userId: creatorId })
-    .select("role")
-    .lean();
-  if (!membership) return [];
-  if (task && membership.role === "member") {
-    const assignees = (task.assigneeIds ?? []).map((id) => String(id));
-    if (!assignees.includes(String(creatorId))) {
-      const leadIds = new Set(
-        (await getAdminAndManagerIds()).map((id) => String(id)),
-      );
-      if (assignees.some((id) => leadIds.has(id))) return [];
-    }
-  }
-  return [creatorId];
 }
 
 function sameId(left: Id | null | undefined, right: Id): boolean {
@@ -284,22 +306,52 @@ const THREAD_NAMES: Record<ActivityType, string> = {
   reply: "message",
 };
 
-// A reply to a specific message. It tells the person being answered, and
-// whoever started the thread, rather than everyone on the task. Replies
-// to replies join the same thread, so threads stay one level deep.
-async function createReply(
-  scope: { taskId: string } | { projectId: string },
-  input: CreateActivityInput,
-) {
-  const context = getTenantContext()!;
-  const me = context.userId;
-  const notFound = new AppError(
-    404,
-    "NOT_FOUND",
-    "The message you're replying to no longer exists",
-  );
+// How long the requester waits between reminders to people who haven't
+// replied to an update request.
+export const REMIND_COOLDOWN_MS = 60 * 60 * 1000;
 
-  const target = await TaskActivity.findById(input.replyToId);
+type ActivityDoc = HydratedDocument<TaskActivityDocument>;
+
+// A message sent only to the people mentioned in it. Its thread stays
+// between them and the author. A message sent to nobody (no mentions, not
+// sent to everyone) is just a quiet note, and anyone involved can reply.
+function isDirected(root: {
+  notifyAll?: boolean | null;
+  mentionIds?: Id[] | null;
+}): boolean {
+  return root.notifyAll === false && (root.mentionIds?.length ?? 0) > 0;
+}
+
+// Everyone taking part in a thread: who started it, who it was sent to or
+// asked, and whoever has replied or been mentioned in a reply since.
+function threadParticipants(
+  root: { authorId: Id; mentionIds?: Id[] | null; askedIds?: Id[] | null },
+  replies: Array<{ authorId: Id; mentionIds?: Id[] | null }>,
+): Set<string> {
+  return new Set(
+    [
+      root.authorId,
+      ...(root.mentionIds ?? []),
+      ...(root.askedIds ?? []),
+      ...replies.flatMap((reply) => [
+        reply.authorId,
+        ...(reply.mentionIds ?? []),
+      ]),
+    ].map((id) => String(id)),
+  );
+}
+
+// Finds a message and the one that started its thread, making sure both
+// belong to the task or project in the URL. A project's feed shows its
+// tasks' messages too, so they count as part of the project.
+async function loadThread(
+  scope: { taskId: string } | { projectId: string },
+  activityId: string | undefined,
+  missingMessage: string,
+): Promise<{ target: ActivityDoc; root: ActivityDoc }> {
+  const notFound = new AppError(404, "NOT_FOUND", missingMessage);
+  if (!activityId || !mongoose.isValidObjectId(activityId)) throw notFound;
+  const target = await TaskActivity.findById(activityId);
   if (!target) throw notFound;
   const root = target.parentId
     ? await TaskActivity.findById(target.parentId)
@@ -309,65 +361,83 @@ async function createReply(
   if ("projectId" in scope && !sameId(root.projectId, scope.projectId)) {
     throw notFound;
   }
+  return { target, root };
+}
 
-  const meId = new mongoose.Types.ObjectId(me);
-  const inThread =
-    sameId(root.authorId, me) ||
-    sameId(target.authorId, me) ||
-    (root.askedIds ?? []).some((id) => sameId(id, me));
-
-  let where: string;
-  let mentionIds: Id[];
+// Where a thread lives, checking the caller can still see it.
+async function threadPlace(root: ActivityDoc, missingMessage: string) {
+  const notFound = new AppError(404, "NOT_FOUND", missingMessage);
   if (root.taskId) {
     const task = await findTaskInLiveProject(String(root.taskId));
     if (!task) throw notFound;
     await assertTaskVisible(task);
-    const canReply =
+    return { task, project: null, where: `on "${task.title}"` };
+  }
+  const project = await Project.findById(root.projectId);
+  if (!project) throw notFound;
+  return { task: null, project, where: `in "${project.name}"` };
+}
+
+// A reply to a specific message. It tells the person being answered, whoever
+// started the thread, and everyone else already taking part in it, rather
+// than everyone on the task. Replies to replies join the same thread, so
+// threads stay one level deep.
+async function createReply(
+  scope: { taskId: string } | { projectId: string },
+  input: CreateActivityInput,
+) {
+  const me = getTenantContext()!.userId;
+  const missing = "The message you're replying to no longer exists";
+  const { target, root } = await loadThread(scope, input.replyToId, missing);
+  const { task, project, where } = await threadPlace(root, missing);
+
+  const replies = await TaskActivity.find({ parentId: root._id })
+    .select("authorId mentionIds")
+    .lean();
+  const participants = threadParticipants(root, replies);
+  const meId = new mongoose.Types.ObjectId(me);
+
+  // A message sent to particular people stays between them and the author.
+  // Otherwise anyone who can join the task's or project's conversation can.
+  let canReply: boolean;
+  if (isDirected(root)) {
+    canReply = participants.has(me);
+  } else if (task) {
+    canReply =
       isLead() ||
-      inThread ||
+      participants.has(me) ||
       isTaskAssignee(task, me) ||
       !!(await TaskActivity.exists({ taskId: task._id, mentionIds: meId }));
-    if (!canReply) {
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "Only people taking part in this task's conversation can reply",
-      );
-    }
-    where = `on "${task.title}"`;
-    mentionIds = await getMentionRecipients(
-      input,
-      task.assigneeIds ?? [],
-      task,
-    );
   } else {
-    const project = await Project.findById(root.projectId);
-    if (!project) throw notFound;
-    const canReply =
+    canReply =
       isLead() ||
-      inThread ||
-      !!(await Task.exists({ projectId: project._id, assigneeIds: meId })) ||
+      participants.has(me) ||
+      !!(await Task.exists({ projectId: project!._id, assigneeIds: meId })) ||
       !!(await TaskActivity.exists({
-        projectId: project._id,
+        projectId: project!._id,
         taskId: null,
         mentionIds: meId,
       }));
-    if (!canReply) {
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "Only people taking part in this project's conversation can reply",
-      );
-    }
-    where = `in "${project.name}"`;
-    mentionIds = await getMentionRecipients(
-      input,
-      input.mentionRoles?.includes("assignee")
-        ? await openTaskAssigneeIds(project._id)
-        : [],
-      null,
+  }
+  if (!canReply) {
+    throw new AppError(
+      403,
+      "FORBIDDEN",
+      isDirected(root)
+        ? "Only the people this message was sent to can reply"
+        : `Only people taking part in this ${task ? "task" : "project"}'s conversation can reply`,
     );
   }
+
+  const mentionIds = task
+    ? await getMentionRecipients(input, task.assigneeIds ?? [], task)
+    : await getMentionRecipients(
+        input,
+        input.mentionRoles?.includes("assignee")
+          ? await openTaskAssigneeIds(project!._id)
+          : [],
+        null,
+      );
 
   const name = await getAuthorName(me);
   const answered =
@@ -376,6 +446,7 @@ async function createReply(
       : target.type === "reply"
         ? `${name} replied to you ${where}`
         : `${name} replied to your ${THREAD_NAMES[target.type]} ${where}`;
+  const threadName = THREAD_NAMES[root.type];
 
   return recordActivity({
     projectId: root.projectId,
@@ -388,11 +459,168 @@ async function createReply(
       { recipients: [target.authorId], message: answered },
       {
         recipients: [root.authorId],
-        message: `${name} replied in your ${THREAD_NAMES[root.type]} thread ${where}`,
+        message: `${name} replied in your ${threadName} thread ${where}`,
       },
       { recipients: mentionIds, message: `${name} mentioned you ${where}` },
+      // Everyone else in the thread hears about new replies, so a
+      // conversation can carry on. Answers to an update request are each
+      // their own, so the people asked aren't told about each other's.
+      {
+        recipients: root.type === "update_request" ? [] : [...participants],
+        message: `${name} replied in a ${threadName} thread you're in ${where}`,
+        mutable: true,
+      },
     ],
   });
+}
+
+// The person who asked a question picks the reply that answered it, or
+// clears it again.
+export async function markAnswer(
+  scope: { taskId: string } | { projectId: string },
+  activityId: string,
+  input: MarkAnswerInput,
+) {
+  const me = getTenantContext()!.userId;
+  const missing = "That question no longer exists";
+  const { target: question } = await loadThread(scope, activityId, missing);
+  if (question.parentId || question.type !== "question") {
+    throw new AppError(
+      400,
+      "NOT_A_QUESTION",
+      "Only questions can be marked as answered",
+    );
+  }
+  await threadPlace(question, missing);
+  if (!sameId(question.authorId, me)) {
+    throw new AppError(
+      403,
+      "FORBIDDEN",
+      "Only the person who asked can mark the answer",
+    );
+  }
+  if (input.answerId) {
+    const reply = await TaskActivity.exists({
+      _id: input.answerId,
+      parentId: question._id,
+    });
+    if (!reply) {
+      throw new AppError(
+        400,
+        "INVALID_ANSWER",
+        "Pick a reply from this question's thread",
+      );
+    }
+  }
+  question.answerId = input.answerId
+    ? new mongoose.Types.ObjectId(input.answerId)
+    : null;
+  await question.save();
+  return question.toObject();
+}
+
+// Nudges the people an update request is still waiting on, at most once an
+// hour, without pinging those who already replied.
+export async function remindWaiting(
+  scope: { taskId: string } | { projectId: string },
+  activityId: string,
+) {
+  const context = getTenantContext()!;
+  const tenantId = requireTenantId();
+  const missing = "That update request no longer exists";
+  const { target: request } = await loadThread(scope, activityId, missing);
+  if (request.parentId || request.type !== "update_request") {
+    throw new AppError(
+      400,
+      "NOT_A_REQUEST",
+      "Only update requests can be followed up with a reminder",
+    );
+  }
+  const { where } = await threadPlace(request, missing);
+  if (!sameId(request.authorId, context.userId)) {
+    throw new AppError(
+      403,
+      "FORBIDDEN",
+      "Only the person who asked can send a reminder",
+    );
+  }
+
+  const replies = await TaskActivity.find({ parentId: request._id })
+    .select("authorId")
+    .lean();
+  const replied = new Set(replies.map((reply) => String(reply.authorId)));
+  const waiting = (request.askedIds ?? []).filter(
+    (id) => !replied.has(String(id)),
+  );
+  if (waiting.length === 0) {
+    throw new AppError(
+      400,
+      "NOTHING_TO_REMIND",
+      "Everyone you asked has already replied",
+    );
+  }
+
+  const name = await getAuthorName(context.userId);
+  const messageFor = await resolveRecipients(
+    [
+      {
+        recipients: waiting,
+        message: `${name} is still waiting on your update ${where}`,
+      },
+    ],
+    context.userId,
+    request.projectId,
+    request.taskId ?? null,
+  );
+  const recipientIds = [...messageFor.keys()];
+  if (recipientIds.length === 0) {
+    throw new AppError(
+      400,
+      "NOTHING_TO_REMIND",
+      "The people still to reply are no longer in this workspace",
+    );
+  }
+
+  // Claimed atomically, so two clicks can't both send a reminder.
+  const now = new Date();
+  const claimed = await TaskActivity.findOneAndUpdate(
+    {
+      _id: request._id,
+      $or: [
+        { remindedAt: null },
+        { remindedAt: { $lte: new Date(now.getTime() - REMIND_COOLDOWN_MS) } },
+      ],
+    },
+    { $set: { remindedAt: now } },
+    { returnDocument: "after" },
+  );
+  if (!claimed) {
+    const nextAt = request.remindedAt!.getTime() + REMIND_COOLDOWN_MS;
+    const minutes = Math.max(1, Math.ceil((nextAt - now.getTime()) / 60000));
+    throw new AppError(
+      429,
+      "REMIND_TOO_SOON",
+      `You've just sent a reminder. You can send another in ${minutes} min.`,
+    );
+  }
+
+  await Notification.insertMany(
+    recipientIds.map((userId) => ({
+      userId,
+      tenantId,
+      projectId: request.projectId,
+      taskId: request.taskId ?? null,
+      activityId: request._id,
+      type: "update_request" as const,
+      actorId: context.userId,
+      message: messageFor.get(userId)!,
+    })),
+  );
+
+  return {
+    remindedAt: now,
+    ...(await summarizeRecipients(recipientIds)),
+  };
 }
 
 async function withAuthors<T extends { authorId: Id }>(activities: T[]) {
@@ -406,6 +634,86 @@ async function withAuthors<T extends { authorId: Id }>(activities: T[]) {
     ...a,
     author: authorMap.get(String(a.authorId)) ?? null,
   }));
+}
+
+// Who a new message reaches. By default it goes to everyone involved and
+// anyone mentioned. With notifyAll off it goes only to the people mentioned,
+// and if nobody is, it's posted quietly. An update request asks the same
+// people it reaches.
+function planNewMessage(options: {
+  input: CreateActivityInput;
+  authorId: string;
+  // Who an update request asks by default: the people doing the work.
+  workers: Id[];
+  // Also told about updates and questions sent to everyone: the creator.
+  creators: Id[];
+  mentionIds: Id[];
+  authorName: string;
+  place: string;
+  noWorkersMessage: string;
+}) {
+  const { input, authorName, place, mentionIds } = options;
+  const notifyAll = options.input.notifyAll ?? true;
+
+  if (input.type === "update_request") {
+    const asked = notifyAll
+      ? [...options.workers, ...mentionIds]
+      : [...mentionIds];
+    if (getNotificationRecipients(asked, options.authorId).length === 0) {
+      if (!notifyAll) {
+        throw new AppError(
+          400,
+          "NO_RECIPIENTS",
+          "Mention who you're asking, or send it to all assignees",
+        );
+      }
+      if (options.workers.length === 0) {
+        throw new AppError(400, "NO_ASSIGNEES", options.noWorkersMessage);
+      }
+      throw new AppError(
+        400,
+        "SELF_UPDATE_REQUEST",
+        "You can't request an update from yourself. Assign another person.",
+      );
+    }
+    return {
+      notifyAll,
+      askedIds: asked,
+      notify: [
+        {
+          recipients: asked,
+          message: `${authorName} asked you for an update ${place}`,
+        },
+      ] as NotifyGroup[],
+    };
+  }
+
+  const kind = input.type === "question" ? "question" : "update";
+  const notify: NotifyGroup[] = notifyAll
+    ? [
+        {
+          recipients: mentionIds,
+          message: `${authorName} mentioned you ${place}`,
+        },
+        {
+          recipients: [...options.workers, ...options.creators],
+          message:
+            kind === "question"
+              ? `${authorName} asked a question ${place}`
+              : `${authorName} posted an update ${place}`,
+          mutable: true,
+        },
+      ]
+    : [
+        {
+          recipients: mentionIds,
+          message:
+            kind === "question"
+              ? `${authorName} asked you a question ${place}`
+              : `${authorName} shared an update with you ${place}`,
+        },
+      ];
+  return { notifyAll, askedIds: [] as Id[], notify };
 }
 
 export async function createTaskActivity(
@@ -436,57 +744,25 @@ export async function createTaskActivity(
     );
   }
 
-  const authorName = await getAuthorName(context.userId);
-  const messages: Record<ActivityType, string> = {
-    update_request: `${authorName} asked you for an update on "${task.title}"`,
-    reply: `${authorName} replied on "${task.title}"`,
-    update: `${authorName} posted an update on "${task.title}"`,
-    question: `${authorName} asked a question on "${task.title}"`,
-  };
-
-  const assignees = task.assigneeIds ?? [];
-  if (input.type === "update_request" && assignees.length === 0) {
-    throw new AppError(
-      400,
-      "NO_ASSIGNEES",
-      "Assign someone to this task before requesting an update",
-    );
-  }
-
-  if (
-    input.type === "update_request" &&
-    getNotificationRecipients(assignees, context.userId).length === 0
-  ) {
-    throw new AppError(
-      400,
-      "SELF_UPDATE_REQUEST",
-      "You can't request an update from yourself. Assign another person.",
-    );
-  }
-
-  // Requests go to the people doing the work. Updates and questions go to
-  // the people on the task: its other assignees and whoever created it.
   // Admins and managers who aren't involved only hear when mentioned.
-  const isRequest = input.type === "update_request";
+  const assignees = task.assigneeIds ?? [];
   const mentionIds = await getMentionRecipients(input, assignees, task);
+  const plan = planNewMessage({
+    input,
+    authorId: context.userId,
+    workers: assignees,
+    creators: await creatorIfInvolved(task.createdBy, task),
+    mentionIds,
+    authorName: await getAuthorName(context.userId),
+    place: `on "${task.title}"`,
+    noWorkersMessage: "Assign someone to this task before requesting an update",
+  });
   return recordActivity({
     projectId: task.projectId,
     taskId: task._id,
     input,
     mentionIds,
-    askedIds: isRequest ? assignees : [],
-    notify: [
-      {
-        recipients: isRequest
-          ? assignees
-          : [...assignees, ...(await creatorIfInvolved(task.createdBy, task))],
-        message: messages[input.type],
-      },
-      {
-        recipients: mentionIds,
-        message: `${authorName} mentioned you on "${task.title}"`,
-      },
-    ],
+    ...plan,
   });
 }
 
@@ -533,59 +809,27 @@ export async function createProjectActivity(
     }
   }
 
-  // Requests ask everyone with open work here. Updates and questions go to
-  // the people working on the project and whoever created it. Admins and
+  // The people working here are everyone with an open task. Admins and
   // managers who aren't involved only hear when mentioned.
-  const isRequest = input.type === "update_request";
   const openAssignees = await openTaskAssigneeIds(projectId);
-  if (isRequest && openAssignees.length === 0) {
-    throw new AppError(
-      400,
-      "NO_ASSIGNEES",
-      "No open task in this project has an assignee to ask for an update",
-    );
-  }
-  if (
-    isRequest &&
-    getNotificationRecipients(openAssignees, context.userId).length === 0
-  ) {
-    throw new AppError(
-      400,
-      "SELF_UPDATE_REQUEST",
-      "You can't request an update from yourself. Assign another person.",
-    );
-  }
   const mentionIds = await getMentionRecipients(input, openAssignees, null);
-
-  const authorName = await getAuthorName(context.userId);
-  const messages: Record<ActivityType, string> = {
-    update_request: `${authorName} asked for an update on your work in "${project.name}"`,
-    reply: `${authorName} replied in "${project.name}"`,
-    update: `${authorName} posted an update in "${project.name}"`,
-    question: `${authorName} asked a question in "${project.name}"`,
-  };
-
+  const plan = planNewMessage({
+    input,
+    authorId: context.userId,
+    workers: openAssignees,
+    creators: await creatorIfInvolved(project.createdBy, null),
+    mentionIds,
+    authorName: await getAuthorName(context.userId),
+    place: `in "${project.name}"`,
+    noWorkersMessage:
+      "No open task in this project has an assignee to ask for an update",
+  });
   return recordActivity({
     projectId: project._id,
     taskId: null,
     input,
     mentionIds,
-    askedIds: isRequest ? openAssignees : [],
-    notify: [
-      {
-        recipients: isRequest
-          ? openAssignees
-          : [
-              ...openAssignees,
-              ...(await creatorIfInvolved(project.createdBy, null)),
-            ],
-        message: messages[input.type],
-      },
-      {
-        recipients: mentionIds,
-        message: `${authorName} mentioned you in "${project.name}"`,
-      },
-    ],
+    ...plan,
   });
 }
 
@@ -606,15 +850,45 @@ export async function listProjectActivities(projectId: string) {
   const tasks = await Task.find(taskFilter).select("title").lean();
   const taskTitles = new Map(tasks.map((t) => [String(t._id), t.title]));
 
-  const activities = await TaskActivity.find({
+  const visible = {
     projectId,
     $or: [{ taskId: null }, { taskId: { $in: [...taskTitles.keys()] } }],
-  })
+  };
+  const latest = await TaskActivity.find(visible)
     .sort({ _id: -1 })
     .limit(PROJECT_FEED_LIMIT)
     .lean();
 
-  const withTask = activities.reverse().map((a) => ({
+  // A recent reply whose thread started before the cutoff brings its whole
+  // thread along, so it's never shown without the message it answers.
+  const loadedIds = new Set(latest.map((a) => String(a._id)));
+  const missingRootIds = [
+    ...new Set(
+      latest
+        .filter((a) => a.parentId && !loadedIds.has(String(a.parentId)))
+        .map((a) => String(a.parentId)),
+    ),
+  ];
+  const earlier =
+    missingRootIds.length > 0
+      ? await TaskActivity.find({
+          ...visible,
+          $and: [
+            {
+              $or: [
+                { _id: { $in: missingRootIds } },
+                { parentId: { $in: missingRootIds } },
+              ],
+            },
+          ],
+          _id: { $nin: [...loadedIds] },
+        }).lean()
+      : [];
+  const activities = [...latest, ...earlier].sort((a, b) =>
+    String(a._id).localeCompare(String(b._id)),
+  );
+
+  const withTask = activities.map((a) => ({
     ...a,
     task: a.taskId
       ? { _id: String(a.taskId), title: taskTitles.get(String(a.taskId))! }

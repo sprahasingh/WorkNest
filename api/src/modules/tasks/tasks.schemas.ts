@@ -91,6 +91,9 @@ export const createActivitySchema = z
       .default([]),
     // The message being answered; required for replies.
     replyToId: z.string().regex(objectIdRegex).optional(),
+    // false sends a new message only to the people mentioned in it. Replies
+    // follow their thread, so they can't set it.
+    notifyAll: z.boolean().optional(),
   })
   .strict()
   .refine((input) => input.type === "update_request" || !!input.content, {
@@ -101,6 +104,19 @@ export const createActivitySchema = z
     path: ["replyToId"],
     message:
       "Replies need the message they answer, and only replies can have one",
+  })
+  .refine((input) => input.type !== "reply" || input.notifyAll === undefined, {
+    path: ["notifyAll"],
+    message: "Replies go to their thread",
   });
 
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;
+
+export const markAnswerSchema = z
+  .object({
+    // The reply that answers the question, or null to clear it.
+    answerId: z.string().regex(objectIdRegex).nullable(),
+  })
+  .strict();
+
+export type MarkAnswerInput = z.infer<typeof markAnswerSchema>;
