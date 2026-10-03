@@ -382,37 +382,6 @@ export function Landing() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <BrandMark />
           <div className="hidden items-center gap-4 sm:flex">
-            {isAuthenticated && (
-              <>
-                {user && (
-                  <div
-                    aria-label="Signed-in account"
-                    className="hidden max-w-36 flex-col lg:flex"
-                  >
-                    <span className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
-                      {user.name}
-                    </span>
-                    <span className="truncate text-xs text-slate-500 dark:text-slate-400">
-                      {user.email}
-                    </span>
-                  </div>
-                )}
-                <Link
-                  to={workspacePath}
-                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700"
-                >
-                  Open WorkNest
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => void handleLogout()}
-                  disabled={isLoggingOut}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
-                >
-                  {isLoggingOut ? "Signing out…" : "Log out"}
-                </button>
-              </>
-            )}
             <Link
               to="/how-to-use"
               className="text-sm font-medium text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-400"

@@ -1,5 +1,8 @@
 import type { ActivityType, TaskNotificationType } from "./api";
-import type { ProjectNotificationType } from "@/features/notifications/api";
+import type {
+  MeetingNotificationType,
+  ProjectNotificationType,
+} from "@/features/notifications/api";
 
 // One vocabulary for task/project updates, shared by the activity feeds and
 // the notifications panel so the same event always looks the same.
@@ -39,4 +42,22 @@ export const PROJECT_NOTIFICATION_BADGE_STYLES: Record<
     "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
   project_overdue:
     "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+};
+
+export const MEETING_NOTIFICATION_BADGE_STYLES: Record<
+  MeetingNotificationType,
+  string
+> = {
+  meeting_invited:
+    "bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300",
+  meeting_updated:
+    "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
+  meeting_cancelled:
+    "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  meeting_response:
+    "bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
+  meeting_starting:
+    "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  meeting_proposal:
+    "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
 };

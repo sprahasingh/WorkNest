@@ -17,8 +17,17 @@ export const updateOrgSchema = z
       .string()
       .refine(isValidTimeZone, "Invalid IANA time zone")
       .optional(),
+    // Days to keep chat messages; null keeps them for good.
+    chatRetentionDays: z
+      .union([z.literal(90), z.literal(180), z.literal(365), z.null()])
+      .optional(),
   })
-  .refine((input) => input.name !== undefined || input.timeZone !== undefined)
+  .refine(
+    (input) =>
+      input.name !== undefined ||
+      input.timeZone !== undefined ||
+      input.chatRetentionDays !== undefined,
+  )
   .strict();
 
 export type UpdateOrgInput = z.infer<typeof updateOrgSchema>;

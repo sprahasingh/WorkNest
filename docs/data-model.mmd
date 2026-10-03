@@ -7,6 +7,9 @@ erDiagram
     USER ||--o{ MEMBERSHIP : "belongs via"
     USER ||--o{ SESSION : "has"
     PROJECT ||--o{ TASK : "contains"
+    ORGANIZATION ||--o{ CONVERSATION : "has"
+    CONVERSATION ||--o{ MESSAGE : "contains"
+    ORGANIZATION ||--o{ MEETING : "has"
 
     ORGANIZATION {
         ObjectId id PK
@@ -19,6 +22,7 @@ erDiagram
         number projectLimit
         number projectCount
         number adminCount
+        number chatRetentionDays
         ObjectId createdBy
     }
     USER {
@@ -82,4 +86,50 @@ erDiagram
         string action
         string entityType
         ObjectId entityId
+    }
+    CONVERSATION {
+        ObjectId id PK
+        ObjectId tenantId FK
+        string type
+        string name
+        string directKey
+        ObjectId createdBy FK
+        array adminIds
+        array members
+        date lastMessageAt
+    }
+    MESSAGE {
+        ObjectId id PK
+        ObjectId tenantId FK
+        ObjectId conversationId FK
+        ObjectId senderId FK
+        string kind
+        string text
+        ObjectId replyToId FK
+        array mentions
+        array attachments
+        array reactions
+        date editedAt
+        date deletedAt
+    }
+    MEETING {
+        ObjectId id PK
+        ObjectId tenantId FK
+        ObjectId organizerId FK
+        string title
+        string agenda
+        string notes
+        date startsAt
+        date endsAt
+        string joinUrl
+        string location
+        array attendees
+        array proposals
+        ObjectId seriesId
+        number seriesIndex
+        number seriesCount
+        string recurrence
+        ObjectId projectId FK
+        ObjectId taskId FK
+        date cancelledAt
     }

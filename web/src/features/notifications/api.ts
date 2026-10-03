@@ -2,9 +2,17 @@ import { apiClient } from "@/api/client";
 import type { ActivityType, TaskNotificationType } from "@/features/tasks/api";
 
 export type ProjectNotificationType = "project_due_soon" | "project_overdue";
+export type MeetingNotificationType =
+  | "meeting_invited"
+  | "meeting_updated"
+  | "meeting_cancelled"
+  | "meeting_response"
+  | "meeting_starting"
+  | "meeting_proposal";
 export type ReminderNotificationType =
   TaskNotificationType | ProjectNotificationType;
-export type NotificationType = ActivityType | ReminderNotificationType;
+export type NotificationType =
+  ActivityType | ReminderNotificationType | MeetingNotificationType;
 export const TASK_REMINDER_TYPES: TaskNotificationType[] = [
   "task_due_soon",
   "task_overdue",
@@ -21,6 +29,7 @@ export interface Notification {
   projectId: string | null;
   projectName: string | null;
   taskId: string | null;
+  meetingId: string | null;
   dueDate: string | null;
   activityId: string | null;
   type: NotificationType | null;
@@ -77,6 +86,9 @@ export function notificationLink(
   orgId: string,
   notification: Notification,
 ): string | null {
+  if (notification.meetingId) {
+    return `/orgs/${orgId}/meetings?meeting=${notification.meetingId}`;
+  }
   if (!notification.projectId) return null;
   const params = new URLSearchParams();
   if (notification.taskId) params.set("task", notification.taskId);

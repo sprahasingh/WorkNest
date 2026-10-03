@@ -30,6 +30,18 @@ const envSchema = z
       (value) => (value === "" ? undefined : value),
       z.string().email().optional(),
     ),
+    CLOUDINARY_CLOUD_NAME: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    CLOUDINARY_API_KEY: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    CLOUDINARY_API_SECRET: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
     EMAIL_VERIFICATION_BYPASS_EMAILS: z.preprocess(
       (value) =>
         typeof value === "string"
@@ -47,6 +59,20 @@ const envSchema = z
         code: "custom",
         path: [values.BREVO_API_KEY ? "BREVO_FROM" : "BREVO_API_KEY"],
         message: "BREVO_API_KEY and BREVO_FROM must be configured together",
+      });
+    }
+
+    const cloudinary = [
+      values.CLOUDINARY_CLOUD_NAME,
+      values.CLOUDINARY_API_KEY,
+      values.CLOUDINARY_API_SECRET,
+    ];
+    if (cloudinary.some(Boolean) && !cloudinary.every(Boolean)) {
+      context.addIssue({
+        code: "custom",
+        path: ["CLOUDINARY_CLOUD_NAME"],
+        message:
+          "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET must be configured together",
       });
     }
 

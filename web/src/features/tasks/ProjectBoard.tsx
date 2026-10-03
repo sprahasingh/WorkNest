@@ -266,6 +266,12 @@ export function ProjectBoard() {
             >
               Project updates
             </Button>
+            <Link
+              to={`/orgs/${orgId}/meetings?project=${projectId}`}
+              className="inline-flex flex-1 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 sm:flex-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              Meetings
+            </Link>
             {canCreate && !isArchived && (
               <Button
                 className="flex-1 sm:flex-none"

@@ -7,6 +7,13 @@ import { parseApiError } from "@/lib/apiError";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/Modal";
+import { MeetingHandover } from "@/features/members/MeetingHandover";
+import {
+  DEFAULT_MEETING_CHOICE,
+  isMeetingChoiceReady,
+  toMeetingChoice,
+  type MeetingChoiceState,
+} from "@/features/members/meetingChoice";
 import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 
 // Leaving only ends this membership: the account and any other
@@ -18,11 +25,14 @@ export function LeaveOrganizationCard({
   orgId: string;
   orgName: string;
 }) {
-  const { memberships, refreshMemberships } = useAuth();
+  const { user, memberships, refreshMemberships } = useAuth();
   const navigate = useNavigate();
   const removeMember = useRemoveMember(orgId);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [meetingChoice, setMeetingChoice] = useState<MeetingChoiceState>(
+    DEFAULT_MEETING_CHOICE,
+  );
   const infoId = useId();
 
   const membership = memberships?.find((entry) => entry.tenantId.id === orgId);
@@ -30,7 +40,10 @@ export function LeaveOrganizationCard({
 
   const handleLeave = async () => {
     try {
-      await removeMember.mutateAsync(membership._id);
+      await removeMember.mutateAsync({
+        memberId: membership._id,
+        meetings: toMeetingChoice(meetingChoice),
+      });
       setConfirmOpen(false);
       toast.success(`You left ${orgName}`);
       await refreshMemberships();
@@ -72,7 +85,10 @@ export function LeaveOrganizationCard({
       </InfoPanel>
       <Button
         variant="secondary"
-        onClick={() => setConfirmOpen(true)}
+        onClick={() => {
+          setMeetingChoice(DEFAULT_MEETING_CHOICE);
+          setConfirmOpen(true);
+        }}
         className="mt-4 border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/20"
       >
         Leave {orgName}
@@ -87,6 +103,17 @@ export function LeaveOrganizationCard({
           You&apos;ll lose access to {orgName} immediately and be unassigned
           from its tasks. Your account and other organizations stay as they are.
         </p>
+        {confirmOpen && user && (
+          <MeetingHandover
+            orgId={orgId}
+            memberId={membership._id}
+            departingUserId={user.id}
+            isSelf
+            name="You"
+            value={meetingChoice}
+            onChange={setMeetingChoice}
+          />
+        )}
         <div className="mt-4 flex justify-end gap-3">
           <Button
             type="button"
@@ -100,6 +127,7 @@ export function LeaveOrganizationCard({
             variant="danger"
             onClick={() => void handleLeave()}
             loading={removeMember.isPending}
+            disabled={!isMeetingChoiceReady(meetingChoice)}
           >
             Leave
           </Button>
