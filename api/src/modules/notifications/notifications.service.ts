@@ -375,25 +375,24 @@ export async function listNotifications(status: "unread" | "all") {
     Project.find({ archivedAt: { $ne: null } }).distinct("_id"),
   ])) as [mongoose.Types.ObjectId[], mongoose.Types.ObjectId[]];
   // Notifications for binned tasks and archived projects return when restored.
+  // Dismissed ones are gone from the list for good.
   const mine = {
     userId: context.userId,
     tenantId,
+    dismissedAt: null,
     projectId: { $nin: [...(await binnedProjectIds()), ...archivedProjectIds] },
     taskId: { $nin: binnedTaskIds },
   };
 
   const [notifications, unreadCount, readableUnreadCount] = await Promise.all([
-    Notification.find(
-      status === "unread" ? { ...mine, readAt: null, dismissedAt: null } : mine,
-    )
+    Notification.find(status === "unread" ? { ...mine, readAt: null } : mine)
       .sort({ _id: -1 })
       .limit(PAGE_SIZE)
       .lean(),
-    Notification.countDocuments({ ...mine, readAt: null, dismissedAt: null }),
+    Notification.countDocuments({ ...mine, readAt: null }),
     Notification.countDocuments({
       ...mine,
       readAt: null,
-      dismissedAt: null,
       type: { $nin: REMINDER_TYPES },
     }),
   ]);
@@ -440,18 +439,32 @@ export async function markNotificationsRead(ids?: string[]) {
   await Notification.updateMany(filter, { readAt: new Date() });
 }
 
-export async function dismissTaskNotifications(ids: string[]) {
+// Removes notifications from the person's list. Any kind can be dismissed;
+// a dismissed one also counts as read. Reminders that are dismissed aren't
+// sent again for the same due date.
+export async function dismissNotifications(ids: string[]) {
   const context = getTenantContext()!;
   const tenantId = requireTenantId();
+  const now = new Date();
 
-  await Notification.updateMany(
-    {
-      _id: { $in: ids },
-      userId: context.userId,
-      tenantId,
-      type: { $in: REMINDER_TYPES },
-      dismissedAt: null,
-    },
-    { dismissedAt: new Date() },
-  );
+  await Promise.all([
+    Notification.updateMany(
+      {
+        _id: { $in: ids },
+        userId: context.userId,
+        tenantId,
+        readAt: null,
+      },
+      { readAt: now },
+    ),
+    Notification.updateMany(
+      {
+        _id: { $in: ids },
+        userId: context.userId,
+        tenantId,
+        dismissedAt: null,
+      },
+      { dismissedAt: now },
+    ),
+  ]);
 }

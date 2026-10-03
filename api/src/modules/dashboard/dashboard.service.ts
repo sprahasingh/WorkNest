@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 import { Task } from "../../models/Task.js";
 import { Organization } from "../../models/Organization.js";
 import { Project, binnedProjectIds } from "../../models/Project.js";
-import { Membership } from "../../models/Membership.js";
 import { AuditLog } from "../../models/AuditLog.js";
+import { reconcileSeats } from "../invites/invites.service.js";
 import { User } from "../../models/User.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { isValidTimeZone } from "../../lib/timezone.js";
@@ -282,7 +282,6 @@ export async function getDashboard(
   timeZone = "UTC",
 ) {
   const tenantId = requireTenantId();
-  const tenantObjectId = new mongoose.Types.ObjectId(tenantId);
   const tz = isValidTimeZone(timeZone) ? timeZone : "UTC";
   const today = keyToDate(localDayKey(new Date(), tz));
 
@@ -331,7 +330,7 @@ export async function getDashboard(
     topAssigneesRaw,
     overdueCount,
     org,
-    memberCount,
+    seats,
     openByPriority,
     workloadRaw,
     unassignedOpenCount,
@@ -412,9 +411,7 @@ export async function getDashboard(
       dueDate: { $ne: null, $lte: new Date() },
     }),
     Organization.findById(tenantId).setOptions({ skipTenant: true }),
-    Membership.countDocuments({ tenantId: tenantObjectId }).setOptions({
-      skipTenant: true,
-    }),
+    reconcileSeats(tenantId),
     Task.aggregate<StatusCount>([
       { $match: open },
       { $group: { _id: "$priority", count: { $sum: 1 } } },
@@ -643,9 +640,13 @@ export async function getDashboard(
     topAssignees,
     overdueCount,
     usage: {
-      seatsUsed: org?.seatsUsed ?? 0,
+      plan: org?.plan ?? "free",
+      // Recounted from everyone in the org plus invites still waiting.
+      seatsUsed: seats.seatsUsed,
       seatLimit: org?.seatLimit ?? 0,
-      memberCount,
+      memberCount: seats.memberCount,
+      pendingInvites: seats.pendingInvites,
+      roleCounts: seats.roleCounts,
       projectCount: org?.projectCount ?? 0,
       projectLimit: org?.projectLimit ?? 0,
     },

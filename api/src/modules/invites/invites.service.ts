@@ -53,6 +53,82 @@ export async function releaseSeat(
   ).setOptions({ skipTenant: true });
 }
 
+export interface SeatUsage {
+  seatsUsed: number;
+  memberCount: number;
+  pendingInvites: number;
+  roleCounts: { admin: number; manager: number; member: number };
+}
+
+// The stored seat count is a running total that every invite and membership
+// change keeps in step. This recounts it from the source (everyone in the
+// organization plus invites still waiting) and repairs it if it has drifted,
+// so the dashboard and the seat limit always use the real number. It runs in
+// a transaction so its reads are one consistent snapshot and a clash with a
+// simultaneous invite is retried rather than saving a wrong count.
+export async function reconcileSeats(
+  tenantId: string,
+  existingSession?: mongoose.ClientSession,
+): Promise<SeatUsage> {
+  const recount = async (dbSession: mongoose.ClientSession) => {
+    const tenantObjectId = new mongoose.Types.ObjectId(tenantId);
+    // Invites past their date no longer hold a seat; mark them so every
+    // later count agrees.
+    await Invite.updateMany(
+      { tenantId, status: "pending", expiresAt: { $lt: new Date() } },
+      { status: "expired" },
+      { session: dbSession },
+    ).setOptions({ skipTenant: true });
+
+    const org = await Organization.findById(tenantId)
+      .select("seatsUsed")
+      .session(dbSession)
+      .setOptions({ skipTenant: true })
+      .lean();
+    const roles = await Membership.aggregate<{ _id: string; count: number }>([
+      { $match: { tenantId: tenantObjectId } },
+      { $group: { _id: "$role", count: { $sum: 1 } } },
+    ]).session(dbSession);
+    const pendingInvites = await Invite.countDocuments({
+      tenantId,
+      status: "pending",
+    })
+      .session(dbSession)
+      .setOptions({ skipTenant: true });
+
+    const roleCounts = { admin: 0, manager: 0, member: 0 };
+    for (const entry of roles) {
+      if (entry._id in roleCounts) {
+        roleCounts[entry._id as keyof typeof roleCounts] = entry.count;
+      }
+    }
+    const memberCount = roles.reduce((sum, entry) => sum + entry.count, 0);
+    const seatsUsed = memberCount + pendingInvites;
+
+    if (org && org.seatsUsed !== seatsUsed) {
+      await Organization.updateOne(
+        { _id: tenantId },
+        { $set: { seatsUsed } },
+        { session: dbSession },
+      ).setOptions({ skipTenant: true });
+    }
+    return { seatsUsed, memberCount, pendingInvites, roleCounts };
+  };
+
+  if (existingSession) return recount(existingSession);
+
+  const dbSession = await mongoose.startSession();
+  try {
+    let usage: SeatUsage | undefined;
+    await dbSession.withTransaction(async () => {
+      usage = await recount(dbSession);
+    });
+    return usage!;
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
 export async function expireStaleInvites(
   tenantId: string,
   dbSession: mongoose.ClientSession,
@@ -82,7 +158,8 @@ export async function createInvite(input: CreateInviteInput) {
     let invite;
 
     await dbSession.withTransaction(async () => {
-      await expireStaleInvites(tenantId, dbSession);
+      // Check the limit against the real number of seats in use.
+      await reconcileSeats(tenantId, dbSession);
 
       const memberships = (await Membership.find({ tenantId })
         .session(dbSession)

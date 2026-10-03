@@ -6,8 +6,8 @@ export function ProtectedRoute() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p className="text-slate-500">Loading…</p>
+      <div className="flex min-h-dvh items-center justify-center bg-slate-100 dark:bg-slate-950">
+        <p className="text-slate-500 dark:text-slate-400">Loading…</p>
       </div>
     );
   }
