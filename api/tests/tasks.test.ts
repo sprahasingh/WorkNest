@@ -420,6 +420,72 @@ describe("task archive and bin lifecycle", () => {
   });
 });
 
+describe("task view counts", () => {
+  it("counts each tab with the board's filters and skips expired bin items", async () => {
+    const admin = await registerOrg("task-counts@example.com", "Counts Org");
+    const projectId = await createProject(admin.orgId, admin.accessToken, "TC");
+    const auth = { Authorization: `Bearer ${admin.accessToken}` };
+
+    const taskIds: string[] = [];
+    for (const [title, priority] of [
+      ["Open one", "high"],
+      ["Open two", "low"],
+      ["Done kept", "low"],
+      ["Done archived", "low"],
+      ["Binned", "high"],
+    ]) {
+      const res = await request(app)
+        .post(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+        .set(auth)
+        .send({ title, priority });
+      taskIds.push(res.body.task._id as string);
+    }
+    for (const taskId of [taskIds[2], taskIds[3]]) {
+      await request(app)
+        .patch(`/api/orgs/${admin.orgId}/tasks/${taskId}`)
+        .set(auth)
+        .send({ status: "done" });
+    }
+    await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${taskIds[3]}/archive`)
+      .set(auth);
+    await request(app)
+      .delete(`/api/orgs/${admin.orgId}/tasks/${taskIds[4]}`)
+      .set(auth);
+
+    const counts = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks/counts`)
+      .set(auth);
+    expect(counts.status).toBe(200);
+    expect(counts.body.counts).toEqual({
+      active: 2,
+      completed: 1,
+      archived: 1,
+      bin: 1,
+    });
+
+    const highOnly = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks/counts`)
+      .query({ priority: "high" })
+      .set(auth);
+    expect(highOnly.body.counts).toEqual({
+      active: 1,
+      completed: 0,
+      archived: 0,
+      bin: 1,
+    });
+
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(taskIds[4]) },
+      { $set: { deletedAt: new Date(Date.now() - 31 * 86_400_000) } },
+    );
+    const afterExpiry = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks/counts`)
+      .set(auth);
+    expect(afterExpiry.body.counts.bin).toBe(0);
+  });
+});
+
 describe("task pagination", () => {
   it("sorts active tasks by due date by default and paginates null dates", async () => {
     const admin = await registerOrg(
