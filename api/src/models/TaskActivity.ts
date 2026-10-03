@@ -30,6 +30,14 @@ const taskActivitySchema = new Schema(
     // Update requests: who was asked, so the thread can show who has
     // replied and who it's still waiting on.
     askedIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    // false when the message went only to the people mentioned in it. Then
+    // only they and the author can reply. Replies follow their thread.
+    notifyAll: { type: Boolean, default: true },
+    // Questions: the reply the asker marked as the answer.
+    answerId: { type: Schema.Types.ObjectId, default: null },
+    // Update requests: when the requester last nudged the people who
+    // haven't replied, so reminders can't be sent over and over.
+    remindedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
