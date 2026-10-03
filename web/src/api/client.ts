@@ -49,6 +49,11 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
+// The live connection needs the current token each time it (re)connects.
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 export type OrgAccessChange = "lost" | "forbidden";
 let onOrgAccessChange:
   ((orgId: string, change: OrgAccessChange) => void) | null = null;

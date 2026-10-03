@@ -8,6 +8,12 @@ import { getTenantContext, requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
 import { can } from "../../auth/rbac.js";
+import { logger } from "../../lib/logger.js";
+import {
+  cleanupAfterDeparture,
+  validateMeetingChoice,
+  type MeetingChoice,
+} from "../people/departure.service.js";
 import type { Role } from "../../constants/roles.js";
 
 async function guardLastAdmin(
@@ -107,10 +113,19 @@ export async function changeMemberRole(memberId: string, newRole: Role) {
   }
 }
 
-export async function removeMember(memberId: string) {
+export async function removeMember(
+  memberId: string,
+  meetingChoice?: MeetingChoice,
+) {
   const tenantId = requireTenantId();
   const context = getTenantContext()!;
   const dbSession = await mongoose.startSession();
+
+  // Check the hand-over target before anything is changed.
+  const departing = await Membership.findById(memberId).lean();
+  if (departing) {
+    await validateMeetingChoice(String(departing.userId), meetingChoice);
+  }
 
   try {
     await dbSession.withTransaction(async () => {
@@ -179,5 +194,18 @@ export async function removeMember(memberId: string) {
     });
   } finally {
     await dbSession.endSession();
+  }
+
+  // Groups and meetings are tidied up once the removal has gone through. If
+  // this part fails the person is still removed, so it only logs.
+  if (departing) {
+    try {
+      await cleanupAfterDeparture(String(departing.userId), meetingChoice);
+    } catch (error) {
+      logger.error(
+        { error },
+        "Chat and meeting cleanup after a removal failed",
+      );
+    }
   }
 }
