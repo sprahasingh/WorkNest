@@ -12,6 +12,8 @@ export interface Organization {
   projectLimit: number;
   projectCount: number;
   adminCount: number;
+  // Days chat messages are kept; null keeps them for good.
+  chatRetentionDays: number | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -20,6 +22,7 @@ export interface Organization {
 export interface UpdateOrgInput {
   name?: string;
   timeZone?: string;
+  chatRetentionDays?: 90 | 180 | 365 | null;
 }
 
 export async function getOrg(orgId: string): Promise<Organization> {

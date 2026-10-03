@@ -1,16 +1,37 @@
 import { cn } from "@/lib/cn";
 import type { ActivityType, TaskNotificationType } from "./api";
-import type { ProjectNotificationType } from "@/features/notifications/api";
+import type {
+  MeetingNotificationType,
+  ProjectNotificationType,
+} from "@/features/notifications/api";
 import {
   ACTIVITY_BADGE_STYLES,
+  MEETING_NOTIFICATION_BADGE_STYLES,
   PROJECT_NOTIFICATION_BADGE_STYLES,
   TASK_NOTIFICATION_BADGE_STYLES,
 } from "./activityTypes";
 
+const CALENDAR_PATHS = [
+  "M8 2v4",
+  "M16 2v4",
+  "M3 10h18",
+  "M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z",
+];
+
 const ICON_PATHS: Record<
-  ActivityType | TaskNotificationType | ProjectNotificationType | "default",
+  | ActivityType
+  | TaskNotificationType
+  | ProjectNotificationType
+  | MeetingNotificationType
+  | "default",
   string[]
 > = {
+  meeting_invited: CALENDAR_PATHS,
+  meeting_updated: CALENDAR_PATHS,
+  meeting_cancelled: CALENDAR_PATHS,
+  meeting_response: CALENDAR_PATHS,
+  meeting_proposal: CALENDAR_PATHS,
+  meeting_starting: ["M12 8v4l3 2", "M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z"],
   update_request: ["M12 8v4l3 2", "M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z"],
   update: ["M20 6 9 17l-5-5"],
   question: [
@@ -48,7 +69,12 @@ export function ActivityIcon({
   type,
   className,
 }: {
-  type: ActivityType | TaskNotificationType | ProjectNotificationType | null;
+  type:
+    | ActivityType
+    | TaskNotificationType
+    | ProjectNotificationType
+    | MeetingNotificationType
+    | null;
   className?: string;
 }) {
   return (
@@ -63,7 +89,11 @@ export function ActivityIcon({
               ? PROJECT_NOTIFICATION_BADGE_STYLES[
                   type as ProjectNotificationType
                 ]
-              : TASK_NOTIFICATION_BADGE_STYLES[type as TaskNotificationType]
+              : type in MEETING_NOTIFICATION_BADGE_STYLES
+                ? MEETING_NOTIFICATION_BADGE_STYLES[
+                    type as MeetingNotificationType
+                  ]
+                : TASK_NOTIFICATION_BADGE_STYLES[type as TaskNotificationType]
           : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300",
         className,
       )}

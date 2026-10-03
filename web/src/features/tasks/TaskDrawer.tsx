@@ -12,6 +12,8 @@ import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { ActivityConfirmation } from "./ActivityConfirmation";
+import { MeetingFormModal } from "@/features/meetings/MeetingFormModal";
+import { TaskMeetings } from "./TaskMeetings";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import type { Member } from "@/features/members/api";
 import type { CreateTaskInput, Task, TaskView, UpdateTaskInput } from "./api";
@@ -89,7 +91,10 @@ export function TaskDrawer({
   const canUpdateOwn = useCan("task:update:own");
   const canLead = useCan("task:request-update");
   const [formError, setFormError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState<
+    "details" | "activity" | "meetings"
+  >(initialTab);
+  const [schedulingMeeting, setSchedulingMeeting] = useState(false);
   const [confirmingRequest, setConfirmingRequest] = useState(false);
 
   const createTask = useCreateTask(orgId, projectId);
@@ -377,7 +382,7 @@ export function TaskDrawer({
   return (
     <>
       <Modal
-        open={open}
+        open={open && !schedulingMeeting}
         onClose={onClose}
         title={
           isBinned
@@ -399,7 +404,7 @@ export function TaskDrawer({
             role="tablist"
             className="mb-4 flex gap-1 border-b border-slate-200 dark:border-slate-700"
           >
-            {(["details", "activity"] as const).map((tab) => (
+            {(["details", "activity", "meetings"] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -412,7 +417,11 @@ export function TaskDrawer({
                     : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
-                {tab === "details" ? "Details" : "Updates"}
+                {tab === "details"
+                  ? "Details"
+                  : tab === "activity"
+                    ? "Updates"
+                    : "Meetings"}
               </button>
             ))}
           </div>
@@ -780,6 +789,14 @@ export function TaskDrawer({
           </form>
         )}
 
+        {isEditing && !isBinned && task && activeTab === "meetings" && (
+          <TaskMeetings
+            orgId={orgId}
+            taskId={task._id}
+            onSchedule={() => setSchedulingMeeting(true)}
+          />
+        )}
+
         {isEditing && !isBinned && activeTab === "activity" && (
           <ActivityFeed
             orgId={orgId}
@@ -790,6 +807,16 @@ export function TaskDrawer({
           />
         )}
       </Modal>
+      {task && user && (
+        <MeetingFormModal
+          open={open && schedulingMeeting}
+          onClose={() => setSchedulingMeeting(false)}
+          orgId={orgId}
+          myId={user.id}
+          preset={{ projectId: task.projectId, taskId: task._id }}
+          onSaved={() => setSchedulingMeeting(false)}
+        />
+      )}
       <ActivityConfirmation
         open={confirmingRequest}
         title="Send update request?"

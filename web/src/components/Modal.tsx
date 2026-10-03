@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 interface ModalProps {
@@ -9,6 +9,12 @@ interface ModalProps {
   size?: "md" | "lg";
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// Open dialogs, newest last, so Escape only closes the one on top.
+const openModals: string[] = [];
+
 export function Modal({
   open,
   onClose,
@@ -16,18 +22,65 @@ export function Modal({
   children,
   size = "md",
 }: ModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const modalId = useId();
+  // Parents pass a fresh function each render; the latest one is used without
+  // restarting the focus handling below.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  // Focus moves into the dialog, Tab stays inside it, and focus goes back to
+  // what opened it when it closes.
   useEffect(() => {
     if (!open) return;
+    openModals.push(modalId);
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+
+    const focusable = () =>
+      Array.from(dialog?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter(
+        (element) => element.offsetParent !== null,
+      );
+
+    if (dialog && !dialog.contains(document.activeElement)) {
+      (focusable()[0] ?? dialog).focus();
+    }
 
     function handleKeyDown(event: KeyboardEvent) {
+      if (openModals[openModals.length - 1] !== modalId) return;
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (items.length === 0) {
+        event.preventDefault();
+        dialog?.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      const index = openModals.indexOf(modalId);
+      if (index >= 0) openModals.splice(index, 1);
+      if (previous && document.contains(previous)) previous.focus();
+    };
+  }, [open, modalId]);
 
   if (!open) return null;
 
@@ -37,12 +90,14 @@ export function Modal({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          "flex max-h-[90dvh] min-h-0 w-full flex-col rounded-2xl bg-white p-4 shadow-xl sm:p-6 dark:bg-slate-800",
+          "flex max-h-[90dvh] min-h-0 w-full flex-col rounded-2xl bg-white p-4 shadow-xl outline-none sm:p-6 dark:bg-slate-800",
           size === "lg" ? "sm:max-w-2xl" : "sm:max-w-md",
         )}
       >
