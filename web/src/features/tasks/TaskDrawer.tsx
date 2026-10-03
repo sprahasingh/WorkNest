@@ -113,6 +113,15 @@ export function TaskDrawer({
     open && task && !isBinned ? { kind: "task", taskId: task._id } : null,
   );
   const isAssignee = task?.assigneeIds?.includes(userId) ?? false;
+  // Who a new update or question on this task reaches: the other assignees
+  // and whoever created it.
+  const involvedNames = [
+    ...new Set([...(task?.assigneeIds ?? []), task?.createdBy ?? ""]),
+  ]
+    .filter((id) => id && id !== userId)
+    .map((id) => members.find((member) => member.userId.id === id))
+    .filter((member): member is Member => !!member)
+    .map((member) => member.userId.name);
   const canEdit =
     !isEditing ||
     (!isCompleted &&
@@ -777,6 +786,7 @@ export function TaskDrawer({
             scope={{ kind: "task", id: task._id }}
             canLead={canLead}
             canContribute={isAssignee}
+            involvedNames={involvedNames}
           />
         )}
       </Modal>

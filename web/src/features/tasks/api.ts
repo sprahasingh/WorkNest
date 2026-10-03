@@ -50,6 +50,11 @@ export interface TaskActivity {
   task?: { _id: string; title: string } | null;
   // People mentioned here; they can reply even if they aren't assigned.
   mentionIds?: string[];
+  // Replies: the message that started the thread, and the one answered.
+  parentId?: string | null;
+  replyToId?: string | null;
+  // Update requests: who was asked.
+  askedIds?: string[];
 }
 
 export interface CreateTaskInput {
@@ -74,6 +79,8 @@ export interface CreateActivityInput {
   content?: string;
   mentionMemberIds?: string[];
   mentionRoles?: Array<"admin" | "manager" | "member" | "assignee">;
+  // Replies only: the message being answered.
+  replyToId?: string;
 }
 
 export interface ListTasksParams {
@@ -234,6 +241,8 @@ export async function listActivities(
 export interface CreateActivityResult {
   activity: TaskActivity;
   notifiedCount?: number;
+  // Up to three of the people who were told.
+  notifiedNames?: string[];
 }
 
 export async function createActivity(
