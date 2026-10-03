@@ -59,6 +59,16 @@ export const listTasksQuerySchema = z
 
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
 
+export const taskCountsQuerySchema = z
+  .object({
+    priority: z.enum(["low", "medium", "high"]).optional(),
+    assigneeId: z.string().regex(objectIdRegex).optional(),
+    mine: z.enum(["true"]).optional(),
+  })
+  .strict();
+
+export type TaskCountsQuery = z.infer<typeof taskCountsQuerySchema>;
+
 export const ACTIVITY_TYPES = [
   "update_request",
   "update",

@@ -19,11 +19,12 @@ import { PLAN_LIMITS, PLAN_NAMES, type Plan } from "../../constants/plans.js";
 import { projectConsumesSlot, syncProjectSlot } from "../orgs/orgs.service.js";
 import { recordAudit } from "../audit/audit.service.js";
 import type { Role } from "../../constants/roles.js";
-import type {
-  CreateTaskInput,
-  UpdateTaskInput,
-  ListTasksQuery,
-  TaskView,
+import {
+  TASK_VIEWS,
+  type CreateTaskInput,
+  type UpdateTaskInput,
+  type ListTasksQuery,
+  type TaskView,
 } from "./tasks.schemas.js";
 
 async function validateAssignees(
@@ -318,9 +319,64 @@ export async function createTask(
   }
 }
 
-export async function listTasks(projectId: string, query: ListTasksQuery) {
+const VIEW_FILTERS: Record<TaskView, Record<string, unknown>> = {
+  active: { status: { $ne: "done" }, archivedAt: null, deletedAt: null },
+  completed: { status: "done", archivedAt: null, deletedAt: null },
+  archived: { archivedAt: { $ne: null }, deletedAt: null },
+  bin: { deletedAt: { $ne: null } },
+};
+
+type TaskListFilters = Pick<ListTasksQuery, "priority" | "assigneeId" | "mine">;
+
+// The board's filters and who can see what, shared by the lists and the tab
+// counts so they can't disagree. Each view adds its own part on top.
+async function buildTaskFilter(
+  projectId: string,
+  query: TaskListFilters,
+): Promise<Record<string, unknown>> {
   const context = getTenantContext()!;
-  const userId = context.userId;
+  const filter: Record<string, unknown> = { projectId };
+
+  if (query.priority) filter.priority = query.priority;
+  if (query.mine === "true") {
+    filter.assigneeIds = new mongoose.Types.ObjectId(context.userId);
+  } else if (query.assigneeId) {
+    filter.assigneeIds = new mongoose.Types.ObjectId(query.assigneeId);
+  }
+
+  if (context.role === "member") {
+    filter.$and = [await memberVisibilityFilter(context.userId)];
+  }
+  return filter;
+}
+
+// How many tasks each tab holds with the board's current filters applied.
+export async function countTasksByView(
+  projectId: string,
+  query: TaskListFilters,
+): Promise<Record<TaskView, number>> {
+  if (!(await Project.exists({ _id: projectId }))) {
+    throw new AppError(404, "NOT_FOUND", "Project not found");
+  }
+
+  const retentionCutoff = new Date(
+    Date.now() - BIN_RETENTION_DAYS * 86_400_000,
+  );
+  const baseFilter = await buildTaskFilter(projectId, query);
+  const [active, completed, archived, bin] = await Promise.all(
+    TASK_VIEWS.map((view) =>
+      Task.countDocuments({
+        ...baseFilter,
+        ...VIEW_FILTERS[view],
+        // Binned tasks past their 30 days are due to be purged; skip them.
+        ...(view === "bin" && { deletedAt: { $gte: retentionCutoff } }),
+      }).setOptions({ includeDeleted: view === "bin" }),
+    ),
+  );
+  return { active, completed, archived, bin };
+}
+
+export async function listTasks(projectId: string, query: ListTasksQuery) {
   const limit = query.limit ?? 20;
 
   if (!(await Project.exists({ _id: projectId }))) {
@@ -332,27 +388,10 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
   if (view === "bin") {
     await purgeExpiredTasks(requireTenantId());
   }
-  const viewFilters: Record<TaskView, Record<string, unknown>> = {
-    active: { status: { $ne: "done" }, archivedAt: null, deletedAt: null },
-    completed: { status: "done", archivedAt: null, deletedAt: null },
-    archived: { archivedAt: { $ne: null }, deletedAt: null },
-    bin: { deletedAt: { $ne: null } },
-  };
   const filter: Record<string, unknown> = {
-    projectId,
-    ...viewFilters[view],
+    ...(await buildTaskFilter(projectId, query)),
+    ...VIEW_FILTERS[view],
   };
-
-  if (query.priority) filter.priority = query.priority;
-  if (query.mine === "true") {
-    filter.assigneeIds = new mongoose.Types.ObjectId(userId);
-  } else if (query.assigneeId) {
-    filter.assigneeIds = new mongoose.Types.ObjectId(query.assigneeId);
-  }
-
-  if (context.role === "member") {
-    filter.$and = [await memberVisibilityFilter(userId)];
-  }
   if (query.status) {
     const existingAnd = Array.isArray(filter.$and)
       ? (filter.$and as Record<string, unknown>[])
