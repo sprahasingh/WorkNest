@@ -6,6 +6,7 @@ import { useTheme } from "@/theme/theme-context";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import { useDashboard } from "./queries";
+import { ScopeTag, type Scope } from "./ChartCard";
 import { STATUS_KEYS, projectStage, type StatusKey } from "./chartStyles";
 import {
   OpenByPriorityCard,
@@ -132,23 +133,11 @@ function periodChange(
   };
 }
 
-function trendTitle(range: DashboardRange, trend: DashboardTrend): string {
-  if (typeof range === "number")
-    return `Created vs completed, last ${range} days`;
-  if (typeof range === "object") {
-    const sameYear = trend.since.slice(0, 4) === trend.until.slice(0, 4);
-    const from = formatUtcDate(
-      trend.since,
-      sameYear ? { month: "short", day: "numeric" } : FULL_DATE,
-    );
-    return trend.since === trend.until
-      ? `Created vs completed on ${formatUtcDate(trend.since, FULL_DATE)}`
-      : `Created vs completed, ${from} to ${formatUtcDate(trend.until, FULL_DATE)}`;
-  }
-  const per = { day: "per day", week: "per week", month: "per month" }[
-    trend.granularity
-  ];
-  return `Created vs completed ${per}, since ${formatUtcDate(trend.since, FULL_DATE)}`;
+// The dates sit in the card's scope tag, so the title only says what the
+// points are when they're grouped by week or month.
+function flowTitle(trend: DashboardTrend): string {
+  if (trend.granularity === "day") return "Created vs completed";
+  return `Created vs completed per ${trend.granularity}`;
 }
 
 export function DashboardPage() {
@@ -255,10 +244,8 @@ export function DashboardPage() {
     created: point.count,
     completed: data.statusHistory[index]?.done ?? 0,
   }));
-  const rangeShort =
-    days === "all"
-      ? "all time"
-      : `${typeof days === "number" ? days : rangeLength(data.trend)}d`;
+  // Shown in the scope tag of everything that follows the date range.
+  const period = capitalize(rangePhrase(days, data.trend));
   const per = PERIOD_WORDS[data.trend.granularity].per;
   const isUpdating = isPlaceholderData;
 
@@ -324,6 +311,13 @@ export function DashboardPage() {
           </div>
         </div>
 
+        <p className="-mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+          <ScopeTag scope={{ now: true }} />
+          <span>is how things stand right now.</span>
+          <ScopeTag scope={{ period }} />
+          <span>follows the date range you pick.</span>
+        </p>
+
         {customDraft && (
           <CustomRangePicker
             draft={customDraft}
@@ -355,21 +349,25 @@ export function DashboardPage() {
               <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
                 <StatCard
                   label="Open tasks"
+                  scope={{ now: true }}
                   value={statusCounts.todo + statusCounts.in_progress}
                   sub={`${statusCounts.in_progress} in progress`}
                 />
                 <StatCard
-                  label={`Completed (${rangeShort})`}
+                  label="Completed"
+                  scope={{ period }}
                   value={data.completed.total}
                   sub={completedChange?.text}
                 />
                 <StatCard
-                  label={`Created (${rangeShort})`}
+                  label="Created"
+                  scope={{ period }}
                   value={data.trend.total}
                   sub={change?.text}
                 />
                 <StatCard
                   label="Overdue"
+                  scope={{ now: true }}
                   value={data.overdueCount}
                   warning={
                     data.overdueCount > 0 ? "Needs attention" : undefined
@@ -385,6 +383,7 @@ export function DashboardPage() {
               <StatusHistoryCard
                 rows={statusHistoryRows}
                 granularity={data.trend.granularity}
+                period={period}
                 isDark={isDark}
               />
 
@@ -392,7 +391,11 @@ export function DashboardPage() {
               judged by the space the dashboard actually has (the sidebar
               takes some on tablets), so both always switch together. */}
               <div className="grid gap-4 @2xl:grid-cols-2">
-                <StatusDonutCard counts={statusCounts} isDark={isDark} />
+                <StatusDonutCard
+                  counts={{ ...statusCounts, done: data.completed.total }}
+                  period={period}
+                  isDark={isDark}
+                />
                 <OpenByPriorityCard
                   counts={data.openByPriority}
                   dueSoon={data.dueSoonCount}
@@ -401,7 +404,8 @@ export function DashboardPage() {
               </div>
 
               <CreatedVsCompletedCard
-                title={trendTitle(days, data.trend)}
+                title={flowTitle(data.trend)}
+                period={period}
                 rows={flowRows}
                 created={{ total: data.trend.total, change }}
                 completed={{
@@ -432,7 +436,7 @@ export function DashboardPage() {
             <ProjectsOverview
               orgId={orgId}
               data={data}
-              rangeText={rangePhrase(days, data.trend)}
+              period={period}
               isDark={isDark}
             />
           )}
@@ -495,6 +499,10 @@ function ViewSwitch({
   );
 }
 
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 // "last 14 days", "all time", "Sep 1 to Sep 20, 2026".
 function rangePhrase(range: DashboardRange, trend: DashboardTrend): string {
   if (typeof range === "number") return `last ${range} days`;
@@ -509,17 +517,21 @@ function rangePhrase(range: DashboardRange, trend: DashboardTrend): string {
 function ProjectsOverview({
   orgId,
   data,
-  rangeText,
+  period,
   isDark,
 }: {
   orgId: string;
   data: DashboardData;
-  rangeText: string;
+  // The date range picked, e.g. "Last 14 days".
+  period: string;
   isDark: boolean;
 }) {
   const projects = data.projectProgress;
   const stageCount = (stage: ReturnType<typeof projectStage>) =>
     projects.filter((project) => projectStage(project) === stage).length;
+  const finishedInPeriod = projects.filter(
+    (project) => project.finishedInRange,
+  ).length;
   const needAttention = projects.filter((project) => project.overdue > 0);
   const overdueTasks = needAttention.reduce(
     (sum, project) => sum + project.overdue,
@@ -531,21 +543,25 @@ function ProjectsOverview({
       <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
         <StatCard
           label="Active projects"
+          scope={{ now: true }}
           value={projects.length}
           sub={`${data.usage.projectCount} of ${data.usage.projectLimit} plan slots used`}
         />
         <StatCard
           label="In progress"
+          scope={{ now: true }}
           value={stageCount("inProgress")}
           sub={`${stageCount("notStarted")} not started yet`}
         />
         <StatCard
           label="Completed"
-          value={stageCount("completed")}
-          sub="Every task done"
+          scope={{ period }}
+          value={finishedInPeriod}
+          sub="Last task finished in this period"
         />
         <StatCard
           label="Need attention"
+          scope={{ now: true }}
           value={needAttention.length}
           warning={
             needAttention.length > 0
@@ -564,6 +580,7 @@ function ProjectsOverview({
         <ProjectStageCard
           projects={projects}
           archivedCount={data.archivedProjectCount}
+          period={period}
           isDark={isDark}
         />
         <OpenWorkByProjectCard projects={projects} isDark={isDark} />
@@ -571,7 +588,7 @@ function ProjectsOverview({
 
       <ProjectActivityCard
         projects={projects}
-        title={`Created and marked done, ${rangeText}`}
+        period={period}
         isDark={isDark}
       />
 
@@ -582,11 +599,13 @@ function ProjectsOverview({
 
 function StatCard({
   label,
+  scope,
   value,
   sub,
   warning,
 }: {
   label: string;
+  scope: Scope;
   value: string | number;
   sub?: string;
   // A short status note, shown with an icon so it isn't color alone.
@@ -594,9 +613,12 @@ function StatCard({
 }) {
   return (
     <Card className="p-4">
-      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-        {label}
-      </p>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+          {label}
+        </p>
+        <ScopeTag scope={scope} />
+      </div>
       <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">
         {value}
       </p>
