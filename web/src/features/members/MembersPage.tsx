@@ -7,6 +7,13 @@ import { useAuth } from "@/auth/auth-context";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { MeetingHandover } from "./MeetingHandover";
+import {
+  DEFAULT_MEETING_CHOICE,
+  isMeetingChoiceReady,
+  toMeetingChoice,
+  type MeetingChoiceState,
+} from "./meetingChoice";
 import { parseApiError } from "@/lib/apiError";
 import type { Role } from "@/api/auth";
 import type { Member } from "./api";
@@ -38,6 +45,13 @@ export function MembersPage() {
   const canManage = useCan("member:manage");
 
   const [removeTarget, setRemoveTarget] = useState<RemoveTarget | null>(null);
+  const [meetingChoice, setMeetingChoice] = useState<MeetingChoiceState>(
+    DEFAULT_MEETING_CHOICE,
+  );
+  const openRemove = (target: RemoveTarget) => {
+    setMeetingChoice(DEFAULT_MEETING_CHOICE);
+    setRemoveTarget(target);
+  };
 
   const { data: members, isPending, isError } = useMembers(orgId);
   const changeRole = useChangeMemberRole(orgId);
@@ -64,7 +78,10 @@ export function MembersPage() {
     const { member, isSelf } = removeTarget;
 
     try {
-      await removeMemberMutation.mutateAsync(member._id);
+      await removeMemberMutation.mutateAsync({
+        memberId: member._id,
+        meetings: toMeetingChoice(meetingChoice),
+      });
       setRemoveTarget(null);
 
       if (isSelf) {
@@ -147,7 +164,7 @@ export function MembersPage() {
                       {(isSelf || canManage) && (
                         <button
                           type="button"
-                          onClick={() => setRemoveTarget({ member, isSelf })}
+                          onClick={() => openRemove({ member, isSelf })}
                           className={
                             isSelf
                               ? "shrink-0 text-sm font-medium text-slate-600 hover:underline dark:text-slate-300"
@@ -209,9 +226,7 @@ export function MembersPage() {
                           {(isSelf || canManage) && (
                             <button
                               type="button"
-                              onClick={() =>
-                                setRemoveTarget({ member, isSelf })
-                              }
+                              onClick={() => openRemove({ member, isSelf })}
                               className={
                                 isSelf
                                   ? "text-sm font-medium text-slate-600 hover:underline dark:text-slate-300"
@@ -246,6 +261,17 @@ export function MembersPage() {
             ? "You'll lose access to this organization immediately and be unassigned from its tasks. Your account and other organizations stay as they are. You can rejoin if someone invites you again."
             : `${removeTarget?.member.userId.name} will lose access to this organization immediately and be unassigned from its tasks. Their WorkNest account and other organizations aren't affected, and you can invite them back later.`}
         </p>
+        {removeTarget && (
+          <MeetingHandover
+            orgId={orgId}
+            memberId={removeTarget.member._id}
+            departingUserId={removeTarget.member.userId.id}
+            isSelf={removeTarget.isSelf}
+            name={removeTarget.member.userId.name}
+            value={meetingChoice}
+            onChange={setMeetingChoice}
+          />
+        )}
         <div className="mt-4 flex justify-end gap-3">
           <Button
             type="button"
@@ -259,6 +285,7 @@ export function MembersPage() {
             variant="danger"
             onClick={() => void handleRemoveConfirm()}
             loading={removeMemberMutation.isPending}
+            disabled={!isMeetingChoiceReady(meetingChoice)}
           >
             {removeTarget?.isSelf ? "Leave" : "Remove"}
           </Button>

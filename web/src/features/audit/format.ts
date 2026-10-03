@@ -14,6 +14,7 @@ const FIELD_LABELS: Record<string, string> = {
   assigneeId: "assignee",
   dueDate: "due date",
   timeZone: "time zone",
+  chatRetentionDays: "how long chat messages are kept",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -54,7 +55,7 @@ function formatFieldValue(
     value === "" ||
     (Array.isArray(value) && value.length === 0)
   ) {
-    return "none";
+    return field === "chatRetentionDays" ? "forever" : "none";
   }
   if (field === "assigneeIds" || field === "assigneeId") {
     const ids = Array.isArray(value) ? value : [value];
@@ -70,6 +71,9 @@ function formatFieldValue(
   }
   if (field === "status") {
     return STATUS_LABELS[String(value)] ?? String(value);
+  }
+  if (field === "chatRetentionDays") {
+    return `${value} days`;
   }
   if (typeof value === "object") {
     return JSON.stringify(value);

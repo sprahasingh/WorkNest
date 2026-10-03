@@ -18,6 +18,8 @@ import { ProjectsPage } from "@/features/projects/ProjectsPage";
 import { ProjectBoard } from "@/features/tasks/ProjectBoard";
 import { MembersPage } from "@/features/members/MembersPage";
 import { AuditPage } from "@/features/audit/AuditPage";
+import { MessagesPage } from "@/features/chat/MessagesPage";
+import { MeetingsPage } from "@/features/meetings/MeetingsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { NotFound } from "@/pages/NotFound";
 import { ServerWakeScreen } from "@/components/ServerWakeScreen";
@@ -48,6 +50,11 @@ export function AppRoutes() {
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="projects/:projectId" element={<ProjectBoard />} />
               <Route path="members" element={<MembersPage />} />
+              <Route
+                path="messages/:conversationId?"
+                element={<MessagesPage />}
+              />
+              <Route path="meetings" element={<MeetingsPage />} />
               <Route path="audit" element={<AuditPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>

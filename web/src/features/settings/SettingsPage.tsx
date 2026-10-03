@@ -25,6 +25,7 @@ import {
   type Plan,
 } from "@/api/auth";
 import { cn } from "@/lib/cn";
+import { ChatRetentionCard } from "./ChatRetentionCard";
 import { LeaveOrganizationCard } from "./LeaveOrganizationCard";
 import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 import {
@@ -997,6 +998,8 @@ export function SettingsPage() {
             {isLoggingOut ? "Logging out…" : "Log out"}
           </Button>
         </Card>
+
+        {org && canUpdateOrg && <ChatRetentionCard orgId={orgId} org={org} />}
 
         {org && <LeaveOrganizationCard orgId={orgId} orgName={org.name} />}
 

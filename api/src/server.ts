@@ -15,6 +15,9 @@ import { logger } from "./lib/logger.js";
 import { purgeExpiredProjects } from "./modules/projects/projects.service.js";
 import { purgeExpiredTasks } from "./modules/tasks/tasks.service.js";
 import { ensureDueNotificationsForAllUsers } from "./modules/notifications/notifications.service.js";
+import { sendMeetingReminders } from "./modules/meetings/meetings.service.js";
+import { purgeExpiredChatMessages } from "./modules/chat/chatRetention.service.js";
+import { startRealtime } from "./realtime/hub.js";
 import mongoose from "mongoose";
 import { PendingRegistration } from "./models/PendingRegistration.js";
 
@@ -53,10 +56,27 @@ async function main(): Promise<void> {
   // background sweep only needs to run every few minutes.
   setInterval(sweepTaskReminders, 10 * 60 * 1000).unref();
 
+  const sweepMeetingReminders = () => {
+    void sendMeetingReminders().catch((error: unknown) =>
+      logger.error({ error }, "Meeting reminder sweep failed"),
+    );
+  };
+  sweepMeetingReminders();
+  setInterval(sweepMeetingReminders, 60 * 1000).unref();
+
+  const sweepOldChat = () => {
+    void purgeExpiredChatMessages().catch((error: unknown) =>
+      logger.error({ error }, "Chat retention sweep failed"),
+    );
+  };
+  sweepOldChat();
+  setInterval(sweepOldChat, 60 * 60 * 1000).unref();
+
   const app = createApp();
   const server = app.listen(env.PORT, () => {
     logger.info({ port: env.PORT }, "Server started");
   });
+  startRealtime(server);
 
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, "Shutting down");
