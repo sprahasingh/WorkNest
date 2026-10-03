@@ -299,8 +299,15 @@ apiClient.interceptors.response.use(
       originalRequest.headers.set("Authorization", `Bearer ${newAccessToken}`);
       return apiClient(originalRequest);
     } catch (refreshError) {
-      setAccessToken(null);
-      onAuthFailure?.();
+      // Only a rejected session means signed out. A timeout or server error
+      // just fails this request; the next one tries refreshing again.
+      if (
+        axios.isAxiosError(refreshError) &&
+        refreshError.response?.status === 401
+      ) {
+        setAccessToken(null);
+        onAuthFailure?.();
+      }
       return Promise.reject(refreshError);
     }
   },
