@@ -11,6 +11,7 @@ import { useUnreadCount } from "@/features/notifications/queries";
 import { useMyInvites } from "@/features/invites/myInvites";
 import { NotificationsPanel } from "@/features/notifications/NotificationsPanel";
 import { HelpLinks } from "@/components/HelpLinks";
+import { BrandLink } from "@/components/BrandLink";
 import { ChatRealtimeProvider } from "@/features/chat/ChatRealtimeProvider";
 import { useChatUnreadCount } from "@/features/chat/queries";
 import { useMeetingSummary } from "@/features/meetings/queries";
@@ -78,6 +79,7 @@ function WorkspaceSwitcher() {
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
+        title={orgName}
         className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
       >
         <span
@@ -224,13 +226,8 @@ function NotificationButton({
 
 function BrandMark() {
   return (
-    <div className="flex flex-1 items-center gap-2">
-      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-teal-600 text-xs font-bold text-white">
-        W
-      </span>
-      <span className="font-semibold text-slate-800 dark:text-slate-100">
-        WorkNest
-      </span>
+    <div className="flex flex-1 items-center">
+      <BrandLink size="app" />
     </div>
   );
 }

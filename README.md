@@ -1,11 +1,28 @@
 # WorkNest
 
-WorkNest is a multi-tenant project and task manager. Teams sign up as organizations, invite people with roles, and track work in projects and tasks, with limits that depend on the plan they're on. Tenant isolation is handled in one central place, so no query has to remember to filter by `tenantId` on its own.
+WorkNest is a multi-tenant workspace for projects, tasks, chat and meetings. Teams sign up as organizations, invite people with roles, track work in projects and tasks, talk in private chats and schedule meetings, with limits that depend on the plan they're on. Tenant isolation is handled in one central place, so no query has to remember to filter by `tenantId` on its own.
+
+## Screenshots
+
+These come from a demo organization, not real data. They have light and dark versions in `web/src/assets/screens`.
+
+| Dashboard                                                     | Task board                                                       |
+| ------------------------------------------------------------- | ---------------------------------------------------------------- |
+| ![The dashboard](web/src/assets/screens/dashboard-light.webp) | ![A project board](web/src/assets/screens/board-light.webp)      |
+| **Messages**                                                  | **Meetings**                                                     |
+| ![A group chat](web/src/assets/screens/messages-light.webp)   | ![The meetings page](web/src/assets/screens/meetings-light.webp) |
+
+<p>
+  <img src="web/src/assets/screens/m-messages-light.webp" alt="Messages on a phone" width="180">
+  <img src="web/src/assets/screens/m-meetings-light.webp" alt="Meetings on a phone" width="180">
+  <img src="web/src/assets/screens/m-board-light.webp" alt="A board on a phone" width="180">
+</p>
 
 ## Table of Contents
 
 |     | Section                                 |
 | --- | --------------------------------------- |
+| 00  | [Screenshots](#screenshots)             |
 | 01  | [Why I Built This](#why-i-built-this)   |
 | 02  | [Tech Stack](#tech-stack)               |
 | 03  | [Architecture](#architecture)           |
@@ -20,6 +37,7 @@ WorkNest is a multi-tenant project and task manager. Teams sign up as organizati
 | 12  | [Seed Demo Data](#seed-demo-data)       |
 | 13  | [Testing](#testing)                     |
 | 14  | [Project Structure](#project-structure) |
+| 15  | [Known Limitations](#known-limitations) |
 
 ## Why I Built This
 
@@ -111,7 +129,7 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 - **Meetings:** schedule a meeting with a time, agenda, location, a join link (paste one, or create a free Jitsi room) and the people you want there. Only the organizer and the people invited can see it. Meetings can repeat daily, weekly or monthly, and can be linked to a project or a task (the task's Meetings tab and the project's Meetings button show them). Invitees reply Going, Maybe or Can't go, or suggest another time, which the organizer can accept or turn down. People are notified when a meeting is created, changed or cancelled, and get a reminder 15 minutes before it starts. Moving the time asks everyone to reply again. There's an upcoming and past list, a month calendar, a warning when you double-book yourself, "Meet now" for an instant call, and an "Add to calendar" download.
 - **When someone leaves:** if a member is removed or leaves an org, they're taken out of its group chats and meeting invites. If they organize upcoming meetings, the admin removing them (or they, when leaving) picks between cancelling those meetings and handing them to someone who stays. One to one chats stay for the other person but can't be continued.
 - **Audit log:** every change to orgs, members, invites, projects, tasks and plans is written in the same transaction as the change, so an action that rolls back never leaves an entry behind. The UI shows plain-language rows with filters.
-- **Around the app:** light and dark themes, a first-run tour, a "How to use" guide with the full permission table, a mobile-friendly landing page menu, and a "Send feedback" link that opens an email.
+- **Around the app:** light and dark themes, a first-run tour, a "How to use" guide with screenshots and the full permission table, a landing page with a product tour, and a "Send feedback" link that opens an email. The WorkNest logo on every page leads to the landing page, which then offers "Go to your workspace" straight back to the organization you were last in. Each page sets its own tab title, new pages open at the top, and everything works on phones.
 
 ## Plans
 
@@ -239,8 +257,9 @@ api/
   src/
     tenancy/        AsyncLocalStorage context, the isolation plugin, tenant resolution middleware
     auth/           authentication middleware, RBAC, ownership checks
-    modules/        one folder per area (auth, orgs, members, invites, projects, tasks, notifications, audit, dashboard, chat, meetings)
+    modules/        one folder per area (auth, orgs, members, invites, projects, tasks, notifications, audit, dashboard, chat, meetings, people)
     realtime/       the Socket.IO server (live messages, typing, who's online)
+    lib/            small helpers (email, tokens, Cloudinary, timezones)
     models/         one Mongoose schema per collection
     db/             database connection and startup migrations
   tests/            Vitest and Supertest, against mongodb-memory-server
@@ -248,10 +267,19 @@ web/
   src/
     auth/           AuthProvider, route guards
     features/       one folder per area, each with its own api, queries and components
-    components/     shared UI (layout, modal, help links, error boundary)
+    components/     shared UI (layout, modal, logo link, error boundary) and the landing page pieces in marketing/
+    assets/screens/ the product screenshots used on the landing page, the guide and this README
     pages/          landing, login, register, invite, organizations and the how-to-use guide
     hooks/          useCan (permission checks), useOrg (current org)
 ```
+
+## Known Limitations
+
+These are deliberate trade-offs for a project of this size, not bugs.
+
+- **Single-instance Socket.IO:** online presence and live delivery rely on in-memory state in one server process. That's fine on a single instance. To scale out horizontally, I'd add Redis and the Socket.IO Redis adapter, and keep presence in Redis.
+- **Recurring meetings:** editing all upcoming dates of a repeating meeting across a daylight-saving change is a known edge case. The time shift is a fixed offset, with no special handling for the clock change, so a date after it can end up an hour off.
+- **Message search:** search uses application-level text matching over the chats you're in. At larger message volumes, MongoDB text indexes or Atlas Search would be the right tool.
 
 ## Author
 
