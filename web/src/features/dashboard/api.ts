@@ -43,6 +43,37 @@ export interface DashboardTrend {
   previousTotal: number | null;
 }
 
+// One point on the trend: tasks waiting in To do and In progress at its
+// end, and how many were marked done during it.
+export interface StatusPoint {
+  date: string;
+  todo: number;
+  in_progress: number;
+  done: number;
+}
+
+export interface WorkloadEntry {
+  userId: string;
+  name: string;
+  todo: number;
+  inProgress: number;
+}
+
+export interface ProjectProgress {
+  projectId: string;
+  name: string;
+  key: string;
+  total: number;
+  todo: number;
+  inProgress: number;
+  done: number;
+  open: number;
+  overdue: number;
+  // Tasks created and marked done in the chosen range.
+  createdInRange: number;
+  completedInRange: number;
+}
+
 export interface DashboardData {
   tasksByStatus: StatusCount[];
   tasksByPriority: StatusCount[];
@@ -50,6 +81,21 @@ export interface DashboardData {
   // first day.
   tasksCreatedPerDay: DailyCount[];
   trend: DashboardTrend;
+  // Same points as tasksCreatedPerDay.
+  statusHistory: StatusPoint[];
+  // Times tasks were marked done in the range, and in the equally long
+  // period before (null for all time).
+  completed: { total: number; previousTotal: number | null };
+  // Tasks not done yet, by priority.
+  openByPriority: StatusCount[];
+  // People with open work, busiest first.
+  workload: WorkloadEntry[];
+  unassignedOpenCount: number;
+  // Active projects, most open work first.
+  projectProgress: ProjectProgress[];
+  archivedProjectCount: number;
+  // Open tasks due in the next 7 days (not counting overdue ones).
+  dueSoonCount: number;
   topAssignees: TopAssignee[];
   overdueCount: number;
   usage: DashboardUsage;

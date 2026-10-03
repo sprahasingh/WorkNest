@@ -3,6 +3,7 @@ import request from "supertest";
 import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { Task } from "../src/models/Task.js";
+import { AuditLog } from "../src/models/AuditLog.js";
 import { registerAndVerify } from "./emailDeliveryMock.js";
 
 const app = createApp();
@@ -388,5 +389,90 @@ describe("cross-tenant dashboard isolation", () => {
     );
     expect(totalA).toBe(1);
     expect(dashA.body.usage.projectCount).toBe(1);
+  });
+});
+
+describe("dashboard status history and workload", () => {
+  it("rebuilds open tasks per day and counts tasks marked done each day", async () => {
+    const org = await registerOrg("dash-history@example.com", "History Org");
+    const projectId = await createProject(org.orgId, org.accessToken, "HS");
+    const auth = { Authorization: `Bearer ${org.accessToken}` };
+    const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
+
+    const taskA = await createTask(org.orgId, projectId, org.accessToken, {
+      assigneeIds: [org.userId],
+    });
+    const taskB = await createTask(org.orgId, projectId, org.accessToken);
+    await createTask(org.orgId, projectId, org.accessToken, {
+      priority: "high",
+      dueDate: daysAgo(-3).toISOString(),
+    });
+    await Task.collection.updateMany(
+      { projectId: new mongoose.Types.ObjectId(projectId) },
+      { $set: { createdAt: daysAgo(5) } },
+    );
+
+    // A: started three days ago, finished yesterday. B: finished today.
+    await updateTask(org.orgId, taskA, org.accessToken, {
+      status: "in_progress",
+    });
+    await updateTask(org.orgId, taskA, org.accessToken, { status: "done" });
+    await updateTask(org.orgId, taskB, org.accessToken, { status: "done" });
+    const changesA = await AuditLog.find({
+      action: "task.updated",
+      entityId: new mongoose.Types.ObjectId(taskA),
+    }).sort({ createdAt: 1, _id: 1 });
+    await AuditLog.collection.updateOne(
+      { _id: changesA[0]._id },
+      { $set: { createdAt: daysAgo(3) } },
+    );
+    await AuditLog.collection.updateOne(
+      { _id: changesA[1]._id },
+      { $set: { createdAt: daysAgo(1) } },
+    );
+
+    const res = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: 7, tz: "UTC" })
+      .set(auth);
+    expect(res.status).toBe(200);
+    const history = res.body.statusHistory as Array<{
+      todo: number;
+      in_progress: number;
+      done: number;
+    }>;
+    expect(history).toHaveLength(7);
+    const counts = history.map((point) => [
+      point.todo,
+      point.in_progress,
+      point.done,
+    ]);
+    // [to do, in progress] at the end of each day, then marked done that day.
+    expect(counts).toEqual([
+      [0, 0, 0],
+      [3, 0, 0],
+      [3, 0, 0],
+      [2, 1, 0],
+      [2, 1, 0],
+      [2, 0, 1],
+      [1, 0, 1],
+    ]);
+
+    expect(res.body.completed.total).toBe(2);
+    expect(res.body.completed.previousTotal).toBe(0);
+    expect(res.body.dueSoonCount).toBe(1);
+    expect(res.body.unassignedOpenCount).toBe(1);
+    expect(res.body.openByPriority).toEqual([{ _id: "high", count: 1 }]);
+    expect(res.body.projectProgress[0]).toMatchObject({
+      projectId,
+      total: 3,
+      todo: 1,
+      inProgress: 0,
+      done: 2,
+      open: 1,
+      createdInRange: 3,
+      completedInRange: 2,
+    });
+    expect(res.body.archivedProjectCount).toBe(0);
   });
 });
