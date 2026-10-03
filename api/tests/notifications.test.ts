@@ -143,6 +143,52 @@ describe("task notifications", () => {
     ]);
   });
 
+  it("lets people dismiss any of their own notifications, and only their own", async () => {
+    const admin = await registerOrg(
+      "dismiss-any-admin@example.com",
+      "Dismiss Any Org",
+    );
+    const member = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "dismiss-any-member@example.com",
+    );
+    const projectId = await createProject(admin.orgId, admin.accessToken, "DA");
+    await createTask(admin.orgId, projectId, admin.accessToken, {
+      assigneeIds: [member.userId],
+    });
+    const before = await getUnread(admin.orgId, member.accessToken);
+    const notificationId = before.body.notifications[0]._id as string;
+    expect(before.body.notifications[0].type).toBe("task_assigned");
+
+    // Someone else can't dismiss it.
+    await request(app)
+      .patch(`/api/orgs/${admin.orgId}/notifications/dismiss`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ ids: [notificationId] });
+    const stillThere = await getUnread(admin.orgId, member.accessToken);
+    expect(stillThere.body.unreadCount).toBe(1);
+
+    const dismissed = await request(app)
+      .patch(`/api/orgs/${admin.orgId}/notifications/dismiss`)
+      .set("Authorization", `Bearer ${member.accessToken}`)
+      .send({ ids: [notificationId] });
+    expect(dismissed.status).toBeLessThan(300);
+
+    const unread = await getUnread(admin.orgId, member.accessToken);
+    expect(unread.body.unreadCount).toBe(0);
+    expect(unread.body.notifications).toHaveLength(0);
+    const all = await request(app)
+      .get(`/api/orgs/${admin.orgId}/notifications`)
+      .query({ status: "all" })
+      .set("Authorization", `Bearer ${member.accessToken}`);
+    expect(
+      all.body.notifications.some(
+        (item: { _id: string }) => item._id === notificationId,
+      ),
+    ).toBe(false);
+  });
+
   it("replaces the 48-hour reminder with a due-today reminder at local midnight", async () => {
     const admin = await registerOrg("reminders@example.com", "Reminder Org");
     const projectId = await createProject(admin.orgId, admin.accessToken, "RM");

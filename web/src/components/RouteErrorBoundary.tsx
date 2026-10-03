@@ -21,9 +21,9 @@ export class RouteErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-100">
+        <div className="flex min-h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
           <div className="text-center">
-            <p className="text-lg font-medium text-slate-800">
+            <p className="text-lg font-medium text-slate-800 dark:text-slate-100">
               Something went wrong. Please refresh the page and try again.
             </p>
             <button

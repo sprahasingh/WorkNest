@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { HelpLinks } from "@/components/HelpLinks";
 import { useAuth } from "@/auth/auth-context";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
+import { readSignedInHint } from "@/lib/sessionHint";
 import { parseApiError } from "@/lib/apiError";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -351,10 +352,18 @@ function LandingMenu({
 
 export function Landing() {
   const auth = useAuth();
-  const isAuthenticated = auth.status === "authenticated";
+  // While the session check runs, someone who was signed in on this device
+  // sees the signed-in buttons at once instead of Log in and Register.
+  const [rememberedWorkspace] = useState(readSignedInHint);
+  const isAuthenticated =
+    auth.status === "authenticated" ||
+    (auth.status === "loading" && rememberedWorkspace !== null);
   const user = auth.status === "authenticated" ? auth.user : null;
   const isLoggingOut = auth.isLoggingOut;
-  const workspacePath = resolvePostAuthPath(auth.memberships ?? []);
+  const workspacePath =
+    auth.status === "authenticated"
+      ? resolvePostAuthPath(auth.memberships ?? [])
+      : (rememberedWorkspace ?? "/login");
   const [menuOpen, setMenuOpen] = useState(false);
 
   const handleLogout = async () => {
