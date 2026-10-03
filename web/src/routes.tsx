@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router";
+import { Navigate, Route, Routes } from "react-router";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
 import { GuestRoute } from "@/auth/GuestRoute";
 import { OrgRoute } from "@/auth/OrgRoute";
@@ -21,25 +20,12 @@ import { MembersPage } from "@/features/members/MembersPage";
 import { AuditPage } from "@/features/audit/AuditPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { NotFound } from "@/pages/NotFound";
-import { subscribeServerWakeChange } from "@/api/client";
+import { ServerWakeScreen } from "@/components/ServerWakeScreen";
 
 export function AppRoutes() {
-  const location = useLocation();
-  const [isWakingServer, setIsWakingServer] = useState(false);
-
-  useEffect(() => subscribeServerWakeChange(setIsWakingServer), []);
-
   return (
     <>
-      {isWakingServer && location.pathname !== "/login" && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm font-medium text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
-        >
-          Waking up the server…
-        </div>
-      )}
+      <ServerWakeScreen />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/how-to-use" element={<HowToUse />} />

@@ -11,10 +11,7 @@ import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
-import {
-  ServerWakeTimeoutError,
-  subscribeServerWakeChange,
-} from "@/api/client";
+import { ServerWakeTimeoutError } from "@/api/client";
 
 const loginFormSchema = z.object({
   identifier: z
@@ -36,13 +33,10 @@ export function Login() {
   const location = useLocation();
   const nextPath = safeNextPath(location.search);
   const [formError, setFormError] = useState<string | null>(null);
-  const [isWakingServer, setIsWakingServer] = useState(false);
   const requestController = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeServerWakeChange(setIsWakingServer);
     return () => {
-      unsubscribe();
       requestController.current?.abort();
     };
   }, []);
@@ -167,11 +161,7 @@ export function Login() {
           loading={isSubmitting}
           className="w-full"
         >
-          {isWakingServer
-            ? "Waking up the server…"
-            : isSubmitting
-              ? "Logging in…"
-              : "Log in"}
+          {isSubmitting ? "Logging in…" : "Log in"}
         </Button>
 
         <p className="text-center text-sm text-slate-600 dark:text-slate-400">
