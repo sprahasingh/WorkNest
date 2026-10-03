@@ -418,10 +418,13 @@ describe("dashboard status history and workload", () => {
     });
     await updateTask(org.orgId, taskA, org.accessToken, { status: "done" });
     await updateTask(org.orgId, taskB, org.accessToken, { status: "done" });
+    // Read outside a request, so there's no org to scope the query to.
     const changesA = await AuditLog.find({
       action: "task.updated",
       entityId: new mongoose.Types.ObjectId(taskA),
-    }).sort({ createdAt: 1, _id: 1 });
+    })
+      .sort({ createdAt: 1, _id: 1 })
+      .setOptions({ skipTenant: true });
     await AuditLog.collection.updateOne(
       { _id: changesA[0]._id },
       { $set: { createdAt: daysAgo(3) } },
