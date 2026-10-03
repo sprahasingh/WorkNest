@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useOrg } from "@/hooks/useOrg";
+import { setUnreadInTitle } from "@/lib/pageTitle";
 import { useChatUnreadCount } from "./queries";
 
 const BADGE_COLOUR = "#dc2626";
@@ -11,12 +12,8 @@ export function TabAlerts() {
   const unread = useChatUnreadCount(orgId);
 
   useEffect(() => {
-    const baseTitle = document.title.replace(/^\(\d+\+?\)\s*/, "");
-    document.title =
-      unread > 0 ? `(${unread > 99 ? "99+" : unread}) ${baseTitle}` : baseTitle;
-    return () => {
-      document.title = baseTitle;
-    };
+    setUnreadInTitle(unread);
+    return () => setUnreadInTitle(0);
   }, [unread]);
 
   useEffect(() => {

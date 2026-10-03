@@ -4,6 +4,7 @@ import { setOrgAccessHandler } from "@/api/client";
 import { useAuth } from "./auth-context";
 import { OrgContext, type OrgContextValue } from "@/hooks/useOrg";
 import { NotFound } from "@/pages/NotFound";
+import { rememberLastOrg } from "@/lib/postAuthRedirect";
 
 export function OrgRoute() {
   const { orgId } = useParams<{ orgId: string }>();
@@ -24,6 +25,11 @@ export function OrgRoute() {
     });
     return () => setOrgAccessHandler(null);
   }, [orgId, orgName, refreshMemberships]);
+
+  const currentOrgId = membership?.tenantId.id;
+  useEffect(() => {
+    if (currentOrgId) rememberLastOrg(currentOrgId);
+  }, [currentOrgId]);
 
   if (!orgId || !membership) {
     if (lostOrgName) {

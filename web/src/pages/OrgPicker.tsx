@@ -11,6 +11,7 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { BrandLink } from "@/components/BrandLink";
 import { useMyInvites } from "@/features/invites/myInvites";
 import { MyInvitations } from "@/features/invites/MyInvitations";
 
@@ -73,14 +74,7 @@ export function OrgPicker() {
     <div className="min-h-screen bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-6">
       <div className="mx-auto max-w-lg space-y-8">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">
-              W
-            </span>
-            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              WorkNest
-            </span>
-          </Link>
+          <BrandLink />
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <button
