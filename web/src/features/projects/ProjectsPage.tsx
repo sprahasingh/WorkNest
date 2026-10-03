@@ -12,6 +12,7 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
+import { ViewTabs } from "@/components/ui/ViewTabs";
 import {
   compareLifecycleItems,
   defaultLifecycleSort,
@@ -332,43 +333,21 @@ export function ProjectsPage() {
           {canWrite && <Button onClick={openCreateModal}>New project</Button>}
         </div>
 
-        <div
-          role="tablist"
-          aria-label="Project lists"
-          className="mt-4 inline-flex max-w-full overflow-x-auto rounded-lg bg-slate-200 p-1 dark:bg-slate-800"
-        >
-          {VIEWS.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              role="tab"
-              aria-label={tab.label}
-              aria-selected={view === tab.value}
-              onClick={() => setView(tab.value)}
-              className={cn(
-                "flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors sm:px-3 sm:text-sm",
-                view === tab.value
-                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
-              )}
-            >
-              <span className="sm:hidden">
-                {tab.value === "completed" ? "Complete" : tab.label}
-              </span>
-              <span className="hidden sm:inline">{tab.label}</span>
-              <TabCount
-                value={
-                  tab.value === "active"
-                    ? activeProjectCount
-                    : tab.value === "completed"
-                      ? completedProjectCount
-                      : counts?.[tab.value]
-                }
-                selected={view === tab.value}
-              />
-            </button>
-          ))}
-        </div>
+        <ViewTabs
+          label="Project lists"
+          className="mt-5"
+          value={view}
+          onChange={setView}
+          tabs={VIEWS.map((tab) => ({
+            ...tab,
+            count:
+              tab.value === "active"
+                ? activeProjectCount
+                : tab.value === "completed"
+                  ? completedProjectCount
+                  : counts?.[tab.value],
+          }))}
+        />
 
         {view === "bin" && (
           <p className="mt-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
@@ -381,7 +360,7 @@ export function ProjectsPage() {
           </p>
         )}
 
-        <label className="mt-5 flex min-w-0 flex-col items-start gap-1.5 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:gap-2">
+        <label className="mt-4 flex min-w-0 flex-col items-start gap-1.5 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:gap-2">
           <span className="shrink-0">Sort projects</span>
           <select
             aria-label="Sort projects"
@@ -729,28 +708,6 @@ export function ProjectsPage() {
         </div>
       </Modal>
     </div>
-  );
-}
-
-function TabCount({
-  value,
-  selected,
-}: {
-  value: number | undefined;
-  selected: boolean;
-}) {
-  if (value === undefined) return null;
-  return (
-    <span
-      className={cn(
-        "min-w-3.5 rounded-full px-0.5 py-px text-center text-[9px] font-semibold sm:min-w-[1.25rem] sm:px-1.5 sm:text-xs",
-        selected
-          ? "bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300"
-          : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
-      )}
-    >
-      {value}
-    </span>
   );
 }
 
