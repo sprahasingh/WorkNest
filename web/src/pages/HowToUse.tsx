@@ -1,74 +1,191 @@
 import { Link, useLocation } from "react-router";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { BrandLink } from "@/components/BrandLink";
+import {
+  BrowserFrame,
+  PhoneFrame,
+  Screenshot,
+} from "@/components/marketing/Screenshot";
+import type { ScreenName } from "@/assets/screens";
 import { useAuth } from "@/auth/auth-context";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 
 interface GuideStep {
+  id: string;
   title: string;
   description: string;
+  tips?: string[];
+  screen?: { name: ScreenName; alt: string };
 }
 
 const STEPS: GuideStep[] = [
   {
-    title: "Choose your account type",
+    id: "account",
+    title: "Create your account",
     description:
-      "Register with your name, email, and a password. Choose Admin to create an organization and manage it, or User to create an account without an organization and join one later.",
+      "Register with your name, email and a password, then confirm your email. Choose Admin to create an organization and manage it, or User if you'd rather join one later through an invite.",
   },
   {
+    id: "project",
     title: "Create a project",
     description:
-      "Go to Projects → New project. Give it a name and a short key (like ENG or OPS) used to label its tasks. Admins and managers can create projects.",
+      "Go to Projects and choose New project. Give it a name and a short key (like WEB or APP) that labels its tasks. Admins and managers can create projects.",
+    screen: {
+      name: "projects",
+      alt: "The projects page with four project cards and their progress",
+    },
   },
   {
+    id: "team",
     title: "Invite your team",
     description:
-      "Open Members and choose Invite someone. Enter their email and choose a role. Admins can send invitations. People who already use WorkNest can accept from their notifications or Organizations page.",
+      "Open Members and choose Invite someone. Enter their email and pick a role. People who already use WorkNest can accept from the bell or from their Organizations page. Admins can change a role or remove someone at any time.",
+    screen: {
+      name: "members",
+      alt: "The members page listing five people with their roles",
+    },
   },
   {
-    title: "Create and assign a task",
+    id: "tasks",
+    title: "Create and move tasks",
     description:
-      "Open a project and choose New task. Add a title, priority, optional due date, and one or more assignees. Admins and managers can assign anyone; a task created by a member is assigned to them. Each plan limits active tasks per project: 10 on Free, 50 on Pro, and unlimited on Premium. Done, archived, and binned tasks do not use this allowance. Reopening or restoring an active task uses a slot again.",
+      "Open a project and choose New task. Add a title, a priority, an optional due date and one or more assignees. Use the status menu on a card to move it between To do, In progress and Done. Members can edit tasks assigned to them, and managers and admins can edit any task.",
+    tips: [
+      "Each plan limits active tasks per project: 10 on Free, 50 on Pro and unlimited on Premium.",
+      "Done, archived and binned tasks don't count toward that limit. Reopening or restoring one does.",
+    ],
+    screen: {
+      name: "board",
+      alt: "A project board with To do and In progress columns",
+    },
   },
   {
-    title: "Move a task through its board",
-    description:
-      "Use the status menu on a task to move it between To do, In progress, and Done. Members can edit and move tasks assigned to them. Admins and managers can edit and move any task.",
-  },
-  {
-    title: "Keep project lists current",
-    description:
-      "A project moves to Completed when all its tasks are done. Archive a project to hide it from everyday work, or move it to the Bin to remove it temporarily. Completed, archived, and binned projects do not use a project slot. Unarchiving or restoring a project with unfinished work, or reopening work in a completed project, uses a slot again and may be blocked when your plan is full. Binned projects can be restored for 30 days.",
-  },
-  {
+    id: "updates",
     title: "Ask for and share updates",
     description:
-      "Admins and managers can request an update on one task, or on a whole project to reach every assignee at once, and reply to questions. Assignees post updates or ask questions from a task's Updates tab or from Project updates, which also collects every task's updates in one place. Everyone involved is notified through the bell, and opening the task or project marks those notifications as read.",
+      "Managers and admins can ask for an update on one task, or on a whole project. Assignees post updates or ask questions from the task's Updates tab, and leads reply. Everyone involved gets a notification, and opening the task marks it as read.",
+    tips: [
+      "Project updates, on the project board, collects every task's updates in one place.",
+      "A task's Meetings tab lists meetings linked to it, and lets you schedule a new one.",
+    ],
+    screen: {
+      name: "taskUpdates",
+      alt: "A task's Updates tab with an update request, an update and a question",
+    },
   },
   {
+    id: "lifecycle",
+    title: "Keep project lists current",
+    description:
+      "A project moves to Completed when all its tasks are done. Archive a project to tuck it away, or move it to the Bin to remove it for now. Binned projects can be restored for 30 days. Completed, archived and binned projects don't use a project slot, so bringing one back can be blocked if your plan is full.",
+  },
+  {
+    id: "messages",
     title: "Message your team",
     description:
-      "Open Messages to chat with anyone in your organization, one to one or in a group. Only the people in a chat can read it, and that includes admins. You can reply to a message, react with an emoji, share files, @mention people, edit your own message for 10 minutes, and delete it any time. Mute a chat to stop alerts unless someone mentions you, and use the search box to find old messages. Admins can choose how long chat history is kept under Settings.",
+      "Open Messages to chat with anyone in your organization, one to one or in a group. Only the people in a chat can read it, and that includes admins. Messages arrive live, with typing indicators, online dots and read receipts.",
+    tips: [
+      "Choose New to start a chat or create a group. Group admins can rename it and add or remove people, and anyone can leave.",
+      "Hover a message, or tap it on a phone, to reply, react, copy, edit or delete. You can edit for 10 minutes after sending and delete at any time.",
+      "Type @ to mention someone. A mention still alerts people who have muted the chat.",
+      "Attach files with the paperclip, or drag them onto the chat. Click a picture to see it larger. Files are private to the chat and limited to 10 MB.",
+      "Search above your chats to find old messages, and mute a chat with the bell in its header.",
+      "The bell next to New turns on desktop notifications or a soft sound. Your unread count always shows in the browser tab.",
+    ],
+    screen: {
+      name: "messages",
+      alt: "A group chat with a reply, reactions and an @mention",
+    },
   },
   {
+    id: "meetings",
     title: "Schedule meetings",
     description:
-      "Open Meetings to schedule a meeting with a time, agenda, join link (paste one, or create a free Jitsi room) and the people you want there. Meetings can repeat daily, weekly or monthly, and can be linked to a project or task. Invitees reply Going, Maybe or Can't go, or suggest another time, and everyone gets a reminder 15 minutes before the start. Use Meet now to start an instant call. Only the organizer and the people invited can see a meeting. If an organizer leaves the organization, their meetings are cancelled or handed to someone else.",
+      "Open Meetings and choose Schedule meeting. Add a time, a join link, an agenda and the people to invite. Only the organizer and the people invited can see a meeting.",
+    tips: [
+      "For the join link, paste a Zoom, Meet or Teams address, or create a free Jitsi room with one click.",
+      "Repeat a meeting daily, weekly or monthly, and choose whether a change applies to one date or all upcoming ones.",
+      "Invitees reply Going, Maybe or Can't go, or suggest another time. The organizer can accept a suggestion or keep the original.",
+      "Everyone gets a reminder about 15 minutes before a meeting starts. Meet now starts an instant call, and Add to calendar downloads an .ics file.",
+      "Link a meeting to a project or task so it shows up there too.",
+    ],
+    screen: {
+      name: "meetings",
+      alt: "The meetings page with a next-up card and upcoming meetings",
+    },
   },
   {
+    id: "dashboard",
     title: "Check the dashboard",
     description:
-      "Admins and managers see overdue tasks, team activity, and usage against your plan at a glance, plus a trend of new tasks over the last 7 to 90 days.",
+      "Admins and managers see open, completed, created and overdue tasks, plus how open work has moved over the last 7 to 90 days in your organization's time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
+    screen: {
+      name: "dashboard",
+      alt: "The dashboard with task counts and an open work chart",
+    },
   },
   {
+    id: "audit",
     title: "Review the audit log",
     description:
-      "Admins can see who changed what and when, including organization settings, membership, projects, tasks, and plans.",
+      "Admins can see who changed what and when, including settings, members, projects, tasks and plans. Filters narrow it down by action, type and person.",
+    screen: {
+      name: "audit",
+      alt: "The audit log listing recent changes",
+    },
   },
   {
-    title: "Manage your plan",
+    id: "plan",
+    title: "Manage your plan and chat history",
     description:
-      "Open Settings to compare plans and check usage. Free includes 5 seats, 3 active projects, and 10 active tasks per project. Pro includes 30 seats, 25 active projects, and 50 active tasks per project. Premium includes 100 seats, 50 active projects, and unlimited active tasks per project. Only admins can change plans. A downgrade is available once your usage fits the lower limits.",
+      "Open Settings to compare plans and check usage. Free includes 5 seats, 3 active projects and 10 active tasks per project. Pro includes 30 seats, 25 active projects and 50 active tasks per project. Premium includes 100 seats, 50 active projects and unlimited active tasks. Only admins can change plans, and a downgrade is available once your usage fits the lower limits. Admins also choose how long chat history is kept, from forever down to 90 days.",
+  },
+];
+
+const GOOD_TO_KNOW = [
+  {
+    title: "When someone leaves",
+    text: "They're taken out of group chats and meeting invites. Meetings they organize are cancelled, or handed to someone you choose when you remove them (or when they leave).",
+  },
+  {
+    title: "Time zones",
+    text: "An admin sets the organization's time zone in Settings. It decides when due dates fall and when reminders go out. Meetings and messages show in your own time zone.",
+  },
+  {
+    title: "Light and dark",
+    text: "Use the sun or moon button at the top right of any page. WorkNest follows your device's setting until you choose.",
+  },
+  {
+    title: "Finding your way",
+    text: "Select the WorkNest logo on any page to go back to the home page. From there, Go to your workspace takes you straight back to where you were.",
+  },
+];
+
+const CONCEPTS = [
+  {
+    title: "Organization",
+    text: "Your team's workspace. Its data, projects and members are completely separate from every other organization on WorkNest.",
+  },
+  {
+    title: "Project",
+    text: "A container for related tasks, labelled by a short key (like WEB-12). Projects can be archived once they're done, without losing their history.",
+  },
+  {
+    title: "Task",
+    text: "A single piece of work with a status, a priority, an optional due date and one or more assignees, tracked on its project's board.",
+  },
+  {
+    title: "Members and roles",
+    text: "Everyone in an organization is an Admin, a Manager or a Member. Roles decide what each person can see and do. The table below has the details.",
+  },
+  {
+    title: "Conversation",
+    text: "A private chat between two people or a group. Only the people in it can read it, and anything you share stays inside it.",
+  },
+  {
+    title: "Meeting",
+    text: "A scheduled time with a join link and a list of invitees. It's visible only to the organizer and the people invited.",
   },
 ];
 
@@ -137,6 +254,24 @@ const PERMISSIONS: PermissionRow[] = [
     member: false,
   },
   {
+    capability: "Message anyone in the organization",
+    admin: true,
+    manager: true,
+    member: true,
+  },
+  {
+    capability: "Schedule meetings and invite people",
+    admin: true,
+    manager: true,
+    member: true,
+  },
+  {
+    capability: "Read chats and meetings you're not part of",
+    admin: false,
+    manager: false,
+    member: false,
+  },
+  {
     capability: "Invite people to the organization",
     admin: true,
     manager: false,
@@ -150,6 +285,12 @@ const PERMISSIONS: PermissionRow[] = [
   },
   {
     capability: "Rename the organization",
+    admin: true,
+    manager: false,
+    member: false,
+  },
+  {
+    capability: "Choose how long chat history is kept",
     admin: true,
     manager: false,
     member: false,
@@ -177,20 +318,6 @@ function Check({ value }: { value: boolean }) {
     <span className="text-slate-300 dark:text-slate-600" aria-label="No">
       No
     </span>
-  );
-}
-
-function BrandMark() {
-  return (
-    <Link
-      to="/"
-      className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100"
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white">
-        W
-      </span>
-      WorkNest
-    </Link>
   );
 }
 
@@ -223,25 +350,33 @@ export function HowToUse() {
   const workspacePath = resolvePostAuthPath(auth.memberships ?? []);
   const back = useBackLink();
 
+  const sections = [
+    ["concepts", "Core concepts"],
+    ["steps", "Step by step"],
+    ["phone", "On your phone"],
+    ["permissions", "Who can do what"],
+    ["good-to-know", "Good to know"],
+  ] as const;
+
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
-      <header className="border-b border-slate-100 dark:border-slate-800">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4 sm:px-6">
-          <BrandMark />
+      <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
+          <BrandLink />
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <Link
               to={back.to}
               className="text-sm font-medium text-slate-500 hover:text-teal-700 dark:text-slate-400 dark:hover:text-teal-400"
             >
-              <span aria-hidden="true">← </span>
+              <span aria-hidden="true">&larr; </span>
               {back.label}
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+      <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <span className="inline-flex items-center rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
           Guide
         </span>
@@ -249,87 +384,122 @@ export function HowToUse() {
           How to use WorkNest
         </h1>
         <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-400">
-          Everything you need to get a team up and running: the core concepts,
-          the common tasks, and exactly who&apos;s allowed to do what.
+          Everything you need to get a team up and running: the core ideas, the
+          everyday tasks, and exactly who's allowed to do what. The pictures use
+          demo data from a made-up studio called Brightline.
         </p>
 
-        <section className="mt-12">
+        <nav aria-label="On this page" className="mt-6">
+          <ul className="flex flex-wrap gap-2">
+            {sections.map(([id, label]) => (
+              <li key={id}>
+                <a
+                  href={`#${id}`}
+                  className="inline-flex rounded-full border border-slate-200 px-3 py-1 text-sm font-medium text-slate-600 hover:border-teal-300 hover:text-teal-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-teal-700 dark:hover:text-teal-400"
+                >
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <section id="concepts" className="mt-12 scroll-mt-24">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
             Core concepts
           </h2>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100">
-                Organization
-              </h3>
-              <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-                Your team&apos;s workspace. Its data, projects, and members are
-                completely isolated from every other organization on WorkNest.
-              </p>
-            </Card>
-            <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100">
-                Project
-              </h3>
-              <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-                A container for related tasks, identified by a short key (e.g.
-                ENG-12). Projects can be archived once they&apos;re done,
-                without deleting their history.
-              </p>
-            </Card>
-            <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100">
-                Task
-              </h3>
-              <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-                A single unit of work with a status, priority, optional due
-                date, and one or more assignees, tracked on its project&apos;s
-                board.
-              </p>
-            </Card>
-            <Card className="shadow-none dark:border-slate-700 dark:bg-slate-800">
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100">
-                Members &amp; roles
-              </h3>
-              <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-                Every person in an organization is an Admin, Manager, or Member.
-                Roles decide what each person can see and do. See the table
-                below.
-              </p>
-            </Card>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {CONCEPTS.map((concept) => (
+              <Card
+                key={concept.title}
+                className="p-5 shadow-none dark:border-slate-700 dark:bg-slate-800"
+              >
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100">
+                  {concept.title}
+                </h3>
+                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
+                  {concept.text}
+                </p>
+              </Card>
+            ))}
           </div>
         </section>
 
-        <section className="mt-12">
+        <section id="steps" className="mt-14 scroll-mt-24">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
             Common tasks, step by step
           </h2>
-          <ol className="mt-5 space-y-4">
+          <ol className="mt-6 space-y-12">
             {STEPS.map((step, index) => (
-              <li key={step.title} className="flex gap-4">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-bold text-white">
-                  {index + 1}
-                </span>
-                <div>
-                  <p className="font-medium text-slate-800 dark:text-slate-100">
-                    {step.title}
-                  </p>
-                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
-                    {step.description}
-                  </p>
+              <li key={step.id} id={step.id} className="scroll-mt-24">
+                <div className="flex gap-4">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-bold text-white">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-50">
+                      {step.title}
+                    </h3>
+                    <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                      {step.description}
+                    </p>
+                    {step.tips && (
+                      <ul className="mt-3 max-w-3xl list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-slate-600 marker:text-teal-600 dark:text-slate-400">
+                        {step.tips.map((tip) => (
+                          <li key={tip}>{tip}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
+                {step.screen && (
+                  <figure className="mt-5 sm:pl-11">
+                    <BrowserFrame>
+                      <Screenshot
+                        name={step.screen.name}
+                        alt={step.screen.alt}
+                      />
+                    </BrowserFrame>
+                  </figure>
+                )}
               </li>
             ))}
           </ol>
         </section>
 
-        <section className="mt-12">
+        <section id="phone" className="mt-14 scroll-mt-24">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+            On your phone
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+            Every page adapts to small screens. Tap the menu button at the top
+            left to switch between Dashboard, Projects, Messages, Meetings and
+            the rest. On Messages, tap a chat to open it and use the arrow to go
+            back to the list.
+          </p>
+          <div className="mt-6 grid max-w-2xl grid-cols-2 gap-4 sm:grid-cols-4">
+            {(
+              [
+                ["phoneMessages", "A group chat on a phone"],
+                ["phoneMeetings", "The meetings page on a phone"],
+                ["phoneBoard", "A project board on a phone"],
+                ["phoneDashboard", "The dashboard on a phone"],
+              ] as const
+            ).map(([name, alt]) => (
+              <PhoneFrame key={name}>
+                <Screenshot name={name} alt={alt} />
+              </PhoneFrame>
+            ))}
+          </div>
+        </section>
+
+        <section id="permissions" className="mt-14 scroll-mt-24">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
             Who can do what
           </h2>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            Roles are enforced on the server, not just hidden in the UI. A
-            Member can&apos;t do an Admin-only action even by calling the API
+            Roles are enforced on the server, not just hidden in the interface.
+            A Member can't do an Admin-only action even by calling the API
             directly.
           </p>
 
@@ -368,13 +538,34 @@ export function HowToUse() {
           </div>
         </section>
 
-        <section className="mt-12 rounded-2xl bg-teal-600 px-6 py-10 text-center sm:px-10">
+        <section id="good-to-know" className="mt-14 scroll-mt-24">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+            Good to know
+          </h2>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {GOOD_TO_KNOW.map((item) => (
+              <Card
+                key={item.title}
+                className="p-5 shadow-none dark:border-slate-700 dark:bg-slate-800"
+              >
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100">
+                  {item.title}
+                </h3>
+                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
+                  {item.text}
+                </p>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-14 rounded-2xl bg-teal-600 px-6 py-10 text-center sm:px-10">
           <h2 className="text-2xl font-bold text-white">
             Ready to set up your workspace?
           </h2>
           <Link
             to={isAuthenticated ? workspacePath : "/register"}
-            className="mt-6 inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-teal-700 shadow-sm transition-colors hover:bg-teal-50"
+            className="mt-6 inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-teal-700 shadow-sm transition-colors hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             {isAuthenticated ? "Go to your workspace" : "Create your account"}
           </Link>

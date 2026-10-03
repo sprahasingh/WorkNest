@@ -23,11 +23,13 @@ import { MeetingsPage } from "@/features/meetings/MeetingsPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { NotFound } from "@/pages/NotFound";
 import { ServerWakeScreen } from "@/components/ServerWakeScreen";
+import { RouteEffects } from "@/components/RouteEffects";
 
 export function AppRoutes() {
   return (
     <>
       <ServerWakeScreen />
+      <RouteEffects />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/how-to-use" element={<HowToUse />} />
