@@ -95,7 +95,7 @@ describe("auth flow", () => {
       .post("/api/auth/forgot-password")
       .send({ email: "reset@example.com" });
     expect(requestReset.status).toBe(200);
-    expect(requestReset.body.message).toContain("Password reset email sent");
+    expect(requestReset.body.message).toContain("If an account exists");
 
     const token = takePasswordResetToken("reset@example.com");
     const reset = await request(app)
