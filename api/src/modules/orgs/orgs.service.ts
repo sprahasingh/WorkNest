@@ -125,6 +125,9 @@ export async function updateOrg(input: UpdateOrgInput) {
       const changes = {
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.timeZone !== undefined ? { timeZone: input.timeZone } : {}),
+        ...(input.chatRetentionDays !== undefined
+          ? { chatRetentionDays: input.chatRetentionDays }
+          : {}),
       };
       const updated = await Organization.findByIdAndUpdate(tenantId, changes, {
         new: true,
@@ -135,7 +138,8 @@ export async function updateOrg(input: UpdateOrgInput) {
       await recordAudit(
         {
           action:
-            input.name !== undefined && input.timeZone !== undefined
+            input.chatRetentionDays !== undefined ||
+            (input.name !== undefined && input.timeZone !== undefined)
               ? "org.settings_updated"
               : input.timeZone !== undefined
                 ? "org.timezone_changed"
@@ -151,6 +155,14 @@ export async function updateOrg(input: UpdateOrgInput) {
                   timeZone: {
                     from: before.timeZone ?? "UTC",
                     to: input.timeZone,
+                  },
+                }
+              : {}),
+            ...(input.chatRetentionDays !== undefined
+              ? {
+                  chatRetentionDays: {
+                    from: before.chatRetentionDays ?? null,
+                    to: input.chatRetentionDays,
                   },
                 }
               : {}),

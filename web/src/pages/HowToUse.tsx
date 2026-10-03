@@ -46,6 +46,16 @@ const STEPS: GuideStep[] = [
       "Admins and managers can request an update on one task, or on a whole project to reach every assignee at once, and reply to questions. Assignees post updates or ask questions from a task's Updates tab or from Project updates, which also collects every task's updates in one place. Everyone involved is notified through the bell, and opening the task or project marks those notifications as read.",
   },
   {
+    title: "Message your team",
+    description:
+      "Open Messages to chat with anyone in your organization, one to one or in a group. Only the people in a chat can read it, and that includes admins. You can reply to a message, react with an emoji, share files, @mention people, edit your own message for 10 minutes, and delete it any time. Mute a chat to stop alerts unless someone mentions you, and use the search box to find old messages. Admins can choose how long chat history is kept under Settings.",
+  },
+  {
+    title: "Schedule meetings",
+    description:
+      "Open Meetings to schedule a meeting with a time, agenda, join link (paste one, or create a free Jitsi room) and the people you want there. Meetings can repeat daily, weekly or monthly, and can be linked to a project or task. Invitees reply Going, Maybe or Can't go, or suggest another time, and everyone gets a reminder 15 minutes before the start. Use Meet now to start an instant call. Only the organizer and the people invited can see a meeting. If an organizer leaves the organization, their meetings are cancelled or handed to someone else.",
+  },
+  {
     title: "Check the dashboard",
     description:
       "Admins and managers see overdue tasks, team activity, and usage against your plan at a glance, plus a trend of new tasks over the last 7 to 90 days.",
