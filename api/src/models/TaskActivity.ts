@@ -23,12 +23,20 @@ const taskActivitySchema = new Schema(
     // People named or role-mentioned here. Being mentioned lets someone
     // reply in this thread even if they aren't assigned.
     mentionIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    // Replies: the message that started the thread, and the one being
+    // answered (the same unless replying to a reply). null for new messages.
+    parentId: { type: Schema.Types.ObjectId, default: null },
+    replyToId: { type: Schema.Types.ObjectId, default: null },
+    // Update requests: who was asked, so the thread can show who has
+    // replied and who it's still waiting on.
+    askedIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true },
 );
 
 taskActivitySchema.index({ tenantId: 1, taskId: 1, _id: -1 });
 taskActivitySchema.index({ tenantId: 1, projectId: 1, taskId: 1, _id: -1 });
+taskActivitySchema.index({ tenantId: 1, parentId: 1 });
 taskActivitySchema.plugin(tenantPlugin);
 
 export type TaskActivityDocument = InferSchemaType<typeof taskActivitySchema>;

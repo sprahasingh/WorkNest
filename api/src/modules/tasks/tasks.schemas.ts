@@ -89,11 +89,18 @@ export const createActivitySchema = z
     mentionRoles: z
       .array(z.enum(["admin", "manager", "member", "assignee"]))
       .default([]),
+    // The message being answered; required for replies.
+    replyToId: z.string().regex(objectIdRegex).optional(),
   })
   .strict()
   .refine((input) => input.type === "update_request" || !!input.content, {
     path: ["content"],
     message: "Write a message before posting",
+  })
+  .refine((input) => (input.type === "reply") === !!input.replyToId, {
+    path: ["replyToId"],
+    message:
+      "Replies need the message they answer, and only replies can have one",
   });
 
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;
