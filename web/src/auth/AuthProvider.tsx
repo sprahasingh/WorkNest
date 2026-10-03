@@ -110,8 +110,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const verifyRegistration = useCallback(
-    async (token: string) => {
-      const { accessToken } = await verifyRegistrationRequest(token);
+    async (token: string, password: string) => {
+      const { accessToken } = await verifyRegistrationRequest(token, password);
       return establishSession(accessToken);
     },
     [establishSession],

@@ -12,6 +12,10 @@ import {
   getInviteByToken,
 } from "./invites.service.js";
 import { AppError } from "../../lib/errors.js";
+import { Invite } from "../../models/Invite.js";
+import { createSession } from "../auth/auth.service.js";
+import { setRefreshCookie } from "../../lib/cookies.js";
+import { signAccessToken } from "../../lib/jwt.js";
 import { User } from "../../models/User.js";
 import type {
   CreateInviteInput,
@@ -35,6 +39,10 @@ export async function createInviteController(
 
   try {
     await sendInviteEmail(input.email, organizationName, input.role, inviteUrl);
+    await Invite.updateOne(
+      { _id: invite._id },
+      { emailedAt: new Date() },
+    ).setOptions({ skipTenant: true });
     res.status(201).json({ invite, existingUser, emailSent: true });
   } catch (error) {
     logger.error(
@@ -134,7 +142,15 @@ export async function signupViaInviteController(
   const input = req.validated!.body as InviteSignupInput;
 
   const result = await signupViaInvite(token as string, input);
-  res.status(202).json({ ...result, verificationRequired: true });
+  if (result.userId) {
+    // The invite went to this inbox, so the account is ready right away.
+    const { rawToken, expiresAt } = await createSession(result.userId);
+    setRefreshCookie(res, rawToken, expiresAt);
+    const accessToken = signAccessToken(result.userId.toString());
+    res.status(201).json({ accessToken, verificationRequired: false });
+    return;
+  }
+  res.status(202).json({ email: result.email, verificationRequired: true });
 }
 
 export async function getInviteByTokenController(

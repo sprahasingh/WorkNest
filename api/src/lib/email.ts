@@ -13,7 +13,8 @@ async function sendEmail(
   recipient: string,
   subject: string,
   text: string,
-  purpose: "verification" | "password reset" | "invitation",
+  purpose:
+    "verification" | "password reset" | "invitation" | "email change notice",
 ): Promise<void> {
   if (!isEmailDeliveryConfigured()) {
     throw new AppError(
@@ -120,6 +121,24 @@ export async function sendPasswordResetEmail(
     "Reset your WorkNest password",
     text,
     "password reset",
+  );
+}
+
+export async function sendEmailChangedNotice(
+  previousEmail: string,
+  newEmail: string,
+): Promise<void> {
+  const text = [
+    `The email address on your WorkNest account was changed to ${newEmail}.`,
+    "",
+    "If you made this change, there's nothing else to do. If you didn't, reset your password straight away and contact your workspace admin.",
+  ].join("\n");
+
+  await sendEmail(
+    previousEmail,
+    "Your WorkNest email address was changed",
+    text,
+    "email change notice",
   );
 }
 

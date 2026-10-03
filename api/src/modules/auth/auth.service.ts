@@ -17,9 +17,11 @@ import type { RegisterInput } from "./auth.schemas.js";
 import { randomToken, sha256 } from "../../lib/crypto.js";
 import {
   isEmailDeliveryConfigured,
+  sendEmailChangedNotice,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "../../lib/email.js";
+import { logger } from "../../lib/logger.js";
 import { Session } from "../../models/Session.js";
 import { randomUUID } from "node:crypto";
 import type { LoginInput } from "./auth.schemas.js";
@@ -106,7 +108,10 @@ export async function register(input: RegisterInput) {
   );
 
   if (bypassVerification) {
-    const { userId } = await verifyRegistration({ token });
+    const { userId } = await verifyRegistration({
+      token,
+      password: input.password,
+    });
     return { userId, verificationRequired: false as const };
   }
 
@@ -137,6 +142,18 @@ export async function verifyRegistration(input: VerifyRegistrationInput) {
       400,
       "REGISTRATION_VERIFICATION_INVALID",
       "This registration link is invalid or has expired",
+    );
+  }
+
+  const passwordMatches = await bcrypt.compare(
+    input.password,
+    pending.passwordHash as string,
+  );
+  if (!passwordMatches) {
+    throw new AppError(
+      401,
+      "REGISTRATION_PASSWORD_MISMATCH",
+      "That isn't the password chosen for this sign-up. If you didn't sign up for WorkNest, you can ignore the email.",
     );
   }
 
@@ -292,16 +309,24 @@ export async function verifyRegistration(input: VerifyRegistrationInput) {
   }
 }
 
+// Compared against when there's no account, so a wrong email takes as long
+// as a wrong password and response times don't reveal who has an account.
+let timingDummyHash: Promise<string> | null = null;
+function dummyPasswordHash(): Promise<string> {
+  timingDummyHash ??= bcrypt.hash(randomToken(), env.BCRYPT_COST);
+  return timingDummyHash;
+}
+
 export async function login(input: LoginInput) {
   const user = await User.findOne({ email: input.identifier }).select(
     "+passwordHash +status",
   );
 
-  if (!user) {
-    throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
-  }
-
-  if ((user as unknown as Record<string, unknown>).status === "deleted") {
+  if (
+    !user ||
+    (user as unknown as Record<string, unknown>).status === "deleted"
+  ) {
+    await bcrypt.compare(input.password, await dummyPasswordHash());
     throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
   }
 
@@ -321,15 +346,13 @@ export async function requestPasswordReset(input: RequestPasswordResetInput) {
   const user = await User.findOne({ email: input.email }).select(
     "+status +passwordResetTokenHash +passwordResetExpiresAt",
   );
+  // Same answer whether or not the account exists, so this form can't be
+  // used to find out who has an account.
   if (
     !user ||
     (user as unknown as Record<string, unknown>).status === "deleted"
   ) {
-    throw new AppError(
-      404,
-      "ACCOUNT_NOT_FOUND",
-      "No account was found with that email.",
-    );
+    return;
   }
 
   const token = randomToken();
@@ -422,16 +445,19 @@ export async function updatePersonalInformation(
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
 
-  const currentPasswordIsValid = await bcrypt.compare(
-    input.currentPassword,
-    user.passwordHash as string,
-  );
-  if (!currentPasswordIsValid) {
-    throw new AppError(
-      401,
-      "CURRENT_PASSWORD_INVALID",
-      "Current password is incorrect",
+  // Only a password change needs the current password; a new name doesn't.
+  if (input.newPassword) {
+    const currentPasswordIsValid = await bcrypt.compare(
+      input.currentPassword ?? "",
+      user.passwordHash as string,
     );
+    if (!currentPasswordIsValid) {
+      throw new AppError(
+        401,
+        "CURRENT_PASSWORD_INVALID",
+        "Current password is incorrect",
+      );
+    }
   }
 
   user.name = input.name;
@@ -606,6 +632,7 @@ export async function verifyEmailChange(input: VerifyEmailChangeInput) {
   }
 
   const email = user.pendingEmail;
+  const previousEmail = user.email;
   user.email = email;
   user.emailVerifiedAt = new Date();
   user.pendingEmail = null;
@@ -622,6 +649,13 @@ export async function verifyEmailChange(input: VerifyEmailChangeInput) {
       );
     }
     throw error;
+  }
+
+  // Tell the old address, so an unexpected change doesn't go unnoticed.
+  try {
+    await sendEmailChangedNotice(String(previousEmail), String(email));
+  } catch (error) {
+    logger.warn({ err: error }, "Could not send the email-changed notice");
   }
 
   return User.findById(user._id);

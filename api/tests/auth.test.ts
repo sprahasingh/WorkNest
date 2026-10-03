@@ -121,14 +121,14 @@ describe("auth flow", () => {
     expect(reusedToken.body.error.code).toBe("PASSWORD_RESET_INVALID");
   });
 
-  it("returns an account-not-found error for an unknown password reset email", async () => {
+  it("answers the same for an unknown password reset email", async () => {
     const response = await request(app)
       .post("/api/auth/forgot-password")
       .send({ email: "unknown@example.com" });
 
-    expect(response.status).toBe(404);
-    expect(response.body.error.code).toBe("ACCOUNT_NOT_FOUND");
-    expect(response.body.error.message).toContain("No account was found");
+    expect(response.status).toBe(200);
+    expect(response.body.message).toContain("If an account exists");
+    expect(() => takePasswordResetToken("unknown@example.com")).toThrow();
   });
 
   it("rotates the refresh token, tolerates a second tab, and fails on later reuse", async () => {
@@ -193,9 +193,20 @@ describe("auth flow", () => {
     expect(await Organization.findOne({ name: "Pending Org" })).toBeNull();
 
     const token = takeVerificationToken("pending@example.com", "registration");
+
+    // Someone else holding the link can't finish another person's sign-up.
+    const wrongPassword = await request(app)
+      .post("/api/auth/verify-registration")
+      .send({ token, password: "not-the-password" });
+    expect(wrongPassword.status).toBe(401);
+    expect(wrongPassword.body.error.code).toBe(
+      "REGISTRATION_PASSWORD_MISMATCH",
+    );
+    expect(await User.findOne({ email: "pending@example.com" })).toBeNull();
+
     const verified = await request(app)
       .post("/api/auth/verify-registration")
-      .send({ token });
+      .send({ token, password: "password123" });
     expect(verified.status).toBe(201);
 
     const user = await User.findOne({ email: "pending@example.com" });
@@ -204,7 +215,7 @@ describe("auth flow", () => {
 
     const reused = await request(app)
       .post("/api/auth/verify-registration")
-      .send({ token });
+      .send({ token, password: "password123" });
     expect(reused.status).toBe(400);
   });
 
