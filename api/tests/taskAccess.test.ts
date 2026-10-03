@@ -227,7 +227,8 @@ describe("update requests and questions", () => {
         mentionRoles: ["assignee"],
       });
     expect(projectUpdate.status).toBe(201);
-    expect(projectUpdate.body.notifiedCount).toBe(2);
+    // Only Alice works here; the manager isn't involved, so isn't told.
+    expect(projectUpdate.body.notifiedCount).toBe(1);
 
     const aliceInbox = await request(app)
       .get(`/api/orgs/${admin.orgId}/notifications`)
@@ -825,5 +826,188 @@ describe("legacy assignee migration", () => {
     const raw = await Task.collection.findOne({});
     expect(raw?.assigneeId).toBeUndefined();
     expect(raw?.assigneeIds.map(String)).toEqual([admin.userId]);
+  });
+});
+
+describe("who hears about updates, and reply threads", () => {
+  it("notifies the people involved, not every admin and manager", async () => {
+    const admin = await registerOrg(
+      "involved-admin@example.com",
+      "Involved Org",
+    );
+    const manager = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "involved-manager@example.com",
+      "manager",
+    );
+    const mia = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "involved-mia@example.com",
+    );
+    const leo = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "involved-leo@example.com",
+    );
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "INV",
+    );
+    await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "Shared",
+      assigneeIds: [mia.userId, leo.userId],
+    });
+    const base = `/api/orgs/${admin.orgId}`;
+    const inbox = async (token: string) =>
+      (
+        await request(app)
+          .get(`${base}/notifications`)
+          .set("Authorization", `Bearer ${token}`)
+      ).body.notifications as Array<{ type: string; message: string }>;
+
+    const posted = await request(app)
+      .post(`${base}/projects/${projectId}/activity`)
+      .set("Authorization", `Bearer ${mia.accessToken}`)
+      .send({ type: "update", content: "Halfway there" });
+    expect(posted.status).toBe(201);
+    // Leo works here and the admin created the project; the manager isn't
+    // involved and isn't told.
+    expect(posted.body.notifiedCount).toBe(2);
+    expect((await inbox(leo.accessToken)).map((n) => n.type)).toContain(
+      "update",
+    );
+    expect((await inbox(admin.accessToken)).map((n) => n.type)).toContain(
+      "update",
+    );
+    expect((await inbox(manager.accessToken)).map((n) => n.type)).not.toContain(
+      "update",
+    );
+
+    // Mentioning the manager brings them in.
+    const mentioned = await request(app)
+      .post(`${base}/projects/${projectId}/activity`)
+      .set("Authorization", `Bearer ${mia.accessToken}`)
+      .send({
+        type: "question",
+        content: "Can you check this?",
+        mentionMemberIds: [manager.userId],
+      });
+    expect(mentioned.status).toBe(201);
+    expect(
+      (await inbox(manager.accessToken)).find((n) => n.type === "question")
+        ?.message,
+    ).toBe('User involved-mia@example.com mentioned you in "Project INV"');
+  });
+
+  it("lets each person reply to an update request and tells the person who asked", async () => {
+    const admin = await registerOrg("thread-admin@example.com", "Thread Org");
+    const mia = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "thread-mia@example.com",
+    );
+    const leo = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "thread-leo@example.com",
+    );
+    const outsider = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "thread-outsider@example.com",
+    );
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "THR",
+    );
+    await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "One",
+      assigneeIds: [mia.userId, leo.userId],
+    });
+    const base = `/api/orgs/${admin.orgId}`;
+    const post = (token: string, body: object) =>
+      request(app)
+        .post(`${base}/projects/${projectId}/activity`)
+        .set("Authorization", `Bearer ${token}`)
+        .send(body);
+
+    const asked = await post(admin.accessToken, {
+      type: "update_request",
+      content: "Weekly check-in",
+    });
+    expect(asked.status).toBe(201);
+    const requestId = asked.body.activity._id as string;
+    expect(asked.body.activity.askedIds.sort()).toEqual(
+      [mia.userId, leo.userId].sort(),
+    );
+
+    // A reply needs the message it answers.
+    const missing = await post(mia.accessToken, {
+      type: "reply",
+      content: "Done",
+    });
+    expect(missing.status).toBe(400);
+
+    const miaReply = await post(mia.accessToken, {
+      type: "reply",
+      content: "Copy is finished",
+      replyToId: requestId,
+    });
+    expect(miaReply.status).toBe(201);
+    expect(miaReply.body.notifiedCount).toBe(1);
+    expect(miaReply.body.notifiedNames).toEqual(["Admin User"]);
+    expect(miaReply.body.activity.parentId).toBe(requestId);
+
+    const leoReply = await post(leo.accessToken, {
+      type: "reply",
+      content: "Images next week",
+      replyToId: requestId,
+    });
+    expect(leoReply.status).toBe(201);
+
+    const adminInbox = await request(app)
+      .get(`${base}/notifications`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    const replies = (
+      adminInbox.body.notifications as Array<{ type: string; message: string }>
+    ).filter((n) => n.type === "reply");
+    expect(replies.map((n) => n.message).sort()).toEqual(
+      [
+        'User thread-leo@example.com replied to your update request in "Project THR"',
+        'User thread-mia@example.com replied to your update request in "Project THR"',
+      ].sort(),
+    );
+
+    // Leo isn't told about Mia's reply to the shared request.
+    const leoInbox = await request(app)
+      .get(`${base}/notifications`)
+      .set("Authorization", `Bearer ${leo.accessToken}`);
+    expect(
+      (leoInbox.body.notifications as Array<{ type: string }>).some(
+        (n) => n.type === "reply",
+      ),
+    ).toBe(false);
+
+    // Answering Mia's reply tells Mia, and the reply joins the same thread.
+    const answer = await post(admin.accessToken, {
+      type: "reply",
+      content: "Thanks!",
+      replyToId: miaReply.body.activity._id,
+    });
+    expect(answer.status).toBe(201);
+    expect(answer.body.activity.parentId).toBe(requestId);
+    expect(answer.body.notifiedNames).toEqual(["User thread-mia@example.com"]);
+
+    // Someone with no part in the project can't reply.
+    const outsiderReply = await post(outsider.accessToken, {
+      type: "reply",
+      content: "Me too",
+      replyToId: requestId,
+    });
+    expect(outsiderReply.status).toBe(403);
   });
 });
