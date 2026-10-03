@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
-import { ChartCard } from "./ChartCard";
+import { CardTitle, ChartCard } from "./ChartCard";
 import {
   CREATED_COLOR,
   STAGES,
@@ -88,10 +88,13 @@ const ROW_HEIGHTS = [
 export function ProjectStageCard({
   projects,
   archivedCount,
+  period,
   isDark,
 }: {
   projects: ProjectProgress[];
   archivedCount: number;
+  // The date range picked, e.g. "Last 14 days".
+  period: string;
   isDark: boolean;
 }) {
   const colors = stageColors(isDark);
@@ -100,23 +103,39 @@ export function ProjectStageCard({
     inProgress: 0,
     completed: 0,
   };
-  for (const project of projects) counts[projectStage(project)] += 1;
+  // Finished projects count only if they were finished in the period, so
+  // the slice doesn't grow forever.
+  let finishedEarlier = 0;
+  for (const project of projects) {
+    const stage = projectStage(project);
+    if (stage === "completed" && !project.finishedInRange) {
+      finishedEarlier += 1;
+    } else {
+      counts[stage] += 1;
+    }
+  }
   const slices = STAGES.map((stage) => ({
     ...stage,
     name: stage.label,
     count: counts[stage.key],
+    when: stage.key === "completed" ? period : "Now",
   }));
-  const total = projects.length;
+  const total = slices.reduce((sum, slice) => sum + slice.count, 0);
+  const notCounted = [
+    finishedEarlier > 0 && `${finishedEarlier} finished before this period`,
+    archivedCount > 0 && `${archivedCount} archived`,
+  ].filter(Boolean);
   const mode = isDark ? "dark" : "light";
 
   return (
     <ChartCard
-      title="Projects by stage"
-      subtitle="Active projects right now"
+      title="Project stages"
+      scope={{ now: true, period }}
+      subtitle="Open now, and finished in the chosen period"
       chartClassName="h-44"
       emptyMessage={total === 0 ? "No active projects yet" : undefined}
       description={slices
-        .map((slice) => `${slice.label}: ${slice.count}`)
+        .map((slice) => `${slice.label} (${slice.when}): ${slice.count}`)
         .join(", ")}
       footer={
         <>
@@ -127,16 +146,20 @@ export function ProjectStageCard({
                 <span className="text-slate-600 dark:text-slate-300">
                   {slice.label}
                 </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {slice.when.toLowerCase()}
+                </span>
                 <span className="ml-auto font-semibold text-slate-900 tabular-nums dark:text-slate-50">
                   {slice.count}
                 </span>
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-            Plus {archivedCount} archived{" "}
-            {archivedCount === 1 ? "project" : "projects"}, not counted above.
-          </p>
+          {notCounted.length > 0 && (
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Not counted: {notCounted.join(" and ")}.
+            </p>
+          )}
         </>
       }
     >
@@ -223,9 +246,7 @@ export function OpenWorkByProjectCard({
   if (rows.length === 0) {
     return (
       <Card>
-        <h2 className="font-medium text-slate-800 dark:text-slate-100">
-          Open work by project
-        </h2>
+        <CardTitle title="Open work by project" scope={{ now: true }} />
         <p className="text-xs text-slate-500 dark:text-slate-400">
           To do and in progress tasks in each project
         </p>
@@ -239,6 +260,7 @@ export function OpenWorkByProjectCard({
   return (
     <ChartCard
       title="Open work by project"
+      scope={{ now: true }}
       subtitle="To do and in progress, most open first"
       chartClassName={ROW_HEIGHTS[rows.length - 1]}
       description={rows
@@ -247,19 +269,23 @@ export function OpenWorkByProjectCard({
             `${row.name}: ${row.inProgress} in progress, ${row.todo} to do`,
         )
         .join("; ")}
-      summary={
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
-          <span className="flex items-center gap-1.5">
-            <SwatchKey color={colors.in_progress} shape="dot" />
-            In progress
-          </span>
-          <span className="flex items-center gap-1.5">
-            <SwatchKey color={colors.todo} shape="dot" />
-            To do
-          </span>
-        </div>
+      // The key sits under the chart, as on the stages card beside it, so
+      // the two charts start at the same height.
+      footer={
+        <>
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+            <span className="flex items-center gap-1.5">
+              <SwatchKey color={colors.in_progress} shape="dot" />
+              In progress
+            </span>
+            <span className="flex items-center gap-1.5">
+              <SwatchKey color={colors.todo} shape="dot" />
+              To do
+            </span>
+          </div>
+          {note}
+        </>
       }
-      footer={note}
     >
       {({ tickColor, tooltipProps, surfaceColor, gridColor }) => (
         <BarChart
@@ -319,11 +345,12 @@ export function OpenWorkByProjectCard({
 
 export function ProjectActivityCard({
   projects,
-  title,
+  period,
   isDark,
 }: {
   projects: ProjectProgress[];
-  title: string;
+  // The date range picked, e.g. "Last 14 days".
+  period: string;
   isDark: boolean;
 }) {
   const mode = isDark ? "dark" : "light";
@@ -347,7 +374,8 @@ export function ProjectActivityCard({
 
   return (
     <ChartCard
-      title={title}
+      title="Created and marked done by project"
+      scope={{ period }}
       subtitle="Tasks added and tasks marked done in each project"
       // Two bars per project.
       chartClassName={

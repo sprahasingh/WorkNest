@@ -110,8 +110,49 @@ function useDoubleTapDetails() {
   };
 }
 
+// What time a number covers: right now, the period picked in the date
+// range, or both. Shown on every dashboard card and tile so it's never a
+// guess.
+export interface Scope {
+  now?: boolean;
+  // e.g. "Last 14 days", "All time".
+  period?: string;
+}
+
+export function ScopeTag({ scope }: { scope: Scope }) {
+  const label =
+    scope.now && scope.period
+      ? `Now + ${scope.period}`
+      : scope.now
+        ? "Now"
+        : (scope.period ?? "");
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-4",
+        scope.period
+          ? "bg-teal-50 text-teal-800 ring-1 ring-teal-200 ring-inset dark:bg-teal-950 dark:text-teal-200 dark:ring-teal-800"
+          : "bg-slate-100 text-slate-600 ring-1 ring-slate-200 ring-inset dark:bg-slate-700 dark:text-slate-200 dark:ring-slate-600",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+// A card's heading with its scope tag beside it.
+export function CardTitle({ title, scope }: { title: string; scope?: Scope }) {
+  return (
+    <h2 className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-slate-800 dark:text-slate-100">
+      {title}
+      {scope && <ScopeTag scope={scope} />}
+    </h2>
+  );
+}
+
 export function ChartCard({
   title,
+  scope,
   subtitle,
   summary,
   emptyMessage,
@@ -121,6 +162,7 @@ export function ChartCard({
   children,
 }: {
   title: string;
+  scope?: Scope;
   subtitle?: string;
   // Headline numbers shown between the title and the chart.
   summary?: ReactNode;
@@ -172,9 +214,7 @@ export function ChartCard({
           never pushes the hint onto a new line. */}
       <div className="flex flex-col gap-1 @sm:flex-row @sm:items-baseline @sm:justify-between @sm:gap-3">
         <div className="min-w-0">
-          <h2 className="font-medium text-slate-800 dark:text-slate-100">
-            {title}
-          </h2>
+          <CardTitle title={title} scope={scope} />
           {subtitle && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {subtitle}
