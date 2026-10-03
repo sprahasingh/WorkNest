@@ -2,6 +2,7 @@ import { createApp } from "./app.js";
 import { connectDB } from "./db/connect.js";
 import {
   ensureNotificationEventIndex,
+  ensureNotificationRetentionIndex,
   ensureCompletedTaskIndex,
   migrateDateOnlyTaskDueDates,
   migrateLegacyTaskAssignees,
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
   await syncPlanLimits();
   await syncActiveProjectCounts();
   await ensureNotificationEventIndex();
+  await ensureNotificationRetentionIndex();
   await ensureCompletedTaskIndex();
 
   // Projects left in the bin past their 30 days are deleted for good. Lists

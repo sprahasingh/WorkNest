@@ -18,6 +18,9 @@ const inviteSchema = new Schema(
     tokenHash: { type: String, required: true, unique: true },
     invitedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     expiresAt: { type: Date, required: true },
+    // Set when the invite link was emailed to this address. Holding that
+    // link then proves the inbox, so sign-up needs no second email.
+    emailedAt: { type: Date, default: null },
     status: {
       type: String,
       enum: ["pending", "accepted", "declined", "revoked", "expired"],

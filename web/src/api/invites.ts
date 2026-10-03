@@ -40,10 +40,11 @@ export interface InviteSignupInput {
   password: string;
 }
 
-export interface InviteSignupResponse {
-  email: string;
-  verificationRequired: boolean;
-}
+// When the invite was emailed, the account is ready at once (accessToken);
+// otherwise a verification email goes out first.
+export type InviteSignupResponse =
+  | { verificationRequired: false; accessToken: string }
+  | { verificationRequired: true; email: string };
 
 export async function getInvitePreview(token: string): Promise<InvitePreview> {
   const response = await apiClient.get<InvitePreview>(`/invites/${token}`);
