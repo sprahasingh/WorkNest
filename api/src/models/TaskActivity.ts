@@ -20,6 +20,9 @@ const taskActivitySchema = new Schema(
       required: true,
     },
     content: { type: String, trim: true, maxlength: 2000 },
+    // People named or role-mentioned here. Being mentioned lets someone
+    // reply in this thread even if they aren't assigned.
+    mentionIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true },
 );

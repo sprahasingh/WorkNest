@@ -251,6 +251,95 @@ describe("update requests and questions", () => {
     expect(invalidMention.body.error.code).toBe("INVALID_MENTION");
   });
 
+  it("keeps mentions to people who can see the task, and lets them reply", async () => {
+    const admin = await registerOrg("scope-admin@example.com", "Scope Org");
+    const alice = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "scope-alice@example.com",
+    );
+    const bob = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "scope-bob@example.com",
+    );
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "SCO",
+    );
+    const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+    const post = (taskId: string, token: string, body: object) =>
+      request(app)
+        .post(`/api/orgs/${admin.orgId}/tasks/${taskId}/activity`)
+        .set(auth(token))
+        .send(body);
+
+    // Only admins and managers can mention a whole role.
+    const shared = await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "Shared work",
+      assigneeIds: [alice.userId],
+    });
+    const roleMention = await post(shared.body.task._id, alice.accessToken, {
+      type: "question",
+      content: "Anyone?",
+      mentionRoles: ["member"],
+    });
+    expect(roleMention.status).toBe(403);
+
+    // Bob isn't assigned, but once mentioned he can reply.
+    const bobBefore = await post(shared.body.task._id, bob.accessToken, {
+      type: "update",
+      content: "Can I help?",
+    });
+    expect(bobBefore.status).toBe(403);
+    const mentionBob = await post(shared.body.task._id, alice.accessToken, {
+      type: "question",
+      content: "Bob, thoughts?",
+      mentionMemberIds: [bob.userId],
+    });
+    expect(mentionBob.status).toBe(201);
+    const bobReply = await post(shared.body.task._id, bob.accessToken, {
+      type: "update",
+      content: "Looks good",
+    });
+    expect(bobReply.status).toBe(201);
+
+    // A task assigned to the admin is hidden from members, so they can't be
+    // mentioned on it, and a role mention skips them.
+    const leadTask = await createTask(
+      admin.orgId,
+      projectId,
+      admin.accessToken,
+      { title: "Lead only", assigneeIds: [admin.userId] },
+    );
+    const hiddenMention = await post(
+      leadTask.body.task._id,
+      admin.accessToken,
+      {
+        type: "update",
+        content: "FYI",
+        mentionMemberIds: [bob.userId],
+      },
+    );
+    expect(hiddenMention.status).toBe(400);
+    expect(hiddenMention.body.error.code).toBe("INVALID_MENTION");
+    const roleOnHidden = await post(leadTask.body.task._id, admin.accessToken, {
+      type: "update",
+      content: "FYI all",
+      mentionRoles: ["member"],
+    });
+    expect(roleOnHidden.status).toBe(201);
+    const bobInbox = await request(app)
+      .get(`/api/orgs/${admin.orgId}/notifications`)
+      .set(auth(bob.accessToken));
+    expect(
+      bobInbox.body.notifications.some(
+        (n: { taskId: string | null }) => n.taskId === leadTask.body.task._id,
+      ),
+    ).toBe(false);
+  });
+
   it("notifies task assignees on request and leads on questions", async () => {
     const admin = await registerOrg(
       "activity-admin@example.com",
