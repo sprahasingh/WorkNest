@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router";
 import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import { useDashboard } from "./queries";
 import { ScopeTag, type Scope } from "./ChartCard";
+import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 import { STATUS_KEYS, projectStage, type StatusKey } from "./chartStyles";
 import {
   OpenByPriorityCard,
@@ -144,6 +145,8 @@ export function DashboardPage() {
   const { orgId } = useOrg();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const [keyOpen, setKeyOpen] = useState(false);
+  const keyId = useId();
   // Kept in the address so a refresh or a shared link opens the same view.
   const [searchParams, setSearchParams] = useSearchParams();
   const view: DashboardView =
@@ -255,9 +258,17 @@ export function DashboardPage() {
     <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-            Dashboard
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+              Dashboard
+            </h1>
+            <InfoButton
+              open={keyOpen}
+              onToggle={() => setKeyOpen((open) => !open)}
+              label="How to read the dashboard"
+              controls={keyId}
+            />
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <ViewSwitch value={view} onChange={setView} />
             {isUpdating && (
@@ -311,12 +322,21 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <p className="-mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-          <ScopeTag scope={{ now: true }} />
-          <span>is how things stand right now.</span>
-          <ScopeTag scope={{ period }} />
-          <span>follows the date range you pick.</span>
-        </p>
+        <InfoPanel
+          id={keyId}
+          open={keyOpen}
+          onClose={() => setKeyOpen(false)}
+          className="-mt-3"
+        >
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            Each card is tagged with the time it covers.
+            <ScopeTag scope={{ now: true }} />
+            <span>is how things stand right now.</span>
+            <ScopeTag scope={{ period }} />
+            <span>follows the date range you pick.</span>
+            <span>Double-tap or double-click a chart to see its numbers.</span>
+          </span>
+        </InfoPanel>
 
         {customDraft && (
           <CustomRangePicker

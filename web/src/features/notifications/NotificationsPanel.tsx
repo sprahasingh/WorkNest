@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useOrg } from "@/hooks/useOrg";
 import { cn } from "@/lib/cn";
+import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 import {
   formatDateInTimeZone,
   formatFullTime,
@@ -66,6 +67,8 @@ function PanelBody({ onClose }: { onClose: () => void }) {
   const markRead = useMarkNotificationsRead(orgId);
   const dismiss = useDismissNotifications(orgId);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpId = useId();
 
   const unreadCount = data?.unreadCount ?? 0;
   const readableUnreadCount = data?.readableUnreadCount ?? 0;
@@ -120,12 +123,20 @@ function PanelBody({ onClose }: { onClose: () => void }) {
         <header className="border-b border-slate-200 px-4 pb-3 pt-4 dark:border-slate-800">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2
-                id="notifications-title"
-                className="text-lg font-semibold text-slate-900 dark:text-slate-50"
-              >
-                Notifications
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2
+                  id="notifications-title"
+                  className="text-lg font-semibold text-slate-900 dark:text-slate-50"
+                >
+                  Notifications
+                </h2>
+                <InfoButton
+                  open={helpOpen}
+                  onToggle={() => setHelpOpen((open) => !open)}
+                  label="How notifications work"
+                  controls={helpId}
+                />
+              </div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {[
                   invites.length > 0 &&
@@ -188,6 +199,16 @@ function PanelBody({ onClose }: { onClose: () => void }) {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
+          <InfoPanel
+            id={helpId}
+            open={helpOpen}
+            onClose={() => setHelpOpen(false)}
+            className="mx-4 mb-2 mt-3"
+          >
+            Reminders stay unread until you dismiss them. Opening any other
+            notification marks it as read. Dismiss (×) removes one from your
+            list for good.
+          </InfoPanel>
           {invites.length > 0 && (
             <section
               aria-labelledby="invitations-title"
@@ -321,7 +342,6 @@ function PanelBody({ onClose }: { onClose: () => void }) {
                               {formatRelativeTime(notification.createdAt)}
                             </time>
                             {!linked && " · no longer available"}
-                            {notification.dismissedAt && " · dismissed"}
                           </span>
                         </span>
                         {unread && (
@@ -331,13 +351,12 @@ function PanelBody({ onClose }: { onClose: () => void }) {
                           />
                         )}
                       </button>
-                      {reminder && !notification.dismissedAt && (
+                      {!notification.dismissedAt && (
                         <button
                           type="button"
                           onClick={() => dismiss.mutate([notification._id])}
-                          disabled={dismiss.isPending}
-                          aria-label={`Dismiss reminder: ${notification.message}`}
-                          title="Dismiss reminder"
+                          aria-label={`Dismiss: ${notification.message}`}
+                          title={reminder ? "Dismiss reminder" : "Dismiss"}
                           className="mt-2 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                         >
                           <CloseIcon />
@@ -350,11 +369,6 @@ function PanelBody({ onClose }: { onClose: () => void }) {
             </ul>
           )}
         </div>
-
-        <footer className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-          Reminders stay unread until you dismiss them. Opening other
-          notifications marks them as read.
-        </footer>
       </section>
     </div>
   );
