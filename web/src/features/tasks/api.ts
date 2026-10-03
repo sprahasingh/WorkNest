@@ -186,6 +186,20 @@ export async function deleteTaskPermanently(
   await apiClient.delete(`/orgs/${orgId}/tasks/${taskId}/permanent`);
 }
 
+export type TaskViewCounts = Record<TaskView, number>;
+
+export async function getTaskViewCounts(
+  orgId: string,
+  projectId: string,
+  params: Pick<ListTasksParams, "priority" | "assigneeId" | "mine">,
+): Promise<TaskViewCounts> {
+  const response = await apiClient.get<{ counts: TaskViewCounts }>(
+    `/orgs/${orgId}/projects/${projectId}/tasks/counts`,
+    { params },
+  );
+  return response.data.counts;
+}
+
 export async function getTaskStats(
   orgId: string,
   projectId: string,

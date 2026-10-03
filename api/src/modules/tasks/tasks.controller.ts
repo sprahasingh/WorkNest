@@ -10,11 +10,13 @@ import {
   restoreTask,
   deleteTaskPermanently,
   getTaskStats,
+  countTasksByView,
 } from "./tasks.service.js";
 import type {
   CreateTaskInput,
   UpdateTaskInput,
   ListTasksQuery,
+  TaskCountsQuery,
 } from "./tasks.schemas.js";
 
 export async function createTaskController(
@@ -40,6 +42,18 @@ export async function listTasksController(
   const result = await listTasks(projectId as string, query);
 
   res.status(200).json(result);
+}
+
+export async function getTaskCountsController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const { projectId } = req.params;
+  const counts = await countTasksByView(
+    projectId as string,
+    req.validated!.query as TaskCountsQuery,
+  );
+  res.status(200).json({ counts });
 }
 
 export async function getTaskStatsController(

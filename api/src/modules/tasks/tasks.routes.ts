@@ -5,6 +5,7 @@ import {
   createTaskSchema,
   updateTaskSchema,
   listTasksQuerySchema,
+  taskCountsQuerySchema,
   createActivitySchema,
 } from "./tasks.schemas.js";
 import {
@@ -12,6 +13,7 @@ import {
   listTasksController,
   getTaskController,
   getTaskStatsController,
+  getTaskCountsController,
   updateTaskController,
   deleteTaskController,
   archiveTaskController,
@@ -39,6 +41,13 @@ projectTasksRouter.get(
   "/stats",
   requirePermission("task:read"),
   getTaskStatsController,
+);
+
+projectTasksRouter.get(
+  "/counts",
+  requirePermission("task:read"),
+  validate({ query: taskCountsQuerySchema }),
+  getTaskCountsController,
 );
 
 projectTasksRouter.post(
