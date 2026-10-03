@@ -47,10 +47,14 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export const updatePersonalInformationSchema = z
   .object({
     name: z.string().trim().min(2).max(100),
-    currentPassword: z.string().min(1).max(72),
+    currentPassword: z.string().min(1).max(72).optional(),
     newPassword: z.string().min(8).max(72).optional(),
   })
-  .strict();
+  .strict()
+  .refine((input) => !input.newPassword || !!input.currentPassword, {
+    path: ["currentPassword"],
+    message: "Enter your current password to set a new one",
+  });
 
 export type UpdatePersonalInformationInput = z.infer<
   typeof updatePersonalInformationSchema
@@ -71,8 +75,10 @@ export const verifyEmailChangeSchema = z
 
 export type VerifyEmailChangeInput = z.infer<typeof verifyEmailChangeSchema>;
 
+// The password chosen at sign-up proves the person clicking the link is the
+// one who started the sign-up, not someone who signed up with their email.
 export const verifyRegistrationSchema = z
-  .object({ token: z.string().min(1) })
+  .object({ token: z.string().min(1), password: z.string().min(1).max(72) })
   .strict();
 
 export type VerifyRegistrationInput = z.infer<typeof verifyRegistrationSchema>;

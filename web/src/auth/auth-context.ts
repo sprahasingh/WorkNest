@@ -20,7 +20,7 @@ export type AuthContextValue = AuthState & {
     options?: AuthRequestOptions,
   ) => Promise<MeResponse>;
   register: (input: RegisterInput) => Promise<RegisterResponse>;
-  verifyRegistration: (token: string) => Promise<MeResponse>;
+  verifyRegistration: (token: string, password: string) => Promise<MeResponse>;
   logout: () => Promise<void>;
   isLoggingOut: boolean;
   deleteAccount: () => Promise<void>;

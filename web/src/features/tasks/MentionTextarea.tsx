@@ -21,6 +21,8 @@ interface MentionTextareaProps {
   placeholder: string;
   rows?: number;
   maxLength?: number;
+  // Whole-role mentions (@admin, @manager, @member) are for leads only.
+  allowRoleMentions?: boolean;
 }
 
 type Suggestion =
@@ -54,6 +56,7 @@ export function MentionTextarea({
   placeholder,
   rows = 3,
   maxLength = 2000,
+  allowRoleMentions = true,
 }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [query, setQuery] = useState<{
@@ -68,6 +71,7 @@ export function MentionTextarea({
     ...ROLE_SUGGESTIONS.filter(
       (item) =>
         item.kind === "role" &&
+        (allowRoleMentions || item.role === "assignee") &&
         `${item.label} ${item.detail}`
           .toLocaleLowerCase()
           .includes(normalizedQuery),

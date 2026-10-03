@@ -88,7 +88,8 @@ export async function requestPasswordResetController(
   const input = req.validated!.body as RequestPasswordResetInput;
   await requestPasswordReset(input);
   res.status(200).json({
-    message: "Password reset email sent. Check your inbox and spam folder.",
+    message:
+      "If an account exists for that email, we've sent a reset link. Check your inbox and spam folder.",
   });
 }
 
@@ -138,10 +139,13 @@ export async function logoutController(
 }
 
 export async function meController(req: Request, res: Response): Promise<void> {
-  const user = await User.findById(req.auth!.userId).select("+pendingEmail");
+  const user = await User.findById(req.auth!.userId).select(
+    "+pendingEmail +status",
+  );
 
-  if (!user) {
-    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  // A deleted account's access token may still be valid for a few minutes.
+  if (!user || (user as unknown as { status?: string }).status === "deleted") {
+    throw new AppError(401, "ACCOUNT_DELETED", "This account no longer exists");
   }
 
   const memberships = await Membership.find({ userId: req.auth!.userId })

@@ -26,6 +26,9 @@ const projectSchema = new Schema(
     dueDate: { type: Date, default: null },
     dueDateIsDateOnly: { type: Boolean, default: false },
     reminderCycle: { type: Number, default: 0 },
+    // Bumped by every change that can move the project in or out of a plan
+    // slot, so concurrent changes conflict instead of racing.
+    revision: { type: Number, default: 0 },
     archivedAt: { type: Date, default: null },
     // Set when the project is moved to the bin; it's permanently deleted
     // BIN_RETENTION_DAYS later unless restored.

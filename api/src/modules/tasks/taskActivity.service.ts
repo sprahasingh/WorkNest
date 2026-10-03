@@ -49,18 +49,30 @@ async function getAdminAndManagerIds(): Promise<Id[]> {
   return memberships.map((m) => m.userId);
 }
 
+// Who a mention reaches. Whole-role mentions are for admins and managers
+// only, and on a task, mentions only reach people who can see it, so nobody
+// is told about work they can't open.
 async function getMentionRecipients(
   input: CreateActivityInput,
   assigneeIds: Id[],
+  task: { assigneeIds?: Id[] | null } | null,
 ): Promise<Id[]> {
-  const roleMentions = input.mentionRoles ?? [];
-  const mentionedIds = (input.mentionMemberIds ?? []).map(
+  const roleMentions = [...new Set(input.mentionRoles ?? [])];
+  const mentionedIds = [...new Set(input.mentionMemberIds ?? [])].map(
     (id) => new mongoose.Types.ObjectId(id),
   );
   if (mentionedIds.length === 0 && roleMentions.length === 0) return [];
 
   const mentionedRoles = roleMentions.filter((role) => role !== "assignee");
-  let memberships: Array<{ userId: Id }> = [];
+  if (mentionedRoles.length > 0 && !isLead()) {
+    throw new AppError(
+      403,
+      "FORBIDDEN",
+      "Only admins and managers can mention a whole role",
+    );
+  }
+
+  let memberships: Array<{ userId: Id; role: string }> = [];
   if (mentionedIds.length > 0 || mentionedRoles.length > 0) {
     memberships = await Membership.find({
       $or: [
@@ -70,7 +82,7 @@ async function getMentionRecipients(
           : []),
       ],
     })
-      .select("userId")
+      .select("userId role")
       .lean();
   }
   const foundIds = new Set(
@@ -84,8 +96,36 @@ async function getMentionRecipients(
       "A mentioned person is no longer a member of this workspace",
     );
   }
+
+  // A task assigned to an admin or manager is hidden from other members.
+  const taskAssigneeIds = new Set(
+    (task?.assigneeIds ?? []).map((id) => String(id)),
+  );
+  const leadIds = task
+    ? new Set((await getAdminAndManagerIds()).map((id) => String(id)))
+    : new Set<string>();
+  const hiddenFromMembers =
+    task !== null && [...taskAssigneeIds].some((id) => leadIds.has(id));
+  const canSee = (membership: { userId: Id; role: string }) =>
+    !hiddenFromMembers ||
+    membership.role !== "member" ||
+    taskAssigneeIds.has(String(membership.userId));
+
+  const explicitlyMentioned = new Set(mentionedIds.map((id) => String(id)));
+  const blocked = memberships.filter(
+    (membership) =>
+      explicitlyMentioned.has(String(membership.userId)) && !canSee(membership),
+  );
+  if (blocked.length > 0) {
+    throw new AppError(
+      400,
+      "INVALID_MENTION",
+      "A mentioned member can't see this task because it's assigned to an admin or manager",
+    );
+  }
+
   return [
-    ...memberships.map((membership) => membership.userId),
+    ...memberships.filter(canSee).map((membership) => membership.userId),
     ...(roleMentions.includes("assignee") ? assigneeIds : []),
   ];
 }
@@ -106,6 +146,7 @@ async function recordActivity(options: {
   taskId: Id | null;
   input: CreateActivityInput;
   recipients: Id[];
+  mentionIds: Id[];
   message: string;
 }) {
   const context = getTenantContext()!;
@@ -128,6 +169,10 @@ async function recordActivity(options: {
             authorId: context.userId,
             type: options.input.type,
             content: options.input.content,
+            mentionIds: getNotificationRecipients(
+              options.mentionIds,
+              context.userId,
+            ),
           },
         ],
         { session: dbSession },
@@ -182,11 +227,18 @@ export async function createTaskActivity(
   await assertTaskVisible(task);
   assertCanPostLeadActivity(input.type);
 
-  if (!isLead() && !isTaskAssignee(task, context.userId)) {
+  if (
+    !isLead() &&
+    !isTaskAssignee(task, context.userId) &&
+    !(await TaskActivity.exists({
+      taskId: task._id,
+      mentionIds: new mongoose.Types.ObjectId(context.userId),
+    }))
+  ) {
     throw new AppError(
       403,
       "FORBIDDEN",
-      "Only assignees can post updates or questions on this task",
+      "Only assignees and people mentioned here can post on this task",
     );
   }
 
@@ -224,13 +276,15 @@ export async function createTaskActivity(
   const recipients = LEAD_ONLY_TYPES.includes(input.type)
     ? assignees
     : [...(await getAdminAndManagerIds()), ...assignees];
-  recipients.push(...(await getMentionRecipients(input, assignees)));
+  const mentionIds = await getMentionRecipients(input, assignees, task);
+  recipients.push(...mentionIds);
 
   const result = await recordActivity({
     projectId: task.projectId,
     taskId: task._id,
     input,
     recipients,
+    mentionIds,
     message: messages[input.type],
   });
   return result;
@@ -261,15 +315,19 @@ export async function createProjectActivity(
   assertCanPostLeadActivity(input.type);
 
   if (!isLead()) {
-    const assignedHere = await Task.exists({
-      projectId,
-      assigneeIds: new mongoose.Types.ObjectId(context.userId),
-    });
-    if (!assignedHere) {
+    const userId = new mongoose.Types.ObjectId(context.userId);
+    const canPostHere =
+      (await Task.exists({ projectId, assigneeIds: userId })) ||
+      (await TaskActivity.exists({
+        projectId,
+        taskId: null,
+        mentionIds: userId,
+      }));
+    if (!canPostHere) {
       throw new AppError(
         403,
         "FORBIDDEN",
-        "Only people assigned to a task in this project can post here",
+        "Only people assigned to a task in this project, or mentioned here, can post",
       );
     }
   }
@@ -319,7 +377,8 @@ export async function createProjectActivity(
       openAssigneeIds = openTasks.flatMap((task) => task.assigneeIds ?? []);
     }
   }
-  recipients.push(...(await getMentionRecipients(input, openAssigneeIds)));
+  const mentionIds = await getMentionRecipients(input, openAssigneeIds, null);
+  recipients.push(...mentionIds);
 
   const authorName = await getAuthorName(context.userId);
   const messages: Record<ActivityType, string> = {
@@ -334,6 +393,7 @@ export async function createProjectActivity(
     taskId: null,
     input,
     recipients,
+    mentionIds,
     message: messages[input.type],
   });
 }
