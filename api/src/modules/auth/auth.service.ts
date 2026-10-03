@@ -708,24 +708,17 @@ export async function deleteAccount(userId: string): Promise<void> {
   }
 }
 
+// A token replaced this recently is still accepted, so two tabs refreshing
+// at once don't look like a stolen token and sign the person out.
+const REFRESH_GRACE_MS = 30_000;
+const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export async function refresh(rawToken: string) {
   const tokenHash = sha256(rawToken);
   const session = await Session.findOne({ tokenHash });
 
   if (!session) {
     throw new AppError(401, "INVALID_REFRESH_TOKEN", "Invalid refresh token");
-  }
-
-  if (session.revokedAt) {
-    await Session.updateMany(
-      { familyId: session.familyId, revokedAt: null },
-      { revokedAt: new Date() },
-    );
-    throw new AppError(
-      401,
-      "TOKEN_REUSE_DETECTED",
-      "Refresh token reuse detected",
-    );
   }
 
   if (session.expiresAt < new Date()) {
@@ -738,37 +731,77 @@ export async function refresh(rawToken: string) {
 
   try {
     await dbSession.withTransaction(async () => {
-      const newToken = randomToken();
-      const newTokenHash = sha256(newToken);
-      newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const now = new Date();
+      // Claim the token atomically; only one request can rotate it.
+      const claimed = await Session.findOneAndUpdate(
+        { _id: session._id, revokedAt: null },
+        { revokedAt: now },
+        { session: dbSession, returnDocument: "after" },
+      );
 
+      if (!claimed) {
+        // Already rotated. Fine if it happened a moment ago (another tab);
+        // otherwise it's a reused token, so end the whole session family.
+        const current = await Session.findById(session._id).session(dbSession);
+        const revokedAt = current?.revokedAt?.getTime() ?? 0;
+        const familyStillActive = await Session.exists({
+          familyId: session.familyId,
+          revokedAt: null,
+        }).session(dbSession);
+        if (
+          !current?.replacedBy ||
+          now.getTime() - revokedAt > REFRESH_GRACE_MS ||
+          !familyStillActive
+        ) {
+          throw new AppError(
+            401,
+            "TOKEN_REUSE_DETECTED",
+            "Refresh token reuse detected",
+          );
+        }
+      }
+
+      const newToken = randomToken();
+      newExpiresAt = new Date(now.getTime() + REFRESH_TTL_MS);
       const [newSession] = await Session.create(
         [
           {
             userId: session.userId,
             familyId: session.familyId,
-            tokenHash: newTokenHash,
+            tokenHash: sha256(newToken),
             expiresAt: newExpiresAt,
           },
         ],
         { session: dbSession },
       );
 
-      session.revokedAt = new Date();
-      session.replacedBy = newSession._id;
-      await session.save({ session: dbSession });
+      if (claimed) {
+        claimed.replacedBy = newSession._id;
+        await claimed.save({ session: dbSession });
+      }
 
       newRawToken = newToken;
     });
-
-    return {
-      userId: session.userId,
-      rawToken: newRawToken!,
-      expiresAt: newExpiresAt!,
-    };
+  } catch (error) {
+    if (
+      error instanceof AppError &&
+      error.code === "TOKEN_REUSE_DETECTED"
+    ) {
+      await Session.updateMany(
+        { familyId: session.familyId, revokedAt: null },
+        { revokedAt: new Date() },
+      );
+    }
+    throw error;
   } finally {
     await dbSession.endSession();
   }
+
+  return {
+    userId: session.userId,
+    rawToken: newRawToken!,
+    expiresAt: newExpiresAt!,
+  };
 }
 
 export async function logout(rawToken: string): Promise<void> {
