@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useController, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,6 +25,8 @@ import {
   type Plan,
 } from "@/api/auth";
 import { cn } from "@/lib/cn";
+import { LeaveOrganizationCard } from "./LeaveOrganizationCard";
+import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 import {
   PLAN_LIMITS,
   PLAN_NAMES,
@@ -703,6 +705,8 @@ export function SettingsPage() {
   const { logout, isLoggingOut, deleteAccount, isDeletingAccount } = useAuth();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [dangerInfoOpen, setDangerInfoOpen] = useState(false);
+  const dangerInfoId = useId();
   const canUpdateOrg = useCan("org:update");
   const canChangePlan = useCan("plan:change");
 
@@ -994,18 +998,32 @@ export function SettingsPage() {
           </Button>
         </Card>
 
+        {org && <LeaveOrganizationCard orgId={orgId} orgName={org.name} />}
+
         <Card className="border-red-200 dark:border-red-900/40">
-          <h2 className="font-medium text-red-700 dark:text-red-400">
+          <h2 className="flex items-center gap-2 font-medium text-red-700 dark:text-red-400">
             Danger zone
+            <InfoButton
+              open={dangerInfoOpen}
+              onToggle={() => setDangerInfoOpen((open) => !open)}
+              label="About deleting your account"
+              controls={dangerInfoId}
+            />
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Delete your account and leave every workspace you belong to.
+          </p>
+          <InfoPanel
+            id={dangerInfoId}
+            open={dangerInfoOpen}
+            onClose={() => setDangerInfoOpen(false)}
+          >
             You&apos;ll be signed out, and your email is freed so you can sign
             up or accept an invite again later. If you&apos;re the only admin of
             a workspace with other people in it, make someone else an admin
             first. A workspace where you&apos;re the only member is deleted
             along with its projects and tasks.
-          </p>
+          </InfoPanel>
 
           {!showDeleteConfirm ? (
             <Button

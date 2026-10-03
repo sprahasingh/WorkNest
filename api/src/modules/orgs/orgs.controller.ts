@@ -3,6 +3,7 @@ import { Organization } from "../../models/Organization.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { changePlan, createOrg, updateOrg } from "./orgs.service.js";
+import { reconcileSeats } from "../invites/invites.service.js";
 import type {
   UpdateOrgInput,
   ChangePlanInput,
@@ -23,6 +24,7 @@ export async function getOrgController(
   res: Response,
 ): Promise<void> {
   const tenantId = requireTenantId();
+  await reconcileSeats(tenantId);
   const org = await Organization.findById(tenantId).setOptions({
     skipTenant: true,
   });

@@ -1,4 +1,5 @@
 import { apiClient } from "@/api/client";
+import type { Plan } from "@/api/auth";
 
 export interface StatusCount {
   _id: string;
@@ -18,9 +19,14 @@ export interface TopAssignee {
 }
 
 export interface DashboardUsage {
+  plan: Plan;
+  // Members plus invites not yet accepted; each takes a seat.
   seatsUsed: number;
   seatLimit: number;
   memberCount: number;
+  // Invites sent but not yet accepted, declined or cancelled.
+  pendingInvites: number;
+  roleCounts: { admin: number; manager: number; member: number };
   projectCount: number;
   projectLimit: number;
 }

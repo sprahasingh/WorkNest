@@ -5,6 +5,7 @@ import {
   dismissNotifications,
   isReminder,
   markNotificationsRead,
+  type NotificationList,
   type NotificationStatus,
 } from "./api";
 
@@ -46,12 +47,51 @@ export function useMarkNotificationsRead(orgId: string) {
   });
 }
 
+// Dismissed notifications leave the list straight away; they come back if
+// the server says no.
 export function useDismissNotifications(orgId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (ids: string[]) => dismissNotifications(orgId, ids),
-    onSuccess: () => {
+    onMutate: async (ids) => {
+      const key = notificationKeys.all(orgId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueriesData<NotificationList>({
+        queryKey: key,
+      });
+      queryClient.setQueriesData<NotificationList>(
+        { queryKey: key },
+        (current) => {
+          if (!current) return current;
+          const removed = current.notifications.filter((item) =>
+            ids.includes(item._id),
+          );
+          const wasUnread = removed.filter(
+            (item) => !item.readAt && !item.dismissedAt,
+          );
+          return {
+            ...current,
+            notifications: current.notifications.filter(
+              (item) => !ids.includes(item._id),
+            ),
+            unreadCount: Math.max(0, current.unreadCount - wasUnread.length),
+            readableUnreadCount: Math.max(
+              0,
+              current.readableUnreadCount -
+                wasUnread.filter((item) => !isReminder(item.type)).length,
+            ),
+          };
+        },
+      );
+      return { previous };
+    },
+    onError: (_error, _ids, context) => {
+      for (const [key, data] of context?.previous ?? []) {
+        queryClient.setQueryData(key, data);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({
         queryKey: notificationKeys.all(orgId),
       });
