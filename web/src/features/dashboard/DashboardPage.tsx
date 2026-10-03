@@ -1,32 +1,29 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type PointerEvent,
-  type ReactElement,
-  type ReactNode,
-} from "react";
-import { Link, Navigate } from "react-router";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useState } from "react";
+import { Link, Navigate, useSearchParams } from "react-router";
 import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useTheme } from "@/theme/theme-context";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import { useDashboard } from "./queries";
-import type { DashboardRange, DashboardTrend, StatusCount } from "./api";
+import { STATUS_KEYS, projectStage, type StatusKey } from "./chartStyles";
+import {
+  OpenByPriorityCard,
+  ProjectProgressCard,
+  StatusDonutCard,
+  StatusHistoryCard,
+  CreatedVsCompletedCard,
+  WorkloadCard,
+  WorkspaceCard,
+  type FlowRow,
+  type StatusHistoryRow,
+} from "./DashboardCharts";
+import {
+  OpenWorkByProjectCard,
+  ProjectActivityCard,
+  ProjectStageCard,
+} from "./ProjectCharts";
+import type { DashboardData, DashboardRange, DashboardTrend } from "./api";
 
 const DATE_RANGE_OPTIONS: { value: number | "all"; label: string }[] = [
   { value: 7, label: "Last 7 days" },
@@ -36,46 +33,6 @@ const DATE_RANGE_OPTIONS: { value: number | "all"; label: string }[] = [
   { value: 90, label: "Last 90 days" },
   { value: "all", label: "All time" },
 ];
-
-// Two taps or clicks this close together (ms) count as a double tap.
-const DOUBLE_TAP_MS = 350;
-
-const STATUS_ORDER = ["todo", "in_progress", "done"];
-const STATUS_LABELS: Record<string, string> = {
-  todo: "To do",
-  in_progress: "In progress",
-  done: "Done",
-};
-const STATUS_COLORS: Record<string, string> = {
-  todo: "#94a3b8",
-  in_progress: "#f59e0b",
-  done: "#10b981",
-};
-
-const PRIORITY_ORDER = ["low", "medium", "high"];
-const PRIORITY_LABELS: Record<string, string> = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-};
-const PRIORITY_COLORS: Record<string, string> = {
-  low: "#94a3b8",
-  medium: "#f59e0b",
-  high: "#ef4444",
-};
-
-function normalizeCounts(
-  counts: StatusCount[],
-  order: string[],
-  labels: Record<string, string>,
-): { key: string; name: string; count: number }[] {
-  const byId = new Map(counts.map((entry) => [entry._id, entry.count]));
-  return order.map((key) => ({
-    key,
-    name: labels[key] ?? key,
-    count: byId.get(key) ?? 0,
-  }));
-}
 
 function formatUtcDate(
   isoDate: string,
@@ -151,12 +108,22 @@ function trendChange(
   range: DashboardRange,
   trend: DashboardTrend,
 ): { text: string; direction: "up" | "down" | "flat" } | null {
-  if (range === "all" || trend.previousTotal === null) return null;
+  return periodChange(range, trend, trend.total, trend.previousTotal);
+}
+
+// The same comparison for any count over the range, e.g. tasks completed.
+function periodChange(
+  range: DashboardRange,
+  trend: DashboardTrend,
+  total: number,
+  previousTotal: number | null,
+): { text: string; direction: "up" | "down" | "flat" } | null {
+  if (range === "all" || previousTotal === null) return null;
   // Nothing in either period: the chart already says so.
-  if (trend.previousTotal === 0 && trend.total === 0) return null;
+  if (previousTotal === 0 && total === 0) return null;
   const length = typeof range === "number" ? range : rangeLength(trend);
   const versus = `vs previous ${length} ${length === 1 ? "day" : "days"}`;
-  const difference = trend.total - trend.previousTotal;
+  const difference = total - previousTotal;
   if (difference === 0)
     return { text: `No change ${versus}`, direction: "flat" };
   return {
@@ -166,7 +133,8 @@ function trendChange(
 }
 
 function trendTitle(range: DashboardRange, trend: DashboardTrend): string {
-  if (typeof range === "number") return `Tasks created, last ${range} days`;
+  if (typeof range === "number")
+    return `Created vs completed, last ${range} days`;
   if (typeof range === "object") {
     const sameYear = trend.since.slice(0, 4) === trend.until.slice(0, 4);
     const from = formatUtcDate(
@@ -174,17 +142,33 @@ function trendTitle(range: DashboardRange, trend: DashboardTrend): string {
       sameYear ? { month: "short", day: "numeric" } : FULL_DATE,
     );
     return trend.since === trend.until
-      ? `Tasks created on ${formatUtcDate(trend.since, FULL_DATE)}`
-      : `Tasks created, ${from} to ${formatUtcDate(trend.until, FULL_DATE)}`;
+      ? `Created vs completed on ${formatUtcDate(trend.since, FULL_DATE)}`
+      : `Created vs completed, ${from} to ${formatUtcDate(trend.until, FULL_DATE)}`;
   }
   const per = { day: "per day", week: "per week", month: "per month" }[
     trend.granularity
   ];
-  return `Tasks created ${per}, since ${formatUtcDate(trend.since, FULL_DATE)}`;
+  return `Created vs completed ${per}, since ${formatUtcDate(trend.since, FULL_DATE)}`;
 }
 
 export function DashboardPage() {
   const { orgId } = useOrg();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+  // Kept in the address so a refresh or a shared link opens the same view.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view: DashboardView =
+    searchParams.get("view") === "projects" ? "projects" : "tasks";
+  const setView = (next: DashboardView) =>
+    setSearchParams(
+      (current) => {
+        const params = new URLSearchParams(current);
+        if (next === "tasks") params.delete("view");
+        else params.set("view", next);
+        return params;
+      },
+      { replace: true },
+    );
   const canViewDashboard = useCan("dashboard:read");
   const [days, setDays] = useState<DashboardRange>(14);
   // The custom dates being picked, before they're applied.
@@ -231,16 +215,12 @@ export function DashboardPage() {
     );
   }
 
-  const statusData = normalizeCounts(
-    data.tasksByStatus,
-    STATUS_ORDER,
-    STATUS_LABELS,
-  );
-  const priorityData = normalizeCounts(
-    data.tasksByPriority,
-    PRIORITY_ORDER,
-    PRIORITY_LABELS,
-  );
+  const statusCounts = Object.fromEntries(
+    STATUS_KEYS.map((key) => [
+      key,
+      data.tasksByStatus.find((entry) => entry._id === key)?.count ?? 0,
+    ]),
+  ) as Record<StatusKey, number>;
   const trendData = data.tasksCreatedPerDay.map((entry, index, all) => {
     const labels = trendLabels(
       entry.date,
@@ -250,9 +230,35 @@ export function DashboardPage() {
     );
     return { date: labels.tick, fullLabel: labels.full, count: entry.count };
   });
-  const trendAverage =
-    trendData.length > 0 ? data.trend.total / trendData.length : 0;
+  const points = Math.max(1, trendData.length);
+  const createdAverage = data.trend.total / points;
+  const completedAverage = data.completed.total / points;
   const change = trendChange(days, data.trend);
+  const completedChange = periodChange(
+    days,
+    data.trend,
+    data.completed.total,
+    data.completed.previousTotal,
+  );
+  // Same points and labels as the created trend.
+  const statusHistoryRows: StatusHistoryRow[] = data.statusHistory.map(
+    (point, index) => ({
+      date: trendData[index]?.date ?? point.date,
+      fullLabel: trendData[index]?.fullLabel ?? point.date,
+      todo: point.todo,
+      in_progress: point.in_progress,
+    }),
+  );
+  const flowRows: FlowRow[] = trendData.map((point, index) => ({
+    date: point.date,
+    fullLabel: point.fullLabel,
+    created: point.count,
+    completed: data.statusHistory[index]?.done ?? 0,
+  }));
+  const rangeShort =
+    days === "all"
+      ? "all time"
+      : `${typeof days === "number" ? days : rangeLength(data.trend)}d`;
   const per = PERIOD_WORDS[data.trend.granularity].per;
   const isUpdating = isPlaceholderData;
 
@@ -265,7 +271,8 @@ export function DashboardPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
             Dashboard
           </h1>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <ViewSwitch value={view} onChange={setView} />
             {isUpdating && (
               <span
                 role="status"
@@ -337,242 +344,239 @@ export function DashboardPage() {
           />
         )}
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard label="Overdue tasks" value={data.overdueCount} />
-          <StatCard
-            label="Members"
-            value={`${data.usage.memberCount}`}
-            sub={`${data.usage.seatsUsed} / ${data.usage.seatLimit} seats`}
-          />
-          <StatCard
-            label="Active projects"
-            value={`${data.usage.projectCount} / ${data.usage.projectLimit}`}
-          />
-          <StatCard
-            label={
-              days === "all"
-                ? "Tasks created (all time)"
-                : `Tasks created (${typeof days === "number" ? days : rangeLength(data.trend)}d)`
-            }
-            value={data.trend.total}
-            sub={change?.text}
-          />
-        </div>
-
         <div
           className={cn(
-            "space-y-6 transition-opacity",
+            "@container space-y-6 transition-opacity",
             isUpdating && "opacity-60",
           )}
         >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ChartCard
-              title="Tasks by status"
-              subtitle="All tasks right now"
-              emptyMessage={
-                statusData.every((d) => d.count === 0)
-                  ? "No tasks yet"
-                  : undefined
-              }
-              description={statusData
-                .map((d) => `${d.name}: ${d.count}`)
-                .join(", ")}
-            >
-              {({ gridColor, tickColor, tooltipProps }) => (
-                <BarChart data={statusData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke={gridColor}
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 12, fill: tickColor }}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 12, fill: tickColor }}
-                  />
-                  <Tooltip {...tooltipProps} formatter={taskCountFormatter} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {statusData.map((entry) => (
-                      <Cell key={entry.key} fill={STATUS_COLORS[entry.key]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              )}
-            </ChartCard>
-
-            <ChartCard
-              title="Tasks by priority"
-              subtitle="All tasks right now"
-              emptyMessage={
-                priorityData.every((d) => d.count === 0)
-                  ? "No tasks yet"
-                  : undefined
-              }
-              description={priorityData
-                .map((d) => `${d.name}: ${d.count}`)
-                .join(", ")}
-            >
-              {({ gridColor, tickColor, tooltipProps }) => (
-                <BarChart data={priorityData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke={gridColor}
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 12, fill: tickColor }}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 12, fill: tickColor }}
-                  />
-                  <Tooltip {...tooltipProps} formatter={taskCountFormatter} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {priorityData.map((entry) => (
-                      <Cell key={entry.key} fill={PRIORITY_COLORS[entry.key]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              )}
-            </ChartCard>
-          </div>
-
-          <ChartCard
-            title={trendTitle(days, data.trend)}
-            summary={
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-                  {data.trend.total}
-                </span>
-                {change && (
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-xs font-medium",
-                      change.direction === "up" &&
-                        "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
-                      change.direction === "down" &&
-                        "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-                      change.direction === "flat" &&
-                        "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-                    )}
-                  >
-                    {change.direction === "up" && "▲ "}
-                    {change.direction === "down" && "▼ "}
-                    {change.text}
-                  </span>
-                )}
-                {data.trend.total > 0 && (
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Avg {formatAverage(trendAverage)} {per}
-                  </span>
-                )}
-              </div>
-            }
-            emptyMessage={
-              data.trend.total === 0
-                ? "No tasks were created in this period"
-                : undefined
-            }
-            description={`${data.trend.total} tasks created. ${change?.text ?? ""} Average ${formatAverage(trendAverage)} ${per}.`}
-          >
-            {({ gridColor, tickColor, tooltipProps }) => (
-              <AreaChart
-                data={trendData}
-                margin={{ top: 8, right: 8, left: -8 }}
-              >
-                <defs>
-                  <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke={gridColor}
-                  vertical={false}
+          {view === "tasks" ? (
+            <>
+              <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
+                <StatCard
+                  label="Open tasks"
+                  value={statusCounts.todo + statusCounts.in_progress}
+                  sub={`${statusCounts.in_progress} in progress`}
                 />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 12, fill: tickColor }}
-                  tickLine={false}
-                  minTickGap={16}
+                <StatCard
+                  label={`Completed (${rangeShort})`}
+                  value={data.completed.total}
+                  sub={completedChange?.text}
                 />
-                <YAxis
-                  allowDecimals={false}
-                  tick={{ fontSize: 12, fill: tickColor }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={36}
+                <StatCard
+                  label={`Created (${rangeShort})`}
+                  value={data.trend.total}
+                  sub={change?.text}
                 />
-                <Tooltip
-                  {...tooltipProps}
-                  formatter={taskCountFormatter}
-                  labelFormatter={(label, payload) =>
-                    (
-                      payload?.[0]?.payload as
-                        { fullLabel?: string } | undefined
-                    )?.fullLabel ?? label
+                <StatCard
+                  label="Overdue"
+                  value={data.overdueCount}
+                  warning={
+                    data.overdueCount > 0 ? "Needs attention" : undefined
+                  }
+                  sub={
+                    data.dueSoonCount > 0
+                      ? `${data.dueSoonCount} more due in 7 days`
+                      : "Nothing else due this week"
                   }
                 />
-                {data.trend.total > 0 && (
-                  <ReferenceLine
-                    y={trendAverage}
-                    stroke={tickColor}
-                    strokeDasharray="4 4"
-                    strokeOpacity={0.6}
-                    ifOverflow="extendDomain"
-                  />
-                )}
-                <Area
-                  // Monotone keeps the curve from dipping below zero or
-                  // overshooting between points.
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#14b8a6"
-                  strokeWidth={2}
-                  fill="url(#trend-fill)"
-                  // Few points (e.g. a new org's "all time") read better as dots.
-                  dot={trendData.length <= 14 ? { r: 3 } : false}
-                  activeDot={{ r: 4 }}
-                />
-              </AreaChart>
-            )}
-          </ChartCard>
-        </div>
+              </div>
 
-        <Card>
-          <h2 className="font-medium text-slate-800 dark:text-slate-100">
-            Top assignees
-          </h2>
-          {data.topAssignees.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-              No open tasks are assigned yet.
-            </p>
+              <StatusHistoryCard
+                rows={statusHistoryRows}
+                granularity={data.trend.granularity}
+                isDark={isDark}
+              />
+
+              {/* Pairs sit side by side only when each chart gets enough room,
+              judged by the space the dashboard actually has (the sidebar
+              takes some on tablets), so both always switch together. */}
+              <div className="grid gap-4 @2xl:grid-cols-2">
+                <StatusDonutCard counts={statusCounts} isDark={isDark} />
+                <OpenByPriorityCard
+                  counts={data.openByPriority}
+                  dueSoon={data.dueSoonCount}
+                  isDark={isDark}
+                />
+              </div>
+
+              <CreatedVsCompletedCard
+                title={trendTitle(days, data.trend)}
+                rows={flowRows}
+                created={{ total: data.trend.total, change }}
+                completed={{
+                  total: data.completed.total,
+                  change: completedChange,
+                }}
+                averageText={
+                  data.trend.total + data.completed.total > 0
+                    ? `Avg ${formatAverage(createdAverage)} created and ${formatAverage(completedAverage)} completed ${per}`
+                    : null
+                }
+                isDark={isDark}
+              />
+
+              <div className="grid gap-4 @2xl:grid-cols-2">
+                <WorkloadCard
+                  workload={data.workload}
+                  unassigned={data.unassignedOpenCount}
+                  isDark={isDark}
+                />
+                <ProjectProgressCard
+                  orgId={orgId}
+                  projects={data.projectProgress}
+                />
+              </div>
+            </>
           ) : (
-            <ul className="mt-3 space-y-2">
-              {data.topAssignees.map((assignee) => (
-                <li
-                  key={assignee.userId}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <span className="text-slate-700 dark:text-slate-300">
-                    {assignee.name}{" "}
-                    <span className="text-slate-400">{assignee.email}</span>
-                  </span>
-                  <span className="font-medium text-slate-800 dark:text-slate-100">
-                    {assignee.openTaskCount} open
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <ProjectsOverview
+              orgId={orgId}
+              data={data}
+              rangeText={rangePhrase(days, data.trend)}
+              isDark={isDark}
+            />
           )}
-        </Card>
+
+          <WorkspaceCard usage={data.usage} />
+        </div>
       </div>
     </div>
+  );
+}
+
+type DashboardView = "tasks" | "projects";
+
+// Switches the whole dashboard between task and project charts.
+function ViewSwitch({
+  value,
+  onChange,
+}: {
+  value: DashboardView;
+  onChange: (value: DashboardView) => void;
+}) {
+  const options: { value: DashboardView; label: string }[] = [
+    { value: "tasks", label: "Tasks" },
+    { value: "projects", label: "Projects" },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="Dashboard view"
+      className="inline-flex rounded-lg bg-slate-200 p-1 dark:bg-slate-800"
+    >
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(option.value)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                event.preventDefault();
+                onChange(value === "tasks" ? "projects" : "tasks");
+              }
+            }}
+            tabIndex={selected ? 0 : -1}
+            className={cn(
+              "h-8 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600",
+              selected
+                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// "last 14 days", "all time", "Sep 1 to Sep 20, 2026".
+function rangePhrase(range: DashboardRange, trend: DashboardTrend): string {
+  if (typeof range === "number") return `last ${range} days`;
+  if (range === "all") return "all time";
+  if (trend.since === trend.until) {
+    return `on ${formatUtcDate(trend.since, FULL_DATE)}`;
+  }
+  const sameYear = trend.since.slice(0, 4) === trend.until.slice(0, 4);
+  return `${formatUtcDate(trend.since, sameYear ? { month: "short", day: "numeric" } : FULL_DATE)} to ${formatUtcDate(trend.until, FULL_DATE)}`;
+}
+
+function ProjectsOverview({
+  orgId,
+  data,
+  rangeText,
+  isDark,
+}: {
+  orgId: string;
+  data: DashboardData;
+  rangeText: string;
+  isDark: boolean;
+}) {
+  const projects = data.projectProgress;
+  const stageCount = (stage: ReturnType<typeof projectStage>) =>
+    projects.filter((project) => projectStage(project) === stage).length;
+  const needAttention = projects.filter((project) => project.overdue > 0);
+  const overdueTasks = needAttention.reduce(
+    (sum, project) => sum + project.overdue,
+    0,
+  );
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
+        <StatCard
+          label="Active projects"
+          value={projects.length}
+          sub={`${data.usage.projectCount} of ${data.usage.projectLimit} plan slots used`}
+        />
+        <StatCard
+          label="In progress"
+          value={stageCount("inProgress")}
+          sub={`${stageCount("notStarted")} not started yet`}
+        />
+        <StatCard
+          label="Completed"
+          value={stageCount("completed")}
+          sub="Every task done"
+        />
+        <StatCard
+          label="Need attention"
+          value={needAttention.length}
+          warning={
+            needAttention.length > 0
+              ? `${overdueTasks} overdue ${overdueTasks === 1 ? "task" : "tasks"}`
+              : undefined
+          }
+          sub={
+            needAttention.length > 0
+              ? "Projects with overdue tasks"
+              : "No overdue tasks"
+          }
+        />
+      </div>
+
+      <div className="grid gap-4 @2xl:grid-cols-2">
+        <ProjectStageCard
+          projects={projects}
+          archivedCount={data.archivedProjectCount}
+          isDark={isDark}
+        />
+        <OpenWorkByProjectCard projects={projects} isDark={isDark} />
+      </div>
+
+      <ProjectActivityCard
+        projects={projects}
+        title={`Created and marked done, ${rangeText}`}
+        isDark={isDark}
+      />
+
+      <ProjectProgressCard orgId={orgId} projects={projects} limit={10} wide />
+    </>
   );
 }
 
@@ -580,10 +584,13 @@ function StatCard({
   label,
   value,
   sub,
+  warning,
 }: {
   label: string;
   value: string | number;
   sub?: string;
+  // A short status note, shown with an icon so it isn't color alone.
+  warning?: string;
 }) {
   return (
     <Card className="p-4">
@@ -593,207 +600,15 @@ function StatCard({
       <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">
         {value}
       </p>
-      {sub && (
-        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{sub}</p>
-      )}
-    </Card>
-  );
-}
-
-function taskCountFormatter(value: unknown): [string, string] {
-  return [String(value), "Tasks"];
-}
-
-interface ChartTheme {
-  gridColor: string;
-  tickColor: string;
-  // Spread onto <Tooltip>: its look, and whether it may show at all.
-  tooltipProps: {
-    active?: boolean;
-    separator: string;
-    contentStyle: {
-      background: string;
-      border: string;
-      borderRadius: number;
-      color: string;
-      fontSize: number;
-    };
-  };
-}
-
-// Exact numbers stay hidden until the chart is double-tapped (or
-// double-clicked), so an ordinary tap or scroll doesn't pop them up.
-function useDoubleTapDetails() {
-  const [showDetails, setShowDetails] = useState(false);
-  const lastTapRef = useRef(0);
-  const pointerStartRef = useRef<{
-    x: number;
-    y: number;
-    time: number;
-    pointerId: number;
-  } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // A tap anywhere else hides them again.
-  useEffect(() => {
-    if (!showDetails) return;
-    const hideOnOutsideTap = (event: globalThis.PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setShowDetails(false);
-      }
-    };
-    document.addEventListener("pointerdown", hideOnOutsideTap);
-    return () => document.removeEventListener("pointerdown", hideOnOutsideTap);
-  }, [showDetails]);
-
-  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
-    pointerStartRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      time: event.timeStamp,
-      pointerId: event.pointerId,
-    };
-  };
-
-  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
-    const start = pointerStartRef.current;
-    pointerStartRef.current = null;
-    if (
-      !start ||
-      start.pointerId !== event.pointerId ||
-      event.timeStamp - start.time > 300 ||
-      Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10
-    ) {
-      return;
-    }
-
-    if (event.timeStamp - lastTapRef.current < DOUBLE_TAP_MS) {
-      setShowDetails((shown) => !shown);
-      lastTapRef.current = 0;
-    } else {
-      lastTapRef.current = event.timeStamp;
-    }
-  };
-
-  // With a mouse, moving off the chart hides them too.
-  const onPointerLeave = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType === "mouse") setShowDetails(false);
-  };
-
-  const onPointerCancel = () => {
-    pointerStartRef.current = null;
-  };
-
-  return {
-    showDetails,
-    containerRef,
-    onPointerDown,
-    onPointerUp,
-    onPointerCancel,
-    onPointerLeave,
-  };
-}
-
-function ChartCard({
-  title,
-  subtitle,
-  summary,
-  emptyMessage,
-  description,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  // Headline numbers shown between the title and the chart.
-  summary?: ReactNode;
-  // Shown over the chart when there's no data to plot.
-  emptyMessage?: string;
-  // Text version of the chart for screen readers.
-  description?: string;
-  children: (chartTheme: ChartTheme) => ReactElement;
-}) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
-  const {
-    showDetails,
-    containerRef,
-    onPointerDown,
-    onPointerUp,
-    onPointerCancel,
-    onPointerLeave,
-  } = useDoubleTapDetails();
-  const chartTheme: ChartTheme = {
-    gridColor: isDark ? "#334155" : "#e2e8f0",
-    tickColor: isDark ? "#94a3b8" : "#64748b",
-    tooltipProps: {
-      // false keeps it hidden; undefined lets it follow the pointer.
-      active: showDetails ? undefined : false,
-      separator: ": ",
-      contentStyle: {
-        background: isDark ? "#1e293b" : "#ffffff",
-        border: `1px solid ${isDark ? "#334155" : "#e2e8f0"}`,
-        borderRadius: 8,
-        color: isDark ? "#f1f5f9" : "#0f172a",
-        fontSize: 13,
-      },
-    },
-  };
-
-  return (
-    <Card>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <div>
-          <h2 className="font-medium text-slate-800 dark:text-slate-100">
-            {title}
-          </h2>
-          {subtitle && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {subtitle}
-            </p>
-          )}
-        </div>
-        <p
-          className="text-xs text-slate-400 dark:text-slate-500"
-          aria-live="polite"
-        >
-          <span className="pointer-coarse:hidden">
-            {showDetails
-              ? "Double-click to hide numbers"
-              : "Double-click for numbers"}
-          </span>
-          <span className="hidden pointer-coarse:inline">
-            {showDetails
-              ? "Double-tap to hide numbers"
-              : "Double-tap for numbers"}
-          </span>
+      {warning && (
+        <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+          <span aria-hidden="true">⚠ </span>
+          {warning}
         </p>
-      </div>
-      {summary && <div className="mt-3">{summary}</div>}
-      <div
-        ref={containerRef}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        onPointerLeave={onPointerLeave}
-        data-details={showDetails ? "on" : "off"}
-        // manipulation stops a double tap from zooming the page on phones;
-        // no outline, so a tap doesn't leave a focus box around the chart.
-        className="relative mt-4 h-56 touch-manipulation select-none [&_*]:outline-none"
-        role="img"
-        aria-label={description ? `${title}. ${description}` : title}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          {children(chartTheme)}
-        </ResponsiveContainer>
-        {emptyMessage && (
-          <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
-            <span className="rounded-lg bg-white/90 px-3 py-1.5 shadow-sm dark:bg-slate-900/90">
-              {emptyMessage}
-            </span>
-          </p>
-        )}
-      </div>
+      )}
+      {sub && (
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{sub}</p>
+      )}
     </Card>
   );
 }

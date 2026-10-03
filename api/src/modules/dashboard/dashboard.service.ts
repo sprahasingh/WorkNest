@@ -1,8 +1,10 @@
 import mongoose from "mongoose";
 import { Task } from "../../models/Task.js";
 import { Organization } from "../../models/Organization.js";
-import { binnedProjectIds } from "../../models/Project.js";
+import { Project, binnedProjectIds } from "../../models/Project.js";
 import { Membership } from "../../models/Membership.js";
+import { AuditLog } from "../../models/AuditLog.js";
+import { User } from "../../models/User.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { isValidTimeZone } from "../../lib/timezone.js";
 
@@ -24,6 +26,40 @@ export type DashboardRange = number | "all" | { from: string; to: string };
 export const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
 export type TrendGranularity = "day" | "week" | "month";
 
+// How many tasks sat in To do and In progress at the end of one day, week
+// or month, and how many were marked done during it.
+interface StatusPoint {
+  date: string;
+  todo: number;
+  in_progress: number;
+  done: number;
+}
+
+type TaskStatus = "todo" | "in_progress" | "done";
+const TASK_STATUSES: readonly TaskStatus[] = ["todo", "in_progress", "done"];
+
+interface WorkloadEntry {
+  userId: string;
+  name: string;
+  todo: number;
+  inProgress: number;
+}
+
+interface ProjectProgress {
+  projectId: string;
+  name: string;
+  key: string;
+  total: number;
+  todo: number;
+  inProgress: number;
+  done: number;
+  open: number;
+  overdue: number;
+  // Tasks created and marked done in the chosen range.
+  createdInRange: number;
+  completedInRange: number;
+}
+
 interface TopAssignee {
   userId: string;
   name: string;
@@ -37,14 +73,21 @@ const DAY_MS = 86_400_000;
 
 export { isValidTimeZone };
 
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+
 // The calendar day an instant falls on in `timeZone`.
 function localDayKey(date: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+  let formatter = dayFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    dayFormatters.set(timeZone, formatter);
+  }
+  return formatter.format(date);
 }
 
 function keyToDate(key: string): Date {
@@ -99,6 +142,137 @@ async function findOrgStart(tenantId: string): Promise<Date> {
     : new Date();
 }
 
+interface TaskHistory {
+  points: StatusPoint[];
+  // Times tasks were marked done in the range, and in the period before.
+  doneInRange: number;
+  donePrevious: number;
+  // Per project: tasks created and marked done in the range.
+  byProject: Map<string, { created: number; completed: number }>;
+}
+
+// Rebuilds the trend from today's tasks and the status changes the audit
+// log recorded. Tasks only store their current status, so for each bucket
+// this starts from today and undoes the changes made after it ended. "Done"
+// counts the times a task was marked done during the bucket, so a task that
+// was reopened and finished again counts twice. Tasks deleted for good are
+// gone from history; binned ones count until the day they were binned.
+async function buildTaskHistory({
+  bucketEnds,
+  excludedProjectIds,
+  since,
+  tz,
+  startKey,
+  endKey,
+  previousKey,
+}: {
+  bucketEnds: { date: string; endKey: string }[];
+  excludedProjectIds: mongoose.Types.ObjectId[];
+  since: Date;
+  tz: string;
+  startKey: string;
+  endKey: string;
+  previousKey: string | null;
+}): Promise<TaskHistory> {
+  const [tasks, changes] = await Promise.all([
+    Task.find({
+      projectId: { $nin: excludedProjectIds },
+      $or: [{ deletedAt: null }, { deletedAt: { $gte: since } }],
+    })
+      .select("projectId status createdAt deletedAt")
+      .setOptions({ includeDeleted: true })
+      .lean(),
+    AuditLog.find({
+      action: "task.updated",
+      "metadata.status": { $exists: true },
+      createdAt: { $gte: since },
+    })
+      .select("entityId metadata.status createdAt")
+      .sort({ createdAt: 1, _id: 1 })
+      .lean(),
+  ]);
+
+  const points: StatusPoint[] = bucketEnds.map(({ date }) => ({
+    date,
+    todo: 0,
+    in_progress: 0,
+    done: 0,
+  }));
+  const byProject = new Map<string, { created: number; completed: number }>();
+  const projectEntry = (projectId: string) => {
+    let entry = byProject.get(projectId);
+    if (!entry) {
+      entry = { created: 0, completed: 0 };
+      byProject.set(projectId, entry);
+    }
+    return entry;
+  };
+  const projectByTask = new Map(
+    tasks.map((task) => [task._id.toString(), task.projectId.toString()]),
+  );
+
+  let doneInRange = 0;
+  let donePrevious = 0;
+  const changesByTask = new Map<
+    string,
+    { dayKey: string; from: TaskStatus }[]
+  >();
+  for (const change of changes) {
+    const taskId = change.entityId.toString();
+    const projectId = projectByTask.get(taskId);
+    if (!projectId) continue;
+    const { from, to } =
+      (change.metadata as { status?: { from?: unknown; to?: unknown } })
+        ?.status ?? {};
+    const dayKey = localDayKey(change.createdAt, tz);
+
+    if (to === "done") {
+      if (dayKey >= startKey && dayKey <= endKey) {
+        doneInRange += 1;
+        projectEntry(projectId).completed += 1;
+        const bucket = bucketEnds.findIndex((end) => dayKey <= end.endKey);
+        if (bucket >= 0) points[bucket].done += 1;
+      } else if (previousKey && dayKey >= previousKey && dayKey < startKey) {
+        donePrevious += 1;
+      }
+    }
+
+    if (!TASK_STATUSES.includes(from as TaskStatus)) continue;
+    const list = changesByTask.get(taskId) ?? [];
+    list.push({ dayKey, from: from as TaskStatus });
+    changesByTask.set(taskId, list);
+  }
+
+  for (const task of tasks) {
+    const createdKey = localDayKey(task.createdAt, tz);
+    const deletedKey = task.deletedAt ? localDayKey(task.deletedAt, tz) : null;
+    if (!task.deletedAt && createdKey >= startKey && createdKey <= endKey) {
+      projectEntry(task.projectId.toString()).created += 1;
+    }
+    const taskChanges = changesByTask.get(task._id.toString()) ?? [];
+    // Changes on or before a bucket's last day are already in effect.
+    let next = 0;
+    bucketEnds.forEach(({ endKey: bucketEnd }, index) => {
+      while (
+        next < taskChanges.length &&
+        taskChanges[next].dayKey <= bucketEnd
+      ) {
+        next += 1;
+      }
+      if (createdKey > bucketEnd) return;
+      if (deletedKey !== null && deletedKey <= bucketEnd) return;
+      const status =
+        next < taskChanges.length
+          ? taskChanges[next].from
+          : (task.status as TaskStatus);
+      if (status === "todo" || status === "in_progress") {
+        points[index][status] += 1;
+      }
+    });
+  }
+  return { points, doneInRange, donePrevious, byProject };
+}
+
 export async function getDashboard(
   range: DashboardRange = 14,
   timeZone = "UTC",
@@ -135,10 +309,13 @@ export async function getDashboard(
     spanDays <= 90 ? "day" : spanDays <= 730 ? "week" : "month";
 
   // Tasks in projects that are in the bin don't count anywhere.
+  const excludedProjectIds = await binnedProjectIds();
   const live = {
-    projectId: { $nin: await binnedProjectIds() },
+    projectId: { $nin: excludedProjectIds },
     deletedAt: null,
   };
+  const open = { ...live, status: { $ne: "done" as const }, archivedAt: null };
+  const now = new Date();
 
   // Query a day early: local days start up to 14h before UTC midnight.
   const queryFrom = addDays(previousStart ?? rangeStart, -1);
@@ -151,6 +328,13 @@ export async function getDashboard(
     overdueCount,
     org,
     memberCount,
+    openByPriority,
+    workloadRaw,
+    unassignedOpenCount,
+    projectCountsRaw,
+    activeProjects,
+    dueSoonCount,
+    archivedProjectCount,
   ] = await Promise.all([
     Task.aggregate<StatusCount>([
       { $match: live },
@@ -227,6 +411,72 @@ export async function getDashboard(
     Membership.countDocuments({ tenantId: tenantObjectId }).setOptions({
       skipTenant: true,
     }),
+    Task.aggregate<StatusCount>([
+      { $match: open },
+      { $group: { _id: "$priority", count: { $sum: 1 } } },
+    ]),
+    Task.aggregate<{
+      _id: mongoose.Types.ObjectId;
+      todo: number;
+      inProgress: number;
+    }>([
+      { $match: { ...open, assigneeIds: { $not: { $size: 0 } } } },
+      { $unwind: "$assigneeIds" },
+      {
+        $group: {
+          _id: "$assigneeIds",
+          todo: { $sum: { $cond: [{ $eq: ["$status", "todo"] }, 1, 0] } },
+          inProgress: {
+            $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
+          },
+        },
+      },
+      { $sort: { inProgress: -1, todo: -1 } },
+    ]),
+    Task.countDocuments({ ...open, assigneeIds: { $size: 0 } }),
+    Task.aggregate<{
+      _id: mongoose.Types.ObjectId;
+      total: number;
+      todo: number;
+      inProgress: number;
+      done: number;
+      overdue: number;
+    }>([
+      { $match: live },
+      {
+        $group: {
+          _id: "$projectId",
+          total: { $sum: 1 },
+          todo: { $sum: { $cond: [{ $eq: ["$status", "todo"] }, 1, 0] } },
+          inProgress: {
+            $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
+          },
+          done: { $sum: { $cond: [{ $eq: ["$status", "done"] }, 1, 0] } },
+          overdue: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$status", "done"] },
+                    { $eq: ["$archivedAt", null] },
+                    { $ne: ["$dueDate", null] },
+                    { $lte: ["$dueDate", now] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]),
+    Project.find({ archivedAt: null }).select("name key").lean(),
+    Task.countDocuments({
+      ...open,
+      dueDate: { $gt: now, $lte: new Date(now.getTime() + 7 * DAY_MS) },
+    }),
+    Project.countDocuments({ archivedAt: { $ne: null } }),
   ]);
 
   const startKey = dateToKey(rangeStart);
@@ -266,6 +516,76 @@ export async function getDashboard(
     openTaskCount: entry.openTaskCount,
   }));
 
+  const history = await buildTaskHistory({
+    bucketEnds: createdPerDay.map(({ date }) => {
+      const lastDay = addDays(nextBucket(keyToDate(date), granularity), -1);
+      return {
+        date,
+        endKey: dateToKey(lastDay < rangeEnd ? lastDay : rangeEnd),
+      };
+    }),
+    excludedProjectIds,
+    since: addDays(previousStart ?? rangeStart, -1),
+    tz,
+    startKey,
+    endKey,
+    previousKey,
+  });
+
+  // Everyone with open work, busiest first; the page shows the top few.
+  const workloadUsers = await User.find({
+    _id: { $in: workloadRaw.map((entry) => entry._id) },
+  })
+    .select("name")
+    .lean();
+  const namesById = new Map(
+    workloadUsers.map((user) => [user._id.toString(), user.name]),
+  );
+  const workload: WorkloadEntry[] = workloadRaw
+    .filter((entry) => namesById.has(entry._id.toString()))
+    .map((entry) => ({
+      userId: entry._id.toString(),
+      name: namesById.get(entry._id.toString())!,
+      todo: entry.todo,
+      inProgress: entry.inProgress,
+    }))
+    .sort(
+      (left, right) =>
+        right.todo + right.inProgress - (left.todo + left.inProgress),
+    )
+    .slice(0, 8);
+
+  // Active projects with the most open work first.
+  const countsByProject = new Map(
+    projectCountsRaw.map((entry) => [entry._id.toString(), entry]),
+  );
+  const projectProgress: ProjectProgress[] = activeProjects
+    .map((project) => {
+      const counts = countsByProject.get(project._id.toString());
+      const activity = history.byProject.get(project._id.toString());
+      const total = counts?.total ?? 0;
+      const done = counts?.done ?? 0;
+      return {
+        projectId: project._id.toString(),
+        name: project.name,
+        key: project.key,
+        total,
+        todo: counts?.todo ?? 0,
+        inProgress: counts?.inProgress ?? 0,
+        done,
+        open: total - done,
+        overdue: counts?.overdue ?? 0,
+        createdInRange: activity?.created ?? 0,
+        completedInRange: activity?.completed ?? 0,
+      };
+    })
+    .sort(
+      (left, right) =>
+        right.open - left.open ||
+        right.total - left.total ||
+        left.name.localeCompare(right.name),
+    );
+
   return {
     tasksByStatus: byStatus,
     tasksByPriority: byPriority,
@@ -288,6 +608,20 @@ export async function getDashboard(
           )
         : null,
     },
+    // Same points as tasksCreatedPerDay: tasks in To do and In progress at
+    // the end of each, and how many were marked done during it.
+    statusHistory: history.points,
+    // Times tasks were marked done in the range and the period before.
+    completed: {
+      total: history.doneInRange,
+      previousTotal: previousKey ? history.donePrevious : null,
+    },
+    openByPriority,
+    workload,
+    unassignedOpenCount,
+    projectProgress,
+    archivedProjectCount,
+    dueSoonCount,
     topAssignees,
     overdueCount,
     usage: {

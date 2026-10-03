@@ -19,6 +19,8 @@ const auditLogSchema = new Schema(
 );
 
 auditLogSchema.index({ tenantId: 1, _id: -1 });
+// The dashboard reads status changes over a date range.
+auditLogSchema.index({ tenantId: 1, action: 1, createdAt: 1 });
 
 auditLogSchema.plugin(tenantPlugin);
 
