@@ -18,6 +18,7 @@ import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import type { Member } from "@/features/members/api";
 import type { CreateTaskInput, Task, TaskView, UpdateTaskInput } from "./api";
 import { ActivityFeed } from "./ActivityFeed";
+import { MuteToggle } from "@/features/notifications/MuteToggle";
 import {
   useArchiveTask,
   useCreateActivity,
@@ -69,6 +70,8 @@ interface TaskDrawerProps {
   members: Member[];
   task: Task | null;
   initialTab?: "details" | "activity";
+  // A message to scroll to in the Updates tab, e.g. from a notification.
+  focusActivityId?: string | null;
 }
 
 export function TaskDrawer({
@@ -79,6 +82,7 @@ export function TaskDrawer({
   members,
   task,
   initialTab = "details",
+  focusActivityId,
 }: TaskDrawerProps) {
   const [, setSearchParams] = useSearchParams();
   const { user } = useAuth();
@@ -424,6 +428,14 @@ export function TaskDrawer({
                     : "Meetings"}
               </button>
             ))}
+            {activeTab === "activity" && (
+              <MuteToggle
+                orgId={orgId}
+                projectId={projectId}
+                taskId={task._id}
+                className="mb-1 ml-auto self-center"
+              />
+            )}
           </div>
         )}
 
@@ -804,6 +816,7 @@ export function TaskDrawer({
             canLead={canLead}
             canContribute={isAssignee}
             involvedNames={involvedNames}
+            focusId={focusActivityId}
           />
         )}
       </Modal>

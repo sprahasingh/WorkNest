@@ -1010,4 +1010,309 @@ describe("who hears about updates, and reply threads", () => {
     });
     expect(outsiderReply.status).toBe(403);
   });
+
+  it("keeps a message sent to particular people between them and the author", async () => {
+    const admin = await registerOrg("direct-admin@example.com", "Direct Org");
+    const manager = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "direct-manager@example.com",
+      "manager",
+    );
+    const mia = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "direct-mia@example.com",
+    );
+    const leo = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "direct-leo@example.com",
+    );
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "DIR",
+    );
+    const task = await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "Pair work",
+      assigneeIds: [mia.userId, leo.userId],
+    });
+    const base = `/api/orgs/${admin.orgId}/tasks/${task.body.task._id}/activity`;
+    const post = (token: string, body: object) =>
+      request(app)
+        .post(base)
+        .set("Authorization", `Bearer ${token}`)
+        .send(body);
+    const inbox = async (token: string) =>
+      (
+        await request(app)
+          .get(`/api/orgs/${admin.orgId}/notifications`)
+          .set("Authorization", `Bearer ${token}`)
+      ).body.notifications as Array<{ type: string; message: string }>;
+
+    const question = await post(mia.accessToken, {
+      type: "question",
+      content: "Which API version?",
+      mentionMemberIds: [manager.userId],
+      notifyAll: false,
+    });
+    expect(question.status).toBe(201);
+    expect(question.body.activity.notifyAll).toBe(false);
+    expect(question.body.notifiedNames).toEqual([
+      "User direct-manager@example.com",
+    ]);
+    expect((await inbox(manager.accessToken)).map((n) => n.message)).toContain(
+      'User direct-mia@example.com asked you a question on "Pair work"',
+    );
+    // Leo works on the task and the admin created it, but it wasn't sent
+    // to them, so they aren't told and can't reply.
+    expect(
+      (await inbox(leo.accessToken)).some((n) => n.type === "question"),
+    ).toBe(false);
+    for (const outsider of [leo, admin]) {
+      const blocked = await post(outsider.accessToken, {
+        type: "reply",
+        content: "v2",
+        replyToId: question.body.activity._id,
+      });
+      expect(blocked.status).toBe(403);
+    }
+
+    const answer = await post(manager.accessToken, {
+      type: "reply",
+      content: "Use v2",
+      replyToId: question.body.activity._id,
+    });
+    expect(answer.status).toBe(201);
+    expect(answer.body.notifiedNames).toEqual(["User direct-mia@example.com"]);
+
+    // Mentioning Leo in a reply brings him into the conversation.
+    const bringLeo = await post(mia.accessToken, {
+      type: "reply",
+      content: "Leo, see above",
+      replyToId: answer.body.activity._id,
+      mentionMemberIds: [leo.userId],
+    });
+    expect(bringLeo.status).toBe(201);
+    const leoJoins = await post(leo.accessToken, {
+      type: "reply",
+      content: "Got it",
+      replyToId: question.body.activity._id,
+    });
+    expect(leoJoins.status).toBe(201);
+    // Everyone already in the thread hears about Leo's reply.
+    expect((await inbox(manager.accessToken)).map((n) => n.message)).toContain(
+      'User direct-leo@example.com replied in a question thread you\'re in on "Pair work"',
+    );
+
+    // A message sent to nobody is a quiet note: nobody is told, and
+    // anyone on the task can still reply.
+    const quiet = await post(mia.accessToken, {
+      type: "update",
+      content: "Note to self: check logs",
+      notifyAll: false,
+    });
+    expect(quiet.status).toBe(201);
+    expect(quiet.body.notifiedCount).toBe(0);
+    const replyToQuiet = await post(leo.accessToken, {
+      type: "reply",
+      content: "Logs look fine",
+      replyToId: quiet.body.activity._id,
+    });
+    expect(replyToQuiet.status).toBe(201);
+
+    // An update request sent to particular people asks only them.
+    const nobody = await post(admin.accessToken, {
+      type: "update_request",
+      notifyAll: false,
+    });
+    expect(nobody.status).toBe(400);
+    expect(nobody.body.error.code).toBe("NO_RECIPIENTS");
+    const onlyMia = await post(admin.accessToken, {
+      type: "update_request",
+      mentionMemberIds: [mia.userId],
+      notifyAll: false,
+    });
+    expect(onlyMia.status).toBe(201);
+    expect(onlyMia.body.activity.askedIds).toEqual([mia.userId]);
+  });
+
+  it("lets the asker mark an answer, and the requester remind people once an hour", async () => {
+    const admin = await registerOrg("answer-admin@example.com", "Answer Org");
+    const mia = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "answer-mia@example.com",
+    );
+    const leo = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "answer-leo@example.com",
+    );
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "ANS",
+    );
+    await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "Answers",
+      assigneeIds: [mia.userId, leo.userId],
+    });
+    const base = `/api/orgs/${admin.orgId}/projects/${projectId}/activity`;
+    const post = (token: string, body: object) =>
+      request(app)
+        .post(base)
+        .set("Authorization", `Bearer ${token}`)
+        .send(body);
+
+    const question = await post(mia.accessToken, {
+      type: "question",
+      content: "Where are the designs?",
+    });
+    const questionId = question.body.activity._id as string;
+    const reply = await post(leo.accessToken, {
+      type: "reply",
+      content: "In the shared drive",
+      replyToId: questionId,
+    });
+    const mark = (token: string, answerId: string | null) =>
+      request(app)
+        .patch(`${base}/${questionId}/answer`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ answerId });
+
+    expect((await mark(leo.accessToken, reply.body.activity._id)).status).toBe(
+      403,
+    );
+    expect((await mark(mia.accessToken, questionId)).status).toBe(400);
+    const marked = await mark(mia.accessToken, reply.body.activity._id);
+    expect(marked.status).toBe(200);
+    expect(marked.body.activity.answerId).toBe(reply.body.activity._id);
+    const cleared = await mark(mia.accessToken, null);
+    expect(cleared.body.activity.answerId).toBeNull();
+
+    const asked = await post(admin.accessToken, { type: "update_request" });
+    const requestId = asked.body.activity._id as string;
+    await post(mia.accessToken, {
+      type: "reply",
+      content: "Done",
+      replyToId: requestId,
+    });
+    const remind = (token: string) =>
+      request(app)
+        .post(`${base}/${requestId}/remind`)
+        .set("Authorization", `Bearer ${token}`);
+
+    // Members can't send reminders.
+    expect((await remind(mia.accessToken)).status).toBe(403);
+    const first = await remind(admin.accessToken);
+    expect(first.status).toBe(200);
+    expect(first.body.notifiedNames).toEqual(["User answer-leo@example.com"]);
+    const leoInbox = await request(app)
+      .get(`/api/orgs/${admin.orgId}/notifications`)
+      .set("Authorization", `Bearer ${leo.accessToken}`);
+    expect(
+      (leoInbox.body.notifications as Array<{ message: string }>).map(
+        (n) => n.message,
+      ),
+    ).toContain('Admin User is still waiting on your update in "Project ANS"');
+    const again = await remind(admin.accessToken);
+    expect(again.status).toBe(429);
+    expect(again.body.error.code).toBe("REMIND_TOO_SOON");
+  });
+
+  it("stops general chatter from a muted project but still delivers mentions", async () => {
+    const admin = await registerOrg("mute-admin@example.com", "Mute Org");
+    const mia = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "mute-mia@example.com",
+    );
+    const leo = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "mute-leo@example.com",
+    );
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "MUT",
+    );
+    await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "Muted",
+      assigneeIds: [mia.userId, leo.userId],
+    });
+    const muted = await request(app)
+      .put(`/api/orgs/${admin.orgId}/notifications/mutes`)
+      .set("Authorization", `Bearer ${leo.accessToken}`)
+      .send({ projectId, muted: true });
+    expect(muted.status).toBe(200);
+    const mutes = await request(app)
+      .get(`/api/orgs/${admin.orgId}/notifications/mutes`)
+      .set("Authorization", `Bearer ${leo.accessToken}`);
+    expect(mutes.body).toEqual({ projectIds: [projectId], taskIds: [] });
+    // Other people can't see who muted what.
+    const members = await request(app)
+      .get(`/api/orgs/${admin.orgId}/members`)
+      .set("Authorization", `Bearer ${mia.accessToken}`);
+    expect(JSON.stringify(members.body)).not.toContain("mutedProjectIds");
+
+    const post = (body: object) =>
+      request(app)
+        .post(`/api/orgs/${admin.orgId}/projects/${projectId}/activity`)
+        .set("Authorization", `Bearer ${mia.accessToken}`)
+        .send(body);
+    const general = await post({ type: "update", content: "Progress" });
+    expect(general.body.notifiedNames).toEqual(["Admin User"]);
+    const direct = await post({
+      type: "update",
+      content: "Leo, look",
+      mentionMemberIds: [leo.userId],
+    });
+    expect(direct.body.notifiedNames).toContain("User mute-leo@example.com");
+
+    // Update requests addressed to Leo still arrive too.
+    const asked = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects/${projectId}/activity`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ type: "update_request" });
+    expect(asked.body.notifiedNames).toContain("User mute-leo@example.com");
+  });
+
+  it("shows an old thread in the project feed when someone replies to it", async () => {
+    // Over a hundred requests: a fresh app so the shared rate limit isn't hit.
+    const feedApp = createApp();
+    const admin = await registerOrg("feed-admin@example.com", "Feed Org");
+    const projectId = await createProject(
+      admin.orgId,
+      admin.accessToken,
+      "FED",
+    );
+    const base = `/api/orgs/${admin.orgId}/projects/${projectId}/activity`;
+    const post = (body: object) =>
+      request(feedApp)
+        .post(base)
+        .set("Authorization", `Bearer ${admin.accessToken}`)
+        .send(body);
+
+    const first = await post({ type: "question", content: "Kick-off date?" });
+    for (let i = 0; i < 100; i += 1) {
+      await post({ type: "update", content: `Note ${i}`, notifyAll: false });
+    }
+    await post({
+      type: "reply",
+      content: "Monday",
+      replyToId: first.body.activity._id,
+    });
+
+    const feed = await request(feedApp)
+      .get(base)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    const ids = (feed.body.activities as Array<{ _id: string }>).map(
+      (a) => a._id,
+    );
+    expect(ids).toContain(first.body.activity._id);
+    expect(ids[0]).toBe(first.body.activity._id);
+  });
 });

@@ -877,7 +877,7 @@ describe("task notifications", () => {
     ).toHaveLength(1);
   });
 
-  it("notifies every other assignee and the org's admins and managers on completion", async () => {
+  it("notifies the other assignees and the creators on completion, not every lead", async () => {
     const admin = await registerOrg(
       "completion-admin@example.com",
       "Completion Org",
@@ -915,7 +915,18 @@ describe("task notifications", () => {
       .send({ status: "done" });
     expect(completed.status).toBe(200);
 
-    for (const recipient of [admin, manager, otherAssignee]) {
+    // The admin created the task and project; the manager isn't involved.
+    const managerNotifications = await getUnread(
+      admin.orgId,
+      manager.accessToken,
+    );
+    expect(
+      managerNotifications.body.notifications.some(
+        (item: { type: string }) => item.type === "task_completed",
+      ),
+    ).toBe(false);
+
+    for (const recipient of [admin, otherAssignee]) {
       const notifications = await getUnread(admin.orgId, recipient.accessToken);
       expect(notifications.body.notifications).toEqual(
         expect.arrayContaining([
@@ -950,6 +961,30 @@ describe("task notifications", () => {
       otherAssignee.accessToken,
     );
     expect(afterRepeatedUpdate.body.unreadCount).toBe(2);
+
+    // Muting the project stops completion alerts from it.
+    const muted = await request(app)
+      .put(`/api/orgs/${admin.orgId}/notifications/mutes`)
+      .set("Authorization", `Bearer ${otherAssignee.accessToken}`)
+      .send({ projectId, muted: true });
+    expect(muted.status).toBe(200);
+    expect(muted.body.projectIds).toEqual([projectId]);
+    const second = await createTask(admin.orgId, projectId, admin.accessToken, {
+      title: "Second",
+      assigneeIds: [completingAssignee.userId, otherAssignee.userId],
+    });
+    await request(app)
+      .patch(`/api/orgs/${admin.orgId}/tasks/${second.body.task._id}`)
+      .set("Authorization", `Bearer ${completingAssignee.accessToken}`)
+      .send({ status: "done" });
+    const afterMute = await getUnread(admin.orgId, otherAssignee.accessToken);
+    expect(
+      afterMute.body.notifications.some(
+        (item: { taskId: string; type: string }) =>
+          item.taskId === second.body.task._id &&
+          item.type === "task_completed",
+      ),
+    ).toBe(false);
   });
 });
 

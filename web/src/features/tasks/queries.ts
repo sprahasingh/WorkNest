@@ -17,6 +17,8 @@ import {
   updateTask,
   listActivities,
   createActivity,
+  markAnswer,
+  remindWaiting,
   archiveTask,
   unarchiveTask,
   restoreTask,
@@ -26,6 +28,7 @@ import {
   type CreateTaskInput,
   type ListTasksResponse,
   type Task,
+  type TaskActivity,
   type TaskPriority,
   type TaskStatus,
   type TaskView,
@@ -392,6 +395,46 @@ export function useCreateActivity(orgId: string, scope: ActivityScope) {
     mutationFn: (input: CreateActivityInput) =>
       createActivity(orgId, scope, input),
     onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.activity(orgId, scope),
+      });
+    },
+  });
+}
+
+export function useMarkAnswer(orgId: string, scope: ActivityScope) {
+  const queryClient = useQueryClient();
+  const key = taskKeys.activity(orgId, scope);
+
+  return useMutation({
+    mutationFn: (input: { questionId: string; answerId: string | null }) =>
+      markAnswer(orgId, scope, input.questionId, input.answerId),
+    // Shown at once; the server's answer replaces it.
+    onMutate: async ({ questionId, answerId }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<TaskActivity[]>(key);
+      queryClient.setQueryData<TaskActivity[]>(key, (current) =>
+        current?.map((entry) =>
+          entry._id === questionId ? { ...entry, answerId } : entry,
+        ),
+      );
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+export function useRemindWaiting(orgId: string, scope: ActivityScope) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (requestId: string) => remindWaiting(orgId, scope, requestId),
+    onSettled: () => {
       void queryClient.invalidateQueries({
         queryKey: taskKeys.activity(orgId, scope),
       });
