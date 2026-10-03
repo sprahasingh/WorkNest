@@ -475,7 +475,54 @@ describe("dashboard status history and workload", () => {
       open: 1,
       createdInRange: 3,
       completedInRange: 2,
+      finishedAt: null,
+      finishedInRange: false,
     });
     expect(res.body.archivedProjectCount).toBe(0);
+  });
+});
+
+describe("dashboard project completion", () => {
+  it("marks a project finished in the range only when its last task was done then", async () => {
+    const org = await registerOrg("dash-finished@example.com", "Finished Org");
+    const auth = { Authorization: `Bearer ${org.accessToken}` };
+    const recent = await createProject(org.orgId, org.accessToken, "RC");
+    const older = await createProject(org.orgId, org.accessToken, "OL");
+    const open = await createProject(org.orgId, org.accessToken, "OP");
+
+    const recentTask = await createTask(org.orgId, recent, org.accessToken);
+    const olderTask = await createTask(org.orgId, older, org.accessToken);
+    await createTask(org.orgId, open, org.accessToken);
+    await updateTask(org.orgId, recentTask, org.accessToken, {
+      status: "done",
+    });
+    await updateTask(org.orgId, olderTask, org.accessToken, { status: "done" });
+    // The older project was finished a month ago.
+    await Task.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(olderTask) },
+      { $set: { completedAt: new Date(Date.now() - 30 * 86_400_000) } },
+    );
+
+    const res = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: 7, tz: "UTC" })
+      .set(auth);
+    const byId = new Map(
+      (
+        res.body.projectProgress as Array<{
+          projectId: string;
+          finishedAt: string | null;
+          finishedInRange: boolean;
+        }>
+      ).map((project) => [project.projectId, project]),
+    );
+    expect(byId.get(recent)).toMatchObject({ finishedInRange: true });
+    expect(byId.get(recent)?.finishedAt).not.toBeNull();
+    expect(byId.get(older)).toMatchObject({ finishedInRange: false });
+    expect(byId.get(older)?.finishedAt).not.toBeNull();
+    expect(byId.get(open)).toMatchObject({
+      finishedAt: null,
+      finishedInRange: false,
+    });
   });
 });

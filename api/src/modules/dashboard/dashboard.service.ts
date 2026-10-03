@@ -58,6 +58,10 @@ interface ProjectProgress {
   // Tasks created and marked done in the chosen range.
   createdInRange: number;
   completedInRange: number;
+  // When the last task was finished, if every task is done; and whether
+  // that happened in the chosen range.
+  finishedAt: string | null;
+  finishedInRange: boolean;
 }
 
 interface TopAssignee {
@@ -441,6 +445,7 @@ export async function getDashboard(
       inProgress: number;
       done: number;
       overdue: number;
+      lastCompletedAt: Date | null;
     }>([
       { $match: live },
       {
@@ -452,6 +457,11 @@ export async function getDashboard(
             $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
           },
           done: { $sum: { $cond: [{ $eq: ["$status", "done"] }, 1, 0] } },
+          lastCompletedAt: {
+            $max: {
+              $cond: [{ $eq: ["$status", "done"] }, "$completedAt", null],
+            },
+          },
           overdue: {
             $sum: {
               $cond: [
@@ -565,6 +575,9 @@ export async function getDashboard(
       const activity = history.byProject.get(project._id.toString());
       const total = counts?.total ?? 0;
       const done = counts?.done ?? 0;
+      const finishedAt =
+        total > 0 && done === total ? (counts?.lastCompletedAt ?? null) : null;
+      const finishedKey = finishedAt ? localDayKey(finishedAt, tz) : null;
       return {
         projectId: project._id.toString(),
         name: project.name,
@@ -577,6 +590,11 @@ export async function getDashboard(
         overdue: counts?.overdue ?? 0,
         createdInRange: activity?.created ?? 0,
         completedInRange: activity?.completed ?? 0,
+        finishedAt: finishedAt ? finishedAt.toISOString() : null,
+        finishedInRange:
+          finishedKey !== null &&
+          finishedKey >= startKey &&
+          finishedKey <= endKey,
       };
     })
     .sort(
