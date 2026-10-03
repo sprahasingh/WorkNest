@@ -55,6 +55,13 @@ export interface TaskActivity {
   replyToId?: string | null;
   // Update requests: who was asked.
   askedIds?: string[];
+  // false when it went only to the people mentioned in it; then only they
+  // and the author can reply. Missing on older messages, which went to all.
+  notifyAll?: boolean;
+  // Questions: the reply the asker marked as the answer.
+  answerId?: string | null;
+  // Update requests: when the requester last sent a reminder.
+  remindedAt?: string | null;
 }
 
 export interface CreateTaskInput {
@@ -81,6 +88,8 @@ export interface CreateActivityInput {
   mentionRoles?: Array<"admin" | "manager" | "member" | "assignee">;
   // Replies only: the message being answered.
   replyToId?: string;
+  // New messages: false sends it only to the people mentioned.
+  notifyAll?: boolean;
 }
 
 export interface ListTasksParams {
@@ -253,6 +262,36 @@ export async function createActivity(
   const response = await apiClient.post<CreateActivityResult>(
     activityPath(orgId, scope),
     input,
+  );
+  return response.data;
+}
+
+export async function markAnswer(
+  orgId: string,
+  scope: ActivityScope,
+  questionId: string,
+  answerId: string | null,
+): Promise<TaskActivity> {
+  const response = await apiClient.patch<{ activity: TaskActivity }>(
+    `${activityPath(orgId, scope)}/${questionId}/answer`,
+    { answerId },
+  );
+  return response.data.activity;
+}
+
+export interface RemindResult {
+  remindedAt: string;
+  notifiedCount: number;
+  notifiedNames: string[];
+}
+
+export async function remindWaiting(
+  orgId: string,
+  scope: ActivityScope,
+  requestId: string,
+): Promise<RemindResult> {
+  const response = await apiClient.post<RemindResult>(
+    `${activityPath(orgId, scope)}/${requestId}/remind`,
   );
   return response.data;
 }
