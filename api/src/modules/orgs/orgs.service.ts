@@ -280,10 +280,20 @@ export async function reserveProjectSlot(
   }
 }
 
+// Whether a project takes a plan slot: it isn't archived and still has open
+// work (or no tasks yet). Called at the start of every transaction that can
+// change that, it also bumps the project's revision, so two such changes to
+// one project conflict and one is retried instead of both acting on a stale
+// count.
 export async function projectConsumesSlot(
   projectId: string | mongoose.Types.ObjectId,
   dbSession: mongoose.ClientSession,
 ): Promise<boolean> {
+  await Project.updateOne(
+    { _id: projectId },
+    { $inc: { revision: 1 } },
+    { session: dbSession, timestamps: false },
+  );
   const project = await Project.findById(projectId).session(dbSession);
   if (!project || project.archivedAt) return false;
 
@@ -315,8 +325,23 @@ export async function syncProjectSlot(
   const isActive = await projectConsumesSlot(projectId, dbSession);
   if (wasActive === isActive) return;
 
-  if (isActive) await reserveProjectSlot(tenantId, dbSession);
-  else await releaseProjectSlot(tenantId, dbSession);
+  if (!isActive) {
+    await releaseProjectSlot(tenantId, dbSession);
+    return;
+  }
+  try {
+    await reserveProjectSlot(tenantId, dbSession);
+  } catch (error) {
+    // Usually a task being added to or reopened in a finished project.
+    if (error instanceof AppError && error.code === "PROJECT_LIMIT_REACHED") {
+      throw new AppError(
+        409,
+        "PROJECT_LIMIT_REACHED",
+        "This project has no open work, so this change would make it active again, and your plan has no free project slots. Finish or archive another project, or upgrade your plan.",
+      );
+    }
+    throw error;
+  }
 }
 
 export async function releaseProjectSlot(
