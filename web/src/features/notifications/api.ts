@@ -71,16 +71,45 @@ export function isReminder(type: NotificationType | null): boolean {
   );
 }
 
-// Where a notification takes you: the task's updates, or the project's.
+// Where a notification takes you: the task's updates, or the project's,
+// scrolled to the message it's about.
 export function notificationLink(
   orgId: string,
   notification: Notification,
 ): string | null {
   if (!notification.projectId) return null;
-  const query = notification.taskId
-    ? `task=${notification.taskId}`
-    : isReminder(notification.type)
-      ? ""
-      : "updates=1";
+  const params = new URLSearchParams();
+  if (notification.taskId) params.set("task", notification.taskId);
+  else if (!isReminder(notification.type)) params.set("updates", "1");
+  if (notification.activityId) params.set("message", notification.activityId);
+  const query = params.toString();
   return `/orgs/${orgId}/projects/${notification.projectId}${query ? `?${query}` : ""}`;
+}
+
+// Projects and tasks the signed-in person has muted. Muting stops general
+// chatter from them; anything addressed to the person still arrives.
+export interface Mutes {
+  projectIds: string[];
+  taskIds: string[];
+}
+
+export async function getMutes(orgId: string): Promise<Mutes> {
+  const response = await apiClient.get<Mutes>(
+    `/orgs/${orgId}/notifications/mutes`,
+  );
+  return response.data;
+}
+
+export type MuteTarget = { projectId: string } | { taskId: string };
+
+export async function setMute(
+  orgId: string,
+  target: MuteTarget,
+  muted: boolean,
+): Promise<Mutes> {
+  const response = await apiClient.put<Mutes>(
+    `/orgs/${orgId}/notifications/mutes`,
+    { ...target, muted },
+  );
+  return response.data;
 }

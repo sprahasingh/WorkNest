@@ -76,3 +76,45 @@ html.dark {
     transform: none;
   }
 }
+
+/* A message opened from a notification glows briefly so it's easy to spot. */
+@keyframes flash-highlight {
+  0%,
+  40% {
+    background-color: rgb(204 251 241 / 0.9);
+    box-shadow: 0 0 0 6px rgb(204 251 241 / 0.9);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+.flash-highlight {
+  border-radius: 0.5rem;
+  animation: flash-highlight 2.6s ease-out;
+}
+
+.dark .flash-highlight {
+  animation-name: flash-highlight-dark;
+}
+
+@keyframes flash-highlight-dark {
+  0%,
+  40% {
+    background-color: rgb(19 78 74 / 0.7);
+    box-shadow: 0 0 0 6px rgb(19 78 74 / 0.7);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-highlight,
+  .dark .flash-highlight {
+    animation: none;
+    box-shadow: 0 0 0 2px rgb(20 184 166);
+  }
+}

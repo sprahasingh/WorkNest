@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  getMutes,
+  setMute,
+  type MuteTarget,
+  type Mutes,
   listNotifications,
   dismissNotifications,
   isReminder,
@@ -126,4 +130,44 @@ export function useMarkReadWhenViewed(
       .map((n) => n._id);
     if (ids.length > 0) mutate(ids);
   }, [data, targetKind, targetId, mutate]);
+}
+
+const mutesKey = (orgId: string) => ["orgs", orgId, "mutes"] as const;
+
+export function useMutes(orgId: string) {
+  return useQuery({
+    queryKey: mutesKey(orgId),
+    queryFn: () => getMutes(orgId),
+    staleTime: 60_000,
+  });
+}
+
+export function useSetMute(orgId: string) {
+  const queryClient = useQueryClient();
+  const key = mutesKey(orgId);
+
+  return useMutation({
+    mutationFn: (input: { target: MuteTarget; muted: boolean }) =>
+      setMute(orgId, input.target, input.muted),
+    // The switch flips at once; it flips back if saving fails.
+    onMutate: async ({ target, muted }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Mutes>(key);
+      const toggle = (ids: string[], id: string) =>
+        muted ? [...new Set([...ids, id])] : ids.filter((x) => x !== id);
+      queryClient.setQueryData<Mutes>(key, (current) => {
+        const base = current ?? { projectIds: [], taskIds: [] };
+        return "projectId" in target
+          ? { ...base, projectIds: toggle(base.projectIds, target.projectId) }
+          : { ...base, taskIds: toggle(base.taskIds, target.taskId) };
+      });
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
+    },
+    onSuccess: (mutes) => {
+      queryClient.setQueryData(key, mutes);
+    },
+  });
 }

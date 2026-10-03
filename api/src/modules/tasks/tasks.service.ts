@@ -18,6 +18,7 @@ import {
 import { PLAN_LIMITS, PLAN_NAMES, type Plan } from "../../constants/plans.js";
 import { projectConsumesSlot, syncProjectSlot } from "../orgs/orgs.service.js";
 import { recordAudit } from "../audit/audit.service.js";
+import { creatorIfInvolved, mutedAmong } from "../notifications/audience.js";
 import type { Role } from "../../constants/roles.js";
 import {
   TASK_VIEWS,
@@ -825,19 +826,36 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
       }
 
       if (completing && completionEventKey) {
-        const [actor, leadIds] = await Promise.all([
+        // The people involved hear about it: the other assignees, and
+        // whoever created the task and its project. Other admins and
+        // managers see it on the dashboard. Muting the task or project
+        // silences it.
+        const [actor, project] = await Promise.all([
           User.findById(context.userId)
             .select("name")
             .session(dbSession)
             .lean(),
-          getAdminAndManagerIds(),
+          Project.findById(task.projectId)
+            .select("createdBy")
+            .session(dbSession)
+            .lean(),
         ]);
-        const recipientIds = [
-          ...new Set([
-            ...(task.assigneeIds ?? []).map((id) => id.toString()),
-            ...leadIds.map((id) => id.toString()),
-          ]),
+        const involvedIds = [
+          ...new Set(
+            [
+              ...(task.assigneeIds ?? []),
+              ...(await creatorIfInvolved(task.createdBy, task)),
+              ...(await creatorIfInvolved(project?.createdBy, task)),
+            ].map((id) => id.toString()),
+          ),
         ].filter((userId) => userId !== context.userId);
+        const muted = await mutedAmong(
+          involvedIds,
+          task.projectId,
+          task._id,
+          dbSession,
+        );
+        const recipientIds = involvedIds.filter((id) => !muted.has(id));
 
         if (recipientIds.length > 0) {
           await Notification.bulkWrite(

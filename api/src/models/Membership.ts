@@ -16,6 +16,19 @@ const membershipSchema = new Schema(
       enum: ROLES,
       required: true,
     },
+    // Projects and tasks this person has muted. Muting stops general
+    // chatter from them; anything addressed to the person still arrives.
+    // Hidden by default so member lists don't expose them.
+    mutedProjectIds: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Project" }],
+      default: [],
+      select: false,
+    },
+    mutedTaskIds: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Task" }],
+      default: [],
+      select: false,
+    },
   },
   { timestamps: true },
 );
