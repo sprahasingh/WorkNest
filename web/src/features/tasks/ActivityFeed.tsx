@@ -9,6 +9,7 @@ import { ACTIVITY_BADGE_STYLES, ACTIVITY_LABELS } from "./activityTypes";
 import { ActivityIcon } from "./ActivityIcon";
 import { useActivity, useCreateActivity } from "./queries";
 import { useMembers } from "@/features/members/queries";
+import { useAuth } from "@/auth/auth-context";
 import { MentionTextarea } from "./MentionTextarea";
 import type { ActivityMentions } from "./MentionTextarea";
 import { ActivityConfirmation } from "./ActivityConfirmation";
@@ -50,7 +51,11 @@ export function ActivityFeed({
   const listRef = useRef<HTMLOListElement>(null);
 
   const isProject = scope.kind === "project";
-  const canPost = canLead || canContribute;
+  const { user } = useAuth();
+  // Someone mentioned in this thread can join in even if not assigned.
+  const wasMentioned =
+    !!user && (activities ?? []).some((a) => a.mentionIds?.includes(user.id));
+  const canPost = canLead || canContribute || wasMentioned;
   const hasText = content.trim().length > 0;
   const entryCount = activities?.length ?? 0;
 
@@ -254,6 +259,7 @@ export function ActivityFeed({
             members={members}
             mentions={mentions}
             onMentionsChange={setMentions}
+            allowRoleMentions={canLead}
           />
           {contentError && (
             <p className="text-sm text-red-600 dark:text-red-400">

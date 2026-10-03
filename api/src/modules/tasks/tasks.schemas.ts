@@ -72,7 +72,10 @@ export const createActivitySchema = z
   .object({
     type: z.enum(ACTIVITY_TYPES),
     content: z.string().trim().max(2000).optional(),
-    mentionMemberIds: z.array(z.string().regex(objectIdRegex)).default([]),
+    mentionMemberIds: z
+      .array(z.string().regex(objectIdRegex))
+      .max(20, "Mention at most 20 people at once")
+      .default([]),
     mentionRoles: z
       .array(z.enum(["admin", "manager", "member", "assignee"]))
       .default([]),
