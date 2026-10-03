@@ -131,7 +131,7 @@ describe("auth flow", () => {
     expect(response.body.error.message).toContain("No account was found");
   });
 
-  it("rotates the refresh token and fails on old-cookie reuse", async () => {
+  it("rotates the refresh token, tolerates a second tab, and fails on later reuse", async () => {
     await registerAndVerify(app, {
       name: "Test User",
       email: "test@example.com",
@@ -153,6 +153,18 @@ describe("auth flow", () => {
     expect(refreshRes.status).toBe(200);
     const newCookie = refreshRes.headers["set-cookie"][0] as string;
     expect(newCookie).not.toBe(originalCookie);
+
+    // A second tab refreshing with the old cookie a moment later is fine.
+    const otherTab = await request(app)
+      .post("/api/auth/refresh")
+      .set("Cookie", originalCookie);
+    expect(otherTab.status).toBe(200);
+
+    // Reusing it well after the grace window means it was stolen.
+    await Session.updateMany(
+      { revokedAt: { $ne: null } },
+      { revokedAt: new Date(Date.now() - 60_000) },
+    );
 
     const reuseRes = await request(app)
       .post("/api/auth/refresh")
