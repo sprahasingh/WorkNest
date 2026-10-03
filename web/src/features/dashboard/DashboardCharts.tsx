@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import {
   Area,
@@ -19,6 +19,8 @@ import {
 } from "recharts";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
+import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
+import { PLAN_NAMES } from "@/lib/plans";
 import { CardTitle, ChartCard } from "./ChartCard";
 import {
   CREATED_COLOR,
@@ -818,18 +820,34 @@ function UsageMeter({
   used,
   limit,
   unit,
+  summary,
+  explanation,
 }: {
   label: string;
   used: number;
   limit: number;
   unit: string;
+  // A short line of who or what is counted, always shown.
+  summary?: ReactNode;
+  // What counts towards this limit, shown when the "i" is opened.
+  explanation: ReactNode;
 }) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const infoId = useId();
   const share = limit > 0 ? Math.min(100, percent(used, limit)) : 0;
   const full = limit > 0 && used >= limit;
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className="text-slate-600 dark:text-slate-300">{label}</span>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+          {label}
+          <InfoButton
+            open={infoOpen}
+            onToggle={() => setInfoOpen((open) => !open)}
+            label={`About ${label.toLowerCase()}`}
+            controls={infoId}
+          />
+        </span>
         <span className="text-slate-900 tabular-nums dark:text-slate-50">
           <span className="font-semibold">{used}</span> of {limit} {unit}
         </span>
@@ -851,34 +869,64 @@ function UsageMeter({
         />
       </div>
       {full && (
-        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+        <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
           ⚠ Limit reached
         </p>
       )}
+      {summary && (
+        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+          {summary}
+        </p>
+      )}
+      <InfoPanel id={infoId} open={infoOpen} onClose={() => setInfoOpen(false)}>
+        {explanation}
+      </InfoPanel>
     </div>
   );
 }
 
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
 export function WorkspaceCard({ usage }: { usage: DashboardUsage }) {
+  const roles = (
+    [
+      ["admin", "admin", "admins"],
+      ["manager", "manager", "managers"],
+      ["member", "member", "members"],
+    ] as const
+  )
+    .filter(([key]) => usage.roleCounts[key] > 0)
+    .map(([key, one, many]) => plural(usage.roleCounts[key], one, many));
   return (
     <Card>
       <CardTitle title="Workspace" scope={{ now: true }} />
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        {usage.memberCount} {usage.memberCount === 1 ? "member" : "members"} on
-        your plan
+        Your {PLAN_NAMES[usage.plan]} plan
       </p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid gap-5 sm:grid-cols-2">
         <UsageMeter
           label="Seats"
           used={usage.seatsUsed}
           limit={usage.seatLimit}
           unit="used"
+          summary={
+            <>
+              {plural(usage.memberCount, "person", "people")}
+              {roles.length > 0 && ` (${roles.join(", ")})`}
+              {usage.pendingInvites > 0 &&
+                ` + ${plural(usage.pendingInvites, "invite", "invites")} waiting`}
+            </>
+          }
+          explanation="Everyone in the organization takes one seat, whatever their role. So does each invite until it's accepted, declined or cancelled; invites that expire free their seat."
         />
         <UsageMeter
           label="Projects"
           used={usage.projectCount}
           limit={usage.projectLimit}
           unit="active"
+          explanation="Projects with work still open use a slot. Finished, archived and binned projects don't."
         />
       </div>
     </Card>

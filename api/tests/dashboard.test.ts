@@ -3,6 +3,7 @@ import request from "supertest";
 import mongoose from "mongoose";
 import { createApp } from "../src/app.js";
 import { Task } from "../src/models/Task.js";
+import { Organization } from "../src/models/Organization.js";
 import { AuditLog } from "../src/models/AuditLog.js";
 import { registerAndVerify } from "./emailDeliveryMock.js";
 
@@ -143,6 +144,7 @@ describe("dashboard aggregation", () => {
     expect(todayEntry?.count).toBe(5);
 
     expect(res.body.usage).toMatchObject({
+      plan: "free",
       seatsUsed: 1,
       seatLimit: 5,
       memberCount: 1,
@@ -524,5 +526,38 @@ describe("dashboard project completion", () => {
       finishedAt: null,
       finishedInRange: false,
     });
+  });
+});
+
+describe("dashboard seat count", () => {
+  it("recounts seats from people and waiting invites and repairs a drifted count", async () => {
+    const org = await registerOrg("dash-seats@example.com", "Seats Org");
+    const auth = { Authorization: `Bearer ${org.accessToken}` };
+    const invite = await request(app)
+      .post(`/api/orgs/${org.orgId}/invites`)
+      .set(auth)
+      .send({ email: "dash-seats-invitee@example.com", role: "member" });
+    expect(invite.status).toBe(201);
+
+    // Knock the stored count out of step, as an old bug or data fix could.
+    await Organization.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(org.orgId) },
+      { $set: { seatsUsed: 7 } },
+    );
+
+    const res = await request(app)
+      .get(`/api/orgs/${org.orgId}/dashboard`)
+      .query({ days: 7, tz: "UTC" })
+      .set(auth);
+    expect(res.body.usage).toMatchObject({
+      seatsUsed: 2,
+      memberCount: 1,
+      pendingInvites: 1,
+      roleCounts: { admin: 1, manager: 0, member: 0 },
+    });
+    const stored = await Organization.collection.findOne({
+      _id: new mongoose.Types.ObjectId(org.orgId),
+    });
+    expect(stored?.seatsUsed).toBe(2);
   });
 });

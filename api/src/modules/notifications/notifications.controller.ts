@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import {
   listNotifications,
   markNotificationsRead,
-  dismissTaskNotifications,
+  dismissNotifications,
 } from "./notifications.service.js";
 import type {
   DismissNotificationsInput,
@@ -33,6 +33,6 @@ export async function dismissNotificationsController(
   res: Response,
 ): Promise<void> {
   const { ids } = req.validated!.body as DismissNotificationsInput;
-  await dismissTaskNotifications(ids);
+  await dismissNotifications(ids);
   res.status(204).send();
 }

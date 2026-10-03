@@ -16,6 +16,8 @@ import {
   type User,
 } from "@/api/auth";
 import { setAccessToken, setAuthFailureHandler } from "@/api/client";
+import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
+import { forgetSignedIn, rememberSignedIn } from "@/lib/sessionHint";
 import {
   AuthContext,
   type AuthContextValue,
@@ -166,6 +168,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             memberships: sessionQuery.data.memberships,
           }
         : UNAUTHENTICATED_STATE;
+
+  // Lets the landing page show the signed-in buttons straight away next time.
+  const workspaceHint =
+    state.status === "authenticated"
+      ? resolvePostAuthPath(state.memberships)
+      : state.status;
+  useEffect(() => {
+    if (workspaceHint === "loading") return;
+    if (workspaceHint === "unauthenticated") forgetSignedIn();
+    else rememberSignedIn(workspaceHint);
+  }, [workspaceHint]);
 
   const value: AuthContextValue = {
     ...state,
