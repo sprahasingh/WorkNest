@@ -112,9 +112,55 @@ async function refreshAccessToken(): Promise<string> {
   return response.data.accessToken;
 }
 
+// When the current wake-up began, kept for the tab so a refresh continues
+// the progress bar instead of starting it from zero.
+const WAKE_STARTED_KEY = "worknest.serverWakeStartedAt";
+const WAKE_START_MAX_AGE_MS = 3 * 60_000;
+
+function readWakeStartedAt(): number | null {
+  try {
+    const value = Number(sessionStorage.getItem(WAKE_STARTED_KEY));
+    return value && Date.now() - value < WAKE_START_MAX_AGE_MS ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function markWakeStarted(): void {
+  try {
+    if (readWakeStartedAt() === null) {
+      sessionStorage.setItem(WAKE_STARTED_KEY, String(Date.now()));
+    }
+  } catch {
+    // Storage can be unavailable (private mode); the bar then starts at 0.
+  }
+}
+
+function clearWakeStarted(): void {
+  try {
+    sessionStorage.removeItem(WAKE_STARTED_KEY);
+  } catch {
+    // Nothing to clear.
+  }
+}
+
+export function getServerWakeStartedAt(): number {
+  return readWakeStartedAt() ?? Date.now();
+}
+
 function notifyServerWakeChange(isWaking: boolean): void {
+  if (isWaking) markWakeStarted();
+  // Only a wake that just succeeded is finished; after a timeout the next
+  // attempt continues from the same start.
+  else if (Date.now() - lastServerReadyAt < 5_000) clearWakeStarted();
   isServerWaking = isWaking;
   for (const handler of serverWakeHandlers) handler(isWaking);
+}
+
+// True when the last health check passed, so the loading screen can tell a
+// finished wake-up from one that timed out or was cancelled.
+export function isServerReady(): boolean {
+  return Date.now() - lastServerReadyAt < SERVER_READY_CACHE_MS;
 }
 
 function delay(milliseconds: number, signal: RequestSignal): Promise<void> {
