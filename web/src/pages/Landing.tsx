@@ -2,58 +2,168 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { HelpLinks } from "@/components/HelpLinks";
+import { BrandLink } from "@/components/BrandLink";
 import { useAuth } from "@/auth/auth-context";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 import { readSignedInHint } from "@/lib/sessionHint";
 import { parseApiError } from "@/lib/apiError";
-import { Card } from "@/components/ui/Card";
+import { cn } from "@/lib/cn";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { HeroPreview } from "@/components/marketing/HeroPreview";
+import {
+  BrowserFrame,
+  PhoneFrame,
+  Screenshot,
+} from "@/components/marketing/Screenshot";
+import type { ScreenName } from "@/assets/screens";
 
 interface Feature {
   title: string;
   description: string;
+  // SVG path data for a 24x24 outline icon.
+  icon: string[];
 }
 
 const FEATURES: Feature[] = [
   {
-    title: "Isolated workspaces",
+    title: "Separate workspaces",
     description:
-      "Every organization's data is scoped at the database layer, not just the UI, so one tenant can never see another's projects, tasks, or members.",
+      "Every organization's data is kept apart at the database level, not just hidden in the interface. One team can never see another's projects, chats or members.",
+    icon: [
+      "M3 21h18",
+      "M5 21V7l7-4 7 4v14",
+      "M9 21v-6h6v6",
+      "M9 10h.01",
+      "M15 10h.01",
+    ],
   },
   {
-    title: "Role-based access control",
+    title: "Roles that are enforced",
     description:
-      "Admins, managers, and members each get a precise set of permissions, enforced on the server for every action, not just hidden buttons.",
+      "Admins, managers and members each have clear permissions, and the server checks them on every action. Hiding a button is never the only protection.",
+    icon: ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z", "m9 12 2 2 4-4"],
   },
   {
-    title: "Full audit trail",
+    title: "Task boards",
     description:
-      "Every meaningful change, from renaming an org to reassigning a task, is recorded with who did it and when.",
+      "Move work through To do, In progress and Done. Set priorities and due dates, and assign more than one person to a task.",
+    icon: ["M3 3h7v18H3z", "M14 3h7v10h-7z", "M14 17h7v4h-7z"],
   },
   {
-    title: "Live usage dashboard",
+    title: "Project lifecycle",
     description:
-      "Track overdue work, team activity, and plan usage. Completed, archived, and binned projects do not use an active project slot.",
+      "Finish a project, archive it, or move it to the Bin. Anything in the Bin can be restored for 30 days.",
+    icon: ["M21 8v13H3V8", "M1 3h22v5H1z", "M10 12h4"],
   },
   {
-    title: "Task boards that stay clear",
+    title: "Updates and questions",
     description:
-      "Move work between To do, In progress, and Done. Set priorities and due dates, assign several teammates, and keep completed, archived, and binned tasks out of the active-task allowance.",
+      "Ask for a status update, post one, or ask a question right on a task. Everyone involved is notified, and replies stay together.",
+    icon: ["M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z", "M12 7v5l3 2"],
   },
   {
-    title: "Project lifecycle controls",
+    title: "Team messages",
     description:
-      "Finish a project, archive it, or move it to the Bin. Restore binned projects for 30 days; projects use a plan slot again when they become active.",
+      "Chat one to one or in groups. React, reply, mention people, share files and search old messages. Only the people in a chat can read it, admins included.",
+    icon: ["M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"],
   },
   {
-    title: "Updates and notifications",
+    title: "Meetings",
     description:
-      "Request task or project updates, ask questions, and keep replies together. Everyone involved gets an in-app notification.",
+      "Schedule one-off or repeating meetings with a join link, collect replies, and get a reminder before they start. Link a meeting to a project or a task.",
+    icon: [
+      "M8 2v4",
+      "M16 2v4",
+      "M3 10h18",
+      "M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z",
+    ],
+  },
+  {
+    title: "Dashboard and audit log",
+    description:
+      "See overdue work, activity and plan usage at a glance, and check who changed what and when.",
+    icon: ["M3 3v18h18", "M7 14l4-4 3 3 5-6"],
   },
   {
     title: "Secure by default",
     description:
-      "Short-lived access tokens with rotating refresh sessions, reuse detection, and hashed invite links.",
+      "Short-lived sessions with rotating refresh tokens, hashed invite links, private chat files and sensible limits on every plan.",
+    icon: ["M5 11h14v10H5z", "M8 11V7a4 4 0 0 1 8 0v4"],
+  },
+];
+
+interface TourTab {
+  id: string;
+  label: string;
+  screen: ScreenName;
+  alt: string;
+  heading: string;
+  points: string[];
+}
+
+const TOUR: TourTab[] = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    screen: "dashboard",
+    alt: "The WorkNest dashboard showing open, completed, created and overdue tasks and a trend chart",
+    heading: "Know where things stand",
+    points: [
+      "Open, completed, created and overdue tasks at a glance",
+      "Trends over the last 7 to 90 days, in your own time zone",
+      "Plan usage for admins and managers",
+    ],
+  },
+  {
+    id: "board",
+    label: "Task board",
+    screen: "board",
+    alt: "A project board with To do and In progress columns of task cards",
+    heading: "Keep the work moving",
+    points: [
+      "Cards for every task, with priority, due date and assignees",
+      "Filter by priority or person, or switch to just your own tasks",
+      "Completed, archived and binned tasks stay out of the way",
+    ],
+  },
+  {
+    id: "messages",
+    label: "Messages",
+    screen: "messages",
+    alt: "A group chat with replies, reactions and an @mention",
+    heading: "Talk it through",
+    points: [
+      "One to one chats and groups, delivered live",
+      "Replies, reactions, @mentions, files and search",
+      "Private to the people in the chat, admins included",
+    ],
+  },
+  {
+    id: "meetings",
+    label: "Meetings",
+    screen: "meetings",
+    alt: "The meetings page listing upcoming meetings with a Join button",
+    heading: "Meet without the juggling",
+    points: [
+      "Join links, repeating meetings and a month calendar",
+      "Going, Maybe or Can't go, or suggest another time",
+      "A reminder shortly before each meeting starts",
+    ],
+  },
+];
+
+const STEPS = [
+  {
+    title: "Create your organization",
+    text: "Register, name your workspace and you're in. It takes under a minute.",
+  },
+  {
+    title: "Invite your team",
+    text: "Send invite links and choose each person's role. They join with one click.",
+  },
+  {
+    title: "Plan, talk and meet",
+    text: "Set up projects and tasks, chat in the same place, and schedule meetings.",
   },
 ];
 
@@ -113,78 +223,6 @@ const SOCIAL_LINKS: SocialLink[] = [
     icon: GitHubIcon,
   },
 ];
-
-function BrandMark() {
-  return (
-    <span className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white">
-        W
-      </span>
-      WorkNest
-    </span>
-  );
-}
-
-function ProductPreview() {
-  return (
-    <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/60 dark:border-slate-700 dark:bg-slate-800 dark:shadow-none">
-      <div className="flex items-center justify-between">
-        <div className="h-3 w-24 rounded-full bg-slate-200 dark:bg-slate-700" />
-        <div className="flex gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-full bg-red-300" />
-          <div className="h-2.5 w-2.5 rounded-full bg-amber-300" />
-          <div className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-        </div>
-      </div>
-
-      <div className="mt-5 grid grid-cols-3 gap-3">
-        {[
-          { label: "Overdue", value: "3" },
-          { label: "Members", value: "3/5" },
-          { label: "Active projects", value: "3/3" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/60"
-          >
-            <p className="text-[11px] font-medium text-slate-400">
-              {stat.label}
-            </p>
-            <p className="mt-1 text-lg font-bold text-slate-800 dark:text-slate-100">
-              {stat.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 flex items-end gap-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-900/60">
-        {[60, 85, 45, 95, 70, 55, 80].map((height, index) => (
-          <div
-            key={index}
-            className="flex-1 rounded-t bg-teal-500/80"
-            style={{ height: `${height * 0.5}px` }}
-          />
-        ))}
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {["Ship onboarding flow", "Fix billing webhook"].map((title) => (
-          <div
-            key={title}
-            className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 dark:border-slate-700"
-          >
-            <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-              {title}
-            </span>
-            <span className="rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
-              in progress
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function MenuIcon() {
   return (
@@ -250,7 +288,7 @@ function LandingMenu({
         className="absolute inset-y-0 right-0 flex w-[calc(100%-3rem)] max-w-sm flex-col rounded-l-2xl border-l border-slate-200 bg-white shadow-2xl animate-[panel-in-right_260ms_cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none dark:border-slate-800 dark:bg-slate-900"
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-          <BrandMark />
+          <BrandLink onSameDestination={onClose} />
           <button
             ref={closeRef}
             type="button"
@@ -350,6 +388,157 @@ function LandingMenu({
   );
 }
 
+function ProductTour() {
+  const [active, setActive] = useState(TOUR[0].id);
+  const tab = TOUR.find((item) => item.id === active) ?? TOUR[0];
+
+  return (
+    <section
+      id="product"
+      aria-labelledby="tour-title"
+      className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-20"
+    >
+      <div className="max-w-2xl">
+        <h2
+          id="tour-title"
+          className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-50"
+        >
+          See it in action
+        </h2>
+        <p className="mt-3 text-slate-600 dark:text-slate-400">
+          A look at the parts you'll use every day. These screens use demo data.
+        </p>
+      </div>
+
+      <div
+        role="tablist"
+        aria-label="Product tour"
+        className="mt-8 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 sm:inline-flex dark:bg-slate-800"
+      >
+        {TOUR.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            id={`tour-tab-${item.id}`}
+            aria-selected={item.id === active}
+            aria-controls="tour-panel"
+            tabIndex={item.id === active ? 0 : -1}
+            onClick={() => setActive(item.id)}
+            onKeyDown={(event) => {
+              const index = TOUR.findIndex((entry) => entry.id === active);
+              const next =
+                event.key === "ArrowRight"
+                  ? (index + 1) % TOUR.length
+                  : event.key === "ArrowLeft"
+                    ? (index - 1 + TOUR.length) % TOUR.length
+                    : null;
+              if (next === null) return;
+              event.preventDefault();
+              setActive(TOUR[next].id);
+              document.getElementById(`tour-tab-${TOUR[next].id}`)?.focus();
+            }}
+            className={cn(
+              "min-h-10 flex-1 whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 sm:flex-none",
+              item.id === active
+                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div
+        id="tour-panel"
+        role="tabpanel"
+        aria-labelledby={`tour-tab-${tab.id}`}
+        className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.2fr)]"
+      >
+        <div className="lg:pt-4">
+          <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-50">
+            {tab.heading}
+          </h3>
+          <ul className="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+            {tab.points.map((point) => (
+              <li key={point} className="flex gap-2.5">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400"
+                  aria-hidden="true"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                {point}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <BrowserFrame>
+          <Screenshot name={tab.screen} alt={tab.alt} />
+        </BrowserFrame>
+      </div>
+    </section>
+  );
+}
+
+function PhoneShowcase() {
+  const phones: { screen: ScreenName; alt: string; className?: string }[] = [
+    {
+      screen: "phoneMessages",
+      alt: "The group chat on a phone",
+    },
+    {
+      screen: "phoneMeetings",
+      alt: "The meetings page on a phone",
+      className: "sm:mt-8",
+    },
+    {
+      screen: "phoneBoard",
+      alt: "A project board on a phone",
+    },
+  ];
+
+  return (
+    <section
+      aria-labelledby="phone-title"
+      className="border-t border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40"
+    >
+      <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <div>
+          <h2
+            id="phone-title"
+            className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-50"
+          >
+            Just as good on your phone
+          </h2>
+          <p className="mt-3 max-w-md text-slate-600 dark:text-slate-400">
+            Every page adapts to small screens, so you can check a task, reply
+            to a message or join a meeting from anywhere. There's a dark theme
+            too, for late nights.
+          </p>
+        </div>
+        <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-4 sm:max-w-xl sm:grid-cols-3">
+          {phones.map((phone, index) => (
+            <PhoneFrame
+              key={phone.screen}
+              className={cn(phone.className, index === 2 && "hidden sm:block")}
+            >
+              <Screenshot name={phone.screen} alt={phone.alt} />
+            </PhoneFrame>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function Landing() {
   const auth = useAuth();
   // While the session check runs, someone who was signed in on this device
@@ -376,33 +565,33 @@ export function Landing() {
     }
   };
 
+  const navLink =
+    "rounded-md px-1 text-sm font-medium text-slate-600 hover:text-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-300 dark:hover:text-teal-400";
+  const primaryButton =
+    "inline-flex items-center justify-center rounded-lg bg-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600";
+  const secondaryButton =
+    "inline-flex items-center justify-center rounded-lg border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800";
+
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <BrandMark />
-          <div className="hidden items-center gap-4 sm:flex">
-            <Link
-              to="/how-to-use"
-              className="text-sm font-medium text-slate-600 hover:text-teal-700 dark:text-slate-300 dark:hover:text-teal-400"
+          <BrandLink />
+          <div className="flex items-center gap-1 sm:gap-5">
+            <nav
+              aria-label="Page sections"
+              className="hidden items-center gap-5 sm:flex"
             >
-              How to use
-            </Link>
-            <ThemeToggle />
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Open menu"
-              aria-haspopup="dialog"
-              aria-expanded={menuOpen}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              <MenuIcon />
-            </button>
-          </div>
-
-          {/* Phones: the main action stays visible; the rest lives in a menu. */}
-          <div className="flex items-center gap-1 sm:hidden">
+              <a href="#product" className={navLink}>
+                Product
+              </a>
+              <a href="#features" className={navLink}>
+                Features
+              </a>
+              <Link to="/how-to-use" className={navLink}>
+                How to use
+              </Link>
+            </nav>
             <ThemeToggle />
             <button
               type="button"
@@ -430,101 +619,169 @@ export function Landing() {
       )}
 
       <main>
-        <section className="mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pt-20 lg:pt-24">
-          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+        <section className="mx-auto max-w-6xl px-4 pb-16 pt-12 sm:px-6 sm:pt-16 lg:pt-20">
+          <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-14">
             <div>
               <span className="inline-flex items-center rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
-                Multi-tenant project management
+                Built for small and growing teams
               </span>
               <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl dark:text-slate-50">
-                One workspace, every team, properly isolated.
+                Projects, chat and meetings in one workspace.
               </h1>
               <p className="mt-5 max-w-xl text-lg text-slate-600 dark:text-slate-400">
-                WorkNest helps teams organize projects, assign tasks, share
-                updates, and keep a clear record of changes, with organization
-                data and permissions kept separate.
+                WorkNest brings your team's tasks, conversations and calendar
+                together. Each organization's data stays separate, and what
+                people can see and do depends on their role.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 {isAuthenticated ? (
-                  <Link
-                    to={workspacePath}
-                    className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700"
-                  >
+                  <Link to={workspacePath} className={primaryButton}>
                     Go to your workspace
                   </Link>
                 ) : (
                   <>
-                    <Link
-                      to="/register"
-                      className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700"
-                    >
+                    <Link to="/register" className={primaryButton}>
                       Get started free
                     </Link>
-                    <Link
-                      to="/login"
-                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
+                    <Link to="/login" className={secondaryButton}>
                       Log in
                     </Link>
                   </>
                 )}
               </div>
               {!isAuthenticated && (
-                <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">
-                  No credit card required. Free plan included.
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                  Free plan included. No credit card needed.
                 </p>
               )}
+              <ul className="mt-8 flex flex-wrap gap-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+                {["Role-based access", "Private chats", "Full audit log"].map(
+                  (item) => (
+                    <li
+                      key={item}
+                      className="rounded-full border border-slate-200 px-3 py-1 dark:border-slate-700"
+                    >
+                      {item}
+                    </li>
+                  ),
+                )}
+              </ul>
             </div>
 
             <div className="flex justify-center lg:justify-end">
-              <ProductPreview />
+              <HeroPreview />
             </div>
           </div>
         </section>
 
-        <section className="border-t border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40">
+        <ProductTour />
+
+        <section
+          id="features"
+          aria-labelledby="features-title"
+          className="scroll-mt-20 border-t border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40"
+        >
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
             <div className="max-w-2xl">
-              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-50">
-                Everything a growing team needs, nothing it has to build itself.
+              <h2
+                id="features-title"
+                className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-50"
+              >
+                Everything a growing team needs, without building it yourself.
               </h2>
               <p className="mt-3 text-slate-600 dark:text-slate-400">
-                Tenant isolation and access control are enforced at the data
-                layer, so your team can move fast without worrying about
-                permission bugs or data leaking across organizations.
+                Isolation and access control are built into the data layer, so
+                you can move fast without worrying about permission bugs or one
+                team's data showing up in another's.
               </p>
             </div>
 
-            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {FEATURES.map((feature) => (
-                <Card
+                <li
                   key={feature.title}
-                  className="shadow-none dark:border-slate-700 dark:bg-slate-800"
+                  className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800"
                 >
-                  <h3 className="font-semibold text-slate-800 dark:text-slate-100">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-5 w-5"
+                    >
+                      {feature.icon.map((d) => (
+                        <path key={d} d={d} />
+                      ))}
+                    </svg>
+                  </span>
+                  <h3 className="mt-4 font-semibold text-slate-800 dark:text-slate-100">
                     {feature.title}
                   </h3>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                     {feature.description}
                   </p>
-                </Card>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
-          <div className="rounded-2xl bg-teal-600 px-6 py-12 text-center sm:px-12 sm:py-16">
+        <PhoneShowcase />
+
+        <section
+          aria-labelledby="steps-title"
+          className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <h2
+              id="steps-title"
+              className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-50"
+            >
+              Up and running in a few minutes
+            </h2>
+            <Link
+              to="/how-to-use"
+              className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
+            >
+              Read the full guide <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </div>
+          <ol className="mt-8 grid gap-5 md:grid-cols-3">
+            {STEPS.map((step, index) => (
+              <li
+                key={step.title}
+                className="rounded-xl border border-slate-200 p-6 dark:border-slate-700"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white">
+                  {index + 1}
+                </span>
+                <h3 className="mt-4 font-semibold text-slate-800 dark:text-slate-100">
+                  {step.title}
+                </h3>
+                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
+                  {step.text}
+                </p>
+              </li>
+            ))}
+          </ol>
+
+          <div className="mt-12 rounded-2xl bg-teal-600 px-6 py-12 text-center sm:px-12 sm:py-14">
             <h2 className="text-2xl font-bold text-white sm:text-3xl">
-              Set up your organization in under a minute.
+              Set up your organization in a few minutes.
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-teal-50">
-              Create your account, invite your team, and start tracking work
-              with proper access control from day one.
+              Create your account, invite your team and start working with the
+              right access from day one.
             </p>
             <Link
               to={isAuthenticated ? workspacePath : "/register"}
-              className="mt-8 inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-teal-700 shadow-sm transition-colors hover:bg-teal-50"
+              className="mt-8 inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-sm font-semibold text-teal-700 shadow-sm transition-colors hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               {isAuthenticated
                 ? "Go to your workspace"
@@ -536,8 +793,14 @@ export function Landing() {
 
       <footer className="border-t border-slate-100 dark:border-slate-800">
         <div className="mx-auto grid max-w-6xl justify-items-center gap-6 px-4 py-8 text-sm text-slate-500 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:px-6 dark:text-slate-400">
-          <div className="sm:justify-self-start">
-            <BrandMark />
+          <div className="flex flex-col items-center gap-3 sm:items-start sm:justify-self-start">
+            <BrandLink />
+            <Link
+              to="/how-to-use"
+              className="hover:text-teal-700 dark:hover:text-teal-400"
+            >
+              How to use
+            </Link>
           </div>
 
           <div className="flex items-center gap-4 sm:justify-self-center">
@@ -556,7 +819,7 @@ export function Landing() {
             ))}
           </div>
 
-          <p className="sm:justify-self-end">
+          <p className="text-center sm:justify-self-end sm:text-right">
             &copy; {new Date().getFullYear()} WorkNest. Built by Spraha Singh.
           </p>
         </div>
