@@ -207,7 +207,9 @@ function PanelBody({ onClose }: { onClose: () => void }) {
           >
             Reminders stay unread until you dismiss them. Opening any other
             notification marks it as read. Dismiss (×) removes one from your
-            list for good.
+            list for good. Too much from a busy project or task? Use Mute on it.
+            You&apos;ll still get @mentions, replies to you and update requests
+            sent to you.
           </InfoPanel>
           {invites.length > 0 && (
             <section

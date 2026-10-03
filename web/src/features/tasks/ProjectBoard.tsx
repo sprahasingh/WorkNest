@@ -14,6 +14,7 @@ import { ViewTabs } from "@/components/ui/ViewTabs";
 import { TaskColumn } from "./TaskColumn";
 import { TaskDrawer } from "./TaskDrawer";
 import { ActivityFeed } from "./ActivityFeed";
+import { MuteToggle } from "@/features/notifications/MuteToggle";
 import {
   useTask,
   useTaskStats,
@@ -65,6 +66,8 @@ export function ProjectBoard() {
   // ?updates=1 (open the project-wide updates panel).
   const linkedTaskId = searchParams.get("task");
   const updatesOpen = searchParams.get("updates") === "1";
+  // Which message the link points at, to scroll to and highlight.
+  const linkedMessageId = searchParams.get("message");
 
   const requestedView = searchParams.get("view");
   const boardView: TaskView = TASK_VIEWS.some(
@@ -158,14 +161,34 @@ export function ProjectBoard() {
     );
   };
 
+  // Forget the link once its task closes, so it doesn't reopen.
+  const clearTaskLink = () => {
+    if (!linkedTaskId && !linkedMessageId) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("task");
+      next.delete("message");
+      return next;
+    });
+  };
+
   const closeDrawer = () => {
     setDrawerState(null);
-    if (linkedTaskId) setParam("task", null);
+    clearTaskLink();
   };
 
   const openTaskFromBoard = (task: Task) => {
     setDrawerState({ mode: "edit", task });
-    if (linkedTaskId) setParam("task", null);
+    clearTaskLink();
+  };
+
+  const closeUpdates = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("updates");
+      next.delete("message");
+      return next;
+    });
   };
 
   // From the project feed: close the updates panel and open that task's
@@ -175,6 +198,7 @@ export function ProjectBoard() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.delete("updates");
+      next.delete("message");
       next.set("task", taskId);
       return next;
     });
@@ -233,7 +257,8 @@ export function ProjectBoard() {
               {projectQuery.data?.name ?? "Loading…"}
             </h1>
           </div>
-          <div className="flex w-full gap-2 sm:w-auto">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <MuteToggle orgId={orgId} projectId={projectId} />
             <Button
               variant="secondary"
               className="flex-1 sm:flex-none"
@@ -460,18 +485,19 @@ export function ProjectBoard() {
         members={members}
         task={openDrawer?.mode === "edit" ? openDrawer.task : null}
         initialTab={openDrawer?.mode === "edit" ? openDrawer.tab : undefined}
+        focusActivityId={linkedTaskId ? linkedMessageId : null}
       />
 
       <Modal
         open={updatesOpen}
-        onClose={() => setParam("updates", null)}
+        onClose={closeUpdates}
         title={`${projectQuery.data?.name ?? "Project"} updates`}
         size="lg"
       >
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           {canLead
-            ? "Everything shared in this project, from every task. Reply to any message, or ask everyone for an update at once."
-            : "Everything shared in this project that you can see. Post an update, ask a question, or reply to a message."}
+            ? "Everything shared in this project, from every task. Send to all assignees, or @mention people to send it only to them."
+            : "Everything shared in this project that you can see. Send to all assignees, or @mention people to send it only to them."}
         </p>
         <ActivityFeed
           orgId={orgId}
@@ -479,6 +505,7 @@ export function ProjectBoard() {
           canLead={canLead}
           canContribute={!canLead && canPostProjectUpdates}
           onOpenTask={openTaskUpdates}
+          focusId={linkedMessageId}
         />
       </Modal>
     </div>
