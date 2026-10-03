@@ -1,3 +1,4 @@
+import axios from "axios";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -48,7 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(accessToken);
       return fetchMe();
     },
-    retry: false,
+    // A blip while the server answers shouldn't look like being signed out;
+    // only a rejected session (401) is final.
+    retry: (failureCount, error) =>
+      failureCount < 2 &&
+      !(axios.isAxiosError(error) && error.response?.status === 401),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     enabled: !signedOut,
@@ -105,8 +110,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const verifyRegistration = useCallback(
-    async (token: string) => {
-      const { accessToken } = await verifyRegistrationRequest(token);
+    async (token: string, password: string) => {
+      const { accessToken } = await verifyRegistrationRequest(token, password);
       return establishSession(accessToken);
     },
     [establishSession],

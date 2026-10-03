@@ -2,6 +2,7 @@ import { createApp } from "./app.js";
 import { connectDB } from "./db/connect.js";
 import {
   ensureNotificationEventIndex,
+  ensureNotificationRetentionIndex,
   ensureCompletedTaskIndex,
   migrateDateOnlyTaskDueDates,
   migrateLegacyTaskAssignees,
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
   await syncPlanLimits();
   await syncActiveProjectCounts();
   await ensureNotificationEventIndex();
+  await ensureNotificationRetentionIndex();
   await ensureCompletedTaskIndex();
 
   // Projects left in the bin past their 30 days are deleted for good. Lists
@@ -47,7 +49,9 @@ async function main(): Promise<void> {
     );
   };
   sweepTaskReminders();
-  setInterval(sweepTaskReminders, 60 * 1000).unref();
+  // Opening notifications refreshes your own reminders right away, so the
+  // background sweep only needs to run every few minutes.
+  setInterval(sweepTaskReminders, 10 * 60 * 1000).unref();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

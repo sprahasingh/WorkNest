@@ -6,6 +6,10 @@ import { Invite } from "../../models/Invite.js";
 import { Organization } from "../../models/Organization.js";
 import { Membership } from "../../models/Membership.js";
 import { Task } from "../../models/Task.js";
+import { Project } from "../../models/Project.js";
+import { TaskActivity } from "../../models/TaskActivity.js";
+import { Notification } from "../../models/Notification.js";
+import { AuditLog } from "../../models/AuditLog.js";
 import { PLAN_LIMITS } from "../../constants/plans.js";
 import { env } from "../../config/env.js";
 import { AppError } from "../../lib/errors.js";
@@ -13,9 +17,11 @@ import type { RegisterInput } from "./auth.schemas.js";
 import { randomToken, sha256 } from "../../lib/crypto.js";
 import {
   isEmailDeliveryConfigured,
+  sendEmailChangedNotice,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "../../lib/email.js";
+import { logger } from "../../lib/logger.js";
 import { Session } from "../../models/Session.js";
 import { randomUUID } from "node:crypto";
 import type { LoginInput } from "./auth.schemas.js";
@@ -102,7 +108,10 @@ export async function register(input: RegisterInput) {
   );
 
   if (bypassVerification) {
-    const { userId } = await verifyRegistration({ token });
+    const { userId } = await verifyRegistration({
+      token,
+      password: input.password,
+    });
     return { userId, verificationRequired: false as const };
   }
 
@@ -133,6 +142,18 @@ export async function verifyRegistration(input: VerifyRegistrationInput) {
       400,
       "REGISTRATION_VERIFICATION_INVALID",
       "This registration link is invalid or has expired",
+    );
+  }
+
+  const passwordMatches = await bcrypt.compare(
+    input.password,
+    pending.passwordHash as string,
+  );
+  if (!passwordMatches) {
+    throw new AppError(
+      401,
+      "REGISTRATION_PASSWORD_MISMATCH",
+      "That isn't the password chosen for this sign-up. If you didn't sign up for WorkNest, you can ignore the email.",
     );
   }
 
@@ -288,16 +309,24 @@ export async function verifyRegistration(input: VerifyRegistrationInput) {
   }
 }
 
+// Compared against when there's no account, so a wrong email takes as long
+// as a wrong password and response times don't reveal who has an account.
+let timingDummyHash: Promise<string> | null = null;
+function dummyPasswordHash(): Promise<string> {
+  timingDummyHash ??= bcrypt.hash(randomToken(), env.BCRYPT_COST);
+  return timingDummyHash;
+}
+
 export async function login(input: LoginInput) {
   const user = await User.findOne({ email: input.identifier }).select(
     "+passwordHash +status",
   );
 
-  if (!user) {
-    throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
-  }
-
-  if ((user as unknown as Record<string, unknown>).status === "deleted") {
+  if (
+    !user ||
+    (user as unknown as Record<string, unknown>).status === "deleted"
+  ) {
+    await bcrypt.compare(input.password, await dummyPasswordHash());
     throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
   }
 
@@ -317,15 +346,13 @@ export async function requestPasswordReset(input: RequestPasswordResetInput) {
   const user = await User.findOne({ email: input.email }).select(
     "+status +passwordResetTokenHash +passwordResetExpiresAt",
   );
+  // Same answer whether or not the account exists, so this form can't be
+  // used to find out who has an account.
   if (
     !user ||
     (user as unknown as Record<string, unknown>).status === "deleted"
   ) {
-    throw new AppError(
-      404,
-      "ACCOUNT_NOT_FOUND",
-      "No account was found with that email.",
-    );
+    return;
   }
 
   const token = randomToken();
@@ -418,16 +445,19 @@ export async function updatePersonalInformation(
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
 
-  const currentPasswordIsValid = await bcrypt.compare(
-    input.currentPassword,
-    user.passwordHash as string,
-  );
-  if (!currentPasswordIsValid) {
-    throw new AppError(
-      401,
-      "CURRENT_PASSWORD_INVALID",
-      "Current password is incorrect",
+  // Only a password change needs the current password; a new name doesn't.
+  if (input.newPassword) {
+    const currentPasswordIsValid = await bcrypt.compare(
+      input.currentPassword ?? "",
+      user.passwordHash as string,
     );
+    if (!currentPasswordIsValid) {
+      throw new AppError(
+        401,
+        "CURRENT_PASSWORD_INVALID",
+        "Current password is incorrect",
+      );
+    }
   }
 
   user.name = input.name;
@@ -602,6 +632,7 @@ export async function verifyEmailChange(input: VerifyEmailChangeInput) {
   }
 
   const email = user.pendingEmail;
+  const previousEmail = user.email;
   user.email = email;
   user.emailVerifiedAt = new Date();
   user.pendingEmail = null;
@@ -620,7 +651,31 @@ export async function verifyEmailChange(input: VerifyEmailChangeInput) {
     throw error;
   }
 
+  // Tell the old address, so an unexpected change doesn't go unnoticed.
+  try {
+    await sendEmailChangedNotice(String(previousEmail), String(email));
+  } catch (error) {
+    logger.warn({ err: error }, "Could not send the email-changed notice");
+  }
+
   return User.findById(user._id);
+}
+
+// Removes a workspace and everything in it.
+async function deleteOrganizationData(
+  tenantId: mongoose.Types.ObjectId,
+  dbSession: mongoose.ClientSession,
+): Promise<void> {
+  const scope = { tenantId };
+  const options = { skipTenant: true, includeDeleted: true };
+  await Task.deleteMany(scope).setOptions(options).session(dbSession);
+  await TaskActivity.deleteMany(scope).setOptions(options).session(dbSession);
+  await Project.deleteMany(scope).setOptions(options).session(dbSession);
+  await Invite.deleteMany(scope).setOptions(options).session(dbSession);
+  await AuditLog.deleteMany(scope).setOptions(options).session(dbSession);
+  await Notification.deleteMany(scope).session(dbSession);
+  await Membership.deleteMany(scope).setOptions(options).session(dbSession);
+  await Organization.deleteOne({ _id: tenantId }).session(dbSession);
 }
 
 export async function deleteAccount(userId: string): Promise<void> {
@@ -637,15 +692,21 @@ export async function deleteAccount(userId: string): Promise<void> {
         const org = await Organization.findById(m.tenantId).session(dbSession);
         if (!org) continue;
 
-        if (m.role === "admin") {
-          const othersInOrg = await Membership.countDocuments({
-            tenantId: m.tenantId,
-            userId: { $ne: userId },
-          })
-            .setOptions({ skipTenant: true })
-            .session(dbSession);
+        const othersInOrg = await Membership.countDocuments({
+          tenantId: m.tenantId,
+          userId: { $ne: userId },
+        })
+          .setOptions({ skipTenant: true })
+          .session(dbSession);
 
-          if (othersInOrg > 0 && Number(org.adminCount) <= 1) {
+        // Nobody else could ever reach this workspace again, so it goes too.
+        if (othersInOrg === 0) {
+          await deleteOrganizationData(m.tenantId, dbSession);
+          continue;
+        }
+
+        if (m.role === "admin") {
+          if (Number(org.adminCount) <= 1) {
             throw new AppError(
               409,
               "SOLE_ADMIN",
@@ -708,24 +769,17 @@ export async function deleteAccount(userId: string): Promise<void> {
   }
 }
 
+// A token replaced this recently is still accepted, so two tabs refreshing
+// at once don't look like a stolen token and sign the person out.
+const REFRESH_GRACE_MS = 30_000;
+const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export async function refresh(rawToken: string) {
   const tokenHash = sha256(rawToken);
   const session = await Session.findOne({ tokenHash });
 
   if (!session) {
     throw new AppError(401, "INVALID_REFRESH_TOKEN", "Invalid refresh token");
-  }
-
-  if (session.revokedAt) {
-    await Session.updateMany(
-      { familyId: session.familyId, revokedAt: null },
-      { revokedAt: new Date() },
-    );
-    throw new AppError(
-      401,
-      "TOKEN_REUSE_DETECTED",
-      "Refresh token reuse detected",
-    );
   }
 
   if (session.expiresAt < new Date()) {
@@ -738,37 +792,74 @@ export async function refresh(rawToken: string) {
 
   try {
     await dbSession.withTransaction(async () => {
-      const newToken = randomToken();
-      const newTokenHash = sha256(newToken);
-      newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const now = new Date();
+      // Claim the token atomically; only one request can rotate it.
+      const claimed = await Session.findOneAndUpdate(
+        { _id: session._id, revokedAt: null },
+        { revokedAt: now },
+        { session: dbSession, returnDocument: "after" },
+      );
 
+      if (!claimed) {
+        // Already rotated. Fine if it happened a moment ago (another tab);
+        // otherwise it's a reused token, so end the whole session family.
+        const current = await Session.findById(session._id).session(dbSession);
+        const revokedAt = current?.revokedAt?.getTime() ?? 0;
+        const familyStillActive = await Session.exists({
+          familyId: session.familyId,
+          revokedAt: null,
+        }).session(dbSession);
+        if (
+          !current?.replacedBy ||
+          now.getTime() - revokedAt > REFRESH_GRACE_MS ||
+          !familyStillActive
+        ) {
+          throw new AppError(
+            401,
+            "TOKEN_REUSE_DETECTED",
+            "Refresh token reuse detected",
+          );
+        }
+      }
+
+      const newToken = randomToken();
+      newExpiresAt = new Date(now.getTime() + REFRESH_TTL_MS);
       const [newSession] = await Session.create(
         [
           {
             userId: session.userId,
             familyId: session.familyId,
-            tokenHash: newTokenHash,
+            tokenHash: sha256(newToken),
             expiresAt: newExpiresAt,
           },
         ],
         { session: dbSession },
       );
 
-      session.revokedAt = new Date();
-      session.replacedBy = newSession._id;
-      await session.save({ session: dbSession });
+      if (claimed) {
+        claimed.replacedBy = newSession._id;
+        await claimed.save({ session: dbSession });
+      }
 
       newRawToken = newToken;
     });
-
-    return {
-      userId: session.userId,
-      rawToken: newRawToken!,
-      expiresAt: newExpiresAt!,
-    };
+  } catch (error) {
+    if (error instanceof AppError && error.code === "TOKEN_REUSE_DETECTED") {
+      await Session.updateMany(
+        { familyId: session.familyId, revokedAt: null },
+        { revokedAt: new Date() },
+      );
+    }
+    throw error;
   } finally {
     await dbSession.endSession();
   }
+
+  return {
+    userId: session.userId,
+    rawToken: newRawToken!,
+    expiresAt: newExpiresAt!,
+  };
 }
 
 export async function logout(rawToken: string): Promise<void> {

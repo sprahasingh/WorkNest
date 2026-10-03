@@ -9,6 +9,7 @@ import { recordAudit } from "../audit/audit.service.js";
 import bcrypt from "bcryptjs";
 import { User } from "../../models/User.js";
 import { PendingRegistration } from "../../models/PendingRegistration.js";
+import { verifyRegistration } from "../auth/auth.service.js";
 import { env } from "../../config/env.js";
 import {
   isEmailDeliveryConfigured,
@@ -488,6 +489,14 @@ export async function signupViaInvite(
     { new: true, upsert: true, setDefaultsOnInsert: true },
   );
 
+  if (invite.emailedAt) {
+    const { userId } = await verifyRegistration({
+      token: registrationToken,
+      password: input.password,
+    });
+    return { email: invite.email, userId };
+  }
+
   const verificationUrl = new URL("/verify-email", env.CLIENT_ORIGIN);
   verificationUrl.searchParams.set("token", registrationToken);
   try {
@@ -504,7 +513,7 @@ export async function signupViaInvite(
     throw error;
   }
 
-  return { email: invite.email };
+  return { email: invite.email, userId: null };
 }
 
 export async function getInviteByToken(rawToken: string) {

@@ -158,13 +158,16 @@ async function getPlan(tenantId: string): Promise<Plan> {
   return (org?.plan as Plan | undefined) ?? "free";
 }
 
-function countActiveTasks(projectId: string) {
+function countActiveTasks(
+  projectId: string,
+  dbSession?: mongoose.ClientSession,
+) {
   return Task.countDocuments({
     projectId,
     status: { $ne: "done" },
     archivedAt: null,
     deletedAt: null,
-  });
+  }).session(dbSession ?? null);
 }
 
 // Creating a task or reopening a finished one adds an active task, so both
@@ -173,12 +176,15 @@ async function assertRoomForActiveTask(
   tenantId: string,
   projectId: string,
   action: "create" | "reopen",
+  // Inside a transaction that has locked the project (see
+  // projectConsumesSlot), the count can't change under us.
+  dbSession?: mongoose.ClientSession,
 ): Promise<void> {
   const plan = await getPlan(tenantId);
   const limit = PLAN_LIMITS[plan].activeTaskLimit;
   if (limit === null) return;
 
-  const activeCount = await countActiveTasks(projectId);
+  const activeCount = await countActiveTasks(projectId, dbSession);
   if (activeCount < limit) return;
 
   const nextStep =
@@ -267,6 +273,7 @@ export async function createTask(
 
     await dbSession.withTransaction(async () => {
       const wasActive = await projectConsumesSlot(projectId, dbSession);
+      await assertRoomForActiveTask(tenantId, projectId, "create", dbSession);
       const [created] = await Task.create(
         [
           {
@@ -637,6 +644,14 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
   try {
     await dbSession.withTransaction(async () => {
       const wasActive = await projectConsumesSlot(task.projectId, dbSession);
+      if (reopening) {
+        await assertRoomForActiveTask(
+          tenantId,
+          String(task.projectId),
+          "reopen",
+          dbSession,
+        );
+      }
       const diff: Record<string, { from: unknown; to: unknown }> = {};
       const trackedFields = [
         "title",
@@ -1022,6 +1037,14 @@ export async function restoreTask(taskId: string) {
         binnedTask.projectId,
         dbSession,
       );
+      if (binnedTask.status !== "done" && !binnedTask.archivedAt) {
+        await assertRoomForActiveTask(
+          requireTenantId(),
+          String(binnedTask.projectId),
+          "reopen",
+          dbSession,
+        );
+      }
       task = await Task.findOneAndUpdate(
         { _id: taskId, deletedAt: { $ne: null } },
         { deletedAt: null, deletedBy: null },
