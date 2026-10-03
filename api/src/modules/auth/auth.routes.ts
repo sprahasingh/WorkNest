@@ -37,6 +37,15 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Refresh runs on every page load and every 15 minutes, so it gets its own,
+// roomier budget instead of sharing login's.
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const accountUpdateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
@@ -90,7 +99,7 @@ router.post(
   resetPasswordController,
 );
 
-router.post("/refresh", authLimiter, refreshController);
+router.post("/refresh", refreshLimiter, refreshController);
 router.post("/logout", logoutController);
 router.post(
   "/verify-email-change",

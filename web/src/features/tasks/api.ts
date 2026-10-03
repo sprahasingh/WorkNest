@@ -48,6 +48,8 @@ export interface TaskActivity {
   author: { _id: string; name: string; email: string } | null;
   // Present in a project's feed: which task the entry was posted on.
   task?: { _id: string; title: string } | null;
+  // People mentioned here; they can reply even if they aren't assigned.
+  mentionIds?: string[];
 }
 
 export interface CreateTaskInput {

@@ -62,7 +62,8 @@ export function ForgotPassword() {
             role="status"
             className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-3 text-sm text-teal-900 dark:border-teal-900 dark:bg-teal-950 dark:text-teal-100"
           >
-            Password reset email sent. Check your inbox and spam folder.
+            If an account exists for that email, we&apos;ve sent a reset link.
+            Check your inbox and spam folder.
           </p>
         )}
 

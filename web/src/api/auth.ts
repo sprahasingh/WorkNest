@@ -63,7 +63,8 @@ export interface MeResponse {
 
 export interface UpdatePersonalInformationInput {
   name: string;
-  currentPassword: string;
+  // Only needed when setting a new password.
+  currentPassword?: string;
   newPassword?: string;
 }
 
@@ -116,10 +117,11 @@ export async function register(
 
 export async function verifyRegistration(
   token: string,
+  password: string,
 ): Promise<AuthTokenResponse> {
   const response = await apiClient.post<AuthTokenResponse>(
     "/auth/verify-registration",
-    { token },
+    { token, password },
   );
   return response.data;
 }

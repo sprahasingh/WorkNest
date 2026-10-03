@@ -45,6 +45,7 @@ vi.mock("../src/lib/email.js", () => ({
       purpose: "password-reset",
     });
   }),
+  sendEmailChangedNotice: vi.fn(async () => {}),
   sendInviteEmail: vi.fn(
     async (
       recipient: string,
@@ -131,7 +132,7 @@ export async function registerAndVerify(
   const token = takeVerificationToken(input.email, "registration");
   let verification = request(app).post("/api/auth/verify-registration");
   verification = verification.set("X-Forwarded-For", clientIp);
-  return verification.send({ token });
+  return verification.send({ token, password: input.password });
 }
 
 export async function signupInviteAndVerify(
@@ -150,5 +151,5 @@ export async function signupInviteAndVerify(
   return request(app)
     .post("/api/auth/verify-registration")
     .set("X-Forwarded-For", clientIp)
-    .send({ token });
+    .send({ token, password: input.password });
 }
