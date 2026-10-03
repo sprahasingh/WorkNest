@@ -7,6 +7,7 @@ import {
   listTasksQuerySchema,
   taskCountsQuerySchema,
   createActivitySchema,
+  markAnswerSchema,
 } from "./tasks.schemas.js";
 import {
   createTaskController,
@@ -26,6 +27,8 @@ import {
   createTaskActivityController,
   listProjectActivitiesController,
   createProjectActivityController,
+  markAnswerController,
+  remindWaitingController,
 } from "./taskActivity.controller.js";
 
 const projectTasksRouter = Router({ mergeParams: true });
@@ -70,6 +73,19 @@ projectActivityRouter.post(
   requirePermission("task:comment"),
   validate({ body: createActivitySchema }),
   createProjectActivityController,
+);
+
+projectActivityRouter.patch(
+  "/:activityId/answer",
+  requirePermission("task:comment"),
+  validate({ body: markAnswerSchema }),
+  markAnswerController,
+);
+
+projectActivityRouter.post(
+  "/:activityId/remind",
+  requirePermission("task:request-update"),
+  remindWaitingController,
 );
 
 const tasksRouter = Router({ mergeParams: true });
@@ -121,6 +137,19 @@ tasksRouter.post(
   requirePermission("task:comment"),
   validate({ body: createActivitySchema }),
   createTaskActivityController,
+);
+
+tasksRouter.patch(
+  "/:taskId/activity/:activityId/answer",
+  requirePermission("task:comment"),
+  validate({ body: markAnswerSchema }),
+  markAnswerController,
+);
+
+tasksRouter.post(
+  "/:taskId/activity/:activityId/remind",
+  requirePermission("task:request-update"),
+  remindWaitingController,
 );
 
 export { projectTasksRouter, projectActivityRouter, tasksRouter };
