@@ -19,7 +19,7 @@ import {
 } from "recharts";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
-import { ChartCard } from "./ChartCard";
+import { CardTitle, ChartCard } from "./ChartCard";
 import {
   CREATED_COLOR,
   STATUS_KEYS,
@@ -148,10 +148,13 @@ function toggleHidden<K>(current: K[], key: K, total: number): K[] {
 export function StatusHistoryCard({
   rows,
   granularity,
+  period,
   isDark,
 }: {
   rows: StatusHistoryRow[];
   granularity: DashboardTrend["granularity"];
+  // The date range picked, e.g. "Last 14 days".
+  period: string;
   isDark: boolean;
 }) {
   const [hidden, setHidden] = useState<OpenKey[]>([]);
@@ -162,6 +165,7 @@ export function StatusHistoryCard({
   return (
     <ChartCard
       title="Open work"
+      scope={{ period }}
       subtitle={`Tasks waiting in To do and In progress at the end of each ${granularity}`}
       chartClassName="h-64"
       emptyMessage={isEmpty ? "No open tasks in this period" : undefined}
@@ -284,6 +288,7 @@ type FlowKey = "created" | "completed";
 // line runs above the completed one, work is piling up.
 export function CreatedVsCompletedCard({
   title,
+  period,
   rows,
   created,
   completed,
@@ -291,6 +296,7 @@ export function CreatedVsCompletedCard({
   isDark,
 }: {
   title: string;
+  period: string;
   rows: FlowRow[];
   created: { total: number; change: PeriodChange | null };
   completed: { total: number; change: PeriodChange | null };
@@ -315,6 +321,7 @@ export function CreatedVsCompletedCard({
   return (
     <ChartCard
       title={title}
+      scope={{ period }}
       summary={
         <div className="space-y-2">
           <SeriesToggle
@@ -405,9 +412,12 @@ export function CreatedVsCompletedCard({
 
 export function StatusDonutCard({
   counts,
+  period,
   isDark,
 }: {
+  // To do and In progress right now; Done in the chosen period.
   counts: Record<StatusKey, number>;
+  period: string;
   isDark: boolean;
 }) {
   const colors = statusColors(isDark);
@@ -416,17 +426,19 @@ export function StatusDonutCard({
     key,
     name: STATUS_LABELS[key],
     count: counts[key],
+    when: key === "done" ? period : "Now",
   }));
   const mode = isDark ? "dark" : "light";
 
   return (
     <ChartCard
-      title="Tasks by status"
-      subtitle="All tasks right now"
+      title="Where tasks stand"
+      scope={{ now: true, period }}
+      subtitle="Open now, and done in the chosen period"
       chartClassName="h-44"
       emptyMessage={total === 0 ? "No tasks yet" : undefined}
       description={slices
-        .map((slice) => `${slice.name}: ${slice.count}`)
+        .map((slice) => `${slice.name} (${slice.when}): ${slice.count}`)
         .join(", ")}
       footer={
         <ul className="mt-4 space-y-2 text-sm">
@@ -435,6 +447,9 @@ export function StatusDonutCard({
               <SeriesKey color={colors[slice.key]} shape="dot" />
               <span className="text-slate-600 dark:text-slate-300">
                 {slice.name}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {slice.when.toLowerCase()}
               </span>
               <span className="ml-auto font-semibold text-slate-900 tabular-nums dark:text-slate-50">
                 {slice.count}
@@ -506,6 +521,7 @@ export function OpenByPriorityCard({
   return (
     <ChartCard
       title="Open tasks by priority"
+      scope={{ now: true }}
       subtitle="To do and in progress, most urgent first"
       chartClassName="h-44"
       emptyMessage={total === 0 ? "Nothing open right now" : undefined}
@@ -611,9 +627,7 @@ export function WorkloadCard({
   if (rows.length === 0) {
     return (
       <Card>
-        <h2 className="font-medium text-slate-800 dark:text-slate-100">
-          Workload
-        </h2>
+        <CardTitle title="Workload" scope={{ now: true }} />
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Open tasks per person
         </p>
@@ -628,6 +642,7 @@ export function WorkloadCard({
   return (
     <ChartCard
       title="Workload"
+      scope={{ now: true }}
       subtitle="Open tasks per person, busiest first"
       chartClassName={WORKLOAD_HEIGHTS[rows.length - 1]}
       description={rows
@@ -721,9 +736,7 @@ export function ProjectProgressCard({
     <Card>
       <div className="flex items-baseline justify-between gap-3">
         <div>
-          <h2 className="font-medium text-slate-800 dark:text-slate-100">
-            Project progress
-          </h2>
+          <CardTitle title="Project progress" scope={{ now: true }} />
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Share of each project&apos;s tasks that are done
           </p>
@@ -849,9 +862,7 @@ function UsageMeter({
 export function WorkspaceCard({ usage }: { usage: DashboardUsage }) {
   return (
     <Card>
-      <h2 className="font-medium text-slate-800 dark:text-slate-100">
-        Workspace
-      </h2>
+      <CardTitle title="Workspace" scope={{ now: true }} />
       <p className="text-xs text-slate-500 dark:text-slate-400">
         {usage.memberCount} {usage.memberCount === 1 ? "member" : "members"} on
         your plan

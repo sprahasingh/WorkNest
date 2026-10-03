@@ -72,6 +72,10 @@ export interface ProjectProgress {
   // Tasks created and marked done in the chosen range.
   createdInRange: number;
   completedInRange: number;
+  // When the last task was finished, if every task is done; and whether
+  // that happened in the chosen range.
+  finishedAt: string | null;
+  finishedInRange: boolean;
 }
 
 export interface DashboardData {
