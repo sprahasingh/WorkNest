@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { BrandLink } from "@/components/BrandLink";
 
 interface AuthShellProps {
   children: ReactNode;
@@ -9,21 +10,16 @@ export function AuthShell({ children }: AuthShellProps) {
   return (
     <div className="flex min-h-screen bg-white dark:bg-slate-950">
       <div className="hidden w-1/2 flex-col justify-between bg-gradient-to-br from-teal-600 to-teal-800 p-12 text-white lg:flex">
-        <Link to="/" className="flex items-center gap-2 text-lg font-bold">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white">
-            W
-          </span>
-          WorkNest
-        </Link>
+        <BrandLink tone="onBrand" />
 
         <div className="max-w-sm">
           <p className="text-2xl font-semibold leading-snug">
-            &ldquo;Real tenant isolation and role-based access, without
-            building it yourself.&rdquo;
+            &ldquo;Real tenant isolation and role-based access, without building
+            it yourself.&rdquo;
           </p>
           <p className="mt-4 text-sm text-teal-100">
-            Every organization&apos;s data is scoped at the database layer,
-            and every action is enforced by role, on the server, every time.
+            Every organization&apos;s data is scoped at the database layer, and
+            every action is enforced by role, on the server, every time.
           </p>
         </div>
 
@@ -52,15 +48,7 @@ export function AuthShell({ children }: AuthShellProps) {
           Back to home
         </Link>
 
-        <Link
-          to="/"
-          className="mb-8 flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-slate-100 lg:hidden"
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white">
-            W
-          </span>
-          WorkNest
-        </Link>
+        <BrandLink className="mb-8 lg:hidden" />
         <div className="w-full max-w-sm">{children}</div>
       </div>
     </div>

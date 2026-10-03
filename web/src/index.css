@@ -118,3 +118,15 @@ html.dark {
     box-shadow: 0 0 0 2px rgb(20 184 166);
   }
 }
+
+/* Anchor links such as "Features" glide instead of jumping, unless the
+   person has asked their device for less motion. */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
