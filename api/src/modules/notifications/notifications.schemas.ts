@@ -29,3 +29,16 @@ export const listNotificationsQuerySchema = z
 export type ListNotificationsQuery = z.infer<
   typeof listNotificationsQuerySchema
 >;
+
+export const setMuteSchema = z
+  .object({
+    projectId: z.string().regex(objectIdRegex).optional(),
+    taskId: z.string().regex(objectIdRegex).optional(),
+    muted: z.boolean(),
+  })
+  .strict()
+  .refine((input) => !!input.projectId !== !!input.taskId, {
+    message: "Choose a project or a task to mute",
+  });
+
+export type SetMuteInput = z.infer<typeof setMuteSchema>;
