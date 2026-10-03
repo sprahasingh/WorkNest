@@ -43,6 +43,13 @@ const notificationSchema = new Schema(
 );
 
 notificationSchema.index({ userId: 1, tenantId: 1, readAt: 1, _id: -1 });
+// Read notifications are cleared out after 90 days. Reminders are never
+// marked read, so they aren't affected.
+export const READ_NOTIFICATION_TTL_SECONDS = 90 * 24 * 60 * 60;
+notificationSchema.index(
+  { readAt: 1 },
+  { expireAfterSeconds: READ_NOTIFICATION_TTL_SECONDS },
+);
 notificationSchema.index(
   { userId: 1, eventKey: 1 },
   {

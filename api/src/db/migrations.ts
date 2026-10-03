@@ -3,7 +3,10 @@ import { dateOnlyDueDate, isValidTimeZone } from "../lib/timezone.js";
 import { Task } from "../models/Task.js";
 import { Project } from "../models/Project.js";
 import { Organization } from "../models/Organization.js";
-import { Notification } from "../models/Notification.js";
+import {
+  Notification,
+  READ_NOTIFICATION_TTL_SECONDS,
+} from "../models/Notification.js";
 import { PLAN_LIMITS, PLANS } from "../constants/plans.js";
 import { logger } from "../lib/logger.js";
 
@@ -106,6 +109,15 @@ export async function migrateDateOnlyTaskDueDates(): Promise<void> {
   if (migratedCount > 0) {
     logger.info({ migratedCount }, "Migrated date-only task due dates");
   }
+}
+
+// Production doesn't build indexes automatically, so the read-notification
+// clean-up index is created here.
+export async function ensureNotificationRetentionIndex(): Promise<void> {
+  await Notification.collection.createIndex(
+    { readAt: 1 },
+    { expireAfterSeconds: READ_NOTIFICATION_TTL_SECONDS },
+  );
 }
 
 export async function ensureNotificationEventIndex(): Promise<void> {

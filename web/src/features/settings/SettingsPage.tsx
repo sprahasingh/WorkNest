@@ -296,11 +296,19 @@ const personalInformationSchema = z
       .trim()
       .min(2, "Name must be at least 2 characters")
       .max(100),
-    currentPassword: z.string().min(1, "Enter your current password"),
+    currentPassword: z.string().optional(),
     newPassword: z.string().max(72).optional(),
     confirmNewPassword: z.string().optional(),
   })
   .superRefine((values, context) => {
+    // Renaming alone doesn't need the password; changing it does.
+    if (values.newPassword && !values.currentPassword) {
+      context.addIssue({
+        code: "custom",
+        path: ["currentPassword"],
+        message: "Enter your current password to set a new one",
+      });
+    }
     if (values.newPassword && values.newPassword.length < 8) {
       context.addIssue({
         code: "custom",
@@ -361,8 +369,12 @@ function PersonalInformationCard() {
     try {
       const updatedUser = await updatePersonalInformation({
         name: values.name,
-        currentPassword: values.currentPassword,
-        ...(values.newPassword ? { newPassword: values.newPassword } : {}),
+        ...(values.newPassword
+          ? {
+              currentPassword: values.currentPassword,
+              newPassword: values.newPassword,
+            }
+          : {}),
       });
       updateCurrentUser(updatedUser);
       reset({
@@ -440,7 +452,7 @@ function PersonalInformationCard() {
               />
             </Field>
             <Field
-              label="Current password"
+              label="Current password (only to change it)"
               htmlFor="profile-current-password"
               error={errors.currentPassword?.message}
             >

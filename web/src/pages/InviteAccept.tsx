@@ -179,6 +179,14 @@ export function InviteAccept() {
     setFormError(null);
     try {
       const result = await signupViaInvite(token, values);
+      if (!result.verificationRequired) {
+        const me = await auth.establishSession(result.accessToken);
+        const orgId = me.memberships[0]?.tenantId.id;
+        navigate(orgId ? `/orgs/${orgId}/dashboard` : "/orgs", {
+          replace: true,
+        });
+        return;
+      }
       setVerificationEmail(result.email);
     } catch (error) {
       const parsed = parseApiError(error);
