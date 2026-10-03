@@ -6,6 +6,10 @@ import { Invite } from "../../models/Invite.js";
 import { Organization } from "../../models/Organization.js";
 import { Membership } from "../../models/Membership.js";
 import { Task } from "../../models/Task.js";
+import { Project } from "../../models/Project.js";
+import { TaskActivity } from "../../models/TaskActivity.js";
+import { Notification } from "../../models/Notification.js";
+import { AuditLog } from "../../models/AuditLog.js";
 import { PLAN_LIMITS } from "../../constants/plans.js";
 import { env } from "../../config/env.js";
 import { AppError } from "../../lib/errors.js";
@@ -623,6 +627,23 @@ export async function verifyEmailChange(input: VerifyEmailChangeInput) {
   return User.findById(user._id);
 }
 
+// Removes a workspace and everything in it.
+async function deleteOrganizationData(
+  tenantId: mongoose.Types.ObjectId,
+  dbSession: mongoose.ClientSession,
+): Promise<void> {
+  const scope = { tenantId };
+  const options = { skipTenant: true, includeDeleted: true };
+  await Task.deleteMany(scope).setOptions(options).session(dbSession);
+  await TaskActivity.deleteMany(scope).setOptions(options).session(dbSession);
+  await Project.deleteMany(scope).setOptions(options).session(dbSession);
+  await Invite.deleteMany(scope).setOptions(options).session(dbSession);
+  await AuditLog.deleteMany(scope).setOptions(options).session(dbSession);
+  await Notification.deleteMany(scope).session(dbSession);
+  await Membership.deleteMany(scope).setOptions(options).session(dbSession);
+  await Organization.deleteOne({ _id: tenantId }).session(dbSession);
+}
+
 export async function deleteAccount(userId: string): Promise<void> {
   const dbSession = await mongoose.startSession();
 
@@ -637,15 +658,21 @@ export async function deleteAccount(userId: string): Promise<void> {
         const org = await Organization.findById(m.tenantId).session(dbSession);
         if (!org) continue;
 
-        if (m.role === "admin") {
-          const othersInOrg = await Membership.countDocuments({
-            tenantId: m.tenantId,
-            userId: { $ne: userId },
-          })
-            .setOptions({ skipTenant: true })
-            .session(dbSession);
+        const othersInOrg = await Membership.countDocuments({
+          tenantId: m.tenantId,
+          userId: { $ne: userId },
+        })
+          .setOptions({ skipTenant: true })
+          .session(dbSession);
 
-          if (othersInOrg > 0 && Number(org.adminCount) <= 1) {
+        // Nobody else could ever reach this workspace again, so it goes too.
+        if (othersInOrg === 0) {
+          await deleteOrganizationData(m.tenantId, dbSession);
+          continue;
+        }
+
+        if (m.role === "admin") {
+          if (Number(org.adminCount) <= 1) {
             throw new AppError(
               409,
               "SOLE_ADMIN",
@@ -783,10 +810,7 @@ export async function refresh(rawToken: string) {
       newRawToken = newToken;
     });
   } catch (error) {
-    if (
-      error instanceof AppError &&
-      error.code === "TOKEN_REUSE_DETECTED"
-    ) {
+    if (error instanceof AppError && error.code === "TOKEN_REUSE_DETECTED") {
       await Session.updateMany(
         { familyId: session.familyId, revokedAt: null },
         { revokedAt: new Date() },

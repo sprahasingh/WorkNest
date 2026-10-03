@@ -315,7 +315,34 @@ export async function ensureDueNotificationsForAllUsers(): Promise<void> {
       .find({}, { projection: { _id: 1 } })
       .toArray();
 
+    const reminderWindowEnd = new Date(Date.now() + DUE_SOON_48H_WINDOW_MS);
     for (const organization of organizations) {
+      // One cheap check per org: skip it unless something open is due soon
+      // or overdue. Most orgs have nothing to remind about most of the time.
+      const dueSoon = { $ne: null, $lte: reminderWindowEnd };
+      const [taskDue, projectDue] = await Promise.all([
+        Task.collection.findOne(
+          {
+            tenantId: organization._id,
+            status: { $in: ["todo", "in_progress"] },
+            archivedAt: null,
+            deletedAt: null,
+            dueDate: dueSoon,
+          },
+          { projection: { _id: 1 } },
+        ),
+        Project.collection.findOne(
+          {
+            tenantId: organization._id,
+            archivedAt: null,
+            deletedAt: null,
+            dueDate: dueSoon,
+          },
+          { projection: { _id: 1 } },
+        ),
+      ]);
+      if (!taskDue && !projectDue) continue;
+
       const memberships = await Membership.collection
         .find(
           { tenantId: organization._id },

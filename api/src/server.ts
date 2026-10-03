@@ -47,7 +47,9 @@ async function main(): Promise<void> {
     );
   };
   sweepTaskReminders();
-  setInterval(sweepTaskReminders, 60 * 1000).unref();
+  // Opening notifications refreshes your own reminders right away, so the
+  // background sweep only needs to run every few minutes.
+  setInterval(sweepTaskReminders, 10 * 60 * 1000).unref();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {
