@@ -8,6 +8,9 @@ import {
   takeInvitationToken,
   takeVerificationToken,
 } from "./emailDeliveryMock.js";
+import mongoose from "mongoose";
+import { Task } from "../src/models/Task.js";
+import { Organization } from "../src/models/Organization.js";
 
 const app = createApp();
 
@@ -259,5 +262,25 @@ describe("account deletion", () => {
       orgName: "Fresh Start",
     });
     expect(again.status).toBe(201);
+  });
+
+  it("deletes a workspace that would be left with no members", async () => {
+    const solo = await registerOrg("solo@example.com", "Solo Org");
+    const projectId = await createProject(solo.orgId, solo.accessToken, "SOL");
+    await createTask(solo.orgId, projectId, solo.accessToken, {
+      title: "Only mine",
+    });
+
+    const deleted = await request(app)
+      .delete("/api/auth/me")
+      .set("Authorization", `Bearer ${solo.accessToken}`);
+    expect(deleted.status).toBe(204);
+
+    expect(await Organization.exists({ _id: solo.orgId })).toBeNull();
+    expect(
+      await Task.collection.countDocuments({
+        tenantId: new mongoose.Types.ObjectId(solo.orgId),
+      }),
+    ).toBe(0);
   });
 });

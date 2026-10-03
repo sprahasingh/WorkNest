@@ -991,7 +991,8 @@ export function SettingsPage() {
             You&apos;ll be signed out, and your email is freed so you can sign
             up or accept an invite again later. If you&apos;re the only admin of
             a workspace with other people in it, make someone else an admin
-            first.
+            first. A workspace where you&apos;re the only member is deleted
+            along with its projects and tasks.
           </p>
 
           {!showDeleteConfirm ? (
