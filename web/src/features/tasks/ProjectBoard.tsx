@@ -10,12 +10,14 @@ import { parseApiError } from "@/lib/apiError";
 import { NotFound } from "@/pages/NotFound";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/Modal";
+import { ViewTabs } from "@/components/ui/ViewTabs";
 import { TaskColumn } from "./TaskColumn";
 import { TaskDrawer } from "./TaskDrawer";
 import { ActivityFeed } from "./ActivityFeed";
 import {
   useTask,
   useTaskStats,
+  useTaskViewCounts,
   useUpdateTaskStatus,
   type TaskFilters,
 } from "./queries";
@@ -89,6 +91,12 @@ export function ProjectBoard() {
     sortBy,
     sortOrder,
   };
+  // Tab counts follow the same filters as the board, but not its sort order.
+  const countFilters: TaskFilters = {
+    assigneeId: filters.assigneeId,
+    priority: filters.priority,
+    mine: filters.mine,
+  };
   const visibleStatuses: (TaskStatus | undefined)[] =
     boardView === "active"
       ? ACTIVE_STATUSES
@@ -101,6 +109,11 @@ export function ProjectBoard() {
   const projectQuery = useProject(orgId, projectId ?? "");
   const unarchiveProject = useUnarchiveProject(orgId);
   const statsQuery = useTaskStats(orgId, projectId ?? "");
+  const viewCountsQuery = useTaskViewCounts(
+    orgId,
+    projectId ?? "",
+    countFilters,
+  );
   const linkedTaskQuery = useTask(orgId, linkedTaskId);
   const updateStatus = useUpdateTaskStatus(orgId, projectId ?? "", filters);
   useMarkReadWhenViewed(
@@ -378,32 +391,33 @@ export function ProjectBoard() {
           </label>
         </div>
 
-        <div
-          role="group"
-          aria-label="Task view"
-          className="mt-6 inline-flex max-w-full overflow-x-auto rounded-lg bg-slate-200 p-1 dark:bg-slate-800"
-        >
-          {TASK_VIEWS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={boardView === value}
-              onClick={() =>
-                setParam("view", value === "active" ? null : value)
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <ViewTabs
+            label="Task lists"
+            value={boardView}
+            onChange={(value) =>
+              setParam("view", value === "active" ? null : value)
+            }
+            tabs={TASK_VIEWS.map((tab) => ({
+              ...tab,
+              count: viewCountsQuery.data?.[tab.value],
+            }))}
+          />
+          <label className="ml-auto flex min-h-9 items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={filters.mine ?? false}
+              onChange={(event) =>
+                setParam("mine", event.target.checked ? "true" : null)
               }
-              className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                boardView === value
-                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-50"
-                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+              className="accent-teal-600"
+            />
+            My tasks
+          </label>
         </div>
 
         {boardView !== "active" && (
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
             {boardView === "completed"
               ? "Completed tasks are kept here. Reopen one to return it to active work."
               : boardView === "archived"
@@ -411,18 +425,6 @@ export function ProjectBoard() {
                 : "Binned tasks can be restored for 30 days before permanent deletion."}
           </p>
         )}
-
-        <label className="mt-2 flex min-h-9 items-center justify-end gap-1.5 text-sm text-slate-600 dark:text-slate-300">
-          <input
-            type="checkbox"
-            checked={filters.mine ?? false}
-            onChange={(event) =>
-              setParam("mine", event.target.checked ? "true" : null)
-            }
-            className="accent-teal-600"
-          />
-          My tasks
-        </label>
 
         <div className="mt-4 flex flex-col gap-4 pb-4 md:flex-row md:overflow-x-auto">
           {visibleStatuses.map((status) => (

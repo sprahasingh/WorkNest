@@ -12,6 +12,7 @@ import {
   deleteTask,
   getTask,
   getTaskStats,
+  getTaskViewCounts,
   listTasks,
   updateTask,
   listActivities,
@@ -58,6 +59,8 @@ export const taskKeys = {
     [...taskKeys.all(orgId, projectId), "list", view, status, filters] as const,
   stats: (orgId: string, projectId: string) =>
     [...taskKeys.all(orgId, projectId), "stats"] as const,
+  counts: (orgId: string, projectId: string, filters: TaskFilters) =>
+    [...taskKeys.all(orgId, projectId), "counts", filters] as const,
   detail: (orgId: string, taskId: string) =>
     ["orgs", orgId, "tasks", taskId] as const,
   activity: (orgId: string, scope: ActivityScope) =>
@@ -74,6 +77,26 @@ export function useTaskStats(orgId: string, projectId: string) {
     queryFn: () => getTaskStats(orgId, projectId),
     enabled: !!projectId,
     refetchInterval: BOARD_REFRESH_MS,
+  });
+}
+
+export function useTaskViewCounts(
+  orgId: string,
+  projectId: string,
+  filters: TaskFilters,
+) {
+  return useQuery({
+    queryKey: taskKeys.counts(orgId, projectId, filters),
+    queryFn: () =>
+      getTaskViewCounts(orgId, projectId, {
+        priority: filters.priority,
+        assigneeId: filters.assigneeId,
+        mine: filters.mine,
+      }),
+    enabled: !!projectId,
+    refetchInterval: BOARD_REFRESH_MS,
+    // Keep the old numbers on screen while a filter change loads new ones.
+    placeholderData: (previous) => previous,
   });
 }
 
