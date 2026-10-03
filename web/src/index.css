@@ -13,19 +13,26 @@ html {
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   background-color: rgb(248 250 252);
   font-feature-settings: "cv11", "ss01";
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100dvh;
   background-color: rgb(248 250 252);
 }
 
+/* html too: it shows below the page when a phone's address bar slides away
+   or the page is pulled past its end, which left a white strip in dark mode. */
+html.dark,
 .dark body,
 .dark #root {
   background-color: rgb(2 6 23);
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 @keyframes fade-in {
