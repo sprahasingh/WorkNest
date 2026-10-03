@@ -470,8 +470,8 @@ export function ProjectBoard() {
       >
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           {canLead
-            ? "Everything shared in this project, from every task. Ask everyone for an update at once, or reply to questions."
-            : "Everything shared in this project that you can see. Post an update on your work or ask a question about the project."}
+            ? "Everything shared in this project, from every task. Reply to any message, or ask everyone for an update at once."
+            : "Everything shared in this project that you can see. Post an update, ask a question, or reply to a message."}
         </p>
         <ActivityFeed
           orgId={orgId}
