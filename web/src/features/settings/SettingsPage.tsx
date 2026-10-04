@@ -36,6 +36,8 @@ import { LeaveOrganizationCard } from "./LeaveOrganizationCard";
 import { SessionsCard } from "./SessionsCard";
 import { billingQuery } from "@/features/billing/queries";
 import { payForPlan } from "@/features/billing/razorpay";
+import { TestPaymentBox } from "@/features/billing/TestPaymentBox";
+import { TEST_CARD, copyText } from "@/features/billing/testDetails";
 import { orgKeys } from "@/features/org/queries";
 import { dashboardKeys } from "@/features/dashboard/queries";
 import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
@@ -826,13 +828,30 @@ export function SettingsPage() {
         PLAN_ORDER.indexOf((org?.plan ?? "free") as Plan)
     ) {
       setPayingFor(newPlan);
+      // Razorpay's window covers the screen once it opens, so in test mode the
+      // card number is already on the clipboard, ready to paste.
+      if (testMode) void copyText(TEST_CARD);
       try {
         const result = await payForPlan(
           orgId,
           newPlan as Exclude<Plan, "free">,
           { name: signedInUser?.name, email: signedInUser?.email },
         );
-        if (result === "paid") {
+        if (result.status === "dismissed" && result.reason) {
+          const tryTestCard = testMode && /international/i.test(result.reason);
+          toast.error("The payment didn't go through", {
+            description: tryTestCard
+              ? `${result.reason} Use the Indian test card in the box below.`
+              : result.reason,
+            action: tryTestCard
+              ? {
+                  label: "Copy test card",
+                  onClick: () => void copyText(TEST_CARD),
+                }
+              : undefined,
+          });
+        }
+        if (result.status === "paid") {
           toast.success(`Payment received. You're now on the ${name} plan`);
           void queryClient.invalidateQueries({
             queryKey: orgKeys.detail(orgId),
@@ -924,7 +943,7 @@ export function SettingsPage() {
 
   const currentPlan = org.plan as Plan;
   const currentRank = PLAN_ORDER.indexOf(currentPlan);
-  // " - Rs 499" on the upgrade button, using what this org would really pay.
+  // " - Rs 599" on the upgrade button, using what this org would really pay.
   const upgradeLabel = (plan: Plan) => {
     if (!paymentsOn) return "";
     const amount = billing.data?.upgrades.find(
@@ -1016,23 +1035,14 @@ export function SettingsPage() {
             {paymentsOn ? (
               <>
                 <p>
-                  Upgrading is a one-time payment through Razorpay, not a
-                  subscription. Moving from Pro to Premium costs only the
-                  difference. Your plan changes as soon as the payment is
-                  confirmed, and every payment is recorded in the audit log.
+                  Upgrading is a one-time payment through Razorpay. Going from
+                  Pro to Premium costs only the difference. The plan changes
+                  once the payment is confirmed.
                 </p>
                 <p className="mt-2">
-                  Switching to a smaller plan is free, but it is not refunded.
-                  It is blocked while you use more seats, projects or tasks than
-                  the smaller plan allows. Only admins can change the plan.
+                  Moving to a smaller plan is free but not refunded, and is
+                  blocked while you use more than it allows.
                 </p>
-                {testMode && (
-                  <p className="mt-2 font-medium">
-                    This app is in test mode, so no real money moves. Pay with
-                    the test card 4111 1111 1111 1111 (any future date, any CVV)
-                    or the test UPI id success@razorpay.
-                  </p>
-                )}
               </>
             ) : (
               <>
@@ -1134,6 +1144,8 @@ export function SettingsPage() {
               );
             })}
           </ul>
+
+          {testMode && canChangePlan && <TestPaymentBox />}
 
           {!canChangePlan && (
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">

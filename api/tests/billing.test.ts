@@ -52,8 +52,8 @@ describe("paying for a plan", () => {
     expect(config.body.enabled).toBe(true);
     expect(config.body.keyId).toBe("rzp_test_abc123");
     expect(config.body.upgrades).toEqual([
-      { plan: "pro", amount: 49900 },
-      { plan: "premium", amount: 99900 },
+      { plan: "pro", amount: 59900 },
+      { plan: "premium", amount: 119900 },
     ]);
 
     // With payments on, moving up without paying is refused.
@@ -73,7 +73,7 @@ describe("paying for a plan", () => {
       .set(auth(admin.token))
       .send({ plan: "pro" });
     expect(order.status).toBe(201);
-    expect(order.body.amount).toBe(49900);
+    expect(order.body.amount).toBe(59900);
 
     const forged = await request(app)
       .post(`/api/orgs/${orgId}/billing/verify`)
@@ -118,7 +118,7 @@ describe("paying for a plan", () => {
       .post(`/api/orgs/${orgId}/billing/order`)
       .set(auth(admin.token))
       .send({ plan: "premium" });
-    expect(next.body.amount).toBe(50000);
+    expect(next.body.amount).toBe(60000);
     const audit = await request(app)
       .get(`/api/orgs/${orgId}/audit-logs`)
       .set(auth(admin.token));
