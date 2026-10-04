@@ -47,7 +47,17 @@ test("upgrading a plan goes through a payment that the server verifies", async (
     "4386 2894 0766 0153",
   );
 
+  // Pressing Upgrade copies the card again, and the box shows it.
+  const copyButton = page.getByRole("button", {
+    name: "Copy test card number",
+  });
+  await expect(copyButton).toHaveText("Copy");
+  await page.evaluate(() => navigator.clipboard.writeText("something else"));
   await page.getByRole("button", { name: /Upgrade to Pro/ }).click();
+  await expect(copyButton).toHaveText("Copied");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    "4386 2894 0766 0153",
+  );
 
   // The app opened checkout for the right amount.
   await page.waitForFunction(() => Boolean((window as never)["__checkout"]));
