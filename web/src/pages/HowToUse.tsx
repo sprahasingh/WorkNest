@@ -114,7 +114,7 @@ const STEPS: GuideStep[] = [
     id: "plan",
     title: "Manage your plan and chat history",
     description:
-      "Open Settings to compare plans and check usage. Free includes 5 seats, 3 active projects and 10 active tasks per project. Pro includes 30 seats, 25 active projects and 50 active tasks per project. Premium includes 100 seats, 50 active projects and unlimited active tasks. Only admins can change plans, and a downgrade is available once your usage fits the lower limits. Admins also choose how long chat history is kept, from forever down to 90 days.",
+      "Open Settings to compare plans and check usage. Free includes 5 seats, 3 active projects and 10 active tasks per project. Pro includes 30 seats, 25 active projects and 50 active tasks per project. Premium includes 100 seats, 50 active projects and unlimited active tasks. Only admins can change plans, and a downgrade is available once your usage fits the lower limits. Admins also choose how long chat history is kept, from forever down to 90 days. The choice applies to the whole organization, and every member can see it in Settings and at the bottom of their chat list.",
     screens: placement("guide.plan"),
   },
 ];
