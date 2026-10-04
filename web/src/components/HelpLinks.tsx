@@ -22,15 +22,36 @@ function FeedbackIcon() {
   );
 }
 
-// "How to use" and "Send feedback", shown at the bottom of the app sidebar
+function TourIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m10 8 6 4-6 4Z" />
+    </svg>
+  );
+}
+
+// "How to use", "Show the tour" and "Send feedback", shown at the bottom of the app sidebar
 // and the landing page's phone menu.
 export function HelpLinks({
   from,
   onNavigate,
+  onShowTour,
 }: {
   // The page to return to from the guide, and to mention in feedback.
   from?: string;
   onNavigate?: () => void;
+  // When given, a "Show the tour" button is added (inside the app only).
+  onShowTour?: () => void;
 }) {
   const auth = useAuth();
   const sender = auth.status === "authenticated" ? auth.user : null;
@@ -48,6 +69,16 @@ export function HelpLinks({
         </span>
         How to use
       </Link>
+      {onShowTour && (
+        <button
+          type="button"
+          onClick={onShowTour}
+          className={`${linkStyles} w-full`}
+        >
+          <TourIcon />
+          Show the tour
+        </button>
+      )}
       <a
         href={feedbackMailto(from, sender)}
         onClick={onNavigate}
