@@ -17,7 +17,7 @@ interface RazorpayOptions {
   prefill?: { name?: string; email?: string };
   theme?: { color: string };
   handler: (response: RazorpaySuccess) => void;
-  modal: { ondismiss: () => void };
+  modal: { ondismiss: () => void; confirm_close?: boolean };
 }
 
 declare global {
@@ -45,7 +45,10 @@ function loadCheckoutScript(): Promise<void> {
   });
 }
 
-export type PaymentResult = "paid" | "dismissed";
+// "dismissed" means the window was closed without paying. If an attempt
+// failed first, the reason Razorpay gave is passed along so it can be shown.
+export type PaymentResult =
+  { status: "paid" } | { status: "dismissed"; reason?: string };
 
 // Starts a payment for an upgrade: asks our server for an order, opens
 // Razorpay's window, and sends what comes back to the server to be checked.
@@ -61,6 +64,7 @@ export async function payForPlan(
   if (!Razorpay) throw new Error("The payment window couldn't be loaded.");
 
   return new Promise<PaymentResult>((resolve, reject) => {
+    let lastFailure: string | undefined;
     const checkout = new Razorpay({
       key: order.keyId,
       amount: order.amount,
@@ -75,9 +79,17 @@ export async function payForPlan(
           orderId: response.razorpay_order_id,
           paymentId: response.razorpay_payment_id,
           signature: response.razorpay_signature,
-        }).then(() => resolve("paid"), reject);
+        }).then(() => resolve({ status: "paid" }), reject);
       },
-      modal: { ondismiss: () => resolve("dismissed") },
+      modal: {
+        // Asks before closing, so a stray tap can't drop a payment halfway.
+        confirm_close: true,
+        ondismiss: () => resolve({ status: "dismissed", reason: lastFailure }),
+      },
+    });
+    checkout.on("payment.failed", (response) => {
+      const error = (response as { error?: { description?: string } }).error;
+      lastFailure = error?.description;
     });
     checkout.open();
   });

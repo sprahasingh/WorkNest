@@ -16,7 +16,9 @@ const FAKE_CHECKOUT = `
 
 test("upgrading a plan goes through a payment that the server verifies", async ({
   page,
+  context,
 }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.route("https://checkout.razorpay.com/v1/checkout.js", (route) =>
     route.fulfill({ contentType: "text/javascript", body: FAKE_CHECKOUT }),
   );
@@ -37,6 +39,14 @@ test("upgrading a plan goes through a payment that the server verifies", async (
   await page.goto(page.url().replace("/dashboard", "/settings"));
   // New accounts see the first-run tour; skip it so it isn't in the way.
   await page.getByRole("button", { name: "Skip" }).click();
+  // In test mode the details to pay with are on the page, one tap to copy.
+  await expect(page.getByText("No real money moves.")).toBeVisible();
+  await page.getByRole("button", { name: "Copy test card number" }).click();
+  await expect(page.getByText("Card number copied")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    "4386 2894 0766 0153",
+  );
+
   await page.getByRole("button", { name: /Upgrade to Pro/ }).click();
 
   // The app opened checkout for the right amount.
@@ -46,7 +56,7 @@ test("upgrading a plan goes through a payment that the server verifies", async (
       (window as never as { __checkout: { amount: number; order_id: string } })
         .__checkout,
   );
-  expect(options.amount).toBe(49900);
+  expect(options.amount).toBe(59900);
 
   // Pay: only a signature made with the secret is accepted.
   const paymentId = "pay_e2e_1";
