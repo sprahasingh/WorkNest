@@ -79,7 +79,7 @@ const STEPS: GuideStep[] = [
       "Attach files with the paperclip, or drag them onto the chat. Click a picture to see it larger. Files are private to the chat and limited to 10 MB.",
       "Search above your chats to find old messages. Press and hold a chat in the list (or right-click it) to mute it, mark it as read or unread, see group details or delete it. The three dots in a chat's header do the same.",
       "Deleting a conversation clears it for you only. The other people keep it, and a new message brings it back with just the new messages.",
-      "The bell next to New turns on desktop notifications or a soft sound. Your unread count always shows in the browser tab.",
+      "The bell next to New turns on a soft sound, and on a computer, desktop notifications too. Phones and tablets only get the sound, because their browsers don't allow in-page notifications. Your unread count always shows in the browser tab.",
     ],
     screens: placement("guide.messages"),
   },
