@@ -11,6 +11,7 @@ import { AuthShell } from "@/components/AuthShell";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
+import { ResendButton } from "@/components/ui/ResendButton";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { ServerWakeTimeoutError } from "@/api/client";
 import { resendVerification } from "@/api/auth";
@@ -157,18 +158,14 @@ export function Login() {
               Open the link we sent to <strong>{unverifiedEmail}</strong> (check
               spam too), then log in. Can&apos;t find it?
             </p>
-            <Button
-              type="button"
-              variant="secondary"
+            <ResendButton
+              label="Send a new link"
+              secondsLeft={resendCooldown.left}
               className="mt-2"
               loading={resending}
-              disabled={resending || resendCooldown.left > 0}
+              disabled={resending}
               onClick={() => void resendLink()}
-            >
-              {resendCooldown.left > 0
-                ? `Send a new link (${resendCooldown.left}s)`
-                : "Send a new link"}
-            </Button>
+            />
           </div>
         )}
 

@@ -20,6 +20,7 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Card } from "@/components/ui/Card";
+import { ResendButton } from "@/components/ui/ResendButton";
 import { PasswordHelp } from "@/components/ui/PasswordHelp";
 import {
   cancelEmailChange,
@@ -635,19 +636,14 @@ function EmailAddressSection() {
                 remains active until confirmed. Look in your spam or junk folder
                 if the link hasn&apos;t arrived.
               </p>
-              <Button
-                type="button"
-                variant="secondary"
+              <ResendButton
                 size="sm"
+                secondsLeft={resendCooldown.left}
                 onClick={() => void resendPendingEmailChange()}
-                disabled={isResending || resendCooldown.left > 0}
+                disabled={isResending}
                 loading={isResending}
                 className="w-fit shrink-0"
-              >
-                {resendCooldown.left > 0
-                  ? `Resend in ${resendCooldown.left}s`
-                  : "Resend link"}
-              </Button>
+              />
               <Button
                 type="button"
                 variant="secondary"
