@@ -100,7 +100,7 @@ const STEPS: GuideStep[] = [
     id: "dashboard",
     title: "Check the dashboard",
     description:
-      "Admins and managers see open, completed, created and overdue tasks, plus how open work has moved. Pick a period from the last 7 to 90 days, all time, or a custom range with your own start and end dates, and the charts follow it in your organization's time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
+      "Admins and managers get two views, switched at the top. Tasks shows open, completed, created and overdue tasks, with charts for status, priority, workload and how open work has moved. Projects shows each project's stage and where the open work is. Pick a period from the last 7 to 90 days, all time, or a custom range with your own start and end dates, and the charts follow it in your organization's time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
     screens: placement("guide.dashboard"),
   },
   {

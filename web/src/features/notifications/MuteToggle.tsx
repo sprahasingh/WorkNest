@@ -8,6 +8,9 @@ interface MuteToggleProps {
   projectId: string;
   // Set to mute a single task instead of the whole project.
   taskId?: string;
+  // Just the bell, in a square button, for toolbars that are short on room.
+  // The label stays available to screen readers and as a hover hint.
+  iconOnly?: boolean;
   className?: string;
 }
 
@@ -37,6 +40,7 @@ export function MuteToggle({
   orgId,
   projectId,
   taskId,
+  iconOnly = false,
   className,
 }: MuteToggleProps) {
   const { data: mutes } = useMutes(orgId);
@@ -85,18 +89,29 @@ export function MuteToggle({
       onClick={toggle}
       disabled={!mutes || inheritsMute || setMute.isPending}
       aria-pressed={muted}
+      aria-label={iconOnly ? `${label}. ${hint}` : undefined}
       title={hint}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 disabled:cursor-default",
+        "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 disabled:cursor-default",
+        iconOnly
+          ? "h-10 w-10 shrink-0 rounded-lg border"
+          : "gap-1.5 rounded-lg px-2.5 py-1.5 text-xs",
         muted
-          ? "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-          : "text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200",
+          ? cn(
+              "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600",
+              iconOnly && "border-slate-300 dark:border-slate-600",
+            )
+          : cn(
+              "text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200",
+              iconOnly &&
+                "border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800",
+            ),
         inheritsMute && "hover:bg-slate-200 dark:hover:bg-slate-700",
         className,
       )}
     >
       <BellIcon muted={muted} />
-      {label}
+      {!iconOnly && label}
     </button>
   );
 }
