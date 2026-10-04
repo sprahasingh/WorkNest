@@ -22,6 +22,9 @@ export interface Organization {
 export interface UpdateOrgInput {
   name?: string;
   timeZone?: string;
+  // With a new time zone: keep date-only due dates on the same calendar day
+  // (true, the default) or leave them exactly as stored (false).
+  moveDueDates?: boolean;
   chatRetentionDays?: 90 | 180 | 365 | null;
 }
 

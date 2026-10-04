@@ -108,7 +108,7 @@ function describe(entry: AuditLogEntry, ctx: AuditFormatContext): string {
         : `${actor} renamed the organization`;
     }
     case "org.timezone_changed":
-      return `${actor} changed the organization time zone: ${formatChanges(m, ctx)}`;
+      return `${actor} changed the organization time zone: ${formatChanges(m, ctx)}${m.dueDatesMoved === false ? " (due dates left as they were)" : ""}`;
     case "org.settings_updated":
       return `${actor} updated organization settings: ${formatChanges(m, ctx)}`;
     case "member.role_changed": {

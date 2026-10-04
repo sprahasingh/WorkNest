@@ -82,7 +82,12 @@ export async function updateOrg(input: UpdateOrgInput) {
 
       const previousTimeZone =
         typeof before.timeZone === "string" ? before.timeZone : "UTC";
-      if (input.timeZone !== undefined && input.timeZone !== previousTimeZone) {
+      const moveDueDates = input.moveDueDates ?? true;
+      if (
+        input.timeZone !== undefined &&
+        input.timeZone !== previousTimeZone &&
+        moveDueDates
+      ) {
         const tasks = await Task.find({
           dueDate: { $ne: null },
           dueDateIsDateOnly: true,
@@ -194,6 +199,7 @@ export async function updateOrg(input: UpdateOrgInput) {
                     from: before.timeZone ?? "UTC",
                     to: input.timeZone,
                   },
+                  dueDatesMoved: moveDueDates,
                 }
               : {}),
             ...(input.chatRetentionDays !== undefined
