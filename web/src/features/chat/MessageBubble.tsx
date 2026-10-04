@@ -2,7 +2,13 @@ import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { EDIT_WINDOW_MS, REACTION_EMOJIS, type ChatMessage } from "./api";
-import { formatBytes, timeLabel } from "./chatUtils";
+import {
+  canViewInBrowser,
+  downloadUrl,
+  fileExtension,
+  formatBytes,
+  timeLabel,
+} from "./chatUtils";
 
 const URL_PATTERN = /(https?:\/\/[^\s<]+)/g;
 
@@ -119,7 +125,73 @@ const ICONS = {
     "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z",
     "M14 3v5h5",
   ],
+  download: ["M12 4v11", "m7 11 5 5 5-5", "M5 20h14"],
 };
+
+// A file in a message. Files the browser can show (PDFs, text, audio, video)
+// open in a new tab when tapped, with a separate Download button. Everything
+// else downloads when tapped, and says so.
+function FileChip({
+  attachment,
+  mine,
+}: {
+  attachment: ChatMessage["attachments"][number];
+  mine: boolean;
+}) {
+  const viewable = canViewInBrowser(attachment.mimeType);
+  const ext = fileExtension(attachment.name);
+  const surface = mine
+    ? "bg-white/15 hover:bg-white/25"
+    : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700";
+  return (
+    <div
+      className={cn("flex items-stretch overflow-hidden rounded-lg", surface)}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <a
+        href={viewable ? attachment.url : downloadUrl(attachment.url)}
+        {...(viewable
+          ? { target: "_blank", rel: "noopener noreferrer" }
+          : { download: attachment.name })}
+        className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2"
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "relative flex h-10 w-9 shrink-0 items-center justify-center rounded",
+            mine ? "bg-white/20" : "bg-white dark:bg-slate-600",
+          )}
+        >
+          <Icon d={ICONS.file} className="h-6 w-6 opacity-70" />
+          {ext && (
+            <span className="absolute inset-x-0 bottom-0.5 text-center text-[8px] font-bold leading-none">
+              {ext}
+            </span>
+          )}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate font-medium">{attachment.name}</span>
+          <span className="block text-xs opacity-80">
+            {formatBytes(attachment.size)}
+            {" · "}
+            {viewable ? "Tap to open" : "Tap to download"}
+          </span>
+        </span>
+      </a>
+      {viewable && (
+        <a
+          href={downloadUrl(attachment.url)}
+          download={attachment.name}
+          aria-label={`Download ${attachment.name}`}
+          title="Download"
+          className="flex w-11 shrink-0 items-center justify-center border-l border-current/10 hover:bg-black/5 dark:hover:bg-white/10"
+        >
+          <Icon d={ICONS.download} className="h-5 w-5" />
+        </a>
+      )}
+    </div>
+  );
+}
 
 export interface MessageBubbleProps {
   message: ChatMessage;
@@ -375,29 +447,11 @@ export function MessageBubble({
                         />
                       </button>
                     ) : (
-                      <a
+                      <FileChip
                         key={attachment.url}
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(event) => event.stopPropagation()}
-                        className={cn(
-                          "flex items-center gap-2 rounded-lg px-2.5 py-2",
-                          mine
-                            ? "bg-white/15 hover:bg-white/25"
-                            : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700",
-                        )}
-                      >
-                        <Icon d={ICONS.file} className="h-5 w-5 shrink-0" />
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">
-                            {attachment.name}
-                          </span>
-                          <span className="block text-xs opacity-80">
-                            {formatBytes(attachment.size)}
-                          </span>
-                        </span>
-                      </a>
+                        attachment={attachment}
+                        mine={mine}
+                      />
                     ),
                   )}
                 </div>
