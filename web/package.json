@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "screens:check": "node scripts/screens.mjs check",
+    "screens:readme": "node scripts/screens.mjs readme"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

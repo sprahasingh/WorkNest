@@ -1,0 +1,15 @@
+{
+  "name": "worknest-screenshots",
+  "private": true,
+  "type": "module",
+  "description": "Builds the Sunshine demo organization and retakes the product screenshots",
+  "scripts": {
+    "demo": "node demo-data.mjs",
+    "capture": "node capture.mjs"
+  },
+  "dependencies": {
+    "mongodb": "^6.20.0",
+    "playwright-core": "^1.55.0",
+    "sharp": "^0.34.3"
+  }
+}

@@ -1,0 +1,425 @@
+{
+  "sizes": {
+    "desktop": {
+      "width": 1280,
+      "height": 860
+    },
+    "phone": {
+      "width": 390,
+      "height": 844
+    }
+  },
+  "sections": [
+    {
+      "id": "dashboard",
+      "title": "Dashboard",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "overview",
+          "file": "01-overview",
+          "title": "Tasks overview",
+          "caption": "Task counts and how open work has moved",
+          "alt": "The dashboard showing open, completed, created and overdue tasks and an open work chart"
+        },
+        {
+          "id": "charts",
+          "file": "02-charts",
+          "title": "More charts",
+          "caption": "Where tasks stand, by priority, and created against completed",
+          "alt": "Charts for where tasks stand, open tasks by priority, and created against completed"
+        },
+        {
+          "id": "projects-view",
+          "file": "03-projects-view",
+          "title": "Projects view",
+          "caption": "Switch to Projects to see stages and open work for each one",
+          "alt": "The projects view of the dashboard with project stages and open work by project"
+        }
+      ]
+    },
+    {
+      "id": "projects",
+      "title": "Projects",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "list",
+          "file": "01-list",
+          "title": "Project list",
+          "caption": "Every project with its progress and due date",
+          "alt": "The projects page with four project cards and their progress"
+        },
+        {
+          "id": "new-project",
+          "file": "02-new-project",
+          "title": "New project",
+          "caption": "A name and a short key are all you need",
+          "alt": "The new project dialog with a name, key and description"
+        }
+      ]
+    },
+    {
+      "id": "tasks",
+      "title": "Tasks",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "board",
+          "file": "01-board",
+          "title": "Project board",
+          "caption": "Every task as a card, grouped by status",
+          "alt": "A project board with To do and In progress columns of task cards"
+        },
+        {
+          "id": "new-task",
+          "file": "02-new-task",
+          "title": "New task",
+          "caption": "Add a title, a priority, a due date and who is on it",
+          "alt": "The new task dialog with title, priority, due date and assignees"
+        },
+        {
+          "id": "filter",
+          "file": "03-filter",
+          "title": "Filtered board",
+          "caption": "Filter by priority or person to see what matters",
+          "alt": "The same board filtered to high priority tasks"
+        }
+      ]
+    },
+    {
+      "id": "updates",
+      "title": "Updates",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "task-updates",
+          "file": "01-task-updates",
+          "title": "Updates on a task",
+          "caption": "Ask for updates and answer questions on the task itself",
+          "alt": "A task's Updates tab with an update request, an update and a question"
+        },
+        {
+          "id": "project-updates",
+          "file": "02-project-updates",
+          "title": "Project updates",
+          "caption": "Project updates gathers everything in one feed",
+          "alt": "The project updates feed with updates from several tasks"
+        }
+      ]
+    },
+    {
+      "id": "messages",
+      "title": "Messages",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "group-chat",
+          "file": "01-group-chat",
+          "title": "Group chat",
+          "caption": "Group chats with replies, reactions and @mentions",
+          "alt": "A group chat with a reply, reactions and an @mention"
+        },
+        {
+          "id": "search",
+          "file": "02-search",
+          "title": "Search",
+          "caption": "Search people, groups and old messages",
+          "alt": "Search results showing matching messages from several chats"
+        },
+        {
+          "id": "chat-menu",
+          "file": "03-chat-menu",
+          "title": "Chat options",
+          "caption": "Press and hold a chat to mute it, mark it unread or delete it",
+          "alt": "A chat's options menu with mute, mark as unread and delete"
+        },
+        {
+          "id": "new-conversation",
+          "file": "04-new-conversation",
+          "title": "New conversation",
+          "caption": "Message anyone in the organization, or start a group",
+          "alt": "The new conversation dialog for a direct message or a group"
+        }
+      ]
+    },
+    {
+      "id": "meetings",
+      "title": "Meetings",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "upcoming",
+          "file": "01-upcoming",
+          "title": "Upcoming",
+          "caption": "What's next, with a Join button when it's time",
+          "alt": "The meetings page with a next up card and upcoming meetings"
+        },
+        {
+          "id": "meeting-detail",
+          "file": "02-meeting-detail",
+          "title": "A meeting",
+          "caption": "Reply Accept, Maybe or Decline, or suggest another time",
+          "alt": "A meeting with an agenda, people and Accept, Maybe and Decline buttons"
+        },
+        {
+          "id": "schedule",
+          "file": "03-schedule",
+          "title": "Schedule",
+          "caption": "Schedule with a join link, an agenda and a repeat",
+          "alt": "The schedule a meeting form with date, repeat, join link and agenda"
+        },
+        {
+          "id": "calendar",
+          "file": "04-calendar",
+          "title": "Calendar",
+          "caption": "See the whole month on the calendar",
+          "alt": "A month calendar with meetings on their days"
+        }
+      ]
+    },
+    {
+      "id": "team",
+      "title": "Team",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "members",
+          "file": "01-members",
+          "title": "Members",
+          "caption": "Everyone in the organization and their role",
+          "alt": "The members page listing five people with their roles"
+        },
+        {
+          "id": "invite",
+          "file": "02-invite",
+          "title": "Invites",
+          "caption": "Invite people by email and pick their role",
+          "alt": "The invite form on the members page"
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "plans",
+          "file": "01-plans",
+          "title": "Plans",
+          "caption": "Plans, usage and how long chat history is kept",
+          "alt": "The settings page comparing the Free, Pro and Premium plans"
+        }
+      ]
+    },
+    {
+      "id": "audit",
+      "title": "Audit log",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "audit-log",
+          "file": "01-audit-log",
+          "title": "Audit log",
+          "caption": "The audit log shows who changed what and when",
+          "alt": "The audit log listing recent changes"
+        }
+      ]
+    },
+    {
+      "id": "phone",
+      "title": "On a phone",
+      "size": "phone",
+      "screens": [
+        {
+          "id": "dashboard",
+          "file": "01-dashboard",
+          "title": "Dashboard",
+          "caption": "The dashboard on a phone",
+          "alt": "The dashboard on a phone"
+        },
+        {
+          "id": "board",
+          "file": "02-board",
+          "title": "Project board",
+          "caption": "A project board on a phone",
+          "alt": "A project board on a phone"
+        },
+        {
+          "id": "messages",
+          "file": "03-messages",
+          "title": "Messages",
+          "caption": "The group chat on a phone",
+          "alt": "The group chat on a phone"
+        },
+        {
+          "id": "meetings",
+          "file": "04-meetings",
+          "title": "Meetings",
+          "caption": "The meetings page on a phone",
+          "alt": "The meetings page on a phone"
+        }
+      ]
+    }
+  ],
+  "placements": {
+    "landing.tour.dashboard": [
+      "dashboard/overview",
+      "dashboard/charts",
+      "dashboard/projects-view"
+    ],
+    "landing.tour.tasks": [
+      "tasks/board",
+      "tasks/filter",
+      "updates/task-updates",
+      "updates/project-updates"
+    ],
+    "landing.tour.messages": [
+      "messages/group-chat",
+      "messages/search",
+      "messages/chat-menu",
+      "messages/new-conversation"
+    ],
+    "landing.tour.meetings": [
+      "meetings/upcoming",
+      "meetings/meeting-detail",
+      "meetings/schedule",
+      "meetings/calendar"
+    ],
+    "landing.tour.team": [
+      "team/members",
+      "team/invite",
+      "settings/plans",
+      "audit/audit-log"
+    ],
+    "landing.phones": [
+      "phone/dashboard",
+      "phone/board",
+      "phone/messages",
+      "phone/meetings"
+    ],
+    "guide.project": [
+      "projects/list",
+      "projects/new-project"
+    ],
+    "guide.team": [
+      "team/members",
+      "team/invite"
+    ],
+    "guide.tasks": [
+      "tasks/board",
+      "tasks/new-task",
+      "tasks/filter"
+    ],
+    "guide.updates": [
+      "updates/task-updates",
+      "updates/project-updates"
+    ],
+    "guide.messages": [
+      "messages/group-chat",
+      "messages/search",
+      "messages/chat-menu",
+      "messages/new-conversation"
+    ],
+    "guide.meetings": [
+      "meetings/upcoming",
+      "meetings/meeting-detail",
+      "meetings/schedule",
+      "meetings/calendar"
+    ],
+    "guide.dashboard": [
+      "dashboard/overview",
+      "dashboard/charts",
+      "dashboard/projects-view"
+    ],
+    "guide.audit": [
+      "audit/audit-log"
+    ],
+    "guide.plan": [
+      "settings/plans"
+    ],
+    "guide.phones": [
+      "phone/dashboard",
+      "phone/board",
+      "phone/messages",
+      "phone/meetings"
+    ],
+    "readme.dashboard": [
+      "dashboard/overview",
+      "dashboard/projects-view"
+    ],
+    "readme.projects-tasks": [
+      "projects/list",
+      "tasks/board"
+    ],
+    "readme.updates": [
+      "updates/task-updates",
+      "updates/project-updates"
+    ],
+    "readme.messages": [
+      "messages/group-chat",
+      "messages/search"
+    ],
+    "readme.meetings": [
+      "meetings/meeting-detail",
+      "meetings/calendar"
+    ],
+    "readme.team": [
+      "team/members",
+      "team/invite",
+      "settings/plans",
+      "audit/audit-log"
+    ],
+    "readme.phones": [
+      "phone/dashboard",
+      "phone/board",
+      "phone/messages",
+      "phone/meetings"
+    ]
+  },
+  "readme": [
+    {
+      "heading": "Dashboard",
+      "text": "Admins and managers see where work stands: task counts, how open work has moved over a period you choose (7 to 90 days, all time or custom dates), and a projects view with stages and open work for each project.",
+      "placement": "readme.dashboard",
+      "columns": 2
+    },
+    {
+      "heading": "Projects and tasks",
+      "text": "Projects hold the work. Every task is a card on the project board, grouped by status, with its priority, due date and assignees.",
+      "placement": "readme.projects-tasks",
+      "columns": 2
+    },
+    {
+      "heading": "Updates",
+      "text": "Managers can ask for an update on one task or a whole project. Assignees answer right on the task, and the project feed collects everything in one place.",
+      "placement": "readme.updates",
+      "columns": 2
+    },
+    {
+      "heading": "Messages",
+      "text": "Private chats and groups that arrive live, with replies, reactions, @mentions, files and search. Only the people in a chat can read it.",
+      "placement": "readme.messages",
+      "columns": 2
+    },
+    {
+      "heading": "Meetings",
+      "text": "Schedule with a join link and an agenda, repeat a meeting, and see the month at a glance. Invitees reply Accept, Maybe or Decline, or suggest another time.",
+      "placement": "readme.meetings",
+      "columns": 2
+    },
+    {
+      "heading": "Team and admin",
+      "text": "Roles, invites, plans with their limits, and an audit log of every important change.",
+      "placement": "readme.team",
+      "columns": 2
+    },
+    {
+      "heading": "On a phone",
+      "text": "Every page adapts to small screens. The menu button at the top left switches between pages, and Messages shows the chat list first, then the chat you open. Pulling down from the top of a page refreshes it.",
+      "placement": "readme.phones",
+      "columns": 4
+    }
+  ]
+}

@@ -11,12 +11,9 @@ import { cn } from "@/lib/cn";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountCard, MenuButton, MenuPanel } from "@/components/MenuPanel";
 import { HeroPreview } from "@/components/marketing/HeroPreview";
-import { PhoneFrame, Screenshot } from "@/components/marketing/Screenshot";
-import {
-  ScreenCarousel,
-  type Slide,
-} from "@/components/marketing/ScreenCarousel";
-import type { ScreenName } from "@/assets/screens";
+import { ScreenCarousel } from "@/components/marketing/ScreenCarousel";
+import { PhoneStrip } from "@/components/marketing/PhoneStrip";
+import { placement, type Screen } from "@/assets/screens";
 
 interface Feature {
   title: string;
@@ -96,7 +93,8 @@ const FEATURES: Feature[] = [
 interface TourTab {
   id: string;
   label: string;
-  slides: Slide[];
+  // The pictures for this tab, from the placements in screens.json.
+  screens: Screen[];
   heading: string;
   points: string[];
 }
@@ -105,24 +103,7 @@ const TOUR: TourTab[] = [
   {
     id: "dashboard",
     label: "Dashboard",
-    slides: [
-      {
-        screen: "dashboard",
-        alt: "The dashboard showing open, completed, created and overdue tasks and an open work chart",
-        caption: "Task counts and how open work has moved",
-      },
-      {
-        screen: "dashboardCharts",
-        alt: "Charts for where tasks stand, open tasks by priority, and created against completed",
-        caption:
-          "Where tasks stand, by priority, and created against completed",
-      },
-      {
-        screen: "dashboardProjects",
-        alt: "The projects view of the dashboard with project stages and open work by project",
-        caption: "Switch to Projects to see stages and open work for each one",
-      },
-    ],
+    screens: placement("landing.tour.dashboard"),
     heading: "Know where things stand",
     points: [
       "Open, completed, created and overdue tasks at a glance",
@@ -133,28 +114,7 @@ const TOUR: TourTab[] = [
   {
     id: "board",
     label: "Task board",
-    slides: [
-      {
-        screen: "board",
-        alt: "A project board with To do and In progress columns of task cards",
-        caption: "Every task as a card, grouped by status",
-      },
-      {
-        screen: "boardFilter",
-        alt: "The same board filtered to high priority tasks",
-        caption: "Filter by priority or person to see what matters",
-      },
-      {
-        screen: "taskUpdates",
-        alt: "A task's Updates tab with an update request, an update and a question",
-        caption: "Ask for updates and answer questions on the task itself",
-      },
-      {
-        screen: "projectUpdates",
-        alt: "Project updates collecting every task's updates in one place",
-        caption: "Project updates gathers everything in one feed",
-      },
-    ],
+    screens: placement("landing.tour.tasks"),
     heading: "Keep the work moving",
     points: [
       "Cards for every task, with priority, due date and assignees",
@@ -165,29 +125,7 @@ const TOUR: TourTab[] = [
   {
     id: "messages",
     label: "Messages",
-    slides: [
-      {
-        screen: "messages",
-        alt: "A group chat with a reply, reactions and an @mention",
-        caption: "Group chats with replies, reactions and @mentions",
-      },
-      {
-        screen: "messagesSearch",
-        alt: "Search results showing matching messages from several chats",
-        caption: "Search people, groups and old messages",
-      },
-      {
-        screen: "messagesMenu",
-        alt: "A chat's options menu with mute, mark as unread and delete",
-        caption:
-          "Press and hold a chat to mute it, mark it unread or delete it",
-      },
-      {
-        screen: "messagesNew",
-        alt: "The new conversation dialog for a direct message or a group",
-        caption: "Message anyone in the organization, or start a group",
-      },
-    ],
+    screens: placement("landing.tour.messages"),
     heading: "Talk it through",
     points: [
       "One to one chats and groups, delivered live",
@@ -198,28 +136,7 @@ const TOUR: TourTab[] = [
   {
     id: "meetings",
     label: "Meetings",
-    slides: [
-      {
-        screen: "meetings",
-        alt: "The meetings page with a next up card and upcoming meetings",
-        caption: "What's next, with a Join button when it's time",
-      },
-      {
-        screen: "meetingDetail",
-        alt: "A meeting with an agenda, people and Accept, Maybe and Decline buttons",
-        caption: "Reply Accept, Maybe or Decline, or suggest another time",
-      },
-      {
-        screen: "meetingForm",
-        alt: "The schedule a meeting form with date, repeat, join link and agenda",
-        caption: "Schedule with a join link, an agenda and a repeat",
-      },
-      {
-        screen: "meetingsCalendar",
-        alt: "A month calendar with meetings on their days",
-        caption: "See the whole month on the calendar",
-      },
-    ],
+    screens: placement("landing.tour.meetings"),
     heading: "Meet without the juggling",
     points: [
       "Join links, repeating meetings and a month calendar",
@@ -230,28 +147,7 @@ const TOUR: TourTab[] = [
   {
     id: "team",
     label: "Team and admin",
-    slides: [
-      {
-        screen: "members",
-        alt: "The members page listing five people with their roles",
-        caption: "Everyone in the organization and their role",
-      },
-      {
-        screen: "membersInvite",
-        alt: "The invite form on the members page",
-        caption: "Invite people by email and pick their role",
-      },
-      {
-        screen: "settingsPlan",
-        alt: "The settings page comparing the Free, Pro and Premium plans",
-        caption: "Plans, usage and how long chat history is kept",
-      },
-      {
-        screen: "audit",
-        alt: "The audit log listing recent changes",
-        caption: "The audit log shows who changed what and when",
-      },
-    ],
+    screens: placement("landing.tour.team"),
     heading: "Run it with confidence",
     points: [
       "Admin, manager and member roles with clear limits",
@@ -490,7 +386,7 @@ function ProductTour() {
         </div>
         <ScreenCarousel
           key={tab.id}
-          slides={tab.slides}
+          screens={tab.screens}
           label={`${tab.label} screens`}
           className="min-w-0"
         />
@@ -500,51 +396,30 @@ function ProductTour() {
 }
 
 function PhoneShowcase() {
-  const phones: { screen: ScreenName; alt: string; className?: string }[] = [
-    {
-      screen: "phoneMessages",
-      alt: "The group chat on a phone",
-    },
-    {
-      screen: "phoneMeetings",
-      alt: "The meetings page on a phone",
-      className: "sm:mt-8",
-    },
-    {
-      screen: "phoneBoard",
-      alt: "A project board on a phone",
-    },
-  ];
-
   return (
     <section
       aria-labelledby="phone-title"
       className="border-t border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40"
     >
-      <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <div>
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+        <div className="max-w-2xl">
           <h2
             id="phone-title"
             className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-50"
           >
             Just as good on your phone
           </h2>
-          <p className="mt-3 max-w-md text-slate-600 dark:text-slate-400">
+          <p className="mt-3 text-slate-600 dark:text-slate-400">
             Every page adapts to small screens, so you can check a task, reply
             to a message or join a meeting from anywhere. There's a dark theme
             too, for late nights.
           </p>
         </div>
-        <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-4 sm:max-w-xl sm:grid-cols-3">
-          {phones.map((phone, index) => (
-            <PhoneFrame
-              key={phone.screen}
-              className={cn(phone.className, index === 2 && "hidden sm:block")}
-            >
-              <Screenshot name={phone.screen} alt={phone.alt} />
-            </PhoneFrame>
-          ))}
-        </div>
+        <PhoneStrip
+          screens={placement("landing.phones")}
+          label="WorkNest on a phone"
+          className="mt-10"
+        />
       </div>
     </section>
   );
