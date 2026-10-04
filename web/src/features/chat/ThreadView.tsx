@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Modal } from "@/components/Modal";
 import { useCreateMeeting } from "@/features/meetings/queries";
 import { generateJitsiLink } from "@/features/meetings/meetingUtils";
-import { ImageLightbox } from "./ImageLightbox";
+import { useImageViewer } from "@/components/imageViewerContext";
 import { ConversationMenu } from "./ConversationMenu";
 import { menuItemsFor, type ConversationAction } from "./conversationMenuItems";
 import { Button } from "@/components/ui/Button";
@@ -91,10 +91,7 @@ export function ThreadView({
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = messagesQuery;
   const setMuted = useSetMuted(orgId, conversationId);
   const createMeeting = useCreateMeeting(orgId);
-  const [lightbox, setLightbox] = useState<{
-    url: string;
-    name: string;
-  } | null>(null);
+  const { openImage } = useImageViewer();
   const [headerMenu, setHeaderMenu] = useState<{
     x: number;
     y: number;
@@ -749,7 +746,9 @@ export function ThreadView({
                       )
                     }
                     onJumpTo={handleJumpTo}
-                    onOpenImage={setLightbox}
+                    onOpenImage={(image) =>
+                      openImage({ src: image.url, alt: image.name })
+                    }
                   />
                 </div>
               ),
@@ -874,8 +873,6 @@ export function ThreadView({
         onSelect={runHeaderAction}
         onClose={() => setHeaderMenu(null)}
       />
-
-      <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />
 
       <Modal
         open={deleteTarget !== null}
