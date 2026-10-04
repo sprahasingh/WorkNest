@@ -1,3 +1,5 @@
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { lockScroll } from "@/lib/scrollLock";
 import { useEffect, useRef, type ReactNode } from "react";
 import { BrandLink } from "@/components/BrandLink";
 
@@ -54,17 +56,18 @@ export function MenuPanel({
   footer?: ReactNode;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  useFocusTrap(panelRef, true);
 
   useEffect(() => {
     closeRef.current?.focus();
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockScroll();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [onClose]);
@@ -76,6 +79,7 @@ export function MenuPanel({
         onClick={onClose}
       />
       <nav
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Menu"

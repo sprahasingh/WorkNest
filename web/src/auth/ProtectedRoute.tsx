@@ -1,8 +1,9 @@
-import { Navigate, Outlet } from "react-router";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { useAuth } from "./auth-context";
 
 export function ProtectedRoute() {
   const { status } = useAuth();
+  const location = useLocation();
 
   if (status === "loading") {
     return (
@@ -13,7 +14,10 @@ export function ProtectedRoute() {
   }
 
   if (status === "unauthenticated") {
-    return <Navigate to="/login" replace />;
+    // Keep where they were headed (a link from an email or a notification),
+    // so signing in lands there instead of on the default page.
+    const next = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?next=${next}`} replace />;
   }
 
   return <Outlet />;

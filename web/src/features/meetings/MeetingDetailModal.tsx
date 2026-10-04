@@ -130,7 +130,7 @@ function MeetingDetail({
   };
 
   const sectionTitle =
-    "text-xs font-semibold uppercase tracking-wide text-slate-400";
+    "text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
 
   return (
     <div className="space-y-6">
@@ -159,17 +159,21 @@ function MeetingDetail({
         </p>
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {formatTimeRange(meeting.startsAt, meeting.endsAt)}{" "}
-          <span className="text-slate-400">({timeZoneName()})</span>
+          <span className="text-slate-500 dark:text-slate-400">
+            ({timeZoneName()})
+          </span>
         </p>
         {meeting.location && (
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            <span className="text-slate-400">Where: </span>
+            <span className="text-slate-500 dark:text-slate-400">Where: </span>
             {meeting.location}
           </p>
         )}
         {meeting.series?.frequency && (
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            <span className="text-slate-400">Repeats: </span>
+            <span className="text-slate-500 dark:text-slate-400">
+              Repeats:{" "}
+            </span>
             {REPEAT_LABEL[meeting.series.frequency].toLowerCase()}
             {meeting.series.index && meeting.series.count
               ? ` · ${meeting.series.index} of ${meeting.series.count}`
@@ -179,7 +183,9 @@ function MeetingDetail({
         {meeting.link &&
           (meeting.link.projectName || meeting.link.taskTitle) && (
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              <span className="text-slate-400">About: </span>
+              <span className="text-slate-500 dark:text-slate-400">
+                About:{" "}
+              </span>
               <Link
                 to={`/orgs/${orgId}/projects/${meeting.link.projectId}${
                   meeting.link.taskId ? `?task=${meeting.link.taskId}` : ""
@@ -562,7 +568,9 @@ function MeetingDetail({
               {meeting.notes}
             </p>
           ) : (
-            <p className="mt-1.5 text-sm text-slate-400">No notes yet.</p>
+            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+              No notes yet.
+            </p>
           )}
         </section>
       )}
