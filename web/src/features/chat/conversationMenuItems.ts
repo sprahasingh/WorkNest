@@ -1,13 +1,10 @@
 import type { Conversation } from "./api";
+import type { MenuItem as BaseMenuItem } from "./ContextMenu";
 
 export type ConversationAction =
   "mute" | "unmute" | "markRead" | "markUnread" | "details" | "delete";
 
-export interface MenuItem {
-  action: ConversationAction;
-  label: string;
-  danger?: boolean;
-}
+export type MenuItem = BaseMenuItem<ConversationAction>;
 
 // What can be done to a conversation, depending on its state.
 export function menuItemsFor(

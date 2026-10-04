@@ -2,6 +2,8 @@ import axios from "axios";
 import { apiClient } from "@/api/client";
 
 export const EDIT_WINDOW_MS = 10 * 60 * 1000;
+// How long after sending an author can delete a message for everyone.
+export const DELETE_WINDOW_MS = 30 * 60 * 1000;
 export const REACTION_EMOJIS = [
   "👍",
   "❤️",
@@ -197,6 +199,11 @@ export async function deleteMessage(orgId: string, messageId: string) {
     `${base(orgId)}/messages/${messageId}`,
   );
   return response.data.message;
+}
+
+// "Delete for me": hides one message from you only.
+export async function hideMessage(orgId: string, messageId: string) {
+  await apiClient.post(`${base(orgId)}/messages/${messageId}/hide`);
 }
 
 export async function reactToMessage(
