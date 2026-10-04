@@ -1079,6 +1079,19 @@ describe("who hears about updates, and reply threads", () => {
       expect(blocked.status).toBe(403);
     }
 
+    // They can't read it either, not just reply: the list leaves it out.
+    const read = (token: string) =>
+      request(app).get(base).set("Authorization", `Bearer ${token}`);
+    for (const outsider of [leo, admin]) {
+      const list = await read(outsider.accessToken);
+      expect(list.status).toBe(200);
+      expect(JSON.stringify(list.body)).not.toContain("Which API version?");
+    }
+    for (const involved of [mia, manager]) {
+      const list = await read(involved.accessToken);
+      expect(JSON.stringify(list.body)).toContain("Which API version?");
+    }
+
     const answer = await post(manager.accessToken, {
       type: "reply",
       content: "Use v2",

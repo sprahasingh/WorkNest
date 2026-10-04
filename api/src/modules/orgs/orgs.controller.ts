@@ -2,7 +2,10 @@ import type { Request, Response } from "express";
 import { Organization } from "../../models/Organization.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
-import { isRazorpayConfigured } from "../../lib/razorpay.js";
+import {
+  isRazorpayConfigured,
+  simulatedUpgradesAllowed,
+} from "../../lib/razorpay.js";
 import { planRank, type Plan } from "../../constants/plans.js";
 import { changePlan, createOrg, updateOrg } from "./orgs.service.js";
 import { reconcileSeats } from "../invites/invites.service.js";
@@ -54,7 +57,21 @@ export async function changePlanController(
   const input = req.validated!.body as ChangePlanInput;
   // With payments switched on, moving up has to go through checkout. Moving
   // down is always free.
-  if (isRazorpayConfigured()) {
+  const paymentsOn = isRazorpayConfigured();
+  if (!paymentsOn && !simulatedUpgradesAllowed()) {
+    const now = await Organization.findById(requireTenantId())
+      .select("plan")
+      .setOptions({ skipTenant: true })
+      .lean();
+    if (planRank(input.plan) > planRank((now?.plan ?? "free") as Plan)) {
+      throw new AppError(
+        503,
+        "PAYMENTS_DISABLED",
+        "Upgrading needs payments, which are not switched on for this app.",
+      );
+    }
+  }
+  if (paymentsOn) {
     const current = await Organization.findById(requireTenantId())
       .select("plan")
       .setOptions({ skipTenant: true })
@@ -67,6 +84,9 @@ export async function changePlanController(
       );
     }
   }
+  // Seat numbers are re-counted first, so a stale counter can't decide a
+  // downgrade.
+  await reconcileSeats(requireTenantId());
   const org = await changePlan(input.plan);
   res.status(200).json({ organization: org });
 }

@@ -6,6 +6,12 @@ export function isRazorpayConfigured(): boolean {
   return Boolean(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET);
 }
 
+// Upgrading without paying only works when explicitly allowed, or in
+// development and tests. In production, missing keys must not mean free plans.
+export function simulatedUpgradesAllowed(): boolean {
+  return env.ALLOW_SIMULATED_UPGRADES ?? env.NODE_ENV !== "production";
+}
+
 function hmacHex(value: string | Buffer, secret: string): string {
   return createHmac("sha256", secret).update(value).digest("hex");
 }

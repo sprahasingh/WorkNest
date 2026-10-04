@@ -30,6 +30,13 @@ export function emitToUsers(
   }
 }
 
+export async function closeRealtime(): Promise<void> {
+  if (!io) return;
+  await new Promise<void>((resolve) => {
+    io!.close(() => resolve());
+  });
+}
+
 export function startRealtime(server: HttpServer): void {
   io = new Server(server, {
     path: "/socket.io",

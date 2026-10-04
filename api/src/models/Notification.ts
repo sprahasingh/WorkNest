@@ -1,3 +1,4 @@
+import { requireTenantInFilterPlugin } from "../tenancy/plugin.js";
 import { Schema, model, type InferSchemaType } from "mongoose";
 
 const notificationSchema = new Schema(
@@ -66,4 +67,5 @@ notificationSchema.index(
 );
 
 export type NotificationDocument = InferSchemaType<typeof notificationSchema>;
+notificationSchema.plugin(requireTenantInFilterPlugin);
 export const Notification = model("Notification", notificationSchema);

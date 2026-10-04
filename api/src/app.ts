@@ -40,7 +40,7 @@ export function createApp(): Express {
   const app = express();
 
   if (env.NODE_ENV === "production") {
-    app.set("trust proxy", 1);
+    app.set("trust proxy", env.TRUST_PROXY_HOPS);
   }
 
   app.use(helmet());
@@ -73,7 +73,6 @@ export function createApp(): Express {
     res.status(dbConnected ? 200 : 503).json({
       status: dbConnected ? "ok" : "degraded",
       db: dbConnected ? "connected" : "disconnected",
-      uptime: process.uptime(),
     });
   });
 

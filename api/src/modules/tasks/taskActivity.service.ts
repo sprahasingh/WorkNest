@@ -341,6 +341,40 @@ function threadParticipants(
   );
 }
 
+// A message sent only to particular people stays between them and the author,
+// and so does its thread. Everyone else who can see the task or project must
+// not be able to read it either, not just be unable to reply.
+function withoutOthersDirectedThreads<
+  T extends {
+    _id: Id;
+    parentId?: Id | null;
+    authorId: Id;
+    notifyAll?: boolean | null;
+    mentionIds?: Id[] | null;
+    askedIds?: Id[] | null;
+  },
+>(activities: T[], me: string): T[] {
+  const repliesByRoot = new Map<string, T[]>();
+  for (const activity of activities) {
+    if (!activity.parentId) continue;
+    const key = String(activity.parentId);
+    repliesByRoot.set(key, [...(repliesByRoot.get(key) ?? []), activity]);
+  }
+  const hidden = new Set<string>();
+  for (const root of activities) {
+    if (root.parentId || !isDirected(root)) continue;
+    const replies = repliesByRoot.get(String(root._id)) ?? [];
+    if (!threadParticipants(root, replies).has(me)) {
+      hidden.add(String(root._id));
+    }
+  }
+  return activities.filter(
+    (activity) =>
+      !hidden.has(String(activity._id)) &&
+      !(activity.parentId && hidden.has(String(activity.parentId))),
+  );
+}
+
 // Finds a message and the one that started its thread, making sure both
 // belong to the task or project in the URL. A project's feed shows its
 // tasks' messages too, so they count as part of the project.
@@ -776,7 +810,9 @@ export async function listTaskActivities(taskId: string) {
   const activities = await TaskActivity.find({ taskId })
     .sort({ _id: 1 })
     .lean();
-  return withAuthors(activities);
+  return withAuthors(
+    withoutOthersDirectedThreads(activities, getTenantContext()!.userId),
+  );
 }
 
 export async function createProjectActivity(
@@ -884,9 +920,10 @@ export async function listProjectActivities(projectId: string) {
           _id: { $nin: [...loadedIds] },
         }).lean()
       : [];
-  const activities = [...latest, ...earlier].sort((a, b) =>
-    String(a._id).localeCompare(String(b._id)),
-  );
+  const activities = withoutOthersDirectedThreads(
+    [...latest, ...earlier],
+    context.userId,
+  ).sort((a, b) => String(a._id).localeCompare(String(b._id)));
 
   const withTask = activities.map((a) => ({
     ...a,
