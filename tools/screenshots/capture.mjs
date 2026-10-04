@@ -62,19 +62,28 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // What to do on the page before the picture is taken, for each screen.
 const shots = {
-  "dashboard/overview": async (p) => {
+  "dashboard/tasks-overview": async (p) => {
     await open(p, "/dashboard", 2200);
+    await scrollToHeading(p, "Dashboard", 20);
   },
-  "dashboard/charts": async (p) => {
+  "dashboard/tasks-status": async (p) => {
     await open(p, "/dashboard", 2200);
-    await scrollBy(p, 980);
-    await sleep(1800);
+    await scrollToHeading(p, "Where tasks stand", 16);
+    await sleep(1500);
   },
-  "dashboard/projects-view": async (p) => {
-    await open(p, "/dashboard", 1500);
-    await p.getByRole("tab", { name: "Projects" }).click();
-    await p.waitForURL(/view=projects/);
-    await sleep(2200);
+  "dashboard/tasks-flow": async (p) => {
+    await open(p, "/dashboard", 2200);
+    await scrollToHeading(p, "Created vs completed", 16);
+    await sleep(1500);
+  },
+  "dashboard/projects-overview": async (p) => {
+    await openProjectsView(p);
+    await scrollToHeading(p, "Dashboard", 20);
+  },
+  "dashboard/projects-flow": async (p) => {
+    await openProjectsView(p);
+    await scrollToHeading(p, "Created and marked done by project", 16);
+    await sleep(1500);
   },
   "projects/list": async (p) => {
     await open(p, "/projects", 1200);
@@ -185,13 +194,13 @@ const shots = {
   },
   "team/invite": async (p) => {
     await open(p, "/members", 1200);
-    await scrollBy(p, 800);
+    await scrollToHeading(p, "Invites", 20, false);
     await p.getByLabel(/email/i).first().fill(DEMO.inviteEmail);
     await sleep(700);
   },
   "settings/plans": async (p) => {
     await open(p, "/settings", 1400);
-    await scrollBy(p, 480);
+    await scrollToHeading(p, "Plan", 16);
     await sleep(900);
   },
   "audit/audit-log": async (p) => {
@@ -217,6 +226,40 @@ const signedInAs = { "meetings/meeting-detail": DEMO.invitee };
 async function open(page, route, wait = 1200) {
   await page.goto(`${base}/orgs/${O}${route}`);
   await sleep(wait);
+}
+// Scrolls so the card or heading with this text sits just under the app bar,
+// leaving a small gap above it. The gap is in pixels.
+async function scrollToHeading(page, text, gap, useCard = true) {
+  await page.evaluate(
+    ({ text, gap, useCard }) => {
+      const matches = [...document.querySelectorAll("h1, h2, h3")].filter(
+        (el) => el.textContent.trim().startsWith(text),
+      );
+      const heading = matches[0];
+      if (!heading) throw new Error(`No heading starting with "${text}"`);
+      // A chart heading belongs to a card, and the card's edge is what should line up.
+      const card = heading.closest(
+        "section, [class*='rounded-xl'], [class*='rounded-2xl']",
+      );
+      const target =
+        useCard && card && card.contains(heading) && heading.tagName !== "H1"
+          ? card
+          : heading;
+      const appBar = 64;
+      window.scrollTo(
+        0,
+        window.scrollY + target.getBoundingClientRect().top - appBar - gap,
+      );
+    },
+    { text, gap, useCard },
+  );
+  await sleep(500);
+}
+async function openProjectsView(page) {
+  await open(page, "/dashboard", 1500);
+  await page.getByRole("tab", { name: "Projects" }).click();
+  await page.waitForURL(/view=projects/);
+  await sleep(2200);
 }
 async function scrollBy(page, pixels) {
   await page.mouse.move(700, 500);
@@ -253,6 +296,10 @@ async function signIn(dark, size, user, isPhone) {
     deviceScaleFactor: 1,
     ...(isPhone ? { hasTouch: true, isMobile: true } : {}),
   });
+  // Freeze the browser clock a few minutes before the demo's "starts soon"
+  // meeting, so labels like "Starts in 5 min" and "19 hours ago" read the same
+  // in every picture, in both themes, however long the run takes.
+  await context.clock.setFixedTime(new Date(ids.shotTime));
   await context.addInitScript(() =>
     localStorage.setItem("worknest.onboarding.seen", "true"),
   );
@@ -300,6 +347,12 @@ for (const theme of themes) {
         .getByText("Loading…", { exact: true })
         .first()
         .waitFor({ state: "detached", timeout: 10000 });
+      // A focus ring left on a button (usually a dialog's close button) looks like a glitch.
+      await page.evaluate(
+        () =>
+          document.activeElement instanceof HTMLButtonElement &&
+          document.activeElement.blur(),
+      );
       await page.mouse.move(size.width / 2, 2);
       await sleep(200);
       const png = await page.screenshot();
