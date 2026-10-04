@@ -482,7 +482,7 @@ export function HowToUse() {
         <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-400">
           Everything you need to get a team up and running: the core ideas, the
           everyday tasks, and exactly who's allowed to do what. The pictures use
-          demo data from a made-up studio called Brightline.
+          demo data from a made-up company called Sunshine.
         </p>
 
         <nav aria-label="On this page" className="mt-6">
