@@ -3,8 +3,8 @@ import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
+import { markOnboardingSeen } from "@/api/auth";
 import { cn } from "@/lib/cn";
-import { hasSeenOnboarding } from "@/lib/onboarding";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useUnreadCount } from "@/features/notifications/queries";
@@ -252,7 +252,13 @@ function HeaderControls({
   );
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({
+  onNavigate,
+  onShowTour,
+}: {
+  onNavigate?: () => void;
+  onShowTour: () => void;
+}) {
   const location = useLocation();
   const canViewDashboard = useCan("dashboard:read");
   const canViewAudit = useCan("audit:read");
@@ -315,6 +321,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <HelpLinks
           from={`${location.pathname}${location.search}`}
           onNavigate={onNavigate}
+          onShowTour={onShowTour}
         />
       </div>
     </div>
@@ -322,6 +329,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AppLayout() {
+  const { role } = useOrg();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const closeNotifications = useCallback(() => setNotificationsOpen(false), []);
@@ -329,9 +337,21 @@ export function AppLayout() {
     setMobileNavOpen(false);
     setNotificationsOpen(true);
   };
+  // The first-run tour is remembered on the account, so it shows once per
+  // person on any device. "Show the tour" in the sidebar opens it again.
+  const { user, updateCurrentUser } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(
-    () => !hasSeenOnboarding(),
+    () => user !== null && !user.onboardingSeenAt,
   );
+  const closeOnboarding = () => {
+    setShowOnboarding(false);
+    if (user && !user.onboardingSeenAt) {
+      markOnboardingSeen()
+        .then(updateCurrentUser)
+        // If this fails the tour simply appears once more next time.
+        .catch(() => undefined);
+    }
+  };
 
   const overlayOpen = mobileNavOpen || notificationsOpen;
   useEffect(() => {
@@ -377,7 +397,7 @@ export function AppLayout() {
 
         <div className="md:flex">
           <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:sticky md:top-16 md:block md:h-[calc(100vh-4rem)]">
-            <SidebarContent />
+            <SidebarContent onShowTour={() => setShowOnboarding(true)} />
           </aside>
 
           <main className="min-w-0 flex-1">
@@ -419,7 +439,13 @@ export function AppLayout() {
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <SidebarContent onNavigate={() => setMobileNavOpen(false)} />
+                <SidebarContent
+                  onNavigate={() => setMobileNavOpen(false)}
+                  onShowTour={() => {
+                    setMobileNavOpen(false);
+                    setShowOnboarding(true);
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -431,7 +457,7 @@ export function AppLayout() {
         />
 
         {showOnboarding && (
-          <OnboardingTour onClose={() => setShowOnboarding(false)} />
+          <OnboardingTour role={role} onClose={closeOnboarding} />
         )}
       </div>
     </ChatRealtimeProvider>

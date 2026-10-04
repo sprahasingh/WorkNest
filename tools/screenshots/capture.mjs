@@ -313,9 +313,6 @@ async function signIn(dark, size, user, isPhone) {
   // meeting, so labels like "Starts in 5 min" and "19 hours ago" read the same
   // in every picture, in both themes, however long the run takes.
   await context.clock.setFixedTime(new Date(ids.shotTime));
-  await context.addInitScript(() =>
-    localStorage.setItem("worknest.onboarding.seen", "true"),
-  );
   const page = await context.newPage();
   page.on("pageerror", (error) => console.log("Page error:", error.message));
   await page.goto(`${base}/login`);

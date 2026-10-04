@@ -2,54 +2,68 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
-import { markOnboardingSeen } from "@/lib/onboarding";
+import type { Role } from "@/api/auth";
 
 interface Step {
   title: string;
   description: string;
+  // Steps about pages only some roles can open are left out for everyone else.
+  roles?: Role[];
 }
 
 const STEPS: Step[] = [
   {
     title: "Welcome to WorkNest",
     description:
-      "A quick look at how projects, tasks, and teammates fit together, so you're not guessing where to start.",
+      "Projects, chat and meetings for your team in one place. Here is a quick look at where things are, so you're not guessing where to start.",
   },
   {
-    title: "Projects organize your work",
+    title: "Projects and tasks",
     description:
-      "Create a project for each initiative or team. Every project gets a short key (like ENG or OPS) used to identify its tasks.",
+      "A project holds the tasks for one piece of work. Each task has a priority, a due date and one or more people on it. Admins and managers create projects, and everyone updates the tasks they are on.",
   },
   {
-    title: "Tasks live on a board",
+    title: "Ask for and share updates",
     description:
-      "Each project has a To do / In progress / Done board. Tasks carry a priority, an optional due date, and an assignee.",
+      "Managers can ask for an update on a task or a whole project. People reply right on the task, and everyone involved gets a notification.",
   },
   {
-    title: "Members have roles",
+    title: "Messages",
     description:
-      "Invite teammates as Admin, Manager, or Member. Admins manage billing and members, managers run projects and tasks, and members handle their own work.",
+      "Message anyone in your organization, or start a group. Chats are private to the people in them. Reply, react, mention people and share files, and press and hold a message for more options.",
+  },
+  {
+    title: "Meetings",
+    description:
+      "Schedule a meeting with a join link and an agenda. Invitees reply Accept, Maybe or Decline, and everyone gets a reminder before it starts.",
+  },
+  {
+    title: "People and roles",
+    description:
+      "Every person is an Admin, a Manager or a Member. Admins look after people, plans and settings, managers run projects and tasks, and members work on their own tasks.",
   },
   {
     title: "Dashboard and audit log",
     description:
-      "The dashboard shows overdue tasks, activity, and usage at a glance. The audit log records who changed what, and when.",
+      "The dashboard shows how tasks and projects are doing over any period you choose. Admins can also open the audit log to see who changed what, and when.",
+    roles: ["admin", "manager"],
   },
 ];
 
 interface OnboardingTourProps {
+  role: Role;
   onClose: () => void;
 }
 
-export function OnboardingTour({ onClose }: OnboardingTourProps) {
+export function OnboardingTour({ role, onClose }: OnboardingTourProps) {
+  const steps = STEPS.filter(
+    (item) => !item.roles || item.roles.includes(role),
+  );
   const [stepIndex, setStepIndex] = useState(0);
-  const isLastStep = stepIndex === STEPS.length - 1;
-  const step = STEPS[stepIndex]!;
+  const isLastStep = stepIndex === steps.length - 1;
+  const step = steps[stepIndex]!;
 
-  const finish = () => {
-    markOnboardingSeen();
-    onClose();
-  };
+  const finish = onClose;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm">
@@ -90,11 +104,11 @@ export function OnboardingTour({ onClose }: OnboardingTourProps) {
 
         <div className="mt-6 flex items-center justify-between">
           <div className="flex gap-1.5">
-            {STEPS.map((s, index) => (
+            {steps.map((s, index) => (
               <span
                 key={s.title}
                 className={cn(
-                  "h-1.5 w-6 rounded-full transition-colors",
+                  "h-1.5 w-4 rounded-full transition-colors sm:w-6",
                   index === stepIndex
                     ? "bg-teal-600"
                     : "bg-slate-200 dark:bg-slate-700",
@@ -103,7 +117,7 @@ export function OnboardingTour({ onClose }: OnboardingTourProps) {
             ))}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex shrink-0 gap-2 whitespace-nowrap">
             {stepIndex > 0 && (
               <Button
                 variant="ghost"

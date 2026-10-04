@@ -10,6 +10,9 @@ const userSchema = new Schema(
       trim: true,
     },
     emailVerifiedAt: { type: Date, default: null },
+    // Set once the person has finished or skipped the first-run tour, so it
+    // shows once per account instead of once per browser.
+    onboardingSeenAt: { type: Date, default: null },
     pendingEmail: { type: String, default: null, select: false },
     emailChangeTokenHash: { type: String, default: null, select: false },
     emailChangeExpiresAt: { type: Date, default: null, select: false },
