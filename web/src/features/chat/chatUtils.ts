@@ -77,6 +77,37 @@ export function listTimeLabel(iso: string, now = new Date()): string {
   return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+// Types the browser can show or play itself. Kept in step with the server,
+// which decides what is really served inline.
+const VIEWABLE_TYPES = new Set([
+  "application/pdf",
+  "text/plain",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+]);
+
+export function canViewInBrowser(mimeType: string): boolean {
+  return VIEWABLE_TYPES.has(mimeType);
+}
+
+// "report.final.pdf" -> "PDF". Empty when there is no sensible extension.
+export function fileExtension(name: string): string {
+  const dot = name.lastIndexOf(".");
+  if (dot < 0 || dot === name.length - 1) return "";
+  const ext = name.slice(dot + 1);
+  return ext.length <= 4 ? ext.toUpperCase() : "";
+}
+
+export function downloadUrl(url: string): string {
+  return `${url}${url.includes("?") ? "&" : "?"}download=1`;
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;

@@ -9,12 +9,28 @@ import { Membership } from "../../models/Membership.js";
 import { Message } from "../../models/Message.js";
 import { runWithTenant } from "../../tenancy/context.js";
 
-const INLINE_TYPES = new Set([
+const IMAGE_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/gif",
   "image/webp",
 ]);
+
+// Shown in the browser's own viewer or player instead of being downloaded.
+// These can't run code on this origin, and the type is always the one chosen
+// here (never what the uploader sent) with sniffing turned off.
+const VIEWER_TYPES = new Set([
+  "application/pdf",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+]);
+const TEXT_TYPES = new Set(["text/plain"]);
 
 const notFound = () => new AppError(404, "NOT_FOUND", "File not found");
 
@@ -78,19 +94,25 @@ export async function downloadChatFileController(
     throw new AppError(502, "FILE_UNAVAILABLE", "The file couldn't be loaded");
   }
 
-  const inline = INLINE_TYPES.has(attachment.mimeType);
+  // "?download=1" is the Download button; opening the file otherwise shows it
+  // in the browser when the browser can.
+  const wantsDownload = req.query.download === "1";
+  const type = attachment.mimeType;
+  const inline =
+    !wantsDownload &&
+    (IMAGE_TYPES.has(type) || VIEWER_TYPES.has(type) || TEXT_TYPES.has(type));
   res.status(200);
-  res.setHeader(
-    "Content-Type",
-    inline ? attachment.mimeType : "application/octet-stream",
-  );
+  res.setHeader("Content-Type", inline ? type : "application/octet-stream");
   res.setHeader(
     "Content-Disposition",
     `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(attachment.name)}`,
   );
-  // Files are never allowed to run as pages on this origin.
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+  // The browser's PDF viewer and media players don't work inside a sandbox, so
+  // those are served without one. Everything else stays fully locked down.
+  if (!(inline && VIEWER_TYPES.has(type))) {
+    res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+  }
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   res.setHeader("Cache-Control", "private, max-age=300");
   const length = upstream.headers.get("content-length");
