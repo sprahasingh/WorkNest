@@ -69,14 +69,11 @@ Roles, invites, plans and an audit log of every important change.
 
 ### On a phone
 
-Every page adapts to small screens.
+Every page adapts to small screens. The menu button at the top left switches between pages, and Messages shows the chat list first, then the chat you open. Pulling down from the top of a page refreshes it.
 
-<p>
-  <img src="web/src/assets/screens/m-messages-light.webp" alt="Messages on a phone" width="180">
-  <img src="web/src/assets/screens/m-meetings-light.webp" alt="Meetings on a phone" width="180">
-  <img src="web/src/assets/screens/m-board-light.webp" alt="A board on a phone" width="180">
-  <img src="web/src/assets/screens/m-dashboard-light.webp" alt="The dashboard on a phone" width="180">
-</p>
+| Dashboard                                                                  | Project board                                                    | Messages                                                             | Meetings                                                             |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| ![The dashboard on a phone](web/src/assets/screens/m-dashboard-light.webp) | ![A board on a phone](web/src/assets/screens/m-board-light.webp) | ![Messages on a phone](web/src/assets/screens/m-messages-light.webp) | ![Meetings on a phone](web/src/assets/screens/m-meetings-light.webp) |
 
 ## Why I Built This
 
@@ -307,7 +304,7 @@ web/
     auth/           AuthProvider, route guards
     features/       one folder per area, each with its own api, queries and components
     components/     shared UI (layout, modal, logo link, error boundary) and the landing page pieces in marketing/
-    assets/screens/ the product screenshots used on the landing page, the guide and this README
+    assets/screens/ the product screenshots used on the landing page, the guide and this README (see the README in that folder to add or change one)
     pages/          landing, login, register, invite, organizations and the how-to-use guide
     hooks/          useCan (permission checks), useOrg (current org)
 ```

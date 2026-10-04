@@ -12,7 +12,7 @@ const NAV = [
 const STATS = [
   { label: "Open tasks", value: "16", note: "6 in progress" },
   { label: "Completed", value: "5", note: "+5 vs previous" },
-  { label: "Created", value: "8", note: "No change" },
+  { label: "Created", value: "11", note: "+6 vs previous" },
   { label: "Overdue", value: "1", note: "Needs attention", warn: true },
 ];
 
@@ -42,10 +42,10 @@ export function HeroPreview() {
           <div className="hidden w-32 shrink-0 border-r border-slate-200 p-2 sm:block dark:border-slate-700">
             <div className="mb-2 flex items-center gap-1.5 rounded-md px-1.5 py-1.5">
               <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-200 text-[8px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
-                B
+                S
               </span>
               <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200">
-                Brightline
+                Sunshine
               </span>
             </div>
             {NAV.map((item) => (
@@ -121,14 +121,14 @@ export function HeroPreview() {
                   />
                 ))}
                 <polyline
-                  points="0,60 30,56 60,52 90,50 120,42 150,34 180,26 210,20 240,20"
+                  points="0,40 18,36 37,32 55,36 74,29 92,26 111,26 129,18 148,15 166,15 185,15 203,26 222,29 240,29"
                   fill="none"
                   stroke="#2f76d6"
                   strokeWidth="2"
                   strokeLinejoin="round"
                 />
                 <polyline
-                  points="0,38 40,38 80,38 120,38 160,38 200,38 240,38"
+                  points="0,54 18,54 37,54 55,54 74,54 92,54 111,50 129,50 148,50 166,46 185,46 203,43 222,43 240,43"
                   fill="none"
                   stroke="#e5a00d"
                   strokeWidth="2"
@@ -145,7 +145,7 @@ export function HeroPreview() {
           Website Relaunch
         </p>
         <p className="mt-1 text-[11px] text-slate-700 dark:text-slate-200">
-          <span className="font-semibold">Daniel:</span> Draft agenda for
+          <span className="font-semibold">Govind:</span> Draft agenda for
           Thursday is in the meeting invite.
         </p>
         <div className="mt-1.5 flex gap-1">
