@@ -1,27 +1,35 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import type { ConversationAction, MenuItem } from "./conversationMenuItems";
 
-interface ConversationMenuProps {
+export interface MenuItem<Action extends string = string> {
+  action: Action;
+  label: string;
+  danger?: boolean;
+}
+
+interface ContextMenuProps<Action extends string> {
   title: string;
-  items: MenuItem[];
+  items: MenuItem<Action>[];
   // Where the press happened; null closes the menu.
   anchor: { x: number; y: number; touch: boolean } | null;
-  onSelect: (action: ConversationAction) => void;
+  // Extra content above the list, such as a row of quick reactions.
+  header?: ReactNode;
+  onSelect: (action: Action) => void;
   onClose: () => void;
 }
 
 const MENU_WIDTH = 208;
 
-// Opens from a long press, a right click or the "more" button. On a phone it
+// Opens from a long press, a right click or a "more" button. On a phone it
 // slides up from the bottom; with a mouse it sits at the pointer.
-export function ConversationMenu({
+export function ContextMenu<Action extends string>({
   title,
   items,
   anchor,
+  header,
   onSelect,
   onClose,
-}: ConversationMenuProps) {
+}: ContextMenuProps<Action>) {
   const firstRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -46,7 +54,10 @@ export function ConversationMenu({
   );
   const top = Math.max(
     8,
-    Math.min(anchor.y, window.innerHeight - items.length * 40 - 24),
+    Math.min(
+      anchor.y,
+      window.innerHeight - items.length * 40 - (header ? 64 : 0) - 24,
+    ),
   );
 
   const buttons = items.map((item, index) => (
@@ -79,7 +90,9 @@ export function ConversationMenu({
           "absolute inset-0",
           anchor.touch && "bg-slate-900/30 backdrop-blur-[1px]",
         )}
-        onClick={onClose}
+        // Closing on the press itself, not the click, means lifting the finger
+        // that opened the menu (a long press) can't close it straight away.
+        onPointerDown={onClose}
       />
       {anchor.touch ? (
         <div
@@ -90,6 +103,7 @@ export function ConversationMenu({
           <p className="truncate border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
             {title}
           </p>
+          {header}
           <ul>{buttons}</ul>
         </div>
       ) : (
@@ -99,6 +113,7 @@ export function ConversationMenu({
           style={{ left, top, width: MENU_WIDTH }}
           className="absolute overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-600 dark:bg-slate-800"
         >
+          {header}
           {buttons}
         </ul>
       )}

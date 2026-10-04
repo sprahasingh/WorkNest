@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
@@ -7,7 +7,8 @@ import type { Conversation } from "./api";
 import { Avatar } from "@/components/ui/Avatar";
 import { AlertSettings } from "./AlertSettings";
 import { RetentionNote } from "./RetentionNote";
-import { ConversationMenu } from "./ConversationMenu";
+import { ContextMenu } from "./ContextMenu";
+import { useLongPress } from "./useLongPress";
 import { menuItemsFor, type ConversationAction } from "./conversationMenuItems";
 import { useConversationActions, useMessageSearch } from "./queries";
 import {
@@ -31,9 +32,6 @@ interface ConversationListProps {
   onRequestDelete: (conversation: Conversation) => void;
   onNew: () => void;
 }
-
-const LONG_PRESS_MS = 480;
-const MOVE_TOLERANCE_PX = 8;
 
 // Shows the search words inside a snippet of the message.
 function Snippet({ text, term }: { text: string; term: string }) {
@@ -84,25 +82,9 @@ export function ConversationList({
     y: number;
     touch: boolean;
   } | null>(null);
-  const press = useRef<{
-    timer: number;
-    x: number;
-    y: number;
-    fired: boolean;
-    firedAt: number;
-  } | null>(null);
-
-  const cancelPress = () => {
-    if (press.current) window.clearTimeout(press.current.timer);
-  };
-  useEffect(() => cancelPress, []);
-
-  const openMenu = (
-    conversation: Conversation,
-    x: number,
-    y: number,
-    touch: boolean,
-  ) => setMenu({ conversation, x, y, touch });
+  const longPress = useLongPress<Conversation>((conversation, x, y, touch) =>
+    setMenu({ conversation, x, y, touch }),
+  );
 
   const runAction = (action: ConversationAction) => {
     const target = menu?.conversation;
@@ -257,58 +239,13 @@ export function ConversationList({
                   type="button"
                   onClick={(event) => {
                     // A long press already opened the menu; don't also open the chat.
-                    if (press.current?.fired) {
-                      press.current.fired = false;
+                    if (longPress.wasLongPress()) {
                       event.preventDefault();
                       return;
                     }
                     onSelect(conversation.id);
                   }}
-                  onPointerDown={(event) => {
-                    if (event.pointerType === "mouse") return;
-                    cancelPress();
-                    const x = event.clientX;
-                    const y = event.clientY;
-                    press.current = {
-                      x,
-                      y,
-                      fired: false,
-                      firedAt: 0,
-                      timer: window.setTimeout(() => {
-                        if (!press.current) return;
-                        press.current.fired = true;
-                        press.current.firedAt = Date.now();
-                        navigator.vibrate?.(10);
-                        openMenu(conversation, x, y, true);
-                      }, LONG_PRESS_MS),
-                    };
-                  }}
-                  onPointerMove={(event) => {
-                    const current = press.current;
-                    if (!current || current.fired) return;
-                    if (
-                      Math.abs(event.clientX - current.x) > MOVE_TOLERANCE_PX ||
-                      Math.abs(event.clientY - current.y) > MOVE_TOLERANCE_PX
-                    ) {
-                      cancelPress();
-                    }
-                  }}
-                  onPointerUp={cancelPress}
-                  onPointerCancel={cancelPress}
-                  onPointerLeave={cancelPress}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    // On a phone the long press has opened the menu already.
-                    if (
-                      press.current &&
-                      Date.now() - press.current.firedAt < 900
-                    ) {
-                      return;
-                    }
-                    const touch =
-                      window.matchMedia("(pointer: coarse)").matches;
-                    openMenu(conversation, event.clientX, event.clientY, touch);
-                  }}
+                  {...longPress.handlersFor(conversation)}
                   aria-current={
                     conversation.id === activeId ? "true" : undefined
                   }
@@ -390,12 +327,12 @@ export function ConversationList({
                   aria-haspopup="menu"
                   onClick={(event) => {
                     const box = event.currentTarget.getBoundingClientRect();
-                    openMenu(
+                    setMenu({
                       conversation,
-                      box.right - 208,
-                      box.bottom + 4,
-                      false,
-                    );
+                      x: box.right - 208,
+                      y: box.bottom + 4,
+                      touch: false,
+                    });
                   }}
                   className="absolute right-2 top-2 hidden h-7 w-7 items-center justify-center rounded-md bg-white/90 text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-slate-800 focus-visible:flex focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 md:group-focus-within:flex md:group-hover:flex dark:bg-slate-800/90 dark:text-slate-300 dark:ring-slate-600"
                 >
@@ -415,7 +352,7 @@ export function ConversationList({
           })}
         </ul>
 
-        <ConversationMenu
+        <ContextMenu
           title={menu ? conversationTitle(menu.conversation, myId) : ""}
           items={
             menu

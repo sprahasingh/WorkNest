@@ -25,16 +25,16 @@
         {
           "id": "tasks-status",
           "file": "02-tasks-status",
-          "title": "Tasks: status and priority",
-          "caption": "Tasks view: where tasks stand and open tasks by priority",
-          "alt": "The Tasks view of the dashboard with charts for where tasks stand and open tasks by priority"
+          "title": "Tasks: status and trends",
+          "caption": "Tasks view: where tasks stand, open tasks by priority, and created against completed",
+          "alt": "The Tasks view of the dashboard with charts for where tasks stand, open tasks by priority, and created against completed"
         },
         {
-          "id": "tasks-flow",
-          "file": "03-tasks-flow",
-          "title": "Tasks: created and completed",
-          "caption": "Tasks view: tasks created against completed, plus workload and project progress",
-          "alt": "The Tasks view of the dashboard with a created against completed chart, workload per person and project progress"
+          "id": "tasks-workload",
+          "file": "03-tasks-workload",
+          "title": "Tasks: workload and progress",
+          "caption": "Tasks view, further down: workload per person, project progress and plan usage",
+          "alt": "The bottom of the Tasks view of the dashboard with workload per person, project progress and plan usage"
         },
         {
           "id": "projects-overview",
@@ -154,6 +154,13 @@
           "title": "New conversation",
           "caption": "Message anyone in the organization, or start a group",
           "alt": "The new conversation dialog for a direct message or a group"
+        },
+        {
+          "id": "message-options",
+          "file": "05-message-options",
+          "title": "Message options",
+          "caption": "Right-click or press and hold a message to react, reply, copy, edit or delete it",
+          "alt": "The options menu for one message with quick reactions, reply, copy text, edit and delete"
         }
       ]
     },
@@ -281,7 +288,7 @@
     "landing.tour.dashboard": [
       "dashboard/tasks-overview",
       "dashboard/tasks-status",
-      "dashboard/tasks-flow",
+      "dashboard/tasks-workload",
       "dashboard/projects-overview",
       "dashboard/projects-flow"
     ],
@@ -295,7 +302,8 @@
       "messages/group-chat",
       "messages/search",
       "messages/chat-menu",
-      "messages/new-conversation"
+      "messages/new-conversation",
+      "messages/message-options"
     ],
     "landing.tour.meetings": [
       "meetings/upcoming",
@@ -336,7 +344,8 @@
       "messages/group-chat",
       "messages/search",
       "messages/chat-menu",
-      "messages/new-conversation"
+      "messages/new-conversation",
+      "messages/message-options"
     ],
     "guide.meetings": [
       "meetings/upcoming",
@@ -347,7 +356,7 @@
     "guide.dashboard": [
       "dashboard/tasks-overview",
       "dashboard/tasks-status",
-      "dashboard/tasks-flow",
+      "dashboard/tasks-workload",
       "dashboard/projects-overview",
       "dashboard/projects-flow"
     ],

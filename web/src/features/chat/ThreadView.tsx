@@ -7,17 +7,24 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { Modal } from "@/components/Modal";
 import { useCreateMeeting } from "@/features/meetings/queries";
 import { generateJitsiLink } from "@/features/meetings/meetingUtils";
 import { useImageViewer } from "@/components/imageViewerContext";
-import { ConversationMenu } from "./ConversationMenu";
+import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { DeleteMessageModal } from "./DeleteMessageModal";
+import { useLongPress } from "./useLongPress";
 import { menuItemsFor, type ConversationAction } from "./conversationMenuItems";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { parseApiError } from "@/lib/apiError";
 import type { Member } from "@/features/members/api";
-import type { ChatMessage, Conversation, UploadedAttachment } from "./api";
+import {
+  EDIT_WINDOW_MS,
+  REACTION_EMOJIS,
+  type ChatMessage,
+  type Conversation,
+  type UploadedAttachment,
+} from "./api";
 import { Avatar } from "@/components/ui/Avatar";
 import { Composer } from "./Composer";
 import { MessageBubble } from "./MessageBubble";
@@ -68,6 +75,8 @@ interface ThreadViewProps {
   onRequestDelete: (conversation: Conversation) => void;
 }
 
+type MessageAction = "reply" | "copy" | "edit" | "delete";
+
 export function ThreadView({
   orgId,
   conversation,
@@ -84,7 +93,7 @@ export function ThreadView({
   const conversationId = conversation.id;
   const { typing, sendTyping } = useChatRealtime();
   const messagesQuery = useMessages(orgId, conversationId);
-  const { send, edit, remove, react, markRead } = useChatMutations(
+  const { send, edit, remove, hide, react, markRead } = useChatMutations(
     orgId,
     conversationId,
   );
@@ -113,6 +122,13 @@ export function ThreadView({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatMessage | null>(null);
+  // The menu for one message, opened by press and hold or a right click.
+  const [messageMenu, setMessageMenu] = useState<{
+    message: ChatMessage;
+    x: number;
+    y: number;
+    touch: boolean;
+  } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [atBottom, setAtBottom] = useState(true);
   const [unseen, setUnseen] = useState(0);
@@ -384,12 +400,59 @@ export function ThreadView({
     window.setTimeout(() => setHighlightId(null), 1600);
   };
 
-  const confirmDelete = () => {
+  const deleteForEveryone = () => {
     if (!deleteTarget) return;
     remove.mutate(deleteTarget.id, {
       onError: (error) => toast.error(parseApiError(error).message),
     });
     setDeleteTarget(null);
+  };
+
+  const deleteForMe = () => {
+    if (!deleteTarget) return;
+    hide.mutate(deleteTarget.id, {
+      onError: (error) => toast.error(parseApiError(error).message),
+    });
+    setDeleteTarget(null);
+  };
+
+  const longPress = useLongPress<ChatMessage>((message, x, y, touch) => {
+    setSelectedId(null);
+    setMessageMenu({ message, x, y, touch });
+  });
+
+  const messageMenuItems = (
+    message: ChatMessage,
+  ): MenuItem<MessageAction>[] => {
+    if (message.deletedAt !== null) {
+      return [{ action: "delete", label: "Delete for me", danger: true }];
+    }
+    const canEdit =
+      message.senderId === myId &&
+      now - new Date(message.createdAt).getTime() < EDIT_WINDOW_MS;
+    return [
+      { action: "reply", label: "Reply" },
+      ...(message.text
+        ? [{ action: "copy", label: "Copy text" } as const]
+        : []),
+      ...(canEdit ? [{ action: "edit", label: "Edit" } as const] : []),
+      { action: "delete", label: "Delete…", danger: true },
+    ];
+  };
+
+  const runMessageAction = (action: MessageAction) => {
+    const target = messageMenu?.message;
+    setMessageMenu(null);
+    if (!target) return;
+    if (action === "reply") setReplyTo(target);
+    if (action === "edit") setEditingId(target.id);
+    if (action === "delete") setDeleteTarget(target);
+    if (action === "copy") {
+      void navigator.clipboard
+        ?.writeText(target.text)
+        .then(() => toast.success("Copied"))
+        .catch(() => toast.error("Couldn't copy"));
+    }
   };
 
   const saveEdit = (message: ChatMessage, text: string) => {
@@ -746,6 +809,8 @@ export function ThreadView({
                       )
                     }
                     onJumpTo={handleJumpTo}
+                    menuHandlers={longPress.handlersFor(item.message)}
+                    wasLongPress={longPress.wasLongPress}
                     onOpenImage={(image) =>
                       openImage({ src: image.url, alt: image.name })
                     }
@@ -866,7 +931,7 @@ export function ThreadView({
         onSend={handleSend}
       />
 
-      <ConversationMenu
+      <ContextMenu
         title={title}
         items={menuItemsFor(conversation, { includeMarkRead: false })}
         anchor={headerMenu}
@@ -874,24 +939,49 @@ export function ThreadView({
         onClose={() => setHeaderMenu(null)}
       />
 
-      <Modal
-        open={deleteTarget !== null}
+      <DeleteMessageModal
+        message={deleteTarget}
+        mine={deleteTarget?.senderId === myId}
+        now={now}
         onClose={() => setDeleteTarget(null)}
-        title="Delete this message?"
-      >
-        <p className="text-sm text-slate-600 dark:text-slate-300">
-          It will be removed for everyone in the conversation. They'll see "This
-          message was deleted" in its place.
-        </p>
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
-            Keep it
-          </Button>
-          <Button variant="danger" onClick={confirmDelete}>
-            Delete
-          </Button>
-        </div>
-      </Modal>
+        onDeleteForMe={deleteForMe}
+        onDeleteForEveryone={deleteForEveryone}
+      />
+
+      <ContextMenu
+        title="Message"
+        items={messageMenu ? messageMenuItems(messageMenu.message) : []}
+        anchor={messageMenu}
+        header={
+          messageMenu && messageMenu.message.deletedAt === null ? (
+            <div className="flex justify-between gap-0.5 border-b border-slate-100 px-2 py-1.5 dark:border-slate-700">
+              {REACTION_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  aria-label={`React with ${emoji}`}
+                  onClick={() => {
+                    const target = messageMenu.message;
+                    setMessageMenu(null);
+                    react.mutate(
+                      { messageId: target.id, emoji },
+                      {
+                        onError: (error) =>
+                          toast.error(parseApiError(error).message),
+                      },
+                    );
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg text-xl hover:bg-slate-100 dark:hover:bg-slate-700"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          ) : undefined
+        }
+        onSelect={runMessageAction}
+        onClose={() => setMessageMenu(null)}
+      />
     </div>
   );
 }
