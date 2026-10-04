@@ -270,7 +270,7 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 ## Features
 
 - **Tenant isolation:** one Mongoose plugin scopes every query, write and aggregation to the current org. The current org lives in `AsyncLocalStorage` for the length of the request, and a query with no org context fails instead of leaking data.
-- **Accounts:** email must be verified before an account or its first organization is created. Sign-up asks for the password twice, every password box has a Show button, and the verification, password reset and email change links can each be sent again (after a minute, with a note to check spam). The browser that signed up gets a secret that lets it sign itself in once the link has been opened on any device, so a sign-up started on one device and confirmed on another still ends signed in. Email changes require the current password and confirmation at the new address. Short-lived JWT access tokens (15 minutes) and rotating refresh tokens are used; only hashes of refresh tokens are stored. Reusing an old refresh token signs out that whole chain of sessions. People can delete their own account; it's soft-deleted so the audit history still makes sense, and the email is freed up for a new sign-up.
+- **Accounts:** email must be verified before an account or its first organization is created. Sign-up asks for the password twice, every password box has a Show button, and the verification, password reset and email change links can each be sent again (after a minute, with a note to check spam). The browser that signed up gets a secret that lets it sign itself in once the link has been opened on any device, so a sign-up started on one device and confirmed on another still ends signed in. The sign-up form suggests a fix when an email looks like a typo of a well-known provider ("gmial.com", "gmail.con"), passwords are refused with a plain reason when they are among the most common, a repeated or sequential pattern, or contain the person's own name or email (the form shows a strength bar and an (i) explaining why, and the server enforces it), and logging in with the right password before confirming the email says so and offers a new link, instead of "invalid password". Addresses listed in `EMAIL_VERIFICATION_BYPASS_EMAILS` skip both email verification and these password rules, for shared demo logins. Password reset requests are limited to one email a minute per account, and Settings lists every signed-in device with a way to sign each one out, or all of them. Email changes require the current password and confirmation at the new address. Short-lived JWT access tokens (15 minutes) and rotating refresh tokens are used; only hashes of refresh tokens are stored. Reusing an old refresh token signs out that whole chain of sessions. People can delete their own account; it's soft-deleted so the audit history still makes sense, and the email is freed up for a new sign-up.
 - **Roles:** admin, manager and member, checked on the server for every request. The UI hides what a role can't use, but the API is what actually says no.
 - **Organizations and plans:** Free, Pro and Premium plans with limits on seats, projects and active tasks per project (see [Plans](#plans)). Upgrades are simulated. A downgrade is blocked while current usage is over the smaller plan's limits, and the error says what's over.
 - **Invites:** admins get a one-time invite link (only a hash of the token is stored), and a seat is reserved safely even if several invites go out at once. If the person already has an account, the invitation also shows up in their app under the bell and on their organizations page, where they can join or decline. Inviting an email that already has a pending invite offers a fresh link instead of a vague error.
@@ -286,7 +286,7 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 - **Meetings:** schedule a meeting with a time, agenda, location, a join link (paste one, or create a free Jitsi room) and the people you want there. Only the organizer and the people invited can see it. Meetings can repeat daily, weekly or monthly, and can be linked to a project or a task (the task's Meetings tab shows them). Invitees reply Accept, Maybe or Decline, or suggest another time, which the organizer can accept or turn down. People are notified when a meeting is created, changed or cancelled, and get a reminder 15 minutes before it starts. Moving the time asks everyone to reply again. There's an upcoming and past list, a month calendar, a warning when you double-book yourself, "Meet now" for an instant call, and an "Add to calendar" download.
 - **When someone leaves:** if a member is removed or leaves an org, they're taken out of its group chats and meeting invites. If they organize upcoming meetings, the admin removing them (or they, when leaving) picks between cancelling those meetings and handing them to someone who stays. One to one chats stay for the other person but can't be continued.
 - **Audit log:** every change to orgs, members, invites, projects, tasks and plans is written in the same transaction as the change, so an action that rolls back never leaves an entry behind. The UI shows plain-language rows with filters.
-- **Around the app:** light and dark themes, a first-run tour that shows once per account (and can be replayed from "Show the tour" in the sidebar), a "How to use" guide with screenshots and the full permission table, a landing page with a product tour, and a "Send feedback" form that emails the author, so it works on every device. The WorkNest logo on every page leads to the landing page, which then offers "Go to your workspace" straight back to the organization you were last in. Each page sets its own tab title, new pages open at the top, and everything works on phones.
+- **Around the app:** light and dark themes, a first-run tour that shows once per account (and can be replayed from "Show the tour" in the sidebar), a "How to use" guide with screenshots and the full permission table, a landing page with a product tour, and a "Send feedback" form that emails the author, so it works on every device (signed-in people can attach a screenshot, which is shrunk in the browser and checked on the server). The WorkNest logo on every page leads to the landing page, which then offers "Go to your workspace" straight back to the organization you were last in. Each page sets its own tab title, new pages open at the top, and everything works on phones.
 
 ## Plans
 
@@ -389,6 +389,14 @@ npm run build      # includes a full TypeScript build
 npm run lint
 ```
 
+```bash
+cd e2e
+npm ci && npx playwright install chromium
+npm test           # starts an in-memory MongoDB, the API and the web app, then drives a browser
+```
+
+The browser tests (`e2e/`) cover sign-up on one device and confirming on another, the email typo hint, refusing common passwords, the "confirm your email" message at login and the signed-in devices list. They run in CI as their own job. Emails are caught in a file instead of being sent.
+
 The backend tests cover:
 
 - tenant isolation, including failing closed when there's no org context
@@ -406,6 +414,7 @@ The backend tests cover:
 - meeting visibility, RSVPs, rescheduling, cancelling and the reminder before a meeting starts
 - repeating meetings (replying to, editing and cancelling one date or all later ones), suggested times, and links to tasks and projects
 - what happens to chats and meetings when someone leaves an organization
+- the sign-up flows: pending sign-ups, cross-device sign-in, resend limits, common passwords, the password reset cooldown, signed-in devices and feedback screenshots
 
 ## Project Structure
 
@@ -420,6 +429,7 @@ api/
     models/         one Mongoose schema per collection
     db/             database connection and startup migrations
   tests/            Vitest and Supertest, against mongodb-memory-server
+e2e/                Playwright browser tests for the sign-up and account screens
 web/
   src/
     auth/           AuthProvider, route guards

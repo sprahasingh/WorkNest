@@ -209,3 +209,26 @@ export async function fetchMe(
 export async function deleteAccount(): Promise<void> {
   await apiClient.delete("/auth/me");
 }
+
+export interface DeviceSession {
+  id: string;
+  // The browser's own description, e.g. "Mozilla/5.0 (iPhone) ...".
+  device: string;
+  lastActiveAt: string;
+  current: boolean;
+}
+
+export async function listSessions(): Promise<DeviceSession[]> {
+  const response = await apiClient.get<{ sessions: DeviceSession[] }>(
+    "/auth/me/sessions",
+  );
+  return response.data.sessions;
+}
+
+export async function revokeSession(id: string): Promise<void> {
+  await apiClient.delete(`/auth/me/sessions/${id}`);
+}
+
+export async function revokeAllSessions(): Promise<void> {
+  await apiClient.delete("/auth/me/sessions");
+}

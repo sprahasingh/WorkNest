@@ -13,7 +13,7 @@ async function registerOrg(email: string, orgName: string) {
   const res = await registerAndVerify(app, {
     name: "Test User",
     email,
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName,
   });
 

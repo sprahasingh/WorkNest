@@ -7,6 +7,7 @@ const sessionSchema = new Schema(
     tokenHash: { type: String, required: true, unique: true },
     expiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null },
+    userAgent: { type: String, default: "" },
     replacedBy: { type: Schema.Types.ObjectId, ref: "Session", default: null },
   },
   { timestamps: true },

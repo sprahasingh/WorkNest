@@ -8,7 +8,11 @@ export const createProjectSchema = z
     key: z
       .string()
       .trim()
-      .regex(/^[A-Z]{2,6}$/),
+      .toUpperCase()
+      .regex(
+        /^[A-Z][A-Z0-9]{1,5}$/,
+        "Key must be 2-6 letters or numbers, starting with a letter",
+      ),
     description: z.string().trim().max(500).optional(),
     priority: z.enum(["low", "medium", "high"]).optional(),
     dueDate: dueDateInputSchema.optional(),
