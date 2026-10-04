@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
-import { TEST_CARD, copyText } from "./testDetails";
+import { TEST_CARD, TEST_CARD_COPIED_EVENT, copyTestCard } from "./testDetails";
 
 // Test mode only. Razorpay's window can't be filled in by this page and covers
 // the screen once it is open, so the one value worth copying is the card
@@ -10,11 +10,25 @@ import { TEST_CARD, copyText } from "./testDetails";
 export function TestPaymentBox() {
   const [copied, setCopied] = useState(false);
 
-  const copy = async () => {
-    if (await copyText(TEST_CARD)) {
+  // Also lights up when the card was copied from elsewhere, such as pressing
+  // Upgrade, so the box always shows what just happened.
+  useEffect(() => {
+    let timer = 0;
+    const onCopied = () => {
       setCopied(true);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setCopied(false), 2500);
+    };
+    window.addEventListener(TEST_CARD_COPIED_EVENT, onCopied);
+    return () => {
+      window.removeEventListener(TEST_CARD_COPIED_EVENT, onCopied);
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  const copy = async () => {
+    if (await copyTestCard()) {
       toast.success("Card number copied");
-      window.setTimeout(() => setCopied(false), 1800);
     } else {
       toast.error("Couldn't copy. Select the number and copy it instead.");
     }

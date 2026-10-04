@@ -37,7 +37,7 @@ import { SessionsCard } from "./SessionsCard";
 import { billingQuery } from "@/features/billing/queries";
 import { payForPlan } from "@/features/billing/razorpay";
 import { TestPaymentBox } from "@/features/billing/TestPaymentBox";
-import { TEST_CARD, copyText } from "@/features/billing/testDetails";
+import { copyTestCard } from "@/features/billing/testDetails";
 import { orgKeys } from "@/features/org/queries";
 import { dashboardKeys } from "@/features/dashboard/queries";
 import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
@@ -830,7 +830,7 @@ export function SettingsPage() {
       setPayingFor(newPlan);
       // Razorpay's window covers the screen once it opens, so in test mode the
       // card number is already on the clipboard, ready to paste.
-      if (testMode) void copyText(TEST_CARD);
+      if (testMode) void copyTestCard();
       try {
         const result = await payForPlan(
           orgId,
@@ -846,7 +846,7 @@ export function SettingsPage() {
             action: tryTestCard
               ? {
                   label: "Copy test card",
-                  onClick: () => void copyText(TEST_CARD),
+                  onClick: () => void copyTestCard(),
                 }
               : undefined,
           });

@@ -13,3 +13,14 @@ export async function copyText(text: string): Promise<boolean> {
     return false;
   }
 }
+
+export const TEST_CARD_COPIED_EVENT = "worknest:test-card-copied";
+
+// Copies the test card and tells the test box on the page, so its button can
+// show "Copied" even when the copy was started from somewhere else (pressing
+// Upgrade, or the failed-payment message).
+export async function copyTestCard(): Promise<boolean> {
+  const ok = await copyText(TEST_CARD);
+  if (ok) window.dispatchEvent(new Event(TEST_CARD_COPIED_EVENT));
+  return ok;
+}
