@@ -258,23 +258,17 @@ export function ProjectBoard() {
             </h1>
           </div>
           <div className="flex w-full items-center gap-2 sm:w-auto">
-            <MuteToggle orgId={orgId} projectId={projectId} />
+            <MuteToggle orgId={orgId} projectId={projectId} iconOnly />
             <Button
               variant="secondary"
-              className="flex-1 sm:flex-none"
+              className="h-10 flex-1 sm:flex-none"
               onClick={() => setParam("updates", "1")}
             >
               Project updates
             </Button>
-            <Link
-              to={`/orgs/${orgId}/meetings?project=${projectId}`}
-              className="inline-flex flex-1 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 sm:flex-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              Meetings
-            </Link>
             {canCreate && !isArchived && (
               <Button
-                className="flex-1 sm:flex-none"
+                className="h-10 flex-1 sm:flex-none"
                 onClick={() => setDrawerState({ mode: "create" })}
                 disabled={atTaskLimit}
                 title={

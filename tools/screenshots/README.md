@@ -45,6 +45,6 @@ npm run capture -- --theme dark
 ## Good to know
 
 - The API limits sign-ins and requests per IP address, and a full run comes close to those limits. Restart the API after `npm run demo`, and if a run stops at the sign-in page, restart it again and capture one theme at a time (`npm run capture -- --theme light`, restart, then `--theme dark`).
-- Dates in the demo are relative to today, so a retake always looks current. The meeting that "starts in a few minutes" is created a few minutes before you run the demo script, so take the pictures soon after.
+- Dates in the demo are relative to the day you run `npm run demo`, so a retake always looks current. The browser clock is frozen to five minutes before the "Daily standup" meeting while pictures are taken, which keeps labels like "Starts in 5 min" identical in the light and dark versions and in every rerun. If you retake pictures a day after running the demo script, run it again first.
 - The names typed into forms (the new project, the invited email, the search word) are in the `DEMO` block at the top of `capture.mjs`.
 - The people, projects, tasks, chat and meetings are in `demo-data.mjs`. Change the data there and run steps 1 to 5 again.
