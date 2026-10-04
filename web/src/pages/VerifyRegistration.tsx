@@ -8,6 +8,7 @@ import { resendVerification } from "@/api/auth";
 import { useCooldown } from "@/hooks/useCooldown";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
+import { ResendButton } from "@/components/ui/ResendButton";
 import { parseApiError } from "@/lib/apiError";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 
@@ -113,18 +114,15 @@ export function VerifyRegistration() {
                   {resendNote}
                 </p>
               )}
-              <Button
+              <ResendButton
                 type="submit"
-                disabled={
-                  !resendEmail.trim() || isResending || cooldown.left > 0
-                }
+                variant="primary"
+                label="Send a new link"
+                secondsLeft={cooldown.left}
+                disabled={!resendEmail.trim() || isResending}
                 loading={isResending}
                 className="w-full"
-              >
-                {cooldown.left > 0
-                  ? `Send a new link in ${cooldown.left}s`
-                  : "Send a new link"}
-              </Button>
+              />
             </form>
             <Link
               to="/register"

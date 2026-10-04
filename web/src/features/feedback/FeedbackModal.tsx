@@ -2,7 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/auth-context";
-import { getFeedbackEnabled, sendFeedback } from "@/api/feedback";
+import { sendFeedback } from "@/api/feedback";
+import { feedbackEnabledQuery } from "./queries";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, inputStyles } from "@/components/ui/Field";
@@ -48,11 +49,9 @@ function FeedbackBody({
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const enabled = useQuery({
-    queryKey: ["feedback", "enabled"],
-    queryFn: getFeedbackEnabled,
-    staleTime: 5 * 60 * 1000,
-  });
+  // Started when the app loads (see FeedbackProvider), so by the time the form
+  // opens this is already known and the form doesn't change shape under you.
+  const enabled = useQuery(feedbackEnabledQuery);
 
   const pickPicture = async (file: File | undefined) => {
     if (!file) return;
@@ -114,25 +113,39 @@ function FeedbackBody({
             <Button onClick={onClose}>Close</Button>
           </div>
         </div>
+      ) : enabled.isPending ? (
+        <div
+          className="space-y-3"
+          role="status"
+          aria-label="Loading the feedback form"
+        >
+          <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+          <div className="h-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+          <div className="h-9 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+        </div>
       ) : fallback ? (
         <div className="space-y-4">
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Sending from here isn&apos;t switched on, so please email us at{" "}
-            <span className="font-medium text-slate-800 dark:text-slate-100">
-              {FEEDBACK_EMAIL}
-            </span>
-            .
+            We&apos;d love to hear what you think. Send your feedback by email
+            to:
           </p>
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="secondary" onClick={copyAddress}>
-              Copy address
-            </Button>
+          <p className="break-all rounded-lg bg-slate-50 px-3 py-2.5 text-center text-sm font-medium text-slate-800 select-all dark:bg-slate-800 dark:text-slate-100">
+            {FEEDBACK_EMAIL}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row-reverse">
             <a
               href={feedbackMailto(from, sender)}
-              className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+              className="inline-flex flex-1 items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 sm:flex-none"
             >
               Open my email app
             </a>
+            <Button
+              variant="secondary"
+              onClick={copyAddress}
+              className="flex-1 sm:flex-none"
+            >
+              Copy address
+            </Button>
           </div>
         </div>
       ) : (
