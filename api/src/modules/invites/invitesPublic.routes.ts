@@ -1,3 +1,4 @@
+import { scaled } from "../../lib/rateLimit.js";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { validate } from "../../middleware/validate.js";
@@ -13,7 +14,7 @@ import {
 const router = Router();
 const signupLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: scaled(10),
   standardHeaders: true,
   legacyHeaders: false,
 });

@@ -34,8 +34,9 @@ function useVisibleHeight(): number {
     const viewport = window.visualViewport;
     const update = () => {
       setHeight(read());
-      // iOS scrolls the page when the keyboard opens; keep it put.
-      window.scrollTo(0, 0);
+      // iOS scrolls the page when the keyboard opens; keep it put. Only on
+      // touch devices: on a computer a resized window must not jump the page.
+      if (window.matchMedia("(pointer: coarse)").matches) window.scrollTo(0, 0);
     };
     window.addEventListener("resize", update);
     viewport?.addEventListener("resize", update);

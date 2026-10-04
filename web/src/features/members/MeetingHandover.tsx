@@ -52,7 +52,7 @@ export function MeetingHandover({
           {meetings.slice(0, 5).map((meeting) => (
             <li key={meeting.id}>
               {meeting.title}{" "}
-              <span className="text-slate-400">
+              <span className="text-slate-500 dark:text-slate-400">
                 ·{" "}
                 {new Date(meeting.startsAt).toLocaleDateString(undefined, {
                   day: "numeric",

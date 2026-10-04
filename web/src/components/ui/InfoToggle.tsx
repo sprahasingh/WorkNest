@@ -76,7 +76,7 @@ export function InfoPanel({
         type="button"
         onClick={onClose}
         aria-label="Close explanation"
-        className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+        className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
       >
         <svg
           viewBox="0 0 24 24"

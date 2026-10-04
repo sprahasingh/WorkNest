@@ -141,7 +141,7 @@ export function MeetingsPage() {
   const renderList = (meetings: Meeting[]) =>
     groupByDay(meetings).map(([heading, items]) => (
       <section key={heading} aria-label={heading} className="mt-6 first:mt-0">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           {heading}
         </h2>
         <ul className="space-y-2">

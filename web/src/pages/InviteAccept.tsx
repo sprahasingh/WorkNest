@@ -1,3 +1,4 @@
+import { PASSWORD_TOO_LONG, passwordFitsLimit } from "@/lib/passwordPolicy";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,7 +29,7 @@ const signupFormSchema = z
     password: z
       .string()
       .min(8, "Password must be at least 8 characters")
-      .max(72),
+      .refine(passwordFitsLimit, PASSWORD_TOO_LONG),
     confirmPassword: z.string().min(1, "Please type your password again"),
   })
   .superRefine((values, context) => {
