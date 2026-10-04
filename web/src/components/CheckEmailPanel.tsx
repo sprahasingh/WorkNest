@@ -5,6 +5,7 @@ import { useAuth } from "@/auth/auth-context";
 import { getRegistrationStatus, resendVerification } from "@/api/auth";
 import type { MeResponse } from "@/api/auth";
 import { Button } from "@/components/ui/Button";
+import { ResendButton } from "@/components/ui/ResendButton";
 import { useCooldown } from "@/hooks/useCooldown";
 import { parseApiError } from "@/lib/apiError";
 
@@ -161,15 +162,12 @@ export function CheckEmailPanel({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          variant="secondary"
+        <ResendButton
+          secondsLeft={left}
           onClick={() => void resend()}
-          disabled={left > 0 || resending || state === "signing-in"}
+          disabled={resending || state === "signing-in"}
           loading={resending}
-        >
-          {left > 0 ? `Resend link in ${left}s` : "Resend link"}
-        </Button>
+        />
         <button
           type="button"
           onClick={onStartOver}
