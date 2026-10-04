@@ -111,7 +111,7 @@ describe("when someone leaves the organization", () => {
       await Notification.countDocuments({
         userId: priya.id,
         type: "meeting_cancelled",
-      }),
+      }).setOptions({ skipTenant: true }),
     ).toBe(1);
 
     // Invited to someone else's meeting: just dropped from the list.
@@ -157,7 +157,7 @@ describe("when someone leaves the organization", () => {
       await Notification.countDocuments({
         userId: lee.id,
         message: /handed you/,
-      }),
+      }).setOptions({ skipTenant: true }),
     ).toBe(1);
   });
 

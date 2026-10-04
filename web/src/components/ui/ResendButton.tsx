@@ -26,7 +26,7 @@ export function ResendButton({
       {label}
       <span
         aria-hidden="true"
-        className="ml-2 inline-block w-[3ch] text-left tabular-nums text-slate-400 dark:text-slate-500"
+        className="ml-2 inline-block w-[3ch] text-left tabular-nums text-slate-500 dark:text-slate-400"
       >
         {secondsLeft > 0 ? `${secondsLeft}s` : ""}
       </span>

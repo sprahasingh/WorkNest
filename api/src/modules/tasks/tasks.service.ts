@@ -1,3 +1,4 @@
+import { logger } from "../../lib/logger.js";
 import mongoose from "mongoose";
 import { dateOnlyDueDate } from "../../lib/timezone.js";
 import { Task } from "../../models/Task.js";
@@ -177,7 +178,7 @@ function countActiveTasks(
 async function assertRoomForActiveTask(
   tenantId: string,
   projectId: string,
-  action: "create" | "reopen",
+  action: "create" | "reopen" | "restore",
   // Inside a transaction that has locked the project (see
   // projectConsumesSlot), the count can't change under us.
   dbSession?: mongoose.ClientSession,
@@ -192,7 +193,9 @@ async function assertRoomForActiveTask(
   const nextStep =
     action === "create"
       ? "Mark a task as done"
-      : "Finish another task before reopening this one";
+      : action === "restore"
+        ? "Finish another task before restoring this one"
+        : "Finish another task before reopening this one";
   throw new AppError(
     400,
     "TASK_LIMIT_REACHED",
@@ -679,10 +682,25 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
     }
   }
 
+  const statusBefore = task.status;
   const dbSession = await mongoose.startSession();
 
   try {
     await dbSession.withTransaction(async () => {
+      // The transaction can run again after a transient error, and a failed
+      // attempt has already changed this in-memory copy (and the reminder
+      // count). Start every attempt from what is really stored, so the diff,
+      // the audit entry and the counter are right the second time.
+      const fresh = await Task.findById(task._id).session(dbSession).lean();
+      if (!fresh) throw new AppError(404, "NOT_FOUND", "Task not found");
+      if (fresh.status !== statusBefore) {
+        throw new AppError(
+          409,
+          "TASK_CHANGED",
+          "This task was just changed by someone else. Refresh and try again.",
+        );
+      }
+      task.set(fresh);
       const wasActive = await projectConsumesSlot(task.projectId, dbSession);
       if (reopening) {
         await assertRoomForActiveTask(
@@ -1082,7 +1100,7 @@ export async function restoreTask(taskId: string) {
     await assertRoomForActiveTask(
       requireTenantId(),
       String(binnedTask.projectId),
-      "reopen",
+      "restore",
     );
   }
 
@@ -1098,7 +1116,7 @@ export async function restoreTask(taskId: string) {
         await assertRoomForActiveTask(
           requireTenantId(),
           String(binnedTask.projectId),
-          "reopen",
+          "restore",
           dbSession,
         );
       }
@@ -1191,7 +1209,9 @@ export async function purgeExpiredTasks(tenantId?: string) {
   const expired = await Task.find({
     ...(tenantId ? { tenantId } : {}),
     deletedAt: { $lt: cutoff },
-  }).setOptions({ includeDeleted: true, skipTenant: true });
+  })
+    .limit(500)
+    .setOptions({ includeDeleted: true, skipTenant: true });
 
   for (const task of expired) {
     const dbSession = await mongoose.startSession();
@@ -1210,6 +1230,12 @@ export async function purgeExpiredTasks(tenantId?: string) {
           dbSession,
         );
       });
+    } catch (err) {
+      // One that can't be removed must not stop the others being cleaned up.
+      logger.error(
+        { err, id: String(task._id) },
+        "Could not purge an expired task",
+      );
     } finally {
       await dbSession.endSession();
     }

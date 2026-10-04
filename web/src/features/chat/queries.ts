@@ -93,7 +93,17 @@ export function flattenMessages(
   data: InfiniteData<MessagePage, unknown> | undefined,
 ): ChatMessage[] {
   if (!data) return [];
-  return [...data.pages].reverse().flatMap((page) => page.messages);
+  // A refetch while messages arrive can show the same message at the edge of
+  // two pages, so each is kept once.
+  const seen = new Set<string>();
+  return [...data.pages]
+    .reverse()
+    .flatMap((page) => page.messages)
+    .filter((message) => {
+      if (seen.has(message.id)) return false;
+      seen.add(message.id);
+      return true;
+    });
 }
 
 function patchMessage(

@@ -22,7 +22,7 @@ export function RetentionNote({ orgId }: { orgId: string }) {
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="mt-0.5 h-4 w-4 shrink-0 text-slate-400"
+        className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"
         aria-hidden="true"
       >
         <circle cx="12" cy="12" r="9" />

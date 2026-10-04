@@ -10,6 +10,7 @@ vi.hoisted(() => {
 
 import request from "supertest";
 import { createApp } from "../src/app.js";
+import { Payment } from "../src/models/Payment.js";
 import { setupOrg } from "./orgHelpers.js";
 
 const app = createApp();
@@ -207,5 +208,77 @@ describe("the payment webhook", () => {
       payload: { payment: { entity: { id: "pay_z", order_id: "order_nope" } } },
     });
     expect(unknown.status).toBe(200);
+  });
+});
+
+describe("payments that go wrong halfway", () => {
+  const hook = (body: object) => {
+    const raw = JSON.stringify(body);
+    return request(app)
+      .post("/api/billing/webhook")
+      .set("Content-Type", "application/json")
+      .set(
+        "X-Razorpay-Signature",
+        createHmac("sha256", "hook_secret_value").update(raw).digest("hex"),
+      )
+      .send(raw);
+  };
+
+  it("ignores a webhook whose amount isn't what the order was for", async () => {
+    stubRazorpay();
+    const { orgId, admin } = await setupOrg(app, "pay5.test");
+    const order = await request(app)
+      .post(`/api/orgs/${orgId}/billing/order`)
+      .set(auth(admin.token))
+      .send({ plan: "pro" });
+    const res = await hook({
+      event: "payment.captured",
+      payload: {
+        payment: {
+          entity: {
+            id: "pay_cheap",
+            order_id: order.body.orderId,
+            amount: 100,
+          },
+        },
+      },
+    });
+    expect(res.status).toBe(200);
+    const org = await request(app)
+      .get(`/api/orgs/${orgId}`)
+      .set(auth(admin.token));
+    expect(org.body.organization.plan).toBe("free");
+  });
+
+  it("finishes an order that was marked paid but never applied", async () => {
+    stubRazorpay();
+    const { orgId, admin } = await setupOrg(app, "pay6.test");
+    const order = await request(app)
+      .post(`/api/orgs/${orgId}/billing/order`)
+      .set(auth(admin.token))
+      .send({ plan: "premium" });
+    // As if the server stopped right after marking it paid.
+    await Payment.updateOne(
+      { razorpayOrderId: order.body.orderId },
+      {
+        $set: {
+          status: "paid",
+          razorpayPaymentId: "pay_half",
+          paidAt: new Date(),
+        },
+      },
+    ).setOptions({ skipTenant: true });
+
+    const paymentId = "pay_half";
+    const confirmed = await request(app)
+      .post(`/api/orgs/${orgId}/billing/verify`)
+      .set(auth(admin.token))
+      .send({
+        orderId: order.body.orderId,
+        paymentId,
+        signature: sign(order.body.orderId, paymentId),
+      });
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body.organization.plan).toBe("premium");
   });
 });

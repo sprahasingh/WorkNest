@@ -452,7 +452,7 @@ export function ActivityFeed({
             <time
               dateTime={entry.createdAt}
               title={formatFullTime(entry.createdAt)}
-              className="ml-auto text-xs text-slate-400"
+              className="ml-auto text-xs text-slate-500 dark:text-slate-400"
             >
               {formatRelativeTime(entry.createdAt)}
             </time>
@@ -641,7 +641,7 @@ export function ActivityFeed({
       .filter((id) => memberNames.has(id))
       .map(nameOf);
     return (
-      <p className="ml-11 mt-2 text-xs text-slate-400 dark:text-slate-500">
+      <p className="ml-11 mt-2 text-xs text-slate-500 dark:text-slate-400">
         Only {joinNames(names)} can reply here
       </p>
     );

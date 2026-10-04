@@ -87,7 +87,7 @@ export function MonthCalendar({
         </div>
       </div>
 
-      <div className="grid grid-cols-7 text-center text-xs font-medium text-slate-400">
+      <div className="grid grid-cols-7 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
         {WEEKDAYS.map((day) => (
           <div key={day} className="pb-2">
             {day}
@@ -132,7 +132,7 @@ export function MonthCalendar({
                     ? "bg-teal-600 text-white"
                     : inMonth
                       ? "text-slate-700 dark:text-slate-200"
-                      : "text-slate-400",
+                      : "text-slate-500 dark:text-slate-400",
                 )}
               >
                 {day.getDate()}
