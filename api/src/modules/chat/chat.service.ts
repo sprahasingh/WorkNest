@@ -1,3 +1,4 @@
+import { destroyConversationFiles } from "./chatFiles.cleanup.js";
 import mongoose from "mongoose";
 import { Conversation } from "../../models/Conversation.js";
 import { Message } from "../../models/Message.js";
@@ -499,6 +500,7 @@ export async function removeConversationMember(
 
   const remaining = everyone.filter((id) => id !== userId);
   if (remaining.length === 0) {
+    await destroyConversationFiles(conversation._id);
     await Message.deleteMany({ conversationId: conversation._id });
     await Conversation.deleteOne({ _id: conversation._id });
     notifyConversation(everyone, { kind: "conversation", conversationId });
@@ -680,13 +682,28 @@ export async function sendMessage(
     for (const attachment of attachments) {
       if (
         !isCloudinaryUrl(attachment.url) ||
-        !attachment.publicId.startsWith(`worknest/${tenantId}/chat/`) ||
+        !attachment.publicId.startsWith(`worknest/${tenantId}/chat/${me}/`) ||
         // The link has to be the file that public id points to, so nobody
         // can attach another organization's upload.
         !attachment.url.includes(`/${attachment.publicId}`)
       ) {
         throw new AppError(400, "VALIDATION_ERROR", "Invalid attachment");
       }
+    }
+  }
+
+  // A file can only be attached once. Without this, the same upload could be
+  // attached twice, and deleting one message would remove the other's file.
+  if (attachments.length > 0) {
+    const taken = await Message.exists({
+      "attachments.publicId": { $in: attachments.map((a) => a.publicId) },
+    });
+    if (taken) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "That file was already sent. Upload it again to send it again.",
+      );
     }
   }
 
@@ -697,11 +714,7 @@ export async function sendMessage(
       attachment.resourceType,
     );
     if (bytes !== null && bytes > MAX_FILE_BYTES) {
-      await Promise.all(
-        attachments.map((item) =>
-          destroyUpload(item.publicId, item.resourceType),
-        ),
-      );
+      await destroyUpload(attachment.publicId, attachment.resourceType);
       throw new AppError(
         400,
         "FILE_TOO_LARGE",
@@ -788,7 +801,11 @@ export async function editMessage(messageId: string, text: string) {
       "Messages can only be edited for 10 minutes after sending",
     );
   }
-  await Message.updateOne({ _id: message._id }, { text, editedAt: new Date() });
+  // Not if it was deleted a moment ago: the text must not come back.
+  await Message.updateOne(
+    { _id: message._id, deletedAt: null },
+    { text, editedAt: new Date() },
+  );
 
   const latest = await Conversation.findOne({
     _id: conversation._id,
@@ -886,10 +903,18 @@ export async function toggleReaction(messageId: string, emoji: string) {
       { $addToSet: { "reactions.$.userIds": oid(me) } },
     );
   } else {
-    await Message.updateOne(
-      { _id: message._id },
+    // Guarded, so two people adding the same new emoji at once can't create
+    // two separate entries for it.
+    const added = await Message.updateOne(
+      { _id: message._id, "reactions.emoji": { $ne: emoji } },
       { $push: { reactions: { emoji, userIds: [oid(me)] } } },
     );
+    if (added.modifiedCount === 0) {
+      await Message.updateOne(
+        { _id: message._id, "reactions.emoji": emoji },
+        { $addToSet: { "reactions.$.userIds": oid(me) } },
+      );
+    }
   }
   notifyConversation(memberIds(conversation), {
     kind: "updated",
@@ -937,7 +962,9 @@ export function signAttachmentUpload() {
     );
   }
   logger.debug("Issuing attachment upload signature");
-  return createUploadSignature(`worknest/${requireTenantId()}/chat`);
+  // Each person uploads into their own folder, so nobody can attach (or
+  // later delete) a file somebody else uploaded.
+  return createUploadSignature(`worknest/${requireTenantId()}/chat/${myId()}`);
 }
 
 // ---- Mute, search ------------------------------------------------------
@@ -1006,6 +1033,7 @@ export async function markConversationUnread(conversationId: string) {
     senderId: { $ne: myId() },
     kind: "user",
     deletedAt: null,
+    hiddenBy: { $ne: oid(myId()) },
     ...(cleared ? { createdAt: { $gt: cleared } } : {}),
   })
     .sort({ _id: -1 })

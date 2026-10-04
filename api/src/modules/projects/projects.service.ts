@@ -1,3 +1,4 @@
+import { logger } from "../../lib/logger.js";
 import mongoose from "mongoose";
 import { BIN_RETENTION_DAYS, Project } from "../../models/Project.js";
 import { Task } from "../../models/Task.js";
@@ -572,7 +573,9 @@ export async function purgeExpiredProjects(tenantId?: string) {
   const expired = await Project.find({
     ...(tenantId ? { tenantId } : {}),
     deletedAt: { $lt: cutoff },
-  }).setOptions({ skipTenant: true });
+  })
+    .limit(200)
+    .setOptions({ skipTenant: true });
 
   for (const project of expired) {
     const dbSession = await mongoose.startSession();
@@ -591,6 +594,12 @@ export async function purgeExpiredProjects(tenantId?: string) {
           dbSession,
         );
       });
+    } catch (err) {
+      // One that can't be removed must not stop the others being cleaned up.
+      logger.error(
+        { err, id: String(project._id) },
+        "Could not purge an expired project",
+      );
     } finally {
       await dbSession.endSession();
     }

@@ -1,3 +1,4 @@
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useOrg } from "@/hooks/useOrg";
@@ -67,6 +68,8 @@ function PanelBody({ onClose }: { onClose: () => void }) {
   const markRead = useMarkNotificationsRead(orgId);
   const dismiss = useDismissNotifications(orgId);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  useFocusTrap(panelRef, true);
   const [helpOpen, setHelpOpen] = useState(false);
   const helpId = useId();
 
@@ -108,6 +111,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
         onClick={onClose}
       />
       <section
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="notifications-title"
@@ -359,7 +363,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
                           onClick={() => dismiss.mutate([notification._id])}
                           aria-label={`Dismiss: ${notification.message}`}
                           title={reminder ? "Dismiss reminder" : "Dismiss"}
-                          className="mt-2 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          className="mt-2 rounded-lg p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                         >
                           <CloseIcon />
                         </button>

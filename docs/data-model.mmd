@@ -11,6 +11,10 @@ erDiagram
     CONVERSATION ||--o{ MESSAGE : "contains"
     ORGANIZATION ||--o{ MEETING : "has"
     ORGANIZATION ||--o{ PAYMENT : "has"
+    TASK ||--o{ TASK_ACTIVITY : "has"
+    PROJECT ||--o{ TASK_ACTIVITY : "has"
+    USER ||--o{ NOTIFICATION : "receives"
+    ORGANIZATION ||--o{ NOTIFICATION : "scopes"
 
     ORGANIZATION {
         ObjectId id PK
@@ -37,6 +41,32 @@ erDiagram
         string razorpayPaymentId
         string status
         date paidAt
+    }
+    TASK_ACTIVITY {
+        ObjectId id PK
+        ObjectId tenantId FK
+        ObjectId projectId FK
+        ObjectId taskId FK
+        ObjectId authorId FK
+        string type
+        string content
+        ObjectId[] mentionIds
+        ObjectId parentId
+        boolean notifyAll
+    }
+    NOTIFICATION {
+        ObjectId id PK
+        ObjectId tenantId FK
+        ObjectId userId FK
+        string type
+        string message
+        string eventKey
+        date readAt
+        date dismissedAt
+    }
+    JOB_LOCK {
+        string id PK
+        date lockedUntil
     }
     USER {
         ObjectId id PK
@@ -102,7 +132,7 @@ erDiagram
         string description
         string status
         string priority
-        ObjectId assigneeId FK
+        ObjectId[] assigneeIds FK
         date dueDate
         boolean dueDateIsDateOnly
         number reminderCycle

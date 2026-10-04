@@ -551,7 +551,7 @@ export function TaskDrawer({
                   className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800"
                 >
                   {members.length === 0 ? (
-                    <p className="px-3 py-2 text-sm text-slate-400">
+                    <p className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
                       No members yet
                     </p>
                   ) : (
@@ -577,10 +577,13 @@ export function TaskDrawer({
                           <span className="text-slate-700 dark:text-slate-200">
                             {member.userId.name}
                             {memberId === userId && (
-                              <span className="text-slate-400"> (you)</span>
+                              <span className="text-slate-500 dark:text-slate-400">
+                                {" "}
+                                (you)
+                              </span>
                             )}
                           </span>
-                          <span className="ml-auto text-xs capitalize text-slate-400">
+                          <span className="ml-auto text-xs capitalize text-slate-500 dark:text-slate-400">
                             {member.role}
                           </span>
                         </label>

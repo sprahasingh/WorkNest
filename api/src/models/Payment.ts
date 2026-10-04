@@ -32,6 +32,8 @@ const paymentSchema = new Schema(
 );
 
 paymentSchema.index({ tenantId: 1, createdAt: -1 });
+// The billing summary lists the latest paid orders.
+paymentSchema.index({ tenantId: 1, status: 1, paidAt: -1 });
 paymentSchema.plugin(tenantPlugin);
 
 export type PaymentDocument = InferSchemaType<typeof paymentSchema>;

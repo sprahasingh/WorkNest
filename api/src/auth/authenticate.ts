@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 const { TokenExpiredError, JsonWebTokenError } = jwt;
 import { verifyAccessToken } from "../lib/jwt.js";
 import { AppError } from "../lib/errors.js";
+import { isAccountActive } from "./userStatus.js";
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -10,11 +11,11 @@ declare module "express-serve-static-core" {
   }
 }
 
-export function authenticate(
+export async function authenticate(
   req: Request,
   _res: Response,
   next: NextFunction,
-): void {
+): Promise<void> {
   const header = req.headers.authorization;
 
   if (!header || !header.startsWith("Bearer ")) {
@@ -30,7 +31,6 @@ export function authenticate(
   try {
     const payload = verifyAccessToken(token);
     req.auth = { userId: payload.sub };
-    next();
   } catch (error) {
     if (error instanceof TokenExpiredError) {
       throw new AppError(401, "TOKEN_EXPIRED", "Access token has expired");
@@ -40,4 +40,13 @@ export function authenticate(
     }
     throw error;
   }
+
+  if (!(await isAccountActive(req.auth.userId))) {
+    throw new AppError(
+      401,
+      "TOKEN_INVALID",
+      "This account is no longer available",
+    );
+  }
+  next();
 }

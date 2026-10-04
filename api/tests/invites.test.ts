@@ -87,8 +87,17 @@ describe("invite seat limits under concurrency", () => {
       plan: "pro",
       seatLimit: 25,
       projectLimit: 50,
-      seatsUsed: 6,
     });
+    // Real usage: the admin plus five invited people is six seats, more than
+    // the Free plan's five. (The seat count is re-counted before a downgrade,
+    // so a made-up number would be corrected.)
+    for (const name of ["a", "b", "c", "d", "e"]) {
+      await request(app)
+        .post(`/api/orgs/${orgId}/invites`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ email: `${name}-downgrade@example.com`, role: "member" })
+        .expect(201);
+    }
 
     const res = await request(app)
       .post(`/api/orgs/${orgId}/plan`)

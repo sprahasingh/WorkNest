@@ -1,3 +1,4 @@
+import { scaled } from "../../lib/rateLimit.js";
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { validate } from "../../middleware/validate.js";
@@ -41,7 +42,7 @@ const router = Router();
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: scaled(10),
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -50,28 +51,28 @@ const authLimiter = rateLimit({
 // roomier budget instead of sharing login's.
 const refreshLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 120,
+  limit: scaled(120),
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const accountUpdateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: scaled(10),
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const verificationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: scaled(10),
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 const passwordResetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: scaled(10),
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -99,7 +100,7 @@ router.post(
 // has a larger allowance of its own.
 const registrationStatusLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 300,
+  limit: scaled(300),
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -130,7 +131,7 @@ router.post(
 );
 
 router.post("/refresh", refreshLimiter, refreshController);
-router.post("/logout", logoutController);
+router.post("/logout", refreshLimiter, logoutController);
 router.post(
   "/verify-email-change",
   verificationLimiter,
