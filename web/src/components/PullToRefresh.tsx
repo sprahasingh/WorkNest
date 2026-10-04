@@ -33,6 +33,8 @@ export function PullToRefresh() {
   const startY = useRef<number | null>(null);
   const pullRef = useRef(0);
   const busy = useRef(false);
+  // So the buzz at the line happens once per pull, not on every move.
+  const buzzed = useRef(false);
 
   useEffect(() => {
     const canStart = (event: TouchEvent) =>
@@ -58,6 +60,14 @@ export function PullToRefresh() {
       }
       // Resist a little, the further it goes.
       const eased = Math.min(MAX_PULL, distance * 0.5);
+      // A short tap on phones that support it, the moment letting go would
+      // refresh. Quietly skipped where the browser doesn't allow it.
+      if (eased >= TRIGGER && !buzzed.current) {
+        buzzed.current = true;
+        navigator.vibrate?.(10);
+      } else if (eased < TRIGGER) {
+        buzzed.current = false;
+      }
       pullRef.current = eased;
       setPull(eased);
       setDragging(true);
@@ -66,6 +76,7 @@ export function PullToRefresh() {
 
     const onEnd = async () => {
       const reached = pullRef.current >= TRIGGER;
+      buzzed.current = false;
       startY.current = null;
       pullRef.current = 0;
       setDragging(false);
@@ -112,19 +123,33 @@ export function PullToRefresh() {
   if (pull === 0 && !refreshing) return null;
 
   const progress = Math.min(1, pull / TRIGGER);
+  // Past the line, letting go refreshes: the circle turns solid so it is
+  // obvious when to let go.
+  const ready = !refreshing && pull >= TRIGGER;
+  const label = refreshing
+    ? "Refreshing"
+    : ready
+      ? "Release to refresh"
+      : "Pull to refresh";
   return (
     <div
       role="status"
       aria-live="polite"
-      aria-label={refreshing ? "Refreshing" : "Pull to refresh"}
-      className="pointer-events-none fixed left-1/2 top-0 z-[80]"
+      aria-label={label}
+      className="pointer-events-none fixed left-1/2 top-0 z-[80] flex flex-col items-center"
       style={{
         transform: `translate(-50%, ${pull - 44}px)`,
         transition: dragging ? "none" : "transform 200ms ease-out",
         opacity: Math.max(0.2, progress),
       }}
     >
-      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white shadow-lg dark:border-slate-600 dark:bg-slate-800">
+      <span
+        className={`flex h-10 w-10 items-center justify-center rounded-full border shadow-lg transition-[background-color,border-color,transform] duration-150 ${
+          ready
+            ? "scale-110 border-teal-600 bg-teal-600 dark:border-teal-400 dark:bg-teal-500"
+            : "border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800"
+        }`}
+      >
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -132,7 +157,9 @@ export function PullToRefresh() {
           strokeWidth={2.5}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`h-5 w-5 text-teal-600 dark:text-teal-400 ${refreshing ? "animate-spin" : ""}`}
+          className={`h-5 w-5 ${
+            ready ? "text-white" : "text-teal-600 dark:text-teal-400"
+          } ${refreshing ? "animate-spin" : ""}`}
           style={
             refreshing
               ? undefined
@@ -143,6 +170,13 @@ export function PullToRefresh() {
           <path d="M21 12a9 9 0 1 1-3-6.7" />
           <path d="M21 4v5h-5" />
         </svg>
+      </span>
+      {/* The same words a screen reader gets, so the cue isn't only a color. */}
+      <span
+        aria-hidden="true"
+        className="mt-1.5 whitespace-nowrap rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-slate-500 shadow-sm dark:bg-slate-800/90 dark:text-slate-300"
+      >
+        {label}
       </span>
     </div>
   );
