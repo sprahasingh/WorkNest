@@ -355,6 +355,43 @@ describe("task notifications", () => {
     expect(invalidTimeZone.status).toBe(400);
   });
 
+  it("leaves due dates where they are when the admin chooses not to move them", async () => {
+    const admin = await registerOrg(
+      "timezone-keep-dates@example.com",
+      "Timezone Keep Dates Org",
+    );
+    const projectId = await createProject(admin.orgId, admin.accessToken, "TK");
+    const created = await createTask(
+      admin.orgId,
+      projectId,
+      admin.accessToken,
+      { dueDate: "2026-09-30" },
+    );
+    expect(created.body.task.dueDate).toBe("2026-09-30T23:59:59.999Z");
+
+    const updated = await request(app)
+      .patch(`/api/orgs/${admin.orgId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ timeZone: "America/New_York", moveDueDates: false });
+    expect(updated.status).toBe(200);
+    expect(updated.body.organization.timeZone).toBe("America/New_York");
+
+    const tasks = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(
+      tasks.body.items.find(
+        (item: { _id: string }) => item._id === created.body.task._id,
+      ).dueDate,
+    ).toBe("2026-09-30T23:59:59.999Z");
+
+    const notABoolean = await request(app)
+      .patch(`/api/orgs/${admin.orgId}`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ timeZone: "Asia/Kolkata", moveDueDates: "no" });
+    expect(notABoolean.status).toBe(400);
+  });
+
   it("marks a date-only task overdue only after its selected day ends", async () => {
     const admin = await registerOrg(
       "date-boundary-reminder@example.com",

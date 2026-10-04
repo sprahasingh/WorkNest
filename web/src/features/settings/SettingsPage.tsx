@@ -22,6 +22,7 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Card } from "@/components/ui/Card";
+import { Modal } from "@/components/Modal";
 import { ResendButton } from "@/components/ui/ResendButton";
 import { PasswordHelp } from "@/components/ui/PasswordHelp";
 import {
@@ -799,12 +800,29 @@ export function SettingsPage() {
       : undefined,
   });
 
+  // Changing the time zone asks first whether date-only due dates should
+  // stay on the same calendar day or be left exactly as stored.
+  const [timeZoneChoice, setTimeZoneChoice] =
+    useState<OrganizationSettingsFormValues | null>(null);
+
   const onOrganizationSettingsSubmit = async (
     values: OrganizationSettingsFormValues,
+    moveDueDates?: boolean,
   ) => {
     setFormError(null);
+    if (
+      moveDueDates === undefined &&
+      org &&
+      values.timeZone !== (org.timeZone ?? "UTC")
+    ) {
+      setTimeZoneChoice(values);
+      return;
+    }
+    setTimeZoneChoice(null);
     try {
-      await updateOrg.mutateAsync(values);
+      await updateOrg.mutateAsync(
+        moveDueDates === undefined ? values : { ...values, moveDueDates },
+      );
       toast.success("Organization settings updated");
     } catch (error) {
       const parsed = parseApiError(error);
@@ -977,7 +995,9 @@ export function SettingsPage() {
 
           <form
             onSubmit={(event) =>
-              void handleSubmit(onOrganizationSettingsSubmit)(event)
+              void handleSubmit((values) =>
+                onOrganizationSettingsSubmit(values),
+              )(event)
             }
             noValidate
             className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
@@ -1014,6 +1034,50 @@ export function SettingsPage() {
             )}
           </form>
         </Card>
+
+        <Modal
+          open={timeZoneChoice !== null}
+          onClose={() => setTimeZoneChoice(null)}
+          title="Move due dates with the new time zone?"
+        >
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Due dates that are just a date (no time of day) are stored in the
+            organization&apos;s time zone. Keep each on the same calendar day,
+            or leave them as stored, which can show a different day to people in
+            the new time zone. Due dates with a time are never changed.
+          </p>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setTimeZoneChoice(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={updateOrg.isPending}
+              onClick={() =>
+                timeZoneChoice &&
+                void onOrganizationSettingsSubmit(timeZoneChoice, false)
+              }
+            >
+              Leave as stored
+            </Button>
+            <Button
+              type="button"
+              disabled={updateOrg.isPending}
+              loading={updateOrg.isPending}
+              onClick={() =>
+                timeZoneChoice &&
+                void onOrganizationSettingsSubmit(timeZoneChoice, true)
+              }
+            >
+              Keep same days
+            </Button>
+          </div>
+        </Modal>
 
         <Card>
           <div className="flex items-center justify-between">

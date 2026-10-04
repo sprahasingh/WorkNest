@@ -17,6 +17,9 @@ export const updateOrgSchema = z
       .string()
       .refine(isValidTimeZone, "Invalid IANA time zone")
       .optional(),
+    // When the time zone changes: keep date-only due dates on the same
+    // calendar day (the default) or leave them exactly where they are.
+    moveDueDates: z.boolean().optional(),
     // Days to keep chat messages; null keeps them for good.
     chatRetentionDays: z
       .union([z.literal(90), z.literal(180), z.literal(365), z.null()])
