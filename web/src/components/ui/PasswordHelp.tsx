@@ -20,10 +20,14 @@ export function PasswordHelp({
   password,
   email,
   name,
+  fieldError,
 }: {
   password: string;
   email?: string;
   name?: string;
+  // The error already shown under the box (for example from the server). The
+  // same reason isn't repeated a second time.
+  fieldError?: string;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -58,7 +62,7 @@ export function PasswordHelp({
           controls={panelId}
         />
       </div>
-      {problem && (
+      {problem && PASSWORD_PROBLEM_MESSAGES[problem] !== fieldError && (
         <p
           role="status"
           className="mt-1 text-sm text-amber-700 dark:text-amber-400"

@@ -116,7 +116,10 @@ export function ResetPassword() {
               autoComplete="new-password"
               {...register("password")}
             />
-            <PasswordHelp password={passwordValue} />
+            <PasswordHelp
+              password={passwordValue}
+              fieldError={errors.password?.message}
+            />
           </Field>
           <Field
             label="Confirm new password"
