@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { AppError } from "../../lib/errors.js";
+import { logger } from "../../lib/logger.js";
 import { verifyWebhookSignature } from "../../lib/razorpay.js";
 import {
   applyPaidOrder,
@@ -39,7 +40,9 @@ export async function verifyPaymentController(
 interface WebhookBody {
   event?: string;
   payload?: {
-    payment?: { entity?: { id?: string; order_id?: string } };
+    payment?: {
+      entity?: { id?: string; order_id?: string; amount?: number };
+    };
     order?: { entity?: { id?: string } };
   };
 }
@@ -66,10 +69,14 @@ export async function webhookController(
     const orderId = payment?.order_id ?? body.payload?.order?.entity?.id;
     if (orderId && payment?.id) {
       try {
-        await applyPaidOrder(orderId, payment.id);
+        await applyPaidOrder(orderId, payment.id, payment.amount);
       } catch (error) {
         // An unknown order isn't ours to retry. Anything else should be.
-        if (!(error instanceof AppError && error.status === 404)) throw error;
+        if (error instanceof AppError && error.code === "AMOUNT_MISMATCH") {
+          logger.error({ orderId }, "Webhook amount did not match the order");
+        } else if (!(error instanceof AppError && error.status === 404)) {
+          throw error;
+        }
       }
     }
   }

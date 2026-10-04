@@ -1,3 +1,4 @@
+import { destroyConversationFiles } from "../chat/chatFiles.cleanup.js";
 import mongoose from "mongoose";
 import { Conversation } from "../../models/Conversation.js";
 import { Meeting } from "../../models/Meeting.js";
@@ -92,6 +93,7 @@ export async function cleanupAfterDeparture(
       .map((m) => String(m.userId))
       .filter((id) => id !== userId);
     if (remaining.length === 0) {
+      await destroyConversationFiles(group._id);
       await Message.deleteMany({ conversationId: group._id });
       await Conversation.deleteOne({ _id: group._id });
       continue;

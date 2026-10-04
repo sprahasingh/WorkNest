@@ -18,6 +18,25 @@ const QUERY_HOOKS = [
   "distinct",
 ] as const;
 
+// For collections that are looked up by person as well as by organization
+// (notifications): not scoped automatically, but a query that forgets to name
+// the organization fails loudly instead of quietly reading every organization.
+export function requireTenantInFilterPlugin(schema: Schema): void {
+  QUERY_HOOKS.forEach((hookName) => {
+    schema.pre(hookName, function (this: Query<unknown, unknown>) {
+      if (this.getOptions().skipTenant) return;
+      const filter = this.getFilter() as Record<string, unknown>;
+      if (filter.tenantId === undefined) {
+        throw new AppError(
+          500,
+          "TENANT_FILTER_MISSING",
+          `${hookName} on ${this.model.collection.collectionName} must name the tenantId`,
+        );
+      }
+    });
+  });
+}
+
 export function tenantPlugin(schema: Schema): void {
   QUERY_HOOKS.forEach((hookName) => {
     schema.pre(hookName, function (this: Query<unknown, unknown>) {

@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-const dueDateInputSchema = z.union([z.iso.date(), z.coerce.date()]);
+// A date ("2026-10-04") or a full timestamp. A bare number is not accepted:
+// it would quietly become a date in 1970.
+const dueDateInputSchema = z.union([
+  z.iso.date(),
+  z.iso.datetime({ offset: true }).pipe(z.coerce.date()),
+]);
 
 export const createProjectSchema = z
   .object({

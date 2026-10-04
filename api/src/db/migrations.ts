@@ -1,3 +1,6 @@
+import { Payment } from "../models/Payment.js";
+import { JobLock } from "../models/JobLock.js";
+import { SignupClaim } from "../models/SignupClaim.js";
 import mongoose from "mongoose";
 import { dateOnlyDueDate, isValidTimeZone } from "../lib/timezone.js";
 import { Task } from "../models/Task.js";
@@ -243,13 +246,21 @@ export async function syncActiveProjectCounts(): Promise<void> {
     ])
     .toArray();
 
-  await Organization.collection.updateMany({}, { $set: { projectCount: 0 } });
-  if (counts.length > 0) {
+  // Every organization gets its own number in one pass. Resetting everything
+  // to 0 first would leave a gap where limits aren't enforced and a project
+  // created in that moment is never counted.
+  const orgs = await Organization.collection
+    .find({}, { projection: { _id: 1 } })
+    .toArray();
+  const countByOrg = new Map(
+    counts.map(({ _id, count }) => [String(_id), count]),
+  );
+  if (orgs.length > 0) {
     await Organization.collection.bulkWrite(
-      counts.map(({ _id, count }) => ({
+      orgs.map(({ _id }) => ({
         updateOne: {
           filter: { _id },
-          update: { $set: { projectCount: count } },
+          update: { $set: { projectCount: countByOrg.get(String(_id)) ?? 0 } },
         },
       })),
     );
@@ -292,5 +303,24 @@ export async function migrateLegacyTaskAssignees(): Promise<void> {
       },
       "Migrated legacy task assignees",
     );
+  }
+}
+
+// In production Mongoose does not build indexes by itself, and the sync script
+// has to be run by hand. Some indexes protect correctness (a payment order can
+// only exist once, a job lock is one row per job, a sign-up claim expires), so
+// the ones that were added after launch are created here at startup. This only
+// adds missing indexes: it never drops or rebuilds an existing one.
+export async function ensureSafetyIndexes(): Promise<void> {
+  const models = [Payment, JobLock, SignupClaim, Task, Project];
+  for (const model of models) {
+    try {
+      await model.createIndexes();
+    } catch (error) {
+      logger.error(
+        { err: error, model: model.modelName },
+        "Could not create indexes",
+      );
+    }
   }
 }

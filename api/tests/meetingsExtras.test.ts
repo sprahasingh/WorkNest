@@ -69,7 +69,7 @@ describe("repeating meetings", () => {
       await Notification.countDocuments({
         userId: priya.id,
         type: "meeting_invited",
-      }),
+      }).setOptions({ skipTenant: true }),
     ).toBe(1);
   });
 
@@ -245,7 +245,7 @@ describe("proposing a new time", () => {
       await Notification.countDocuments({
         userId: sam.id,
         type: "meeting_proposal",
-      }),
+      }).setOptions({ skipTenant: true }),
     ).toBe(2);
 
     await meetings(orgId, priya.token)
@@ -271,7 +271,7 @@ describe("proposing a new time", () => {
         userId: lee.id,
         type: "meeting_response",
         message: /kept the original/,
-      }),
+      }).setOptions({ skipTenant: true }),
     ).toBe(1);
   });
 
