@@ -74,7 +74,8 @@ export function TestPaymentBox() {
 
       <p className="mt-2.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
         For the expiry, use any future date. For the CVV, any 3 digits. The name
-        can be anything. The card is also copied when you press Upgrade.
+        can be anything. If it asks for an OTP, any 6 digits work. The card is
+        also copied when you press Upgrade.
       </p>
     </section>
   );
