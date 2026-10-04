@@ -83,6 +83,18 @@ export const verifyRegistrationSchema = z
 
 export type VerifyRegistrationInput = z.infer<typeof verifyRegistrationSchema>;
 
+export const resendVerificationSchema = z
+  .object({ email: emailSchema })
+  .strict();
+
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
+
+export const registrationStatusSchema = z
+  .object({ signupToken: z.string().min(16).max(200) })
+  .strict();
+
+export type RegistrationStatusInput = z.infer<typeof registrationStatusSchema>;
+
 export const requestPasswordResetSchema = z
   .object({ email: emailSchema })
   .strict();

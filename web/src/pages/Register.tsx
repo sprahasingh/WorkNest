@@ -10,6 +10,7 @@ import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { CheckEmailPanel } from "@/components/CheckEmailPanel";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 
 const registerFormSchema = z
@@ -25,9 +26,18 @@ const registerFormSchema = z
       .string()
       .min(8, "Password must be at least 8 characters")
       .max(72),
+    confirmPassword: z.string().min(1, "Please type your password again"),
     orgName: z.string().trim().max(80).optional(),
   })
   .superRefine((values, context) => {
+    if (values.confirmPassword && values.confirmPassword !== values.password) {
+      context.addIssue({
+        code: "custom",
+        path: ["confirmPassword"],
+        message:
+          "The passwords don't match. Please type the same password in both.",
+      });
+    }
     if (
       values.accountType === "admin" &&
       (!values.orgName || values.orgName.length < 2)
@@ -44,13 +54,16 @@ type RegisterFormValues = z.infer<typeof registerFormSchema>;
 
 const REGISTER_FIELDS = ["name", "email", "password", "orgName"] as const;
 
+interface WaitingForEmail {
+  email: string;
+  signupToken: string;
+}
+
 export function Register() {
   const { register: registerUser, establishSession } = useAuth();
   const navigate = useNavigate();
   const [formError, setFormError] = useState<string | null>(null);
-  const [verificationEmail, setVerificationEmail] = useState<string | null>(
-    null,
-  );
+  const [waiting, setWaiting] = useState<WaitingForEmail | null>(null);
 
   const {
     register,
@@ -68,9 +81,18 @@ export function Register() {
   const onSubmit = async (values: RegisterFormValues) => {
     setFormError(null);
     try {
-      const result = await registerUser(values);
+      // The "type it again" fields only check for typos in the browser, so
+      // they aren't sent.
+      const { accountType, name, email, password, orgName } = values;
+      const result = await registerUser({
+        accountType,
+        name,
+        email,
+        password,
+        orgName,
+      });
       if (result.verificationRequired) {
-        setVerificationEmail(result.email);
+        setWaiting({ email: result.email, signupToken: result.signupToken });
       } else {
         const me = await establishSession(result.accessToken);
         navigate(resolvePostAuthPath(me.memberships), { replace: true });
@@ -99,27 +121,17 @@ export function Register() {
     }
   };
 
-  if (verificationEmail) {
+  if (waiting) {
     return (
       <AuthShell>
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-              Verify your email
-            </h1>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              We sent a verification link to{" "}
-              <strong>{verificationEmail}</strong>. Your account will be created
-              after you confirm this address.
-            </p>
-          </div>
-          <Link
-            to="/login"
-            className="inline-block text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
-          >
-            Return to login
-          </Link>
-        </div>
+        <CheckEmailPanel
+          email={waiting.email}
+          signupToken={waiting.signupToken}
+          onSignedIn={(me) =>
+            navigate(resolvePostAuthPath(me.memberships), { replace: true })
+          }
+          onStartOver={() => setWaiting(null)}
+        />
       </AuthShell>
     );
   }
@@ -232,6 +244,18 @@ export function Register() {
             id="password"
             autoComplete="new-password"
             {...register("password")}
+          />
+        </Field>
+
+        <Field
+          label="Type your password again"
+          htmlFor="confirm-password"
+          error={errors.confirmPassword?.message}
+        >
+          <PasswordInput
+            id="confirm-password"
+            autoComplete="new-password"
+            {...register("confirmPassword")}
           />
         </Field>
 

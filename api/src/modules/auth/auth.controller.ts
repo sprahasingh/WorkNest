@@ -9,6 +9,9 @@ import {
   requestEmailChange,
   cancelEmailChange,
   verifyRegistration,
+  resendRegistrationVerification,
+  resendEmailChange,
+  checkRegistrationStatus,
   updatePersonalInformation,
   verifyEmailChange,
   requestPasswordReset,
@@ -29,6 +32,8 @@ import type {
   UpdatePersonalInformationInput,
   VerifyEmailChangeInput,
   VerifyRegistrationInput,
+  ResendVerificationInput,
+  RegistrationStatusInput,
   RequestPasswordResetInput,
   ResetPasswordInput,
 } from "./auth.schemas.js";
@@ -50,6 +55,37 @@ export async function registerController(
   setRefreshCookie(res, rawToken, expiresAt);
   const accessToken = signAccessToken(result.userId.toString());
   res.status(201).json({ accessToken, verificationRequired: false });
+}
+
+export async function resendVerificationController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const { email } = req.validated!.body as ResendVerificationInput;
+  await resendRegistrationVerification(email);
+  // The same answer whether or not a sign-up is waiting.
+  res.status(202).json({
+    message:
+      "If a sign-up is waiting for that email, we've sent a new link. Check your inbox and spam folder.",
+  });
+}
+
+export async function registrationStatusController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const { signupToken } = req.validated!.body as RegistrationStatusInput;
+  const result = await checkRegistrationStatus(signupToken);
+  if (result.status !== "verified") {
+    res.status(200).json({ status: result.status });
+    return;
+  }
+  const { rawToken, expiresAt } = await createSession(result.userId);
+  setRefreshCookie(res, rawToken, expiresAt);
+  res.status(200).json({
+    status: "verified",
+    accessToken: signAccessToken(result.userId.toString()),
+  });
 }
 
 export async function verifyRegistrationController(
@@ -153,6 +189,14 @@ export async function meController(req: Request, res: Response): Promise<void> {
     .populate("tenantId", "name slug plan");
 
   res.status(200).json({ user, memberships });
+}
+
+export async function resendEmailChangeController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const user = await resendEmailChange(req.auth!.userId);
+  res.status(200).json({ user });
 }
 
 export async function markOnboardingSeenController(

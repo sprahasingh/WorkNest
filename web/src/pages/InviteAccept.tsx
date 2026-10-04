@@ -19,11 +19,27 @@ import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { CheckEmailPanel } from "@/components/CheckEmailPanel";
 
-const signupFormSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(100),
-  password: z.string().min(8, "Password must be at least 8 characters").max(72),
-});
+const signupFormSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(100),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(72),
+    confirmPassword: z.string().min(1, "Please type your password again"),
+  })
+  .superRefine((values, context) => {
+    if (values.confirmPassword && values.confirmPassword !== values.password) {
+      context.addIssue({
+        code: "custom",
+        path: ["confirmPassword"],
+        message:
+          "The passwords don't match. Please type the same password in both.",
+      });
+    }
+  });
 
 type SignupFormValues = z.infer<typeof signupFormSchema>;
 
@@ -52,9 +68,10 @@ export function InviteAccept() {
   const [isAccepting, setIsAccepting] = useState(false);
   const [isDeclining, setIsDeclining] = useState(false);
   const [declined, setDeclined] = useState(false);
-  const [verificationEmail, setVerificationEmail] = useState<string | null>(
-    null,
-  );
+  const [waiting, setWaiting] = useState<{
+    email: string;
+    signupToken: string;
+  } | null>(null);
 
   const previewQuery = useQuery({
     queryKey: ["invites", token],
@@ -121,25 +138,20 @@ export function InviteAccept() {
     );
   }
 
-  if (verificationEmail) {
+  if (waiting) {
     return (
       <AuthShell>
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-              Verify your email
-            </h1>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              We sent a verification link to{" "}
-              <strong>{verificationEmail}</strong>. Your account will be created
-              and you&apos;ll join {preview.organizationName}
-              after confirming this address.
-            </p>
-          </div>
-          <Link to="/login" className={secondaryLinkStyles}>
-            Return to login
-          </Link>
-        </div>
+        <CheckEmailPanel
+          email={waiting.email}
+          signupToken={waiting.signupToken}
+          onSignedIn={(me) => {
+            const orgId = me.memberships[0]?.tenantId.id;
+            navigate(orgId ? `/orgs/${orgId}/dashboard` : "/orgs", {
+              replace: true,
+            });
+          }}
+          onStartOver={() => setWaiting(null)}
+        />
       </AuthShell>
     );
   }
@@ -178,7 +190,10 @@ export function InviteAccept() {
   const onSubmit = async (values: SignupFormValues) => {
     setFormError(null);
     try {
-      const result = await signupViaInvite(token, values);
+      const result = await signupViaInvite(token, {
+        name: values.name,
+        password: values.password,
+      });
       if (!result.verificationRequired) {
         const me = await auth.establishSession(result.accessToken);
         const orgId = me.memberships[0]?.tenantId.id;
@@ -187,7 +202,7 @@ export function InviteAccept() {
         });
         return;
       }
-      setVerificationEmail(result.email);
+      setWaiting({ email: result.email, signupToken: result.signupToken });
     } catch (error) {
       const parsed = parseApiError(error);
       if (Object.keys(parsed.fieldErrors).length === 0) {
@@ -330,6 +345,18 @@ export function InviteAccept() {
                 id="password"
                 autoComplete="new-password"
                 {...register("password")}
+              />
+            </Field>
+
+            <Field
+              label="Type your password again"
+              htmlFor="confirm-password"
+              error={errors.confirmPassword?.message}
+            >
+              <PasswordInput
+                id="confirm-password"
+                autoComplete="new-password"
+                {...register("confirmPassword")}
               />
             </Field>
 

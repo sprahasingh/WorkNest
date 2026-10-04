@@ -1,6 +1,5 @@
 import { Link } from "react-router";
-import { useAuth } from "@/auth/auth-context";
-import { feedbackMailto } from "@/lib/feedback";
+import { useFeedback } from "@/features/feedback/feedbackContext";
 
 const linkStyles =
   "flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200";
@@ -53,8 +52,7 @@ export function HelpLinks({
   // When given, a "Show the tour" button is added (inside the app only).
   onShowTour?: () => void;
 }) {
-  const auth = useAuth();
-  const sender = auth.status === "authenticated" ? auth.user : null;
+  const { openFeedback } = useFeedback();
 
   return (
     <div className="space-y-0.5">
@@ -79,14 +77,17 @@ export function HelpLinks({
           Show the tour
         </button>
       )}
-      <a
-        href={feedbackMailto(from, sender)}
-        onClick={onNavigate}
-        className={linkStyles}
+      <button
+        type="button"
+        onClick={() => {
+          onNavigate?.();
+          openFeedback(from);
+        }}
+        className={`${linkStyles} w-full`}
       >
         <FeedbackIcon />
         Send feedback
-      </a>
+      </button>
     </div>
   );
 }

@@ -22,10 +22,15 @@ const STEPS: GuideStep[] = [
     id: "account",
     title: "Create your account",
     description:
-      "Register with your name, email and a password, then confirm your email. Choose Admin to create an organization and manage it, or User if you'd rather join one later through an invite.",
+      "Register with your name, email and a password, typing the password twice so a typo can't lock you out. Then confirm your email. Choose Admin to create an organization and manage it, or User if you'd rather join one later through an invite.",
     tips: [
+      "Every password box has a Show button, so you can check what you typed.",
+      "After you register, open the link we email you. It works on any device: the page you registered on notices and signs you in by itself, and on another device you just type your password to confirm.",
+      "Can't find the email? Check your spam or junk folder, and Promotions in Gmail. You can ask for a new link after a minute, and a newer link replaces the older one. Links work for one hour.",
+      "The same goes for password reset and email change links: check spam or junk first, then use the resend button.",
       "The first time you open a workspace, a short tour points out where things are. It shows once per account, on any device, and you can open it again from Show the tour at the bottom of the sidebar.",
     ],
+    screens: placement("guide.account"),
   },
   {
     id: "project",
@@ -38,7 +43,7 @@ const STEPS: GuideStep[] = [
     id: "team",
     title: "Invite your team",
     description:
-      "Open Members and choose Invite someone. Enter their email and pick a role. People who already use WorkNest can accept from the bell or from their Organizations page. Admins can change a role or remove someone at any time.",
+      "Open Members and choose Invite someone. Enter their email and pick a role. If the email doesn't arrive, ask them to check their spam or junk folder, and use Send again next to the pending invite. People who already use WorkNest can accept from the bell or from their Organizations page. Admins can change a role or remove someone at any time.",
     screens: placement("guide.team"),
   },
   {
