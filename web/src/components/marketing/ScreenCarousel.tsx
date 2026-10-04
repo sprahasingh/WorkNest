@@ -1,17 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
-import { type ScreenName } from "@/assets/screens";
+import type { Screen } from "@/assets/screens";
 import { BrowserFrame, Screenshot } from "./Screenshot";
 
-export interface Slide {
-  screen: ScreenName;
-  alt: string;
-  // A short line shown under the picture, saying what to look at.
-  caption: string;
-}
-
 interface ScreenCarouselProps {
-  slides: Slide[];
+  screens: Screen[];
   label: string;
   className?: string;
 }
@@ -23,7 +16,7 @@ const ARROW =
 // With a single slide it renders just the picture, so callers don't need to
 // special-case it.
 export function ScreenCarousel({
-  slides,
+  screens,
   label,
   className,
 }: ScreenCarouselProps) {
@@ -56,12 +49,12 @@ export function ScreenCarousel({
     return () => observer.disconnect();
   }, [index]);
 
-  if (slides.length === 1) {
-    const only = slides[0];
+  if (screens.length === 1) {
+    const only = screens[0];
     return (
       <figure className={className}>
         <BrowserFrame>
-          <Screenshot name={only.screen} alt={only.alt} />
+          <Screenshot screen={only} />
         </BrowserFrame>
         <figcaption className="mt-3 text-sm text-slate-500 dark:text-slate-400">
           {only.caption}
@@ -70,7 +63,7 @@ export function ScreenCarousel({
     );
   }
 
-  const current = slides[Math.min(index, slides.length - 1)];
+  const current = screens[Math.min(index, screens.length - 1)];
 
   return (
     <div
@@ -87,7 +80,7 @@ export function ScreenCarousel({
             tabIndex={0}
             aria-describedby={captionId}
             onKeyDown={(event) => {
-              if (event.key === "ArrowRight" && index < slides.length - 1) {
+              if (event.key === "ArrowRight" && index < screens.length - 1) {
                 event.preventDefault();
                 goTo(index + 1);
               } else if (event.key === "ArrowLeft" && index > 0) {
@@ -97,15 +90,15 @@ export function ScreenCarousel({
             }}
             className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600 motion-reduce:scroll-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {slides.map((slide, position) => (
+            {screens.map((screen, position) => (
               <div
-                key={slide.screen}
+                key={screen.key}
                 role="group"
                 aria-roledescription="slide"
-                aria-label={`${position + 1} of ${slides.length}`}
+                aria-label={`${position + 1} of ${screens.length}`}
                 className="w-full shrink-0 snap-center"
               >
-                <Screenshot name={slide.screen} alt={slide.alt} />
+                <Screenshot screen={screen} />
               </div>
             ))}
           </div>
@@ -123,7 +116,7 @@ export function ScreenCarousel({
         <button
           type="button"
           aria-label="Next screen"
-          disabled={index >= slides.length - 1}
+          disabled={index >= screens.length - 1}
           onClick={() => goTo(index + 1)}
           className={cn(ARROW, "right-2 sm:right-3")}
         >
@@ -138,15 +131,15 @@ export function ScreenCarousel({
           className="min-w-0 text-sm text-slate-600 dark:text-slate-300"
         >
           <span className="font-medium text-slate-900 dark:text-slate-50">
-            {index + 1} of {slides.length}
+            {index + 1} of {screens.length}
           </span>
           <span className="mx-2 text-slate-300 dark:text-slate-600">|</span>
           {current.caption}
         </p>
         <div className="flex shrink-0 items-center">
-          {slides.map((slide, position) => (
+          {screens.map((screen, position) => (
             <button
-              key={slide.screen}
+              key={screen.key}
               type="button"
               aria-label={`Show screen ${position + 1}`}
               aria-current={position === index}
