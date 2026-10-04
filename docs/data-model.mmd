@@ -10,6 +10,7 @@ erDiagram
     ORGANIZATION ||--o{ CONVERSATION : "has"
     CONVERSATION ||--o{ MESSAGE : "contains"
     ORGANIZATION ||--o{ MEETING : "has"
+    ORGANIZATION ||--o{ PAYMENT : "has"
 
     ORGANIZATION {
         ObjectId id PK
@@ -24,6 +25,18 @@ erDiagram
         number adminCount
         number chatRetentionDays
         ObjectId createdBy
+    }
+    PAYMENT {
+        ObjectId id PK
+        ObjectId tenantId FK
+        ObjectId userId FK
+        string fromPlan
+        string plan
+        number amount
+        string razorpayOrderId
+        string razorpayPaymentId
+        string status
+        date paidAt
     }
     USER {
         ObjectId id PK
