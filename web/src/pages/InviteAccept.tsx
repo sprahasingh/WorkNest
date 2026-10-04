@@ -354,6 +354,7 @@ export function InviteAccept() {
                 password={passwordValue}
                 email={preview.email}
                 name={nameValue}
+                fieldError={errors.password?.message}
               />
             </Field>
 

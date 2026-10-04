@@ -488,6 +488,7 @@ function PersonalInformationCard() {
                 password={newPasswordValue}
                 email={user?.email}
                 name={nameValue}
+                fieldError={errors.newPassword?.message}
               />
             </Field>
             <Field
