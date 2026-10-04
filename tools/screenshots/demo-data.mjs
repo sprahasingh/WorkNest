@@ -46,18 +46,16 @@ for (const [from, name, email] of people)
     .collection("users")
     .updateOne({ email: from }, { $set: { name, email } });
 const org = await db.collection("organizations").findOne({ slug: "acme" });
-await db
-  .collection("organizations")
-  .updateOne(
-    { _id: org._id },
-    {
-      $set: {
-        name: "Sunshine",
-        slug: "sunshine",
-        timeZone: "America/Los_Angeles",
-      },
+await db.collection("organizations").updateOne(
+  { _id: org._id },
+  {
+    $set: {
+      name: "Sunshine",
+      slug: "sunshine",
+      timeZone: "America/Los_Angeles",
     },
-  );
+  },
+);
 
 // start from a clean slate: the stock seed adds sample projects we don't want here
 for (const c of [
@@ -79,24 +77,20 @@ const extra = [
 ];
 for (const [name, email, role] of extra) {
   const { _id, ...rest } = template;
-  const created = await db
-    .collection("users")
-    .insertOne({
-      ...rest,
-      name,
-      email,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  await db
-    .collection("memberships")
-    .insertOne({
-      tenantId: org._id,
-      userId: created.insertedId,
-      role,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+  const created = await db.collection("users").insertOne({
+    ...rest,
+    name,
+    email,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  await db.collection("memberships").insertOne({
+    tenantId: org._id,
+    userId: created.insertedId,
+    role,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
 }
 await db
   .collection("organizations")
@@ -719,7 +713,19 @@ fs.mkdirSync(new URL("./.cache", import.meta.url), { recursive: true });
 fs.writeFileSync(
   new URL("./.cache/demo.json", import.meta.url),
   JSON.stringify(
-    { org: O, web, app, onb, brd, hero, group: group.id, dm: dm.id },
+    {
+      org: O,
+      web,
+      app,
+      onb,
+      brd,
+      hero,
+      group: group.id,
+      dm: dm.id,
+      // The browser clock is frozen here when taking pictures, five minutes
+      // before the "Daily standup" meeting, so every picture reads the same.
+      shotTime: new Date(soon.getTime() - 5 * 60000).toISOString(),
+    },
     null,
     2,
   ),
