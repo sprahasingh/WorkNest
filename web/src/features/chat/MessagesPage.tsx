@@ -1,14 +1,51 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { useOrg } from "@/hooks/useOrg";
 import { cn } from "@/lib/cn";
 import { useMembers } from "@/features/members/queries";
+import { toast } from "sonner";
+import { parseApiError } from "@/lib/apiError";
+import type { Conversation } from "./api";
+import { conversationTitle } from "./chatUtils";
 import { ConversationList } from "./ConversationList";
+import {
+  DeleteConversationModal,
+  type DeleteChoice,
+} from "./DeleteConversationModal";
 import { GroupInfoModal } from "./GroupInfoModal";
 import { NewChatModal } from "./NewChatModal";
 import { ThreadView } from "./ThreadView";
-import { useChatConfig, useConversations, usePresence } from "./queries";
+import {
+  useChatConfig,
+  useConversationActions,
+  useConversations,
+  useLeaveConversation,
+  usePresence,
+} from "./queries";
+
+// The height you can actually see. On phones the browser's address bar and the
+// on-screen keyboard change it, and plain 100vh doesn't follow, which is what
+// left a blank strip under the chat and a screen that wouldn't stay put.
+function useVisibleHeight(): number {
+  const read = () => window.visualViewport?.height ?? window.innerHeight;
+  const [height, setHeight] = useState(read);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const update = () => {
+      setHeight(read());
+      // iOS scrolls the page when the keyboard opens; keep it put.
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("resize", update);
+    viewport?.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      viewport?.removeEventListener("resize", update);
+    };
+  }, []);
+  return height;
+}
 
 export function MessagesPage() {
   const { orgId } = useOrg();
@@ -31,6 +68,14 @@ export function MessagesPage() {
     [setSearchParams],
   );
   const myId = user!.id;
+  const visibleHeight = useVisibleHeight();
+
+  // This page fills the screen and scrolls inside itself, so the page behind
+  // it is locked while it's open.
+  useEffect(() => {
+    document.documentElement.classList.add("lock-scroll");
+    return () => document.documentElement.classList.remove("lock-scroll");
+  }, []);
 
   const conversations = useConversations(orgId);
   const members = useMembers(orgId);
@@ -38,6 +83,9 @@ export function MessagesPage() {
   const config = useChatConfig(orgId);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
+  const conversationActions = useConversationActions(orgId);
+  const leave = useLeaveConversation(orgId);
 
   const list = conversations.data?.conversations;
   const active = conversationId
@@ -49,12 +97,45 @@ export function MessagesPage() {
     void navigate(`/orgs/${orgId}/messages/${id}?m=${messageId}`);
   const backToList = () => void navigate(`/orgs/${orgId}/messages`);
 
+  const confirmDelete = (choice: DeleteChoice) => {
+    const target = deleteTarget;
+    if (!target) return;
+    const done = () => {
+      setDeleteTarget(null);
+      if (conversationId === target.id) backToList();
+      toast.success(
+        choice === "leave" ? "You left the group" : "Conversation deleted",
+      );
+    };
+    const fail = (error: unknown) => toast.error(parseApiError(error).message);
+    if (choice === "leave") {
+      leave.mutate(
+        { id: target.id, userId: myId },
+        { onSuccess: done, onError: fail },
+      );
+    } else {
+      conversationActions.clear.mutate(target.id, {
+        onSuccess: done,
+        onError: fail,
+      });
+    }
+  };
+
+  // "Group details" from the list opens that chat, then its details.
+  const openDetails = (id: string) => {
+    open(id);
+    setInfoOpen(true);
+  };
+
   // A link to a chat you can't see (or have left) reads the same as one that
   // never existed.
   const missing = Boolean(conversationId) && list !== undefined && !active;
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] bg-white dark:bg-slate-900">
+    <div
+      className="flex bg-white dark:bg-slate-900"
+      style={{ height: `${Math.max(visibleHeight - 64, 320)}px` }}
+    >
       <aside
         className={cn(
           "w-full shrink-0 border-r border-slate-200 md:block md:w-80 lg:w-96 dark:border-slate-800",
@@ -71,6 +152,8 @@ export function MessagesPage() {
           online={presence.data}
           onSelect={open}
           onOpenMessage={openMessage}
+          onOpenDetails={openDetails}
+          onRequestDelete={setDeleteTarget}
           onNew={() => setNewChatOpen(true)}
         />
       </aside>
@@ -95,6 +178,7 @@ export function MessagesPage() {
             onJumped={clearJump}
             onBack={backToList}
             onOpenInfo={() => setInfoOpen(true)}
+            onRequestDelete={setDeleteTarget}
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center bg-slate-50 px-6 text-center dark:bg-slate-950">
@@ -125,6 +209,14 @@ export function MessagesPage() {
           </div>
         )}
       </section>
+
+      <DeleteConversationModal
+        conversation={deleteTarget}
+        title={deleteTarget ? conversationTitle(deleteTarget, myId) : ""}
+        pending={leave.isPending || conversationActions.clear.isPending}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
 
       <NewChatModal
         open={newChatOpen}

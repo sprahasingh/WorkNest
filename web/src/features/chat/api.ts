@@ -307,3 +307,15 @@ export async function searchMessages(orgId: string, q: string) {
   );
   return response.data.results;
 }
+
+export async function markConversationUnread(
+  orgId: string,
+  conversationId: string,
+) {
+  await apiClient.post(`${base(orgId)}/conversations/${conversationId}/unread`);
+}
+
+// Clears the conversation for you only. Everyone else keeps it.
+export async function clearConversation(orgId: string, conversationId: string) {
+  await apiClient.delete(`${base(orgId)}/conversations/${conversationId}`);
+}

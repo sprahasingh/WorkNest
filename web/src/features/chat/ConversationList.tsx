@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 import { inputControlStyles } from "@/components/ui/Field";
 import type { Conversation } from "./api";
 import { Avatar } from "@/components/ui/Avatar";
 import { AlertSettings } from "./AlertSettings";
-import { useMessageSearch } from "./queries";
+import { ConversationMenu } from "./ConversationMenu";
+import { menuItemsFor, type ConversationAction } from "./conversationMenuItems";
+import { useConversationActions, useMessageSearch } from "./queries";
 import {
   conversationTitle,
   directPartnerId,
@@ -23,8 +26,13 @@ interface ConversationListProps {
   online: Set<string> | undefined;
   onSelect: (conversationId: string) => void;
   onOpenMessage: (conversationId: string, messageId: string) => void;
+  onOpenDetails: (conversationId: string) => void;
+  onRequestDelete: (conversation: Conversation) => void;
   onNew: () => void;
 }
+
+const LONG_PRESS_MS = 480;
+const MOVE_TOLERANCE_PX = 8;
 
 // Shows the search words inside a snippet of the message.
 function Snippet({ text, term }: { text: string; term: string }) {
@@ -54,6 +62,8 @@ export function ConversationList({
   online,
   onSelect,
   onOpenMessage,
+  onOpenDetails,
+  onRequestDelete,
   onNew,
 }: ConversationListProps) {
   const [search, setSearch] = useState("");
@@ -63,6 +73,67 @@ export function ConversationList({
     return () => window.clearTimeout(timer);
   }, [search]);
   const messageHits = useMessageSearch(orgId, debounced);
+  const actions = useConversationActions(orgId);
+
+  // The menu opens from a long press (phones), a right click, the keyboard's
+  // menu key, or the "more" button on a row.
+  const [menu, setMenu] = useState<{
+    conversation: Conversation;
+    x: number;
+    y: number;
+    touch: boolean;
+  } | null>(null);
+  const press = useRef<{
+    timer: number;
+    x: number;
+    y: number;
+    fired: boolean;
+    firedAt: number;
+  } | null>(null);
+
+  const cancelPress = () => {
+    if (press.current) window.clearTimeout(press.current.timer);
+  };
+  useEffect(() => cancelPress, []);
+
+  const openMenu = (
+    conversation: Conversation,
+    x: number,
+    y: number,
+    touch: boolean,
+  ) => setMenu({ conversation, x, y, touch });
+
+  const runAction = (action: ConversationAction) => {
+    const target = menu?.conversation;
+    setMenu(null);
+    if (!target) return;
+    const fail = () => toast.error("Couldn't do that. Please try again.");
+    switch (action) {
+      case "mute":
+      case "unmute":
+        actions.setMuted.mutate(
+          { id: target.id, muted: action === "mute" },
+          {
+            onSuccess: () =>
+              toast.success(action === "mute" ? "Chat muted" : "Chat unmuted"),
+            onError: fail,
+          },
+        );
+        break;
+      case "markRead":
+        actions.markRead.mutate(target.id, { onError: fail });
+        break;
+      case "markUnread":
+        actions.markUnread.mutate(target.id, { onError: fail });
+        break;
+      case "details":
+        onOpenDetails(target.id);
+        break;
+      case "delete":
+        onRequestDelete(target);
+        break;
+    }
+  };
   const titles = useMemo(
     () =>
       new Map(
@@ -180,15 +251,68 @@ export function ConversationList({
               ? conversation.mentionCount
               : conversation.unreadCount;
             return (
-              <li key={conversation.id}>
+              <li key={conversation.id} className="group relative">
                 <button
                   type="button"
-                  onClick={() => onSelect(conversation.id)}
+                  onClick={(event) => {
+                    // A long press already opened the menu; don't also open the chat.
+                    if (press.current?.fired) {
+                      press.current.fired = false;
+                      event.preventDefault();
+                      return;
+                    }
+                    onSelect(conversation.id);
+                  }}
+                  onPointerDown={(event) => {
+                    if (event.pointerType === "mouse") return;
+                    cancelPress();
+                    const x = event.clientX;
+                    const y = event.clientY;
+                    press.current = {
+                      x,
+                      y,
+                      fired: false,
+                      firedAt: 0,
+                      timer: window.setTimeout(() => {
+                        if (!press.current) return;
+                        press.current.fired = true;
+                        press.current.firedAt = Date.now();
+                        navigator.vibrate?.(10);
+                        openMenu(conversation, x, y, true);
+                      }, LONG_PRESS_MS),
+                    };
+                  }}
+                  onPointerMove={(event) => {
+                    const current = press.current;
+                    if (!current || current.fired) return;
+                    if (
+                      Math.abs(event.clientX - current.x) > MOVE_TOLERANCE_PX ||
+                      Math.abs(event.clientY - current.y) > MOVE_TOLERANCE_PX
+                    ) {
+                      cancelPress();
+                    }
+                  }}
+                  onPointerUp={cancelPress}
+                  onPointerCancel={cancelPress}
+                  onPointerLeave={cancelPress}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    // On a phone the long press has opened the menu already.
+                    if (
+                      press.current &&
+                      Date.now() - press.current.firedAt < 900
+                    ) {
+                      return;
+                    }
+                    const touch =
+                      window.matchMedia("(pointer: coarse)").matches;
+                    openMenu(conversation, event.clientX, event.clientY, touch);
+                  }}
                   aria-current={
                     conversation.id === activeId ? "true" : undefined
                   }
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600",
+                    "flex w-full select-none items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors [-webkit-touch-callout:none] focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600",
                     conversation.id === activeId
                       ? "bg-teal-50 dark:bg-teal-900/20"
                       : "hover:bg-slate-100 dark:hover:bg-slate-800",
@@ -231,7 +355,7 @@ export function ConversationList({
                           <line x1="1" y1="1" x2="23" y2="23" />
                         </svg>
                       )}
-                      <span className="shrink-0 text-xs text-slate-400">
+                      <span className="shrink-0 text-xs text-slate-400 md:group-focus-within:invisible md:group-hover:invisible">
                         {conversation.lastMessage
                           ? listTimeLabel(conversation.lastMessageAt)
                           : ""}
@@ -259,10 +383,48 @@ export function ConversationList({
                     </span>
                   </span>
                 </button>
+                <button
+                  type="button"
+                  aria-label={`More options for ${title}`}
+                  aria-haspopup="menu"
+                  onClick={(event) => {
+                    const box = event.currentTarget.getBoundingClientRect();
+                    openMenu(
+                      conversation,
+                      box.right - 208,
+                      box.bottom + 4,
+                      false,
+                    );
+                  }}
+                  className="absolute right-2 top-2 hidden h-7 w-7 items-center justify-center rounded-md bg-white/90 text-slate-500 shadow-sm ring-1 ring-slate-200 hover:text-slate-800 focus-visible:flex focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 md:group-focus-within:flex md:group-hover:flex dark:bg-slate-800/90 dark:text-slate-300 dark:ring-slate-600"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <circle cx="5" cy="12" r="1.8" />
+                    <circle cx="12" cy="12" r="1.8" />
+                    <circle cx="19" cy="12" r="1.8" />
+                  </svg>
+                </button>
               </li>
             );
           })}
         </ul>
+
+        <ConversationMenu
+          title={menu ? conversationTitle(menu.conversation, myId) : ""}
+          items={
+            menu
+              ? menuItemsFor(menu.conversation, { includeMarkRead: true })
+              : []
+          }
+          anchor={menu ? { x: menu.x, y: menu.y, touch: menu.touch } : null}
+          onSelect={runAction}
+          onClose={() => setMenu(null)}
+        />
 
         {debounced.length >= 2 && (
           <section aria-label="Matching messages" className="mb-2 mt-1">
