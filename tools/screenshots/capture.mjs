@@ -37,6 +37,7 @@ const DEMO = {
   searchTerm: "homepage",
   chatToRightClick: "Govind",
   meetingToOpen: "Homepage design review",
+  messageToRightClick: "Component library is on track",
 };
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -71,9 +72,13 @@ const shots = {
     await scrollToHeading(p, "Where tasks stand", 16);
     await sleep(1500);
   },
-  "dashboard/tasks-flow": async (p) => {
+  "dashboard/tasks-workload": async (p) => {
     await open(p, "/dashboard", 2200);
-    await scrollToHeading(p, "Created vs completed", 16);
+    // The picture starts wherever the page ends up when it is scrolled all the
+    // way down, so it never repeats what the picture before it already shows.
+    await p.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight),
+    );
     await sleep(1500);
   },
   "dashboard/projects-overview": async (p) => {
@@ -141,6 +146,14 @@ const shots = {
     await open(p, `/messages/${ids.group}`, 1400);
     const row = p.getByText(new RegExp(DEMO.chatToRightClick)).first();
     await row.click({ button: "right" });
+    await sleep(600);
+  },
+  "messages/message-options": async (p) => {
+    await open(p, `/messages/${ids.group}`, 1600);
+    await p
+      .getByText(DEMO.messageToRightClick)
+      .first()
+      .click({ button: "right" });
     await sleep(600);
   },
   "messages/new-conversation": async (p) => {

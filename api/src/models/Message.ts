@@ -48,6 +48,8 @@ const messageSchema = new Schema(
     reactions: { type: [reactionSchema], default: [] },
     editedAt: { type: Date, default: null },
     deletedAt: { type: Date, default: null },
+    // People who deleted this message for themselves. Everyone else still sees it.
+    hiddenBy: [{ type: Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true },
 );

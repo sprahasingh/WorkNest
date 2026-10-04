@@ -211,7 +211,7 @@ describe("messages", () => {
     expect(late.body.error.code).toBe("EDIT_WINDOW_EXPIRED");
   });
 
-  it("can be deleted by the sender at any time, leaving a tombstone", async () => {
+  it("can be deleted for everyone by the sender, leaving a tombstone", async () => {
     const { orgId, admin, sam, id } = await thread();
     const sent = await api(orgId, admin.token).post(
       `/conversations/${id}/messages`,
@@ -224,7 +224,7 @@ describe("messages", () => {
     await api(orgId, sam.token).del(`/messages/${messageId}`).expect(403);
     await Message.collection.updateOne(
       { _id: new mongoose.Types.ObjectId(messageId) },
-      { $set: { createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000) } },
+      { $set: { createdAt: new Date(Date.now() - 20 * 60 * 1000) } },
     );
     const removed = await api(orgId, admin.token).del(`/messages/${messageId}`);
     expect(removed.status).toBe(200);

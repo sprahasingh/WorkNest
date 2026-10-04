@@ -9,6 +9,7 @@ import {
   addGroupMembers,
   createGroup,
   deleteMessage,
+  hideMessage,
   editMessage,
   getChatConfig,
   getPresence,
@@ -163,6 +164,27 @@ export function useChatMutations(orgId: string, conversationId: string) {
     },
   });
 
+  // Delete for me: the message leaves this person's view straight away.
+  const hide = useMutation({
+    mutationFn: (messageId: string) => hideMessage(orgId, messageId),
+    onSuccess: (_result, messageId) => {
+      queryClient.setQueryData<MessagesData>(messagesKey, (data) =>
+        data
+          ? {
+              ...data,
+              pages: data.pages.map((page) => ({
+                ...page,
+                messages: page.messages.filter(
+                  (message) => message.id !== messageId,
+                ),
+              })),
+            }
+          : data,
+      );
+      void refreshList();
+    },
+  });
+
   const react = useMutation({
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
       reactToMessage(orgId, messageId, emoji),
@@ -178,7 +200,7 @@ export function useChatMutations(orgId: string, conversationId: string) {
     onSuccess: () => void refreshList(),
   });
 
-  return { send, edit, remove, react, markRead };
+  return { send, edit, remove, hide, react, markRead };
 }
 
 export function useStartDirectChat(orgId: string) {
