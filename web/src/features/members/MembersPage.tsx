@@ -152,7 +152,7 @@ export function MembersPage() {
                         <p className="truncate font-medium text-slate-800 dark:text-slate-100">
                           {member.userId.name}
                           {isSelf && (
-                            <span className="ml-2 text-xs text-slate-400">
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                               (you)
                             </span>
                           )}
@@ -177,7 +177,7 @@ export function MembersPage() {
                     </div>
                     <div className="mt-3 flex items-center justify-between">
                       {roleSelect(member)}
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
                         Joined {new Date(member.createdAt).toLocaleDateString()}
                       </span>
                     </div>
@@ -210,7 +210,7 @@ export function MembersPage() {
                         <td className="px-4 py-3 text-slate-800 dark:text-slate-100">
                           {member.userId.name}
                           {isSelf && (
-                            <span className="ml-2 text-xs text-slate-400">
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                               (you)
                             </span>
                           )}

@@ -87,7 +87,7 @@ export function HeroPreview() {
                     className={`text-[8px] ${
                       stat.warn
                         ? "text-orange-600 dark:text-orange-400"
-                        : "text-slate-400"
+                        : "text-slate-500 dark:text-slate-400"
                     }`}
                   >
                     {stat.note}

@@ -222,7 +222,7 @@ export function ChartCard({
           )}
         </div>
         <p
-          className="shrink-0 whitespace-nowrap text-xs text-slate-400 dark:text-slate-500"
+          className="shrink-0 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400"
           aria-live="polite"
         >
           <span className="pointer-coarse:hidden">

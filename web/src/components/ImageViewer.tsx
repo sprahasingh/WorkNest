@@ -1,3 +1,4 @@
+import { lockScroll } from "@/lib/scrollLock";
 import {
   useCallback,
   useEffect,
@@ -64,8 +65,7 @@ function ImageViewer({
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockScroll();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
       if (event.key === "+" || event.key === "=") zoomBy(1.4);
@@ -74,7 +74,7 @@ function ImageViewer({
     };
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       window.removeEventListener("keydown", onKey);
       previous?.focus();
     };

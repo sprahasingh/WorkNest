@@ -18,6 +18,8 @@ import {
 import { setAccessToken, setAuthFailureHandler } from "@/api/client";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 import { forgetSignedIn, rememberSignedIn } from "@/lib/sessionHint";
+import { runSignOutHooks } from "@/lib/signOutHooks";
+import { toast } from "sonner";
 import {
   AuthContext,
   type AuthContextValue,
@@ -60,6 +62,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refetchOnWindowFocus: false,
     enabled: !signedOut,
   });
+
+  // Signing out in one tab signs out every tab of this browser, instead of
+  // leaving the others showing data until their next request fails.
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel("worknest-auth");
+    channel.onmessage = (event: MessageEvent) => {
+      if (event.data === "signed-out") {
+        setAccessToken(null);
+        setSignedOut(true);
+        queryClient.clear();
+        runSignOutHooks();
+        forgetSignedIn();
+      }
+    };
+    return () => channel.close();
+  }, [queryClient]);
 
   useEffect(() => {
     setAuthFailureHandler(() => {
@@ -123,10 +142,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoggingOut(true);
     try {
       await logoutRequest();
+    } catch {
+      // Signed out here either way, but the server couldn't be told, so the
+      // browser's session cookie may still work. Say so, don't hide it.
+      toast.error(
+        "Signed out on this device, but we couldn't end the session.",
+        {
+          description: "Try logging out again when you're back online.",
+        },
+      );
     } finally {
       setAccessToken(null);
       setSignedOut(true);
       queryClient.clear();
+      runSignOutHooks();
+      forgetSignedIn();
+      if (typeof BroadcastChannel !== "undefined") {
+        const channel = new BroadcastChannel("worknest-auth");
+        channel.postMessage("signed-out");
+        channel.close();
+      }
       setIsLoggingOut(false);
     }
   }, [queryClient]);

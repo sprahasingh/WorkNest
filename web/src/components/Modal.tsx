@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { lockScroll } from "@/lib/scrollLock";
 
 interface ModalProps {
   open: boolean;
@@ -24,6 +25,10 @@ export function Modal({
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const modalId = useId();
+  // Closing on the backdrop only counts when the press began there too.
+  // Dragging to select text inside a form and letting go outside the dialog
+  // must not throw the form away.
+  const pressStartedOnBackdrop = useRef(false);
   // Parents pass a fresh function each render; the latest one is used without
   // restarting the focus handling below.
   const onCloseRef = useRef(onClose);
@@ -35,13 +40,14 @@ export function Modal({
   // what opened it when it closes.
   useEffect(() => {
     if (!open) return;
+    const unlockScroll = lockScroll();
     openModals.push(modalId);
     const previous = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
 
     const focusable = () =>
       Array.from(dialog?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter(
-        (element) => element.offsetParent !== null,
+        (element) => element.getClientRects().length > 0,
       );
 
     if (dialog && !dialog.contains(document.activeElement)) {
@@ -76,6 +82,7 @@ export function Modal({
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
+      unlockScroll();
       const index = openModals.indexOf(modalId);
       if (index >= 0) openModals.splice(index, 1);
       if (previous && document.contains(previous)) previous.focus();
@@ -87,14 +94,25 @@ export function Modal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4"
-      onClick={onClose}
+      onMouseDown={(event) => {
+        pressStartedOnBackdrop.current = event.target === event.currentTarget;
+      }}
+      onClick={(event) => {
+        if (
+          pressStartedOnBackdrop.current &&
+          event.target === event.currentTarget
+        ) {
+          onClose();
+        }
+        pressStartedOnBackdrop.current = false;
+      }}
     >
       <div
         ref={dialogRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={`${modalId}-title`}
         onClick={(event) => event.stopPropagation()}
         className={cn(
           "flex max-h-[90dvh] min-h-0 w-full flex-col rounded-2xl bg-white p-4 shadow-xl outline-none sm:p-6 dark:bg-slate-800",
@@ -103,7 +121,7 @@ export function Modal({
       >
         <div className="flex items-start justify-between gap-3">
           <h2
-            id="modal-title"
+            id={`${modalId}-title`}
             className="text-lg font-semibold text-slate-900 dark:text-slate-50"
           >
             {title}
@@ -112,7 +130,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="-mr-2 -mt-1 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+            className="-mr-2 -mt-1 rounded-lg p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
           >
             <svg
               viewBox="0 0 24 24"

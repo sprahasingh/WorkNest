@@ -225,7 +225,9 @@ export function MentionTextarea({
                   </span>
                 </span>
                 {suggestion.kind === "role" && (
-                  <span className="shrink-0 text-xs text-slate-400">Group</span>
+                  <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+                    Group
+                  </span>
                 )}
               </button>
             );
