@@ -2,12 +2,11 @@ import { Link, useLocation } from "react-router";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { BrandLink } from "@/components/BrandLink";
+import { PhoneFrame, Screenshot } from "@/components/marketing/Screenshot";
 import {
-  BrowserFrame,
-  PhoneFrame,
-  Screenshot,
-} from "@/components/marketing/Screenshot";
-import type { ScreenName } from "@/assets/screens";
+  ScreenCarousel,
+  type Slide,
+} from "@/components/marketing/ScreenCarousel";
 import { useAuth } from "@/auth/auth-context";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 
@@ -16,7 +15,7 @@ interface GuideStep {
   title: string;
   description: string;
   tips?: string[];
-  screen?: { name: ScreenName; alt: string };
+  screens?: Slide[];
 }
 
 const STEPS: GuideStep[] = [
@@ -31,20 +30,36 @@ const STEPS: GuideStep[] = [
     title: "Create a project",
     description:
       "Go to Projects and choose New project. Give it a name and a short key (like WEB or APP) that labels its tasks. Admins and managers can create projects.",
-    screen: {
-      name: "projects",
-      alt: "The projects page with four project cards and their progress",
-    },
+    screens: [
+      {
+        screen: "projects",
+        alt: "The projects page with four project cards and their progress",
+        caption: "Every project with its progress and due date",
+      },
+      {
+        screen: "projectNew",
+        alt: "The new project dialog with a name, key and description",
+        caption: "A name and a short key are all you need",
+      },
+    ],
   },
   {
     id: "team",
     title: "Invite your team",
     description:
       "Open Members and choose Invite someone. Enter their email and pick a role. People who already use WorkNest can accept from the bell or from their Organizations page. Admins can change a role or remove someone at any time.",
-    screen: {
-      name: "members",
-      alt: "The members page listing five people with their roles",
-    },
+    screens: [
+      {
+        screen: "members",
+        alt: "The members page listing five people with their roles",
+        caption: "Everyone in the organization and their role",
+      },
+      {
+        screen: "membersInvite",
+        alt: "The invite form on the members page",
+        caption: "Invite someone by email and choose their role",
+      },
+    ],
   },
   {
     id: "tasks",
@@ -55,10 +70,23 @@ const STEPS: GuideStep[] = [
       "Each plan limits active tasks per project: 10 on Free, 50 on Pro and unlimited on Premium.",
       "Done, archived and binned tasks don't count toward that limit. Reopening or restoring one does.",
     ],
-    screen: {
-      name: "board",
-      alt: "A project board with To do and In progress columns",
-    },
+    screens: [
+      {
+        screen: "board",
+        alt: "A project board with To do and In progress columns",
+        caption: "Cards grouped by status, with priority and assignees",
+      },
+      {
+        screen: "taskNew",
+        alt: "The new task dialog with title, priority, due date and assignees",
+        caption: "Add a title, a priority, a due date and who is on it",
+      },
+      {
+        screen: "boardFilter",
+        alt: "The board filtered to high priority tasks",
+        caption: "Filter by priority or person to focus",
+      },
+    ],
   },
   {
     id: "updates",
@@ -69,10 +97,18 @@ const STEPS: GuideStep[] = [
       "Project updates, on the project board, collects every task's updates in one place.",
       "A task's Meetings tab lists meetings linked to it, and lets you schedule a new one.",
     ],
-    screen: {
-      name: "taskUpdates",
-      alt: "A task's Updates tab with an update request, an update and a question",
-    },
+    screens: [
+      {
+        screen: "taskUpdates",
+        alt: "A task's Updates tab with an update request, an update and a question",
+        caption: "The Updates tab on a task",
+      },
+      {
+        screen: "projectUpdates",
+        alt: "The project updates feed with updates from several tasks",
+        caption: "Project updates collects every task's updates",
+      },
+    ],
   },
   {
     id: "lifecycle",
@@ -94,10 +130,28 @@ const STEPS: GuideStep[] = [
       "Deleting a conversation clears it for you only. The other people keep it, and a new message brings it back with just the new messages.",
       "The bell next to New turns on desktop notifications or a soft sound. Your unread count always shows in the browser tab.",
     ],
-    screen: {
-      name: "messages",
-      alt: "A group chat with a reply, reactions and an @mention",
-    },
+    screens: [
+      {
+        screen: "messages",
+        alt: "A group chat with a reply, reactions and an @mention",
+        caption: "A group chat with a reply, reactions and an @mention",
+      },
+      {
+        screen: "messagesSearch",
+        alt: "Search results showing matching messages",
+        caption: "Search finds people, groups and old messages",
+      },
+      {
+        screen: "messagesMenu",
+        alt: "A chat's options menu",
+        caption: "Press and hold a chat, or right-click it, for its options",
+      },
+      {
+        screen: "messagesNew",
+        alt: "The new conversation dialog",
+        caption: "Start a direct message or a group",
+      },
+    ],
   },
   {
     id: "meetings",
@@ -111,36 +165,77 @@ const STEPS: GuideStep[] = [
       "Everyone gets a reminder about 15 minutes before a meeting starts. Meet now starts an instant call, and Add to calendar downloads an .ics file.",
       "Link a meeting to a project or task so it shows up there too.",
     ],
-    screen: {
-      name: "meetings",
-      alt: "The meetings page with a next-up card and upcoming meetings",
-    },
+    screens: [
+      {
+        screen: "meetings",
+        alt: "The meetings page with a next up card and upcoming meetings",
+        caption: "Next up, then everything coming",
+      },
+      {
+        screen: "meetingDetail",
+        alt: "A meeting with an agenda, people and reply buttons",
+        caption: "Open a meeting to reply, join or add it to your calendar",
+      },
+      {
+        screen: "meetingForm",
+        alt: "The schedule a meeting form",
+        caption: "Schedule with a link, an agenda and a repeat",
+      },
+      {
+        screen: "meetingsCalendar",
+        alt: "A month calendar with meetings on their days",
+        caption: "The calendar shows the whole month",
+      },
+    ],
   },
   {
     id: "dashboard",
     title: "Check the dashboard",
     description:
       "Admins and managers see open, completed, created and overdue tasks, plus how open work has moved over the last 7 to 90 days in your organization's time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
-    screen: {
-      name: "dashboard",
-      alt: "The dashboard with task counts and an open work chart",
-    },
+    screens: [
+      {
+        screen: "dashboard",
+        alt: "The dashboard with task counts and an open work chart",
+        caption: "Task counts and the open work chart",
+      },
+      {
+        screen: "dashboardCharts",
+        alt: "Charts for where tasks stand and open tasks by priority",
+        caption: "More charts further down the page",
+      },
+      {
+        screen: "dashboardProjects",
+        alt: "The projects view of the dashboard",
+        caption: "The Projects switch shows stages and open work per project",
+      },
+    ],
   },
   {
     id: "audit",
     title: "Review the audit log",
     description:
       "Admins can see who changed what and when, including settings, members, projects, tasks and plans. Filters narrow it down by action, type and person.",
-    screen: {
-      name: "audit",
-      alt: "The audit log listing recent changes",
-    },
+    screens: [
+      {
+        screen: "audit",
+        alt: "The audit log listing recent changes",
+        caption: "Who changed what, and when",
+      },
+    ],
   },
   {
     id: "plan",
     title: "Manage your plan and chat history",
     description:
       "Open Settings to compare plans and check usage. Free includes 5 seats, 3 active projects and 10 active tasks per project. Pro includes 30 seats, 25 active projects and 50 active tasks per project. Premium includes 100 seats, 50 active projects and unlimited active tasks. Only admins can change plans, and a downgrade is available once your usage fits the lower limits. Admins also choose how long chat history is kept, from forever down to 90 days.",
+    screens: [
+      {
+        screen: "settingsPlan",
+        alt: "The settings page comparing the Free, Pro and Premium plans",
+        caption: "Plans and usage, with chat history below",
+      },
+    ],
   },
 ];
 
@@ -453,15 +548,12 @@ export function HowToUse() {
                     )}
                   </div>
                 </div>
-                {step.screen && (
-                  <figure className="mt-5 sm:pl-11">
-                    <BrowserFrame>
-                      <Screenshot
-                        name={step.screen.name}
-                        alt={step.screen.alt}
-                      />
-                    </BrowserFrame>
-                  </figure>
+                {step.screens && (
+                  <ScreenCarousel
+                    slides={step.screens}
+                    label={`${step.title} screens`}
+                    className="mt-5 sm:pl-11"
+                  />
                 )}
               </li>
             ))}

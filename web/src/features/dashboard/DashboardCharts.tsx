@@ -390,9 +390,10 @@ export function CreatedVsCompletedCard({
               name={names[key]}
               stroke={colors[key]}
               strokeWidth={2}
-              // A light wash under created only, so the two stay apart.
+              // The same light wash under both lines, so neither looks more
+              // important. It's faint enough for the two to overlap cleanly.
               fill={colors[key]}
-              fillOpacity={key === "created" ? 0.1 : 0}
+              fillOpacity={0.1}
               dot={
                 rows.length <= 14
                   ? {

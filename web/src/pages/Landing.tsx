@@ -10,11 +10,11 @@ import { parseApiError } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { HeroPreview } from "@/components/marketing/HeroPreview";
+import { PhoneFrame, Screenshot } from "@/components/marketing/Screenshot";
 import {
-  BrowserFrame,
-  PhoneFrame,
-  Screenshot,
-} from "@/components/marketing/Screenshot";
+  ScreenCarousel,
+  type Slide,
+} from "@/components/marketing/ScreenCarousel";
 import type { ScreenName } from "@/assets/screens";
 
 interface Feature {
@@ -95,8 +95,7 @@ const FEATURES: Feature[] = [
 interface TourTab {
   id: string;
   label: string;
-  screen: ScreenName;
-  alt: string;
+  slides: Slide[];
   heading: string;
   points: string[];
 }
@@ -105,32 +104,89 @@ const TOUR: TourTab[] = [
   {
     id: "dashboard",
     label: "Dashboard",
-    screen: "dashboard",
-    alt: "The WorkNest dashboard showing open, completed, created and overdue tasks and a trend chart",
+    slides: [
+      {
+        screen: "dashboard",
+        alt: "The dashboard showing open, completed, created and overdue tasks and an open work chart",
+        caption: "Task counts and how open work has moved",
+      },
+      {
+        screen: "dashboardCharts",
+        alt: "Charts for where tasks stand, open tasks by priority, and created against completed",
+        caption:
+          "Where tasks stand, by priority, and created against completed",
+      },
+      {
+        screen: "dashboardProjects",
+        alt: "The projects view of the dashboard with project stages and open work by project",
+        caption: "Switch to Projects to see stages and open work for each one",
+      },
+    ],
     heading: "Know where things stand",
     points: [
       "Open, completed, created and overdue tasks at a glance",
       "Trends over the last 7 to 90 days, in your own time zone",
-      "Plan usage for admins and managers",
+      "A project view for stages and open work",
     ],
   },
   {
     id: "board",
     label: "Task board",
-    screen: "board",
-    alt: "A project board with To do and In progress columns of task cards",
+    slides: [
+      {
+        screen: "board",
+        alt: "A project board with To do and In progress columns of task cards",
+        caption: "Every task as a card, grouped by status",
+      },
+      {
+        screen: "boardFilter",
+        alt: "The same board filtered to high priority tasks",
+        caption: "Filter by priority or person to see what matters",
+      },
+      {
+        screen: "taskUpdates",
+        alt: "A task's Updates tab with an update request, an update and a question",
+        caption: "Ask for updates and answer questions on the task itself",
+      },
+      {
+        screen: "projectUpdates",
+        alt: "Project updates collecting every task's updates in one place",
+        caption: "Project updates gathers everything in one feed",
+      },
+    ],
     heading: "Keep the work moving",
     points: [
       "Cards for every task, with priority, due date and assignees",
       "Filter by priority or person, or switch to just your own tasks",
-      "Completed, archived and binned tasks stay out of the way",
+      "Ask for updates on a task or a whole project",
     ],
   },
   {
     id: "messages",
     label: "Messages",
-    screen: "messages",
-    alt: "A group chat with replies, reactions and an @mention",
+    slides: [
+      {
+        screen: "messages",
+        alt: "A group chat with a reply, reactions and an @mention",
+        caption: "Group chats with replies, reactions and @mentions",
+      },
+      {
+        screen: "messagesSearch",
+        alt: "Search results showing matching messages from several chats",
+        caption: "Search people, groups and old messages",
+      },
+      {
+        screen: "messagesMenu",
+        alt: "A chat's options menu with mute, mark as unread and delete",
+        caption:
+          "Press and hold a chat to mute it, mark it unread or delete it",
+      },
+      {
+        screen: "messagesNew",
+        alt: "The new conversation dialog for a direct message or a group",
+        caption: "Message anyone in the organization, or start a group",
+      },
+    ],
     heading: "Talk it through",
     points: [
       "One to one chats and groups, delivered live",
@@ -141,13 +197,65 @@ const TOUR: TourTab[] = [
   {
     id: "meetings",
     label: "Meetings",
-    screen: "meetings",
-    alt: "The meetings page listing upcoming meetings with a Join button",
+    slides: [
+      {
+        screen: "meetings",
+        alt: "The meetings page with a next up card and upcoming meetings",
+        caption: "What's next, with a Join button when it's time",
+      },
+      {
+        screen: "meetingDetail",
+        alt: "A meeting with an agenda, people and Accept, Maybe and Decline buttons",
+        caption: "Reply Accept, Maybe or Decline, or suggest another time",
+      },
+      {
+        screen: "meetingForm",
+        alt: "The schedule a meeting form with date, repeat, join link and agenda",
+        caption: "Schedule with a join link, an agenda and a repeat",
+      },
+      {
+        screen: "meetingsCalendar",
+        alt: "A month calendar with meetings on their days",
+        caption: "See the whole month on the calendar",
+      },
+    ],
     heading: "Meet without the juggling",
     points: [
       "Join links, repeating meetings and a month calendar",
       "Accept, Maybe or Decline, or suggest another time",
       "A reminder shortly before each meeting starts",
+    ],
+  },
+  {
+    id: "team",
+    label: "Team and admin",
+    slides: [
+      {
+        screen: "members",
+        alt: "The members page listing five people with their roles",
+        caption: "Everyone in the organization and their role",
+      },
+      {
+        screen: "membersInvite",
+        alt: "The invite form on the members page",
+        caption: "Invite people by email and pick their role",
+      },
+      {
+        screen: "settingsPlan",
+        alt: "The settings page comparing the Free, Pro and Premium plans",
+        caption: "Plans, usage and how long chat history is kept",
+      },
+      {
+        screen: "audit",
+        alt: "The audit log listing recent changes",
+        caption: "The audit log shows who changed what and when",
+      },
+    ],
+    heading: "Run it with confidence",
+    points: [
+      "Admin, manager and member roles with clear limits",
+      "Invite by email, change roles or remove people",
+      "An audit log of every important change",
     ],
   },
 ];
@@ -480,9 +588,12 @@ function ProductTour() {
             ))}
           </ul>
         </div>
-        <BrowserFrame>
-          <Screenshot name={tab.screen} alt={tab.alt} />
-        </BrowserFrame>
+        <ScreenCarousel
+          key={tab.id}
+          slides={tab.slides}
+          label={`${tab.label} screens`}
+          className="min-w-0"
+        />
       </div>
     </section>
   );
