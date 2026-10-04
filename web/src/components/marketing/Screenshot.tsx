@@ -1,10 +1,9 @@
 import { cn } from "@/lib/cn";
-import { SCREENS, type ScreenName } from "@/assets/screens";
+import type { Screen } from "@/assets/screens";
 import { useImageViewer } from "@/components/imageViewerContext";
 
 interface ScreenshotProps {
-  name: ScreenName;
-  alt: string;
+  screen: Screen;
   className?: string;
   // Load straight away for pictures that are on screen at the top of the page.
   eager?: boolean;
@@ -12,8 +11,8 @@ interface ScreenshotProps {
 
 // One screenshot, in the light or dark version to match the theme. The one
 // that isn't shown is display:none, so the browser never downloads it.
-export function Screenshot({ name, alt, className, eager }: ScreenshotProps) {
-  const screen = SCREENS[name];
+export function Screenshot({ screen, className, eager }: ScreenshotProps) {
+  const { alt } = screen;
   const { openImage } = useImageViewer();
   const shared = {
     width: screen.width,
