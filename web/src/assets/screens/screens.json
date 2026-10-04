@@ -16,25 +16,39 @@
       "size": "desktop",
       "screens": [
         {
-          "id": "overview",
-          "file": "01-overview",
-          "title": "Tasks overview",
-          "caption": "Task counts and how open work has moved",
-          "alt": "The dashboard showing open, completed, created and overdue tasks and an open work chart"
+          "id": "tasks-overview",
+          "file": "01-tasks-overview",
+          "title": "Tasks: overview",
+          "caption": "Tasks view: open, completed, created and overdue tasks, and how open work has moved",
+          "alt": "The Tasks view of the dashboard with open, completed, created and overdue task counts and an open work chart"
         },
         {
-          "id": "charts",
-          "file": "02-charts",
-          "title": "More charts",
-          "caption": "Where tasks stand, by priority, and created against completed",
-          "alt": "Charts for where tasks stand, open tasks by priority, and created against completed"
+          "id": "tasks-status",
+          "file": "02-tasks-status",
+          "title": "Tasks: status and priority",
+          "caption": "Tasks view: where tasks stand and open tasks by priority",
+          "alt": "The Tasks view of the dashboard with charts for where tasks stand and open tasks by priority"
         },
         {
-          "id": "projects-view",
-          "file": "03-projects-view",
-          "title": "Projects view",
-          "caption": "Switch to Projects to see stages and open work for each one",
-          "alt": "The projects view of the dashboard with project stages and open work by project"
+          "id": "tasks-flow",
+          "file": "03-tasks-flow",
+          "title": "Tasks: created and completed",
+          "caption": "Tasks view: tasks created against completed, plus workload and project progress",
+          "alt": "The Tasks view of the dashboard with a created against completed chart, workload per person and project progress"
+        },
+        {
+          "id": "projects-overview",
+          "file": "04-projects-overview",
+          "title": "Projects: overview",
+          "caption": "Projects view: active projects, their stages and where the open work is",
+          "alt": "The Projects view of the dashboard with project counts, project stages and open work by project"
+        },
+        {
+          "id": "projects-flow",
+          "file": "05-projects-flow",
+          "title": "Projects: created and done",
+          "caption": "Projects view: tasks created and marked done in each project",
+          "alt": "The Projects view of the dashboard with tasks created and marked done in each project"
         }
       ]
     },
@@ -265,9 +279,11 @@
   ],
   "placements": {
     "landing.tour.dashboard": [
-      "dashboard/overview",
-      "dashboard/charts",
-      "dashboard/projects-view"
+      "dashboard/tasks-overview",
+      "dashboard/tasks-status",
+      "dashboard/tasks-flow",
+      "dashboard/projects-overview",
+      "dashboard/projects-flow"
     ],
     "landing.tour.tasks": [
       "tasks/board",
@@ -329,9 +345,11 @@
       "meetings/calendar"
     ],
     "guide.dashboard": [
-      "dashboard/overview",
-      "dashboard/charts",
-      "dashboard/projects-view"
+      "dashboard/tasks-overview",
+      "dashboard/tasks-status",
+      "dashboard/tasks-flow",
+      "dashboard/projects-overview",
+      "dashboard/projects-flow"
     ],
     "guide.audit": [
       "audit/audit-log"
@@ -346,8 +364,8 @@
       "phone/meetings"
     ],
     "readme.dashboard": [
-      "dashboard/overview",
-      "dashboard/projects-view"
+      "dashboard/tasks-overview",
+      "dashboard/projects-overview"
     ],
     "readme.projects-tasks": [
       "projects/list",
@@ -381,7 +399,7 @@
   "readme": [
     {
       "heading": "Dashboard",
-      "text": "Admins and managers see where work stands: task counts, how open work has moved over a period you choose (7 to 90 days, all time or custom dates), and a projects view with stages and open work for each project.",
+      "text": "Admins and managers get two views. Tasks shows open, completed, created and overdue tasks with charts for status, priority and workload. Projects shows project stages and where the open work is. Both follow a period you choose (7 to 90 days, all time or custom dates).",
       "placement": "readme.dashboard",
       "columns": 2
     },
