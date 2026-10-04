@@ -10,6 +10,7 @@ import { logger } from "./lib/logger.js";
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { feedbackRouter } from "./modules/feedback/feedback.routes.js";
 import { authenticate } from "./auth/authenticate.js";
 import { resolveTenant } from "./tenancy/resolveTenant.js";
 import { membersRouter } from "./modules/members/members.routes.js";
@@ -75,7 +76,8 @@ export function createApp(): Express {
     // whole office can share one IP address.
     skip: (req) =>
       /^\/api\/orgs\/[^/]+\/chat(\/|$)/.test(req.path) ||
-      req.path.startsWith("/api/chat-files/"),
+      req.path.startsWith("/api/chat-files/") ||
+      req.path === "/api/auth/registration-status",
   });
   app.use(globalLimiter);
 
@@ -99,6 +101,7 @@ export function createApp(): Express {
   app.get("/api/chat-files/:token", fileLimiter, downloadChatFileController);
 
   app.use("/api/auth", authRouter);
+  app.use("/api/feedback", feedbackRouter);
   app.use("/api/invites", invitesPublicRouter);
   app.use("/api/me/invites", myInvitesRouter);
 
