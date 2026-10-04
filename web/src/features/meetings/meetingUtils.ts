@@ -86,9 +86,9 @@ export function describeTiming(meeting: Meeting, now: number): string {
 
 export const RSVP_LABEL: Record<Rsvp, string> = {
   pending: "No reply",
-  accepted: "Going",
+  accepted: "Accepted",
   tentative: "Maybe",
-  declined: "Can't go",
+  declined: "Declined",
 };
 
 export const timeZoneName = () =>

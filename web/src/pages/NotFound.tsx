@@ -8,7 +8,7 @@ export function NotFound() {
   const signedIn = auth.status === "authenticated";
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 px-4 text-center dark:bg-slate-950">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-slate-50 px-4 text-center dark:bg-slate-950">
       <BrandLink />
       <h1 className="mt-4 text-5xl font-bold text-slate-900 dark:text-slate-50">
         404

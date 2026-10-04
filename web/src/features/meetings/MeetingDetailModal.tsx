@@ -229,14 +229,14 @@ function MeetingDetail({
       {canRespond && (
         <section aria-labelledby="rsvp-title">
           <h3 id="rsvp-title" className={sectionTitle}>
-            Will you go?
+            Your reply
           </h3>
           <div className="mt-2 inline-flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
             {(
               [
-                ["accepted", "Going"],
+                ["accepted", "Accept"],
                 ["tentative", "Maybe"],
-                ["declined", "Can't go"],
+                ["declined", "Decline"],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -465,8 +465,8 @@ function MeetingDetail({
           People · {meeting.attendees.length}
         </h3>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {counts.accepted} going · {counts.tentative} maybe · {counts.declined}{" "}
-          can't go · {counts.pending} no reply
+          {counts.accepted} accepted · {counts.tentative} maybe ·{" "}
+          {counts.declined} declined · {counts.pending} no reply
         </p>
         <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-700">
           {meeting.attendees.map((attendee) => (
@@ -491,7 +491,7 @@ function MeetingDetail({
                   )}
                 />
                 {attendee.userId === meeting.organizer.id
-                  ? "Going"
+                  ? "Accepted"
                   : RSVP_LABEL[attendee.response]}
               </span>
             </li>
