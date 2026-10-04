@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { useCooldown } from "@/hooks/useCooldown";
 import { useLocation } from "react-router";
 import { useController, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +22,7 @@ import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Card } from "@/components/ui/Card";
 import {
   cancelEmailChange,
+  resendEmailChange,
   requestEmailChange,
   updatePersonalInformation,
   type Plan,
@@ -531,6 +533,8 @@ function EmailAddressSection() {
   const { user, updateCurrentUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const resendCooldown = useCooldown(60);
   const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
@@ -579,6 +583,19 @@ function EmailAddressSection() {
     setIsEditing(false);
   };
 
+  const resendPendingEmailChange = async () => {
+    setIsResending(true);
+    try {
+      updateCurrentUser(await resendEmailChange());
+      resendCooldown.start();
+      toast.success("We sent a new link. The old one no longer works.");
+    } catch (error) {
+      toast.error(parseApiError(error).message);
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   const cancelPendingEmailChange = async () => {
     setIsCanceling(true);
     try {
@@ -605,8 +622,22 @@ function EmailAddressSection() {
             <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
               <p className="break-all text-sm text-amber-700 dark:text-amber-300">
                 Verification pending for {user.pendingEmail}. Your current email
-                remains active until confirmed.
+                remains active until confirmed. Look in your spam or junk folder
+                if the link hasn&apos;t arrived.
               </p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void resendPendingEmailChange()}
+                disabled={isResending || resendCooldown.left > 0}
+                loading={isResending}
+                className="w-fit shrink-0"
+              >
+                {resendCooldown.left > 0
+                  ? `Resend in ${resendCooldown.left}s`
+                  : "Resend link"}
+              </Button>
               <Button
                 type="button"
                 variant="secondary"

@@ -150,7 +150,11 @@ export async function signupViaInviteController(
     res.status(201).json({ accessToken, verificationRequired: false });
     return;
   }
-  res.status(202).json({ email: result.email, verificationRequired: true });
+  res.status(202).json({
+    email: result.email,
+    verificationRequired: true,
+    signupToken: result.signupToken,
+  });
 }
 
 export async function getInviteByTokenController(
