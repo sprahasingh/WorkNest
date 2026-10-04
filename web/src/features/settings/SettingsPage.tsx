@@ -1,4 +1,5 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useLocation } from "react-router";
 import { useController, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -714,6 +715,13 @@ export function SettingsPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const { data: org, isPending, isError } = useOrgDetails(orgId);
+
+  // A link from Messages lands on the chat history card.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash !== "#chat-history" || !org) return;
+    document.getElementById("chat-history")?.scrollIntoView({ block: "start" });
+  }, [hash, org]);
   const updateOrg = useUpdateOrg(orgId);
   const changePlan = useChangePlan(orgId);
 
@@ -982,6 +990,10 @@ export function SettingsPage() {
           )}
         </Card>
 
+        {org && (
+          <ChatRetentionCard orgId={orgId} org={org} canEdit={canUpdateOrg} />
+        )}
+
         <Card>
           <h2 className="font-medium text-slate-800 dark:text-slate-100">
             Session
@@ -998,8 +1010,6 @@ export function SettingsPage() {
             {isLoggingOut ? "Logging out…" : "Log out"}
           </Button>
         </Card>
-
-        {org && canUpdateOrg && <ChatRetentionCard orgId={orgId} org={org} />}
 
         {org && <LeaveOrganizationCard orgId={orgId} orgName={org.name} />}
 
