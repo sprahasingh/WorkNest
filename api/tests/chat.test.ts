@@ -15,7 +15,7 @@ async function setup() {
   const response = await registerAndVerify(app, {
     name: "Admin User",
     email: "admin@chat.test",
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName: "Chat Org",
   });
   const adminToken = response.body.accessToken as string;
@@ -36,7 +36,7 @@ async function setup() {
       app,
       takeInvitationToken(email),
       email,
-      { name: email, password: "password123" },
+      { name: email, password: "Harbor-lamp-91" },
     );
     const token = signup.body.accessToken as string;
     const profile = await request(app)
@@ -416,7 +416,7 @@ describe("group chats", () => {
     const other = await registerAndVerify(app, {
       name: "Outsider",
       email: "out@other.test",
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "Other Org",
     });
     const outsider = await request(app)

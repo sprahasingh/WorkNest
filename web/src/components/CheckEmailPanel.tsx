@@ -9,6 +9,10 @@ import { useCooldown } from "@/hooks/useCooldown";
 import { parseApiError } from "@/lib/apiError";
 
 const POLL_MS = 5000;
+// After a few minutes the link is probably waiting in a busy inbox, so ask
+// less often. Coming back to the tab still checks straight away.
+const SLOW_POLL_AFTER_MS = 5 * 60 * 1000;
+const SLOW_POLL_MS = 15000;
 const RESEND_SECONDS = 60;
 
 interface CheckEmailPanelProps {
@@ -66,14 +70,27 @@ export function CheckEmailPanel({
       }
     };
 
-    const timer = window.setInterval(() => void check(), POLL_MS);
+    const startedAt = Date.now();
+    let timer = 0;
+    const schedule = () => {
+      const slow = Date.now() - startedAt > SLOW_POLL_AFTER_MS;
+      timer = window.setTimeout(
+        () => {
+          void check().finally(() => {
+            if (!cancelled && !finished.current) schedule();
+          });
+        },
+        slow ? SLOW_POLL_MS : POLL_MS,
+      );
+    };
+    schedule();
     const onVisible = () => {
       if (document.visibilityState === "visible") void check();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [signupToken, establishSession, onSignedIn]);

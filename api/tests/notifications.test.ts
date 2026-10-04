@@ -17,7 +17,7 @@ async function registerOrg(email: string, orgName: string) {
   const response = await registerAndVerify(app, {
     name: "Admin User",
     email,
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName,
   });
   const accessToken = response.body.accessToken as string;
@@ -45,7 +45,7 @@ async function addMember(
   const token = takeInvitationToken(email);
   const signup = await signupInviteAndVerify(app, token, email, {
     name: email,
-    password: "password123",
+    password: "Harbor-lamp-91",
   });
   const accessToken = signup.body.accessToken as string;
   const me = await request(app)

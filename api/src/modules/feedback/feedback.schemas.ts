@@ -16,6 +16,13 @@ export const feedbackSchema = z
       .optional()
       .or(z.literal("").transform(() => undefined)),
     page: z.string().trim().max(300).optional(),
+    // One screenshot as a data URL. The app shrinks it first; the route checks
+    // what it really is and how big.
+    screenshot: z
+      .string()
+      .regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/)
+      .max(2_800_000)
+      .optional(),
     // A field people never see. If something fills it in, it was a bot.
     website: z.string().max(200).optional(),
   })

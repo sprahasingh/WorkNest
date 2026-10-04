@@ -5,6 +5,7 @@ import { PendingRegistration } from "../src/models/PendingRegistration.js";
 import { User } from "../src/models/User.js";
 import {
   countVerificationEmails,
+  takePasswordResetToken,
   takeVerificationToken,
 } from "./emailDeliveryMock.js";
 
@@ -20,7 +21,7 @@ const register = (email: string, extra: object = {}, forwardedFor = ip()) =>
     .send({
       name: "New Person",
       email,
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "New Org",
       ...extra,
     });
@@ -48,7 +49,7 @@ describe("signing in on the device that signed up", () => {
     await request(app)
       .post("/api/auth/verify-registration")
       .set("X-Forwarded-For", ip())
-      .send({ token: link, password: "password123" })
+      .send({ token: link, password: "Harbor-lamp-91" })
       .expect(201);
 
     // The first device now gets its own session.
@@ -73,7 +74,7 @@ describe("signing in on the device that signed up", () => {
     await request(app)
       .post("/api/auth/verify-registration")
       .set("X-Forwarded-For", ip())
-      .send({ token: link, password: "password123" })
+      .send({ token: link, password: "Harbor-lamp-91" })
       .expect(201);
     const guess = await status("x".repeat(43));
     expect(guess.body).toEqual({ status: "expired" });
@@ -113,12 +114,12 @@ describe("resending the verification link", () => {
     const withOld = await request(app)
       .post("/api/auth/verify-registration")
       .set("X-Forwarded-For", ip())
-      .send({ token: oldLink, password: "password123" });
+      .send({ token: oldLink, password: "Harbor-lamp-91" });
     expect(withOld.status).toBe(400);
     await request(app)
       .post("/api/auth/verify-registration")
       .set("X-Forwarded-For", ip())
-      .send({ token: newLink, password: "password123" })
+      .send({ token: newLink, password: "Harbor-lamp-91" })
       .expect(201);
     expect(registered.body.signupToken).toBeTruthy();
   });
@@ -159,14 +160,14 @@ describe("resending an email change link", () => {
     const verified = await request(app)
       .post("/api/auth/verify-registration")
       .set("X-Forwarded-For", ip())
-      .send({ token: link, password: "password123" });
+      .send({ token: link, password: "Harbor-lamp-91" });
     const token = verified.body.accessToken as string;
     const newEmail = `new@${domain}`;
     await request(app)
       .post("/api/auth/me/email-change")
       .set("Authorization", `Bearer ${token}`)
       .set("X-Forwarded-For", ip())
-      .send({ email: newEmail, currentPassword: "password123" })
+      .send({ email: newEmail, currentPassword: "Harbor-lamp-91" })
       .expect(202);
     return { token, newEmail, email };
   }
@@ -204,12 +205,145 @@ describe("resending an email change link", () => {
     const verified = await request(app)
       .post("/api/auth/verify-registration")
       .set("X-Forwarded-For", ip())
-      .send({ token: link, password: "password123" });
+      .send({ token: link, password: "Harbor-lamp-91" });
     const res = await request(app)
       .post("/api/auth/me/email-change/resend")
       .set("Authorization", `Bearer ${verified.body.accessToken}`)
       .set("X-Forwarded-For", ip());
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe("NO_PENDING_EMAIL_CHANGE");
+  });
+});
+
+describe("signing in before confirming the email", () => {
+  it("says so only when the password matches the pending sign-up", async () => {
+    const email = "pending-login@accounts.test";
+    await register(email);
+
+    const right = await request(app)
+      .post("/api/auth/login")
+      .set("X-Forwarded-For", ip())
+      .send({ email, password: "Harbor-lamp-91" });
+    expect(right.status).toBe(403);
+    expect(right.body.error.code).toBe("EMAIL_NOT_VERIFIED");
+
+    const wrong = await request(app)
+      .post("/api/auth/login")
+      .set("X-Forwarded-For", ip())
+      .send({ email, password: "not-the-password-1" });
+    expect(wrong.status).toBe(401);
+    expect(wrong.body.error.code).toBe("INVALID_CREDENTIALS");
+  });
+});
+
+describe("password rules", () => {
+  const cases: [string, object, string][] = [
+    ["common", { password: "Password123" }, "commonly used"],
+    ["sequence", { password: "23456789" }, "pattern"],
+    ["repeat", { password: "abababab" }, "pattern"],
+    ["email", { password: "rules-person-9!" }, "email address"],
+    [
+      "name",
+      { password: "xx-Moonbeam-91", name: "Moonbeam Jones" },
+      "your name",
+    ],
+  ];
+
+  for (const [label, extra, reason] of cases) {
+    it(`say why a ${label} password is refused`, async () => {
+      const res = await register("rules-person@accounts.test", extra);
+      expect(res.status).toBe(400);
+      expect(res.body.error.details[0].path).toEqual(["password"]);
+      expect(res.body.error.message).toContain(reason);
+    });
+  }
+
+  it("accepts a password that breaks none of them", async () => {
+    const res = await register("rules-ok@accounts.test", {
+      password: "Moonlit-harbor-42",
+    });
+    expect(res.status).toBe(202);
+  });
+});
+
+describe("password reset cooldown", () => {
+  it("sends one email for requests made within a minute", async () => {
+    const email = "reset-cooldown@accounts.test";
+    await register(email);
+    const link = takeVerificationToken(email, "registration");
+    await request(app)
+      .post("/api/auth/verify-registration")
+      .set("X-Forwarded-For", ip())
+      .send({ token: link, password: "Harbor-lamp-91" })
+      .expect(201);
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await request(app)
+        .post("/api/auth/forgot-password")
+        .set("X-Forwarded-For", ip())
+        .send({ email })
+        .expect(200);
+    }
+    expect(takePasswordResetToken(email)).toBeTruthy();
+    expect(() => takePasswordResetToken(email)).toThrow();
+  });
+});
+
+describe("signed-in devices", () => {
+  it("lists devices and signs them out", async () => {
+    const email = "devices@accounts.test";
+    await register(email);
+    const link = takeVerificationToken(email, "registration");
+    await request(app)
+      .post("/api/auth/verify-registration")
+      .set("X-Forwarded-For", ip())
+      .set("User-Agent", "Mozilla/5.0 (Macintosh) Chrome/120")
+      .send({ token: link, password: "Harbor-lamp-91" })
+      .expect(201);
+
+    const phone = await request(app)
+      .post("/api/auth/login")
+      .set("X-Forwarded-For", ip())
+      .set("User-Agent", "Mozilla/5.0 (iPhone) Safari/604")
+      .send({ email, password: "Harbor-lamp-91" })
+      .expect(200);
+    const cookie = phone.headers["set-cookie"];
+    const token = phone.body.accessToken as string;
+
+    const list = await request(app)
+      .get("/api/auth/me/sessions")
+      .set("Authorization", `Bearer ${token}`)
+      .set("Cookie", cookie)
+      .expect(200);
+    expect(list.body.sessions).toHaveLength(2);
+    const current = list.body.sessions.filter(
+      (item: { current: boolean }) => item.current,
+    );
+    expect(current).toHaveLength(1);
+    expect(current[0].device).toContain("iPhone");
+
+    const other = list.body.sessions.find(
+      (item: { current: boolean }) => !item.current,
+    );
+    await request(app)
+      .delete(`/api/auth/me/sessions/${other.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(204);
+    const after = await request(app)
+      .get("/api/auth/me/sessions")
+      .set("Authorization", `Bearer ${token}`)
+      .set("Cookie", cookie)
+      .expect(200);
+    expect(after.body.sessions).toHaveLength(1);
+
+    await request(app)
+      .delete("/api/auth/me/sessions")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(204);
+    await request(app)
+      .post("/api/auth/refresh")
+      .set("X-Forwarded-For", ip())
+      .set("Cookie", cookie)
+      .expect(401);
   });
 });

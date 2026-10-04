@@ -68,6 +68,43 @@ describe("feedback form", () => {
     expect(takeFeedbackEmails()).toHaveLength(0);
   });
 
+  it("attaches a screenshot only from signed-in people, and only real images", async () => {
+    takeFeedbackEmails();
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]).toString(
+      "base64",
+    );
+    const shot = `data:image/png;base64,${png}`;
+    const body = { message: "Here is what I see.", screenshot: shot };
+
+    const anonymous = await request(app)
+      .post("/api/feedback")
+      .set("X-Forwarded-For", ip())
+      .send(body);
+    expect(anonymous.status).toBe(400);
+    expect(anonymous.body.error.code).toBe("ATTACHMENT_REQUIRES_SIGN_IN");
+
+    const { admin } = await setupOrg(app, "feedback3.test");
+    const fake = await request(app)
+      .post("/api/feedback")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .set("X-Forwarded-For", ip())
+      .send({
+        ...body,
+        screenshot: `data:image/png;base64,${Buffer.from("not an image").toString("base64")}`,
+      });
+    expect(fake.status).toBe(400);
+    expect(fake.body.error.code).toBe("INVALID_ATTACHMENT");
+
+    const ok = await request(app)
+      .post("/api/feedback")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .set("X-Forwarded-For", ip())
+      .send(body);
+    expect(ok.status).toBe(202);
+    const [sent] = takeFeedbackEmails();
+    expect(sent.attachment?.name).toBe("screenshot.png");
+  });
+
   it("limits how many a person can send in an hour", async () => {
     const same = "198.18.0.1";
     let last = 0;

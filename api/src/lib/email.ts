@@ -9,6 +9,12 @@ export function isEmailDeliveryConfigured(): boolean {
   );
 }
 
+export interface EmailAttachment {
+  name: string;
+  // Base64, as both Brevo and nodemailer take it.
+  content: string;
+}
+
 async function sendEmail(
   recipient: string,
   subject: string,
@@ -20,6 +26,7 @@ async function sendEmail(
     | "email change notice"
     | "feedback",
   replyTo?: string,
+  attachment?: EmailAttachment,
 ): Promise<void> {
   if (!isEmailDeliveryConfigured()) {
     throw new AppError(
@@ -44,6 +51,13 @@ async function sendEmail(
           ...(replyTo ? { replyTo: { email: replyTo } } : {}),
           subject,
           textContent: text,
+          ...(attachment
+            ? {
+                attachment: [
+                  { name: attachment.name, content: attachment.content },
+                ],
+              }
+            : {}),
         }),
         signal: AbortSignal.timeout(10_000),
       });
@@ -77,6 +91,16 @@ async function sendEmail(
       ...(replyTo ? { replyTo } : {}),
       subject,
       text,
+      ...(attachment
+        ? {
+            attachments: [
+              {
+                filename: attachment.name,
+                content: Buffer.from(attachment.content, "base64"),
+              },
+            ],
+          }
+        : {}),
     });
   } catch {
     throw new AppError(
@@ -180,6 +204,7 @@ export async function sendFeedbackEmail(input: {
   senderName: string | null;
   senderEmail: string | null;
   page: string | null;
+  attachment?: EmailAttachment;
 }): Promise<void> {
   const who =
     input.senderName && input.senderEmail
@@ -201,5 +226,6 @@ export async function sendFeedbackEmail(input: {
     text,
     "feedback",
     input.senderEmail ?? undefined,
+    input.attachment,
   );
 }

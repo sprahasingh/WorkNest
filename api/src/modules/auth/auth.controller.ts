@@ -16,6 +16,9 @@ import {
   verifyEmailChange,
   requestPasswordReset,
   resetPassword,
+  listSessions,
+  revokeSession,
+  revokeAllSessions,
 } from "./auth.service.js";
 import {
   setRefreshCookie,
@@ -51,7 +54,10 @@ export async function registerController(
     return;
   }
 
-  const { rawToken, expiresAt } = await createSession(result.userId);
+  const { rawToken, expiresAt } = await createSession(
+    result.userId,
+    req.get("user-agent") ?? "",
+  );
   setRefreshCookie(res, rawToken, expiresAt);
   const accessToken = signAccessToken(result.userId.toString());
   res.status(201).json({ accessToken, verificationRequired: false });
@@ -80,7 +86,10 @@ export async function registrationStatusController(
     res.status(200).json({ status: result.status });
     return;
   }
-  const { rawToken, expiresAt } = await createSession(result.userId);
+  const { rawToken, expiresAt } = await createSession(
+    result.userId,
+    req.get("user-agent") ?? "",
+  );
   setRefreshCookie(res, rawToken, expiresAt);
   res.status(200).json({
     status: "verified",
@@ -94,7 +103,10 @@ export async function verifyRegistrationController(
 ): Promise<void> {
   const input = req.validated!.body as VerifyRegistrationInput;
   const { userId } = await verifyRegistration(input);
-  const { rawToken, expiresAt } = await createSession(userId);
+  const { rawToken, expiresAt } = await createSession(
+    userId,
+    req.get("user-agent") ?? "",
+  );
 
   setRefreshCookie(res, rawToken, expiresAt);
   const accessToken = signAccessToken(userId.toString());
@@ -109,7 +121,10 @@ export async function loginController(
   const input = req.validated!.body as LoginInput;
 
   const { userId } = await login(input);
-  const { rawToken, expiresAt } = await createSession(userId);
+  const { rawToken, expiresAt } = await createSession(
+    userId,
+    req.get("user-agent") ?? "",
+  );
 
   setRefreshCookie(res, rawToken, expiresAt);
   const accessToken = signAccessToken(userId.toString());
@@ -273,4 +288,32 @@ export async function verifyEmailChangeController(
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
   res.status(200).json({ user });
+}
+
+export async function listSessionsController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const sessions = await listSessions(
+    req.auth!.userId,
+    getRefreshCookie(req.cookies),
+  );
+  res.status(200).json({ sessions });
+}
+
+export async function revokeSessionController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await revokeSession(req.auth!.userId, String(req.params.sessionId));
+  res.status(204).send();
+}
+
+export async function revokeAllSessionsController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await revokeAllSessions(req.auth!.userId);
+  clearRefreshCookie(res);
+  res.status(204).send();
 }

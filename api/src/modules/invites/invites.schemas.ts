@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ROLES } from "../../constants/roles.js";
+import { newPasswordSchema } from "../auth/auth.schemas.js";
 
 export const createInviteSchema = z
   .object({
@@ -15,7 +16,7 @@ export type CreateInviteInput = z.infer<typeof createInviteSchema>;
 export const inviteSignupSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
-    password: z.string().min(8).max(72),
+    password: newPasswordSchema,
   })
   .strict();
 
