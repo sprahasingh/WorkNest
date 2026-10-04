@@ -73,7 +73,8 @@ const STEPS: GuideStep[] = [
       "Open Messages to chat with anyone in your organization, one to one or in a group. Only the people in a chat can read it, and that includes admins. Messages arrive live, with typing indicators, online dots and read receipts.",
     tips: [
       "Choose New to start a chat or create a group. Group admins can rename it and add or remove people, and anyone can leave.",
-      "Hover a message, or tap it on a phone, to reply, react, copy, edit or delete. You can edit for 10 minutes after sending and delete at any time.",
+      "Hover a message, or tap it on a phone, to reply, react, copy, edit or delete. Press and hold a message on a phone, or right-click it on a computer, to open the same options for just that message.",
+      "You can edit a message for 10 minutes after sending. Delete for everyone works for 30 minutes after sending and leaves a note that you deleted it. Delete for me hides any message from your own view only, at any time, and other people still see it.",
       "Type @ to mention someone. A mention still alerts people who have muted the chat.",
       "Attach files with the paperclip, or drag them onto the chat. Click a picture to see it larger. Files are private to the chat and limited to 10 MB.",
       "Search above your chats to find old messages. Press and hold a chat in the list (or right-click it) to mute it, mark it as read or unread, see group details or delete it. The three dots in a chat's header do the same.",
@@ -100,7 +101,7 @@ const STEPS: GuideStep[] = [
     id: "dashboard",
     title: "Check the dashboard",
     description:
-      "Admins and managers get two views, switched at the top. Tasks shows open, completed, created and overdue tasks, with charts for status, priority, workload and how open work has moved. Projects shows each project's stage and where the open work is. Pick a period from the last 7 to 90 days, all time, or a custom range with your own start and end dates, and the charts follow it in your organization's time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
+      "Admins and managers get two views, switched at the top. Tasks shows open, completed, created and overdue tasks, with charts for status, priority, workload and how open work has moved. Projects shows each project's stage and where the open work is. Pick a period from the last 7 to 90 days, all time, or a custom range with your own start and end dates, and the charts follow it in your organization's time zone. Scroll down on the Tasks view for workload per person, project progress and plan usage. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
     screens: placement("guide.dashboard"),
   },
   {
