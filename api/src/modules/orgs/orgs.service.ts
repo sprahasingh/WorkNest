@@ -180,7 +180,10 @@ export async function updateOrg(input: UpdateOrgInput) {
   }
 }
 
-export async function changePlan(newPlan: Plan) {
+export async function changePlan(
+  newPlan: Plan,
+  payment?: { paymentId: string; orderId: string; amount: number },
+) {
   const tenantId = requireTenantId();
   const limits = PLAN_LIMITS[newPlan];
   const dbSession = await mongoose.startSession();
@@ -256,7 +259,10 @@ export async function changePlan(newPlan: Plan) {
           action: "plan.changed",
           entityType: "Organization",
           entityId: tenantId,
-          metadata: { plan: { from: previous?.plan, to: newPlan } },
+          metadata: {
+            plan: { from: previous?.plan, to: newPlan },
+            ...(payment ? { payment } : {}),
+          },
         },
         dbSession,
       );

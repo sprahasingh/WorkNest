@@ -21,3 +21,20 @@ export const PLAN_NAMES: Record<Plan, string> = {
   pro: "Pro",
   premium: "Premium",
 };
+
+// What each plan costs to move up to, in paise (INR 499.00 and 999.00). Paying
+// is a one-time upgrade, not a subscription. Moving from Pro to Premium costs
+// the difference. Keep in sync with web/src/lib/plans.ts.
+export const PLAN_PRICE_PAISE: Record<Plan, number> = {
+  free: 0,
+  pro: 49900,
+  premium: 99900,
+};
+
+export function planRank(plan: Plan): number {
+  return PLANS.indexOf(plan);
+}
+
+export function upgradeAmountPaise(from: Plan, to: Plan): number {
+  return Math.max(0, PLAN_PRICE_PAISE[to] - PLAN_PRICE_PAISE[from]);
+}

@@ -35,6 +35,8 @@ const api = spawn("npx", ["tsx", "src/server.ts"], {
     BCRYPT_COST: "4",
     BREVO_API_KEY: "e2e",
     BREVO_FROM: "noreply@worknest.test",
+    RAZORPAY_KEY_ID: "rzp_test_e2e",
+    RAZORPAY_KEY_SECRET: "e2e_razorpay_secret",
     MAIL_LOG: mailLog,
     NODE_OPTIONS: `--import ${path.join(here, "mailMock.mjs")}`,
   },
