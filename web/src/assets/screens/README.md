@@ -1,43 +1,69 @@
 # Product screenshots
 
-These are the pictures used on the landing page, in the "How to use" guide and in the main README. Every screen has two files, one for the light theme and one for the dark theme, named `<screen>-light.webp` and `<screen>-dark.webp`.
+Every picture on the landing page, in the "How to use" guide and in the main README lives here. One file, `screens.json`, is the list of all of them: what exists, in what order, what each is called, and where it is shown. Nothing else needs to know a file name.
 
-## Sizes
+## The folder
 
-- Desktop screens: 1280 x 860
-- Phone screens (names start with `m-`): 390 x 844
-
-Keep to these sizes. The sliders reserve space from them, so a different size makes the page jump when you move between slides.
-
-## How they are used
-
-`index.ts` imports every file and lists them in one `SCREENS` object, with a short name for each (for example `board`, `meetingDetail`, `phoneMessages`). Pages never import a picture directly. They use the name:
-
-```tsx
-<Screenshot
-  name="board"
-  alt="A project board with To do and In progress columns"
-/>
+```
+screens/
+  screens.json         the list (edit this)
+  index.ts             reads the list for the site (rarely needs editing)
+  README.md            this file
+  dashboard/           one folder per part of the product
+    01-overview.light.webp
+    01-overview.dark.webp
+    02-charts.light.webp
+    ...
+  projects/  tasks/  updates/  messages/  meetings/  team/  settings/  audit/
+  phone/               phone screens, 390 x 844
 ```
 
-- The landing page tour: the `TOUR` list in `web/src/pages/Landing.tsx`.
-- The guide: the `screens` of each step in `web/src/pages/HowToUse.tsx`.
-- The phone strip on the landing page and the guide: `PhoneShowcase` in `Landing.tsx` and the "On your phone" section in `HowToUse.tsx`.
-- The README points straight at the `-light.webp` files.
+- Every screen has two files, one per theme: `<NN>-<name>.light.webp` and `<NN>-<name>.dark.webp`.
+- `NN` is the position inside its folder (01, 02, 03 ...), so the folder always lists in the same order the slider shows them.
+- Desktop screens are 1280 x 860, phone screens are 390 x 844. Sliders reserve space from these sizes, so keep them exact.
 
-`Screenshot` shows the light or dark version to match the theme, and clicking one opens it in the zoomable viewer.
+## Where each picture is shown
 
-## Changing a screenshot
+The pages never name a file. They ask for a placement, which is a named list of screens in `screens.json`:
 
-Take the new picture at the size above, once in each theme, convert both to WebP and overwrite the two files. Nothing else needs to change. Quality 80 to 85 keeps them small.
+| Placement                                                                                                 | Shown in                                                            | Code                                           |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------- |
+| `landing.tour.dashboard`, `.tasks`, `.messages`, `.meetings`, `.team`                                     | The "See it in action" tabs on the landing page, one slider per tab | `TOUR` in `web/src/pages/Landing.tsx`          |
+| `landing.phones`                                                                                          | "Just as good on your phone" on the landing page                    | `PhoneShowcase` in `web/src/pages/Landing.tsx` |
+| `guide.project`, `.team`, `.tasks`, `.updates`, `.messages`, `.meetings`, `.dashboard`, `.audit`, `.plan` | The slider under each step of the guide                             | `STEPS` in `web/src/pages/HowToUse.tsx`        |
+| `guide.phones`                                                                                            | "On your phone" in the guide                                        | `web/src/pages/HowToUse.tsx`                   |
+| `readme.*`                                                                                                | The Screenshots section of the main README                          | generated, see below                           |
 
-## Adding a screenshot
+A slider shows its screens in the order the placement lists them. To change what a slider shows, or its order, edit that placement's list in `screens.json`.
 
-1. Add `<name>-light.webp` and `<name>-dark.webp` to this folder.
-2. In `index.ts`, add the two imports and one line in `SCREENS`, using `desktop` or `phone` for the size.
-3. Use it as a slide (`{ screen: "name", alt, caption }`) in `TOUR` or in a guide step, or with `<Screenshot name="name" />`.
-4. If the README should show it, link the `-light.webp` file there.
+## Things you will want to do
 
-## The demo data
+**Replace a picture.** Overwrite its two files (light and dark) with new ones at the same size. Nothing else changes.
 
-The pictures show a demo organization called Sunshine with five made-up people. It is not what `npm run seed` creates (that makes Acme Corp and Globex), so to retake a picture, set up an organization like Sunshine first: an admin, a manager, three members, four projects with some tasks and a few days of history, a group chat and a few meetings.
+**Change a title, caption or description.** Edit the `title`, `caption` or `alt` of the screen in `screens.json`. The title is the short heading used in the README tables, the caption is the line under a slider, and the alt text is for screen readers.
+
+**Add a picture.**
+
+1. Put `<NN>-<name>.light.webp` and `<NN>-<name>.dark.webp` in the right folder, numbered so it sits where you want it.
+2. Add an entry to that section in `screens.json` (`id`, `file`, `title`, `caption`, `alt`). Keep the entries in the same order as the numbers.
+3. Add its `"section/id"` to the placements that should show it, for example `landing.tour.tasks` and `guide.tasks`.
+
+**Add a new section or a new slider.** Add a section in `screens.json`, then a placement for it, then use `placement("your.name")` in the page, the same way `Landing.tsx` does for its tabs.
+
+**Change what the README shows.** Edit the `readme` list in `screens.json` (heading, text, placement, number of columns), then run `npm run screens:readme` from `web/`. It rewrites the block between the `screens:start` and `screens:end` markers in the README. Don't edit that block by hand.
+
+**Remove a picture.** Delete its two files, its entry in `screens.json`, and its name from every placement.
+
+## Checking your work
+
+From `web/`:
+
+```bash
+npm run screens:check
+```
+
+It fails, and says what is wrong, if a file is missing or has the wrong size, a file in a folder isn't listed, a file name's number doesn't match its position, a placement names a screen that doesn't exist, a screen isn't shown anywhere, the code asks for a placement that isn't in the list, or the README is out of date. The same check runs on every pull request.
+
+## Retaking the pictures
+
+The pictures show a demo organization called Sunshine. The scripts in `tools/screenshots` build it and retake every picture into these folders, so nothing has to be drawn by hand. Its README has the steps.
