@@ -144,6 +144,10 @@ export interface MessageBubbleProps {
   onRetry?: () => void;
   onJumpTo: (messageId: string) => void;
   onOpenImage: (image: { url: string; name: string }) => void;
+  // Press-and-hold and right-click handlers that open this message's menu.
+  menuHandlers?: Record<string, unknown>;
+  // True for the click that follows a long press, which shouldn't select.
+  wasLongPress?: () => boolean;
 }
 
 export function MessageBubble({
@@ -169,6 +173,8 @@ export function MessageBubble({
   onRetry,
   onJumpTo,
   onOpenImage,
+  menuHandlers,
+  wasLongPress,
 }: MessageBubbleProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draft, setDraft] = useState(message.text);
@@ -201,6 +207,7 @@ export function MessageBubble({
       )}
 
       <div
+        {...menuHandlers}
         className={cn(
           "relative max-w-[85%] sm:max-w-[70%]",
           pending && "opacity-70",
@@ -251,19 +258,17 @@ export function MessageBubble({
                 <Icon d={ICONS.edit} />
               </button>
             )}
-            {mine && (
-              <button
-                type="button"
-                aria-label="Delete message"
-                onClick={onDelete}
-                className={cn(
-                  toolbarButton,
-                  "hover:!text-red-600 dark:hover:!text-red-400",
-                )}
-              >
-                <Icon d={ICONS.trash} />
-              </button>
-            )}
+            <button
+              type="button"
+              aria-label="Delete message"
+              onClick={onDelete}
+              className={cn(
+                toolbarButton,
+                "hover:!text-red-600 dark:hover:!text-red-400",
+              )}
+            >
+              <Icon d={ICONS.trash} />
+            </button>
           </div>
         )}
 
@@ -297,10 +302,12 @@ export function MessageBubble({
           onClick={(event) => {
             // Keep the list from clearing the selection this tap just made.
             event.stopPropagation();
+            // A long press opened the menu; don't also select the message.
+            if (wasLongPress?.()) return;
             onSelect();
           }}
           className={cn(
-            "rounded-2xl px-3 py-2 text-sm shadow-sm transition-shadow",
+            "rounded-2xl px-3 py-2 text-sm shadow-sm transition-shadow [-webkit-touch-callout:none] pointer-coarse:select-none",
             mine
               ? "rounded-br-md bg-teal-600 text-white"
               : "rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100",
@@ -313,7 +320,7 @@ export function MessageBubble({
         >
           {deleted ? (
             <span className="text-slate-400 dark:text-slate-500">
-              This message was deleted
+              {mine ? "You" : senderName} deleted this message
             </span>
           ) : (
             <>
