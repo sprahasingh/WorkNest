@@ -111,7 +111,8 @@ export function AlertSettings() {
         aria-label="Message alerts"
         className={cn(
           "flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-slate-800",
-          (prefs.desktop || prefs.sound) && "text-teal-700 dark:text-teal-400",
+          ((available && prefs.desktop) || prefs.sound) &&
+            "text-teal-700 dark:text-teal-400",
         )}
       >
         <svg
@@ -141,17 +142,14 @@ export function AlertSettings() {
           <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
             When a message arrives
           </p>
-          <Switch
-            label="Desktop notifications"
-            hint={
-              available
-                ? "Shown when this tab isn't in front."
-                : "Not supported in this browser."
-            }
-            checked={prefs.desktop}
-            disabled={!available}
-            onChange={(value) => void setDesktop(value)}
-          />
+          {available && (
+            <Switch
+              label="Desktop notifications"
+              hint="Shown when this tab isn't in front."
+              checked={prefs.desktop}
+              onChange={(value) => void setDesktop(value)}
+            />
+          )}
           <Switch
             label="Play a soft sound"
             hint="A short chime for new messages."

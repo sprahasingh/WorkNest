@@ -30,8 +30,13 @@ export function writeAlertPrefs(prefs: ChatAlertPrefs): void {
   }
 }
 
+// Pop-up alerts are offered on computers only. Phone and tablet browsers don't
+// allow the page to raise them directly, and without a push service they would
+// only appear while the page is open anyway, so the option is left out there.
 export function desktopAlertsAvailable(): boolean {
-  return typeof Notification !== "undefined";
+  if (typeof Notification === "undefined") return false;
+  const touchOnly = window.matchMedia("(hover: none) and (pointer: coarse)");
+  return !touchOnly.matches;
 }
 
 // A short, soft two-note chime made in the browser, so there's no file to load.
