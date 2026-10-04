@@ -10,9 +10,9 @@ screens/
   index.ts             reads the list for the site (rarely needs editing)
   README.md            this file
   dashboard/           one folder per part of the product
-    01-overview.light.webp
-    01-overview.dark.webp
-    02-charts.light.webp
+    01-tasks-overview.light.webp
+    01-tasks-overview.dark.webp
+    02-tasks-status.light.webp
     ...
   projects/  tasks/  updates/  messages/  meetings/  team/  settings/  audit/
   phone/               phone screens, 390 x 844

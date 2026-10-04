@@ -106,9 +106,9 @@ const TOUR: TourTab[] = [
     screens: placement("landing.tour.dashboard"),
     heading: "Know where things stand",
     points: [
-      "Open, completed, created and overdue tasks at a glance",
-      "Trends for 7 to 90 days, all time or your own dates, in your time zone",
-      "A project view for stages and open work",
+      "Tasks view: open, completed, created and overdue at a glance",
+      "Projects view: stages, open work and what each project finished",
+      "Any period from 7 days to all time, or your own dates",
     ],
   },
   {
