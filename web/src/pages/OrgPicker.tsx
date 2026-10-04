@@ -71,7 +71,7 @@ export function OrgPicker() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-6">
+    <div className="min-h-dvh bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-6">
       <div className="mx-auto max-w-lg space-y-8">
         <div className="flex items-center justify-between">
           <BrandLink />

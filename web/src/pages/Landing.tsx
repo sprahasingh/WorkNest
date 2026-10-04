@@ -146,7 +146,7 @@ const TOUR: TourTab[] = [
     heading: "Meet without the juggling",
     points: [
       "Join links, repeating meetings and a month calendar",
-      "Going, Maybe or Can't go, or suggest another time",
+      "Accept, Maybe or Decline, or suggest another time",
       "A reminder shortly before each meeting starts",
     ],
   },
@@ -573,7 +573,7 @@ export function Landing() {
     "inline-flex items-center justify-center rounded-lg border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800";
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950">
+    <div className="min-h-dvh bg-white dark:bg-slate-950">
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <BrandLink />

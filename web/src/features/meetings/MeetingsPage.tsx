@@ -280,11 +280,7 @@ export function MeetingsPage() {
           value={tab}
           onChange={setTab}
           tabs={[
-            {
-              value: "upcoming",
-              label: "Upcoming",
-              count: upcoming.data?.length,
-            },
+            { value: "upcoming", label: "Upcoming" },
             { value: "past", label: "Past" },
             { value: "calendar", label: "Calendar" },
           ]}

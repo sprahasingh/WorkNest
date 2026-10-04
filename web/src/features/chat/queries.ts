@@ -14,7 +14,9 @@ import {
   getPresence,
   listConversations,
   listMessages,
+  clearConversation,
   markConversationRead,
+  markConversationUnread,
   reactToMessage,
   searchMessages,
   setConversationMuted,
@@ -246,6 +248,46 @@ export function useSetMuted(orgId: string, conversationId: string) {
   return useMutation({
     mutationFn: (muted: boolean) =>
       setConversationMuted(orgId, conversationId, muted),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: chatKeys.conversations(orgId),
+      }),
+  });
+}
+
+// Actions that work on any conversation by id, for the chat list's menu as
+// well as the open chat.
+export function useConversationActions(orgId: string) {
+  const queryClient = useQueryClient();
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: chatKeys.conversations(orgId) });
+
+  return {
+    setMuted: useMutation({
+      mutationFn: ({ id, muted }: { id: string; muted: boolean }) =>
+        setConversationMuted(orgId, id, muted),
+      onSuccess: refresh,
+    }),
+    markRead: useMutation({
+      mutationFn: (id: string) => markConversationRead(orgId, id),
+      onSuccess: refresh,
+    }),
+    markUnread: useMutation({
+      mutationFn: (id: string) => markConversationUnread(orgId, id),
+      onSuccess: refresh,
+    }),
+    clear: useMutation({
+      mutationFn: (id: string) => clearConversation(orgId, id),
+      onSuccess: refresh,
+    }),
+  };
+}
+
+export function useLeaveConversation(orgId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, userId }: { id: string; userId: string }) =>
+      removeGroupMember(orgId, id, userId),
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: chatKeys.conversations(orgId),
