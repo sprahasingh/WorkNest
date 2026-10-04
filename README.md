@@ -2,42 +2,81 @@
 
 WorkNest is a multi-tenant workspace for projects, tasks, chat and meetings. Teams sign up as organizations, invite people with roles, track work in projects and tasks, talk in private chats and schedule meetings, with limits that depend on the plan they're on. Tenant isolation is handled in one central place, so no query has to remember to filter by `tenantId` on its own.
 
+## Table of Contents
+
+|     | Section                                 |
+| --- | --------------------------------------- |
+| 01  | [Screenshots](#screenshots)             |
+| 02  | [Why I Built This](#why-i-built-this)   |
+| 03  | [Tech Stack](#tech-stack)               |
+| 04  | [Architecture](#architecture)           |
+| 05  | [Request Flow](#request-flow)           |
+| 06  | [Tenancy](#tenancy)                     |
+| 07  | [RBAC](#rbac)                           |
+| 08  | [Concurrency](#concurrency)             |
+| 09  | [Features](#features)                   |
+| 10  | [Plans](#plans)                         |
+| 11  | [API Example](#api-example)             |
+| 12  | [Local Setup](#local-setup)             |
+| 13  | [Seed Demo Data](#seed-demo-data)       |
+| 14  | [Testing](#testing)                     |
+| 15  | [Project Structure](#project-structure) |
+| 16  | [Known Limitations](#known-limitations) |
+
 ## Screenshots
 
-These come from a demo organization, not real data. They have light and dark versions in `web/src/assets/screens`.
+Everything below is from a demo organization called Sunshine, so none of it is real data. Each picture also has a dark version in `web/src/assets/screens`, and the live site shows more of every page in its product tour and "How to use" guide.
 
-| Dashboard                                                     | Task board                                                       |
-| ------------------------------------------------------------- | ---------------------------------------------------------------- |
-| ![The dashboard](web/src/assets/screens/dashboard-light.webp) | ![A project board](web/src/assets/screens/board-light.webp)      |
-| **Messages**                                                  | **Meetings**                                                     |
-| ![A group chat](web/src/assets/screens/messages-light.webp)   | ![The meetings page](web/src/assets/screens/meetings-light.webp) |
+### Dashboard
+
+Admins and managers see where work stands: task counts, how open work has moved over the last 7 to 90 days, and a projects view with stages and open work for each project.
+
+| Tasks overview                                                | Projects view                                                              |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| ![The dashboard](web/src/assets/screens/dashboard-light.webp) | ![The projects view](web/src/assets/screens/dashboard-projects-light.webp) |
+
+### Tasks and updates
+
+Every task is a card on the project board. Managers can ask for an update, and assignees reply right on the task.
+
+| Project board                                               | Updates on a task                                                   |
+| ----------------------------------------------------------- | ------------------------------------------------------------------- |
+| ![A project board](web/src/assets/screens/board-light.webp) | ![A task's updates](web/src/assets/screens/task-updates-light.webp) |
+
+### Messages
+
+Private chats and groups that arrive live, with replies, reactions, @mentions, files and search. Only the people in a chat can read it.
+
+| A group chat                                                | Search across chats                                                      |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------ |
+| ![A group chat](web/src/assets/screens/messages-light.webp) | ![Searching messages](web/src/assets/screens/messages-search-light.webp) |
+
+### Meetings
+
+Schedule with a join link and an agenda, repeat a meeting, and see the month at a glance. Invitees reply Accept, Maybe or Decline, or suggest another time.
+
+| A meeting and its replies                                      | The month calendar                                                   |
+| -------------------------------------------------------------- | -------------------------------------------------------------------- |
+| ![A meeting](web/src/assets/screens/meeting-detail-light.webp) | ![The calendar](web/src/assets/screens/meetings-calendar-light.webp) |
+
+### Team and admin
+
+Roles, invites, plans and an audit log of every important change.
+
+| Members and invites                                                      | Plans and chat history                                    |
+| ------------------------------------------------------------------------ | --------------------------------------------------------- |
+| ![Members and invites](web/src/assets/screens/members-invite-light.webp) | ![Plans](web/src/assets/screens/settings-plan-light.webp) |
+
+### On a phone
+
+Every page adapts to small screens.
 
 <p>
   <img src="web/src/assets/screens/m-messages-light.webp" alt="Messages on a phone" width="180">
   <img src="web/src/assets/screens/m-meetings-light.webp" alt="Meetings on a phone" width="180">
   <img src="web/src/assets/screens/m-board-light.webp" alt="A board on a phone" width="180">
+  <img src="web/src/assets/screens/m-dashboard-light.webp" alt="The dashboard on a phone" width="180">
 </p>
-
-## Table of Contents
-
-|     | Section                                 |
-| --- | --------------------------------------- |
-| 00  | [Screenshots](#screenshots)             |
-| 01  | [Why I Built This](#why-i-built-this)   |
-| 02  | [Tech Stack](#tech-stack)               |
-| 03  | [Architecture](#architecture)           |
-| 04  | [Request Flow](#request-flow)           |
-| 05  | [Tenancy](#tenancy)                     |
-| 06  | [RBAC](#rbac)                           |
-| 07  | [Concurrency](#concurrency)             |
-| 08  | [Features](#features)                   |
-| 09  | [Plans](#plans)                         |
-| 10  | [API Example](#api-example)             |
-| 11  | [Local Setup](#local-setup)             |
-| 12  | [Seed Demo Data](#seed-demo-data)       |
-| 13  | [Testing](#testing)                     |
-| 14  | [Project Structure](#project-structure) |
-| 15  | [Known Limitations](#known-limitations) |
 
 ## Why I Built This
 
