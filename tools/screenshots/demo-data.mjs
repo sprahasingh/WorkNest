@@ -104,6 +104,10 @@ async function login(email) {
   const me = await call("GET", "/auth/me", accessToken);
   return { token: accessToken, id: me.user.id };
 }
+// The first-run tour should not cover the pictures, so mark everyone as having seen it.
+await db
+  .collection("users")
+  .updateMany({}, { $set: { onboardingSeenAt: new Date() } });
 const spraha = await login("spraha.singh@sunshine.com");
 const govind = await login("govind.kaushal@sunshine.com");
 const aditi = await login("aditi.sharma@sunshine.com");
