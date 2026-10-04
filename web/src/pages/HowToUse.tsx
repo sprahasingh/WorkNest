@@ -192,7 +192,7 @@ const STEPS: GuideStep[] = [
     id: "dashboard",
     title: "Check the dashboard",
     description:
-      "Admins and managers see open, completed, created and overdue tasks, plus how open work has moved over the last 7 to 90 days in your organization's time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
+      "Admins and managers see open, completed, created and overdue tasks, plus how open work has moved. Pick a period from the last 7 to 90 days, all time, or a custom range with your own start and end dates, and the charts follow it in your organization's time zone. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
     screens: [
       {
         screen: "dashboard",
@@ -429,7 +429,7 @@ function useBackLink(): { to: string; label: string } {
     from.startsWith("/") &&
     !from.startsWith("//")
   ) {
-    return { to: from, label: "Back" };
+    return { to: from, label: from === "/" ? "Back to home" : "Back" };
   }
   if (auth.status === "authenticated") {
     return {

@@ -1,5 +1,6 @@
 import { cn } from "@/lib/cn";
 import { SCREENS, type ScreenName } from "@/assets/screens";
+import { useImageViewer } from "@/components/imageViewerContext";
 
 interface ScreenshotProps {
   name: ScreenName;
@@ -13,6 +14,7 @@ interface ScreenshotProps {
 // that isn't shown is display:none, so the browser never downloads it.
 export function Screenshot({ name, alt, className, eager }: ScreenshotProps) {
   const screen = SCREENS[name];
+  const { openImage } = useImageViewer();
   const shared = {
     width: screen.width,
     height: screen.height,
@@ -20,8 +22,18 @@ export function Screenshot({ name, alt, className, eager }: ScreenshotProps) {
     loading: eager ? ("eager" as const) : ("lazy" as const),
     decoding: "async" as const,
   };
+  // Opens whichever version is showing, so the large view matches the theme.
+  const open = () => {
+    const dark = document.documentElement.classList.contains("dark");
+    openImage({ src: dark ? screen.dark : screen.light, alt });
+  };
   return (
-    <>
+    <button
+      type="button"
+      onClick={open}
+      aria-label={`View larger: ${alt}`}
+      className="block w-full cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600"
+    >
       <img
         src={screen.light}
         {...shared}
@@ -32,7 +44,7 @@ export function Screenshot({ name, alt, className, eager }: ScreenshotProps) {
         {...shared}
         className={cn("hidden h-auto w-full dark:block", className)}
       />
-    </>
+    </button>
   );
 }
 
