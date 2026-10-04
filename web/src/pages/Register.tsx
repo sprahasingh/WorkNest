@@ -271,6 +271,7 @@ export function Register() {
             password={passwordValue}
             email={emailValue}
             name={nameValue}
+            fieldError={errors.password?.message}
           />
         </Field>
 
