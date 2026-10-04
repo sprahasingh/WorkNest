@@ -18,6 +18,13 @@ interface InvitationEmail {
 const emailCapture = vi.hoisted(() => ({
   sent: [] as VerificationEmail[],
   invitations: [] as InvitationEmail[],
+  feedback: [] as {
+    to: string;
+    message: string;
+    senderName: string | null;
+    senderEmail: string | null;
+    page: string | null;
+  }[],
 }));
 const sentVerificationEmails = emailCapture.sent;
 let nextTestIp = 1;
@@ -46,6 +53,11 @@ vi.mock("../src/lib/email.js", () => ({
     });
   }),
   sendEmailChangedNotice: vi.fn(async () => {}),
+  sendFeedbackEmail: vi.fn(
+    async (input: (typeof emailCapture.feedback)[number]) => {
+      emailCapture.feedback.push(input);
+    },
+  ),
   sendInviteEmail: vi.fn(
     async (
       recipient: string,
@@ -79,6 +91,19 @@ export function takeVerificationToken(
   const token = new URL(email!.verificationUrl).searchParams.get("token");
   if (!token) throw new Error("Verification email did not contain a token");
   return token;
+}
+
+export function takeFeedbackEmails() {
+  return emailCapture.feedback.splice(0);
+}
+
+export function countVerificationEmails(
+  recipient: string,
+  purpose: Exclude<VerificationEmail["purpose"], "password-reset">,
+): number {
+  return sentVerificationEmails.filter(
+    (email) => email.recipient === recipient && email.purpose === purpose,
+  ).length;
 }
 
 export function takePasswordResetToken(recipient: string): string {

@@ -30,6 +30,12 @@ const envSchema = z
       (value) => (value === "" ? undefined : value),
       z.string().email().optional(),
     ),
+    // Where in-app feedback is emailed. Leave it out and the feedback form
+    // falls back to a plain email link.
+    FEEDBACK_TO_EMAIL: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().email().optional(),
+    ),
     CLOUDINARY_CLOUD_NAME: z.preprocess(
       (value) => (value === "" ? undefined : value),
       z.string().min(1).optional(),

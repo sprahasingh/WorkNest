@@ -11,6 +11,34 @@
   },
   "sections": [
     {
+      "id": "account",
+      "title": "Account",
+      "size": "desktop",
+      "screens": [
+        {
+          "id": "register",
+          "file": "01-register",
+          "title": "Create your account",
+          "caption": "Type the password twice, and use Show to check what you typed",
+          "alt": "The sign-up form with a field to type the password again, and a message that the two passwords don't match"
+        },
+        {
+          "id": "check-email",
+          "file": "02-check-email",
+          "title": "Check your email",
+          "caption": "Open the link on any device. This page signs you in by itself when you do",
+          "alt": "The check your email screen, waiting for the link, with a note to look in spam or junk and a resend button"
+        },
+        {
+          "id": "first-tour",
+          "file": "03-first-tour",
+          "title": "The first-run tour",
+          "caption": "A short tour on first sign-in. Show the tour in the sidebar opens it again",
+          "alt": "The welcome tour card over the dashboard"
+        }
+      ]
+    },
+    {
       "id": "dashboard",
       "title": "Dashboard",
       "size": "desktop",
@@ -403,6 +431,11 @@
       "phone/board",
       "phone/messages",
       "phone/meetings"
+    ],
+    "guide.account": [
+      "account/register",
+      "account/check-email",
+      "account/first-tour"
     ]
   },
   "readme": [
