@@ -11,6 +11,8 @@ import { Modal } from "@/components/Modal";
 import { useCreateMeeting } from "@/features/meetings/queries";
 import { generateJitsiLink } from "@/features/meetings/meetingUtils";
 import { ImageLightbox } from "./ImageLightbox";
+import { ConversationMenu } from "./ConversationMenu";
+import { menuItemsFor, type ConversationAction } from "./conversationMenuItems";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { parseApiError } from "@/lib/apiError";
@@ -63,6 +65,7 @@ interface ThreadViewProps {
   onJumped: () => void;
   onBack: () => void;
   onOpenInfo: () => void;
+  onRequestDelete: (conversation: Conversation) => void;
 }
 
 export function ThreadView({
@@ -76,6 +79,7 @@ export function ThreadView({
   onJumped,
   onBack,
   onOpenInfo,
+  onRequestDelete,
 }: ThreadViewProps) {
   const conversationId = conversation.id;
   const { typing, sendTyping } = useChatRealtime();
@@ -90,6 +94,11 @@ export function ThreadView({
   const [lightbox, setLightbox] = useState<{
     url: string;
     name: string;
+  } | null>(null);
+  const [headerMenu, setHeaderMenu] = useState<{
+    x: number;
+    y: number;
+    touch: boolean;
   } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [dropped, setDropped] = useState<{
@@ -401,6 +410,26 @@ export function ThreadView({
     );
   };
 
+  const runHeaderAction = (action: ConversationAction) => {
+    setHeaderMenu(null);
+    if (action === "mute" || action === "unmute") {
+      const muting = action === "mute";
+      setMuted.mutate(muting, {
+        onSuccess: () =>
+          toast.success(muting ? "Chat muted" : "Chat unmuted", {
+            description: muting
+              ? "You'll only be alerted when someone mentions you."
+              : undefined,
+          }),
+        onError: (error) => toast.error(parseApiError(error).message),
+      });
+    } else if (action === "details") {
+      onOpenInfo();
+    } else if (action === "delete") {
+      onRequestDelete(conversation);
+    }
+  };
+
   // --- Rendering ---------------------------------------------------------
 
   const items = useMemo<ListItem[]>(() => {
@@ -534,67 +563,30 @@ export function ThreadView({
         </button>
         <button
           type="button"
-          onClick={() =>
-            setMuted.mutate(!conversation.muted, {
-              onSuccess: () =>
-                toast.success(
-                  conversation.muted ? "Chat unmuted" : "Chat muted",
-                  {
-                    description: conversation.muted
-                      ? undefined
-                      : "You'll only be alerted when someone mentions you.",
-                  },
-                ),
-              onError: (error) => toast.error(parseApiError(error).message),
-            })
-          }
-          aria-pressed={conversation.muted}
-          aria-label={conversation.muted ? "Unmute chat" : "Mute chat"}
-          title={conversation.muted ? "Unmute" : "Mute"}
-          className={cn(
-            "rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800",
-            conversation.muted
-              ? "text-amber-600 dark:text-amber-400"
-              : "text-slate-500 dark:text-slate-400",
-          )}
+          onClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect();
+            setHeaderMenu({
+              x: box.right - 208,
+              y: box.bottom + 4,
+              touch: window.matchMedia("(pointer: coarse)").matches,
+            });
+          }}
+          aria-haspopup="menu"
+          aria-label="Chat options"
+          title="Chat options"
+          className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
         >
           <svg
             viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            fill="currentColor"
             className="h-5 w-5"
             aria-hidden="true"
           >
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-            {conversation.muted && <line x1="1" y1="1" x2="23" y2="23" />}
+            <circle cx="12" cy="5" r="1.8" />
+            <circle cx="12" cy="12" r="1.8" />
+            <circle cx="12" cy="19" r="1.8" />
           </svg>
         </button>
-        {conversation.type === "group" && (
-          <button
-            type="button"
-            onClick={onOpenInfo}
-            aria-label="Group details"
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 16v-4M12 8h.01" />
-            </svg>
-          </button>
-        )}
       </header>
 
       <div
@@ -873,6 +865,14 @@ export function ThreadView({
         onCancelReply={() => setReplyTo(null)}
         onTyping={() => sendTyping(conversationId)}
         onSend={handleSend}
+      />
+
+      <ConversationMenu
+        title={title}
+        items={menuItemsFor(conversation, { includeMarkRead: false })}
+        anchor={headerMenu}
+        onSelect={runHeaderAction}
+        onClose={() => setHeaderMenu(null)}
       />
 
       <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />

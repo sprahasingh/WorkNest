@@ -343,7 +343,7 @@ export function AppLayout() {
 
   return (
     <ChatRealtimeProvider>
-      <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
+      <div className="min-h-dvh bg-slate-100 dark:bg-slate-950">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
           <button
             type="button"

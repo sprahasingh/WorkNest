@@ -90,7 +90,8 @@ const STEPS: GuideStep[] = [
       "Hover a message, or tap it on a phone, to reply, react, copy, edit or delete. You can edit for 10 minutes after sending and delete at any time.",
       "Type @ to mention someone. A mention still alerts people who have muted the chat.",
       "Attach files with the paperclip, or drag them onto the chat. Click a picture to see it larger. Files are private to the chat and limited to 10 MB.",
-      "Search above your chats to find old messages, and mute a chat with the bell in its header.",
+      "Search above your chats to find old messages. Press and hold a chat in the list (or right-click it) to mute it, mark it as read or unread, see group details or delete it. The three dots in a chat's header do the same.",
+      "Deleting a conversation clears it for you only. The other people keep it, and a new message brings it back with just the new messages.",
       "The bell next to New turns on desktop notifications or a soft sound. Your unread count always shows in the browser tab.",
     ],
     screen: {
@@ -106,7 +107,7 @@ const STEPS: GuideStep[] = [
     tips: [
       "For the join link, paste a Zoom, Meet or Teams address, or create a free Jitsi room with one click.",
       "Repeat a meeting daily, weekly or monthly, and choose whether a change applies to one date or all upcoming ones.",
-      "Invitees reply Going, Maybe or Can't go, or suggest another time. The organizer can accept a suggestion or keep the original.",
+      "Invitees reply Accept, Maybe or Decline, or suggest another time. The organizer can accept a suggestion or keep the original.",
       "Everyone gets a reminder about 15 minutes before a meeting starts. Meet now starts an instant call, and Add to calendar downloads an .ics file.",
       "Link a meeting to a project or task so it shows up there too.",
     ],
@@ -359,7 +360,7 @@ export function HowToUse() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950">
+    <div className="min-h-dvh bg-white dark:bg-slate-950">
       <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
           <BrandLink />

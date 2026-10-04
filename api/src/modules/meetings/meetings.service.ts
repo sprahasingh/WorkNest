@@ -610,7 +610,7 @@ export async function respondToMeeting(
     const people = await loadPeople([me]);
     const verb = {
       accepted: "accepted",
-      tentative: "might attend",
+      tentative: "replied maybe to",
       declined: "declined",
     }[response];
     await notifyMeeting(
