@@ -155,6 +155,22 @@ export async function meController(req: Request, res: Response): Promise<void> {
   res.status(200).json({ user, memberships });
 }
 
+export async function markOnboardingSeenController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  // Only the first call sets the time; later calls leave it as it was.
+  await User.updateOne(
+    { _id: req.auth!.userId, onboardingSeenAt: null },
+    { $set: { onboardingSeenAt: new Date() } },
+  );
+  const user = await User.findById(req.auth!.userId).select("+pendingEmail");
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+  res.status(200).json({ user });
+}
+
 export async function deleteAccountController(
   req: Request,
   res: Response,

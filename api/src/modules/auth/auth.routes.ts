@@ -19,6 +19,7 @@ import {
   logoutController,
   meController,
   deleteAccountController,
+  markOnboardingSeenController,
   requestEmailChangeController,
   cancelEmailChangeController,
   updatePersonalInformationController,
@@ -128,6 +129,7 @@ router.delete(
   authenticate,
   cancelEmailChangeController,
 );
+router.post("/me/onboarding", authenticate, markOnboardingSeenController);
 router.delete("/me", authenticate, deleteAccountController);
 
 export { router as authRouter };

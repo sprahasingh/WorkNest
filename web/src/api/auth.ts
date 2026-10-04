@@ -36,6 +36,8 @@ export interface User {
   email: string;
   emailVerifiedAt?: string | null;
   pendingEmail?: string | null;
+  // When the first-run tour was finished or skipped; null until then.
+  onboardingSeenAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -77,6 +79,12 @@ export async function updatePersonalInformation(
   input: UpdatePersonalInformationInput,
 ): Promise<User> {
   const response = await apiClient.patch<{ user: User }>("/auth/me", input);
+  return response.data.user;
+}
+
+// Remembers on the account that the first-run tour has been seen.
+export async function markOnboardingSeen(): Promise<User> {
+  const response = await apiClient.post<{ user: User }>("/auth/me/onboarding");
   return response.data.user;
 }
 

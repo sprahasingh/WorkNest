@@ -23,6 +23,9 @@ const STEPS: GuideStep[] = [
     title: "Create your account",
     description:
       "Register with your name, email and a password, then confirm your email. Choose Admin to create an organization and manage it, or User if you'd rather join one later through an invite.",
+    tips: [
+      "The first time you open a workspace, a short tour points out where things are. It shows once per account, on any device, and you can open it again from Show the tour at the bottom of the sidebar.",
+    ],
   },
   {
     id: "project",
