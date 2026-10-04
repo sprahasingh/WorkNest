@@ -549,6 +549,7 @@ export async function signupViaInvite(
 
   const registrationToken = randomToken();
   const registrationTokenHash = sha256(registrationToken);
+  const signupToken = randomToken();
   const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_COST);
   const pending = await PendingRegistration.findOneAndUpdate(
     { email: invite.email },
@@ -560,6 +561,8 @@ export async function signupViaInvite(
         orgName: null,
         inviteId: invite._id,
         tokenHash: registrationTokenHash,
+        signupSecretHash: sha256(signupToken),
+        lastSentAt: new Date(),
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       },
     },
@@ -590,7 +593,7 @@ export async function signupViaInvite(
     throw error;
   }
 
-  return { email: invite.email, userId: null };
+  return { email: invite.email, userId: null, signupToken };
 }
 
 export async function getInviteByToken(rawToken: string) {

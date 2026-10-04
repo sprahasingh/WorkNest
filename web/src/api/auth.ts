@@ -18,7 +18,7 @@ export interface RegisterInput {
 }
 
 export type RegisterResponse =
-  | { verificationRequired: true; email: string }
+  | { verificationRequired: true; email: string; signupToken: string }
   | { verificationRequired: false; accessToken: string };
 
 export interface LoginInput {
@@ -88,6 +88,14 @@ export async function markOnboardingSeen(): Promise<User> {
   return response.data.user;
 }
 
+// Sends the pending email-change link again, replacing the old one.
+export async function resendEmailChange(): Promise<User> {
+  const response = await apiClient.post<{ user: User }>(
+    "/auth/me/email-change/resend",
+  );
+  return response.data.user;
+}
+
 export async function requestEmailChange(
   input: RequestEmailChangeInput,
 ): Promise<User> {
@@ -119,6 +127,28 @@ export async function register(
   const response = await apiClient.post<RegisterResponse>(
     "/auth/register",
     input,
+  );
+  return response.data;
+}
+
+// Sends the sign-up verification email again. The answer is the same whether
+// or not a sign-up is waiting for that address.
+export async function resendVerification(email: string): Promise<void> {
+  await apiClient.post("/auth/resend-verification", { email });
+}
+
+export type RegistrationStatus =
+  | { status: "waiting" | "expired" }
+  | { status: "verified"; accessToken: string };
+
+// Asked repeatedly by the browser that signed up. Once the email link has been
+// opened, on any device, the answer includes a session for this browser.
+export async function getRegistrationStatus(
+  signupToken: string,
+): Promise<RegistrationStatus> {
+  const response = await apiClient.post<RegistrationStatus>(
+    "/auth/registration-status",
+    { signupToken },
   );
   return response.data;
 }

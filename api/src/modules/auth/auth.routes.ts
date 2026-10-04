@@ -9,6 +9,8 @@ import {
   updatePersonalInformationSchema,
   verifyEmailChangeSchema,
   verifyRegistrationSchema,
+  resendVerificationSchema,
+  registrationStatusSchema,
   requestPasswordResetSchema,
   resetPasswordSchema,
 } from "./auth.schemas.js";
@@ -20,11 +22,14 @@ import {
   meController,
   deleteAccountController,
   markOnboardingSeenController,
+  resendEmailChangeController,
   requestEmailChangeController,
   cancelEmailChangeController,
   updatePersonalInformationController,
   verifyEmailChangeController,
   verifyRegistrationController,
+  resendVerificationController,
+  registrationStatusController,
   requestPasswordResetController,
   resetPasswordController,
 } from "./auth.controller.js";
@@ -82,6 +87,27 @@ router.post(
 );
 
 router.post(
+  "/resend-verification",
+  verificationLimiter,
+  validate({ body: resendVerificationSchema }),
+  resendVerificationController,
+);
+// Polled every few seconds while someone waits for their email link, so it
+// has a larger allowance of its own.
+const registrationStatusLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+router.post(
+  "/registration-status",
+  registrationStatusLimiter,
+  validate({ body: registrationStatusSchema }),
+  registrationStatusController,
+);
+
+router.post(
   "/login",
   authLimiter,
   validate({ body: loginSchema }),
@@ -122,6 +148,12 @@ router.post(
   authenticate,
   validate({ body: requestEmailChangeSchema }),
   requestEmailChangeController,
+);
+router.post(
+  "/me/email-change/resend",
+  verificationLimiter,
+  authenticate,
+  resendEmailChangeController,
 );
 router.delete(
   "/me/email-change",

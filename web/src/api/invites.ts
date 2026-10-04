@@ -44,7 +44,7 @@ export interface InviteSignupInput {
 // otherwise a verification email goes out first.
 export type InviteSignupResponse =
   | { verificationRequired: false; accessToken: string }
-  | { verificationRequired: true; email: string };
+  | { verificationRequired: true; email: string; signupToken: string };
 
 export async function getInvitePreview(token: string): Promise<InvitePreview> {
   const response = await apiClient.get<InvitePreview>(`/invites/${token}`);

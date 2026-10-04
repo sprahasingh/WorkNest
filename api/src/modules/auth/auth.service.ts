@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { User } from "../../models/User.js";
 import { PendingRegistration } from "../../models/PendingRegistration.js";
+import { SignupClaim } from "../../models/SignupClaim.js";
 import { Invite } from "../../models/Invite.js";
 import { Organization } from "../../models/Organization.js";
 import { Membership } from "../../models/Membership.js";
@@ -91,6 +92,7 @@ export async function register(input: RegisterInput) {
 
   const token = randomToken();
   const tokenHash = sha256(token);
+  const signupToken = randomToken();
   const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_COST);
   const pending = await PendingRegistration.findOneAndUpdate(
     { email: input.email },
@@ -101,6 +103,8 @@ export async function register(input: RegisterInput) {
         passwordHash,
         orgName: input.orgName ?? null,
         tokenHash,
+        signupSecretHash: sha256(signupToken),
+        lastSentAt: new Date(),
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       },
     },
@@ -128,7 +132,76 @@ export async function register(input: RegisterInput) {
     throw error;
   }
 
-  return { email: input.email, verificationRequired: true as const };
+  return {
+    email: input.email,
+    verificationRequired: true as const,
+    // Handed only to the browser that signed up, so it can sign itself in once
+    // the link has been opened, on this device or another.
+    signupToken,
+  };
+}
+
+const RESEND_COOLDOWN_MS = 60 * 1000;
+
+// Sends the verification email again for a sign-up that is still waiting. It
+// answers the same way whether or not there is one, so it can't be used to
+// find out who has signed up. A new link replaces the old one.
+export async function resendRegistrationVerification(
+  email: string,
+): Promise<void> {
+  const pending = await PendingRegistration.findOne({
+    email,
+    expiresAt: { $gt: new Date() },
+  }).select("+tokenHash");
+  if (!pending) return;
+  if (
+    pending.lastSentAt &&
+    Date.now() - pending.lastSentAt.getTime() < RESEND_COOLDOWN_MS
+  ) {
+    return;
+  }
+
+  const token = randomToken();
+  const previousHash = pending.tokenHash;
+  pending.tokenHash = sha256(token);
+  pending.lastSentAt = new Date();
+  // A fresh hour, so a link that is about to expire can be replaced.
+  pending.expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  await pending.save();
+
+  const verificationUrl = new URL("/verify-email", env.CLIENT_ORIGIN);
+  verificationUrl.searchParams.set("token", token);
+  try {
+    await sendVerificationEmail(
+      email,
+      verificationUrl.toString(),
+      "registration",
+    );
+  } catch (error) {
+    // Put the old link back so the person isn't left with none.
+    await PendingRegistration.updateOne(
+      { _id: pending._id },
+      { $set: { tokenHash: previousHash, lastSentAt: null } },
+    );
+    throw error;
+  }
+}
+
+// The browser that signed up asks whether its email link has been opened. The
+// answer is "waiting", "expired", or a ready-to-use session for that account.
+export async function checkRegistrationStatus(signupToken: string) {
+  const secretHash = sha256(signupToken);
+  const claim = await SignupClaim.findOneAndDelete({
+    secretHash,
+    expiresAt: { $gt: new Date() },
+  });
+  if (claim) return { status: "verified" as const, userId: claim.userId };
+
+  const waiting = await PendingRegistration.exists({
+    signupSecretHash: secretHash,
+    expiresAt: { $gt: new Date() },
+  });
+  return { status: waiting ? ("waiting" as const) : ("expired" as const) };
 }
 
 export async function verifyRegistration(input: VerifyRegistrationInput) {
@@ -166,7 +239,7 @@ export async function verifyRegistration(input: VerifyRegistrationInput) {
         tokenHash,
         expiresAt: { $gt: new Date() },
       })
-        .select("+passwordHash +tokenHash")
+        .select("+passwordHash +tokenHash +signupSecretHash")
         .session(dbSession);
       if (!currentPending) {
         throw new AppError(
@@ -187,6 +260,21 @@ export async function verifyRegistration(input: VerifyRegistrationInput) {
         ],
         { session: dbSession },
       );
+
+      // If the browser that started the sign-up is still waiting, leave a
+      // short-lived note so it can sign itself in.
+      if (currentPending.signupSecretHash) {
+        await SignupClaim.create(
+          [
+            {
+              secretHash: currentPending.signupSecretHash,
+              userId: user._id,
+              expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+            },
+          ],
+          { session: dbSession },
+        );
+      }
 
       if (currentPending.kind === "invite") {
         const invite = currentPending.inviteId
@@ -589,6 +677,60 @@ export async function requestEmailChange(
     throw error;
   }
 
+  return User.findById(userId).select("+pendingEmail");
+}
+
+// Sends the confirmation link for a pending email change again, without asking
+// for the password a second time. The new link replaces the old one.
+export async function resendEmailChange(userId: string) {
+  const user = await User.findById(userId).select(
+    "+status +pendingEmail +emailChangeTokenHash +emailChangeExpiresAt",
+  );
+  if (
+    !user ||
+    (user as unknown as Record<string, unknown>).status === "deleted"
+  ) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+  if (!user.pendingEmail) {
+    throw new AppError(
+      409,
+      "NO_PENDING_EMAIL_CHANGE",
+      "There is no email change waiting to be confirmed",
+    );
+  }
+  // The link lasts an hour, so it was sent that long before it expires.
+  const expiresAt = user.emailChangeExpiresAt as Date | null;
+  const sentAt = expiresAt ? expiresAt.getTime() - 60 * 60 * 1000 : 0;
+  if (Date.now() - sentAt < RESEND_COOLDOWN_MS) {
+    throw new AppError(
+      429,
+      "RESEND_TOO_SOON",
+      "A link was sent a moment ago. Please wait a minute before asking for another.",
+    );
+  }
+
+  const previousTokenHash = user.emailChangeTokenHash;
+  const previousExpiresAt = user.emailChangeExpiresAt;
+  const token = randomToken();
+  user.emailChangeTokenHash = sha256(token);
+  user.emailChangeExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  await user.save();
+
+  const verificationUrl = new URL("/verify-email-change", env.CLIENT_ORIGIN);
+  verificationUrl.searchParams.set("token", token);
+  try {
+    await sendVerificationEmail(
+      user.pendingEmail as string,
+      verificationUrl.toString(),
+      "email-change",
+    );
+  } catch (error) {
+    user.emailChangeTokenHash = previousTokenHash;
+    user.emailChangeExpiresAt = previousExpiresAt;
+    await user.save();
+    throw error;
+  }
   return User.findById(userId).select("+pendingEmail");
 }
 

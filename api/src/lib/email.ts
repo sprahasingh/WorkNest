@@ -14,7 +14,12 @@ async function sendEmail(
   subject: string,
   text: string,
   purpose:
-    "verification" | "password reset" | "invitation" | "email change notice",
+    | "verification"
+    | "password reset"
+    | "invitation"
+    | "email change notice"
+    | "feedback",
+  replyTo?: string,
 ): Promise<void> {
   if (!isEmailDeliveryConfigured()) {
     throw new AppError(
@@ -36,6 +41,7 @@ async function sendEmail(
         body: JSON.stringify({
           sender: { email: env.BREVO_FROM, name: "WorkNest" },
           to: [{ email: recipient }],
+          ...(replyTo ? { replyTo: { email: replyTo } } : {}),
           subject,
           textContent: text,
         }),
@@ -68,6 +74,7 @@ async function sendEmail(
     await nodemailer.createTransport(env.SMTP_URL!).sendMail({
       from: env.SMTP_FROM!,
       to: recipient,
+      ...(replyTo ? { replyTo } : {}),
       subject,
       text,
     });
@@ -161,5 +168,38 @@ export async function sendInviteEmail(
     `You're invited to join ${organizationName} on WorkNest`,
     text,
     "invitation",
+  );
+}
+
+// Feedback typed into the app, sent to the address set in FEEDBACK_TO_EMAIL.
+// Replying to the email answers the person who wrote it, when they left an
+// address.
+export async function sendFeedbackEmail(input: {
+  to: string;
+  message: string;
+  senderName: string | null;
+  senderEmail: string | null;
+  page: string | null;
+}): Promise<void> {
+  const who =
+    input.senderName && input.senderEmail
+      ? `${input.senderName} (${input.senderEmail})`
+      : (input.senderName ??
+        input.senderEmail ??
+        "Someone who didn't leave a name");
+  const text = [
+    input.message,
+    "",
+    "---",
+    `Sent by: ${who}`,
+    ...(input.page ? [`Page: ${input.page}`] : []),
+  ].join("\n");
+
+  await sendEmail(
+    input.to,
+    "WorkNest feedback",
+    text,
+    "feedback",
+    input.senderEmail ?? undefined,
   );
 }

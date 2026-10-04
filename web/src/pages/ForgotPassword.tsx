@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { requestPasswordReset } from "@/api/auth";
+import { useCooldown } from "@/hooks/useCooldown";
 import { parseApiError } from "@/lib/apiError";
 
 const schema = z.object({
@@ -23,6 +24,7 @@ type FormValues = z.infer<typeof schema>;
 export function ForgotPassword() {
   const [formError, setFormError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const cooldown = useCooldown(60);
   const {
     register,
     handleSubmit,
@@ -34,6 +36,7 @@ export function ForgotPassword() {
     try {
       await requestPasswordReset(email);
       setSent(true);
+      cooldown.start();
     } catch (error) {
       setFormError(parseApiError(error).message);
     }
@@ -63,7 +66,8 @@ export function ForgotPassword() {
             className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-3 text-sm text-teal-900 dark:border-teal-900 dark:bg-teal-950 dark:text-teal-100"
           >
             If an account exists for that email, we&apos;ve sent a reset link.
-            Check your inbox and spam folder.
+            It can take a minute. Look in your spam or junk folder too. The link
+            works for one hour, and a newer link replaces an older one.
           </p>
         )}
 
@@ -79,15 +83,17 @@ export function ForgotPassword() {
 
         <Button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || cooldown.left > 0}
           loading={isSubmitting}
           className="w-full"
         >
           {isSubmitting
             ? "Sending link…"
-            : sent
-              ? "Send another link"
-              : "Send reset link"}
+            : cooldown.left > 0
+              ? `Send another link in ${cooldown.left}s`
+              : sent
+                ? "Send another link"
+                : "Send reset link"}
         </Button>
 
         <p className="text-center text-sm text-slate-600 dark:text-slate-400">
