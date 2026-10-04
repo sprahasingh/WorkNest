@@ -83,6 +83,16 @@ async function findMine(conversationId: string) {
   return conversation;
 }
 
+// The moment before which this person has cleared the chat, if they did.
+function myClearedAt(
+  conversation: NonNullable<ConversationRecord>,
+): Date | null {
+  return (
+    conversation.members.find((member) => String(member.userId) === myId())
+      ?.clearedAt ?? null
+  );
+}
+
 function memberIds(conversation: NonNullable<ConversationRecord>): string[] {
   return conversation.members.map((member) => String(member.userId));
 }
@@ -198,7 +208,15 @@ export async function listConversations() {
   const conversations = await Conversation.find({ "members.userId": myId() })
     .sort({ lastMessageAt: -1 })
     .limit(200)
-    .lean();
+    .lean()
+    .then((found) =>
+      // A chat you deleted for yourself stays hidden until something new
+      // arrives in it.
+      found.filter((conversation) => {
+        const cleared = myClearedAt(conversation);
+        return !cleared || conversation.lastMessageAt > cleared;
+      }),
+    );
   const [people, unread] = await Promise.all([
     loadPeople(conversations.flatMap(memberIds)),
     countUnreadFor(conversations),
@@ -539,6 +557,9 @@ export async function listMessages(
     {
       conversationId: conversation._id,
       ...(query.before ? { _id: { $lt: oid(query.before) } } : {}),
+      ...(myClearedAt(conversation)
+        ? { createdAt: { $gt: myClearedAt(conversation) } }
+        : {}),
     },
     limit + 1,
   );
@@ -858,11 +879,18 @@ const escapeRegex = (value: string) =>
 // Looks only through conversations you're in, newest matches first.
 export async function searchMessages(query: string) {
   const conversations = await Conversation.find({ "members.userId": myId() })
-    .select("_id")
+    .select("_id members")
     .lean();
   if (conversations.length === 0) return { results: [] };
+  // Messages from before a chat was cleared are out of reach too.
   const found = await Message.find({
-    conversationId: { $in: conversations.map((c) => c._id) },
+    $or: conversations.map((conversation) => {
+      const cleared = myClearedAt(conversation as never);
+      return {
+        conversationId: conversation._id,
+        ...(cleared ? { createdAt: { $gt: cleared } } : {}),
+      };
+    }),
     kind: "user",
     deletedAt: null,
     text: { $regex: escapeRegex(query), $options: "i" },
@@ -882,4 +910,55 @@ export async function searchMessages(query: string) {
       createdAt: message.createdAt,
     })),
   };
+}
+
+// ---- Mark unread, delete for me ------------------------------------------
+
+// Brings the unread badge back by moving "read up to" to just before the
+// newest message from someone else. Does nothing if there isn't one.
+export async function markConversationUnread(conversationId: string) {
+  const conversation = await findMine(conversationId);
+  const cleared = myClearedAt(conversation);
+  const latest = await Message.findOne({
+    conversationId: conversation._id,
+    senderId: { $ne: myId() },
+    kind: "user",
+    deletedAt: null,
+    ...(cleared ? { createdAt: { $gt: cleared } } : {}),
+  })
+    .sort({ _id: -1 })
+    .select("createdAt")
+    .lean();
+  if (latest) {
+    await Conversation.updateOne(
+      { _id: conversation._id, "members.userId": myId() },
+      {
+        $set: {
+          "members.$.lastReadAt": new Date(latest.createdAt.getTime() - 1),
+        },
+      },
+    );
+  }
+  emitToUsers([myId()], "chat:event", {
+    orgId: requireTenantId(),
+    kind: "conversation",
+    conversationId,
+  });
+}
+
+// "Delete conversation" only ever clears it for the person asking. The others
+// keep the chat and its history, and a new message brings it back for this
+// person with nothing from before.
+export async function clearConversationForMe(conversationId: string) {
+  const conversation = await findMine(conversationId);
+  const now = new Date();
+  await Conversation.updateOne(
+    { _id: conversation._id, "members.userId": myId() },
+    { $set: { "members.$.clearedAt": now, "members.$.lastReadAt": now } },
+  );
+  emitToUsers([myId()], "chat:event", {
+    orgId: requireTenantId(),
+    kind: "conversation",
+    conversationId,
+  });
 }

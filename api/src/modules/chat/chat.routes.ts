@@ -23,7 +23,9 @@ import {
   getConversationController,
   listConversationsController,
   listMessagesController,
+  clearConversationController,
   markReadController,
+  markUnreadController,
   muteController,
   searchController,
   presenceController,
@@ -88,6 +90,16 @@ chatRouter.post(
   markReadController,
 );
 
+chatRouter.post(
+  "/conversations/:conversationId/unread",
+  validate({ params: conversationIdParamsSchema }),
+  markUnreadController,
+);
+chatRouter.delete(
+  "/conversations/:conversationId",
+  validate({ params: conversationIdParamsSchema }),
+  clearConversationController,
+);
 chatRouter.put(
   "/conversations/:conversationId/mute",
   validate({ params: conversationIdParamsSchema, body: muteSchema }),

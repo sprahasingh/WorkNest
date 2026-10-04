@@ -130,3 +130,21 @@ html {
     scroll-behavior: auto;
   }
 }
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Used on the Messages page: it fills the screen and scrolls inside, so the
+   page behind it must not scroll too (that left a blank strip and a stuck
+   screen on phones). */
+html.lock-scroll,
+html.lock-scroll body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
