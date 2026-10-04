@@ -1,3 +1,4 @@
+import { PLAN_LIMITS, PLAN_NAMES, PLAN_ORDER } from "@/lib/plans";
 import { Link, useLocation } from "react-router";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -15,6 +16,19 @@ interface GuideStep {
   tips?: string[];
   // The pictures for this step, from the placements in screens.json.
   screens?: Screen[];
+}
+
+// Written from the same limits the app enforces, so the guide can't go stale
+// when a limit changes.
+function planLimitsText(): string {
+  return PLAN_ORDER.map((plan) => {
+    const { seatLimit, projectLimit, activeTaskLimit } = PLAN_LIMITS[plan];
+    const tasks =
+      activeTaskLimit === null
+        ? "unlimited active tasks"
+        : `${activeTaskLimit} active tasks per project`;
+    return `${PLAN_NAMES[plan]} includes ${seatLimit} seats, ${projectLimit} active projects and ${tasks}.`;
+  }).join(" ");
 }
 
 const STEPS: GuideStep[] = [
@@ -122,8 +136,7 @@ const STEPS: GuideStep[] = [
   {
     id: "plan",
     title: "Manage your plan and chat history",
-    description:
-      "Open Settings to compare plans and check usage. Free includes 5 seats, 3 active projects and 10 active tasks per project. Pro includes 30 seats, 25 active projects and 50 active tasks per project. Premium includes 100 seats, 50 active projects and unlimited active tasks. Only admins can change plans. Upgrading is a one-time payment, the little i next to Plan explains how it works, and a downgrade is free once your usage fits the lower limits. Settings also lists every device signed in to your account, so you can sign one out or choose Log out everywhere. On a phone, pulling down from the top of any page refreshes it. Admins also choose how long chat history is kept, from forever down to 90 days. The choice applies to the whole organization, and every member can see it in Settings and at the bottom of their chat list.",
+    description: `Open Settings to compare plans and check usage. ${planLimitsText()} Only admins can change plans. Upgrading is a one-time payment, the little i next to Plan explains how it works, and a downgrade is free once your usage fits the lower limits. Settings also lists every device signed in to your account, so you can sign one out or choose Log out everywhere. On a phone, pulling down from the top of any page refreshes it. Admins also choose how long chat history is kept, from forever down to 90 days. The choice applies to the whole organization, and every member can see it in Settings and at the bottom of their chat list.`,
     screens: placement("guide.plan"),
   },
 ];

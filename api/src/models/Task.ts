@@ -40,6 +40,10 @@ taskSchema.index({ tenantId: 1, projectId: 1, completedAt: -1, _id: -1 });
 taskSchema.index({ tenantId: 1, projectId: 1, archivedAt: -1, _id: -1 });
 taskSchema.index({ tenantId: 1, assigneeIds: 1, status: 1 });
 taskSchema.index({ tenantId: 1, projectId: 1, deletedAt: -1, _id: -1 });
+// The hourly bin cleanup looks across organizations by deletion date.
+taskSchema.index({ deletedAt: 1 }, { sparse: true });
+// The dashboard finds when an organization's first task was created.
+taskSchema.index({ tenantId: 1, createdAt: 1 });
 
 taskSchema.pre(
   [

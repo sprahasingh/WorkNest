@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "screens:check": "node scripts/screens.mjs check",
-    "screens:readme": "node scripts/screens.mjs readme"
+    "screens:readme": "node scripts/screens.mjs readme",
+    "format:check": "prettier --check src"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -45,5 +46,8 @@
   },
   "allowScripts": {
     "fsevents@2.3.3": true
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

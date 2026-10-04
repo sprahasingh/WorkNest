@@ -122,10 +122,11 @@ describe("personal information", () => {
     });
     expect(newCredentials.status).toBe(200);
 
+    // Changing the email ends every session, so a stolen one can't outlive it.
     const refresh = await request(app)
       .post("/api/auth/refresh")
       .set("Cookie", account.refreshCookie!);
-    expect(refresh.status).toBe(200);
+    expect(refresh.status).toBe(401);
   });
 
   it("renames without a password, rejects a wrong current password, and a duplicate email", async () => {

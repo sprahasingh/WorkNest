@@ -110,7 +110,23 @@ function requireContext() {
 export async function applyPaidOrder(
   orderId: string,
   paymentId: string,
+  capturedAmount?: number,
 ): Promise<{ applied: boolean }> {
+  // The webhook says how much was really paid. If that isn't what the order
+  // was for, nothing is applied.
+  if (capturedAmount !== undefined) {
+    const order = await Payment.findOne({ razorpayOrderId: orderId })
+      .setOptions({ skipTenant: true })
+      .select("amount")
+      .lean();
+    if (order && order.amount !== capturedAmount) {
+      throw new AppError(
+        409,
+        "AMOUNT_MISMATCH",
+        "The amount paid doesn't match the order",
+      );
+    }
+  }
   const claimed = await Payment.findOneAndUpdate(
     { razorpayOrderId: orderId, status: "created" },
     {
@@ -130,6 +146,27 @@ export async function applyPaidOrder(
         404,
         "NOT_FOUND",
         "No payment was found for that order",
+      );
+    }
+    // Marked paid but the plan never moved (the server stopped in between, or
+    // another request is still applying it): finish the job. It never moves
+    // anyone down, and does nothing when the plan is already there.
+    if (existing.status === "paid") {
+      await runWithTenant(
+        {
+          tenantId: String(existing.tenantId),
+          userId: String(existing.userId),
+        },
+        async () => {
+          const plan = await currentPlan(String(existing.tenantId));
+          if (planRank(existing.plan as Plan) > planRank(plan)) {
+            await changePlan(existing.plan as Plan, {
+              paymentId: existing.razorpayPaymentId ?? paymentId,
+              orderId,
+              amount: existing.amount,
+            });
+          }
+        },
       );
     }
     return { applied: false };

@@ -55,7 +55,9 @@ export function TaskColumn({
           : view === "archived"
             ? "Archived"
             : "Bin"}{" "}
-        <span className="font-normal text-slate-400">({total})</span>
+        <span className="font-normal text-slate-500 dark:text-slate-400">
+          ({total})
+        </span>
       </h2>
 
       <div className="mt-3 space-y-2">
@@ -88,7 +90,9 @@ export function TaskColumn({
           ))}
 
         {!isPending && !isError && tasks.length === 0 && (
-          <p className="text-sm text-slate-400">No tasks.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            No tasks.
+          </p>
         )}
 
         {hasNextPage && (

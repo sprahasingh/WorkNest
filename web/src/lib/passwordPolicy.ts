@@ -70,6 +70,15 @@ const COMMON = new Set([
   "user1234",
 ]);
 
+// bcrypt on the server only reads the first 72 bytes. Accented letters and
+// emoji take more than one byte each.
+export const PASSWORD_TOO_LONG =
+  "That password is too long. Use at most 72 bytes (accented letters and emoji count as more than one).";
+
+export function passwordFitsLimit(password: string): boolean {
+  return new TextEncoder().encode(password).length <= 72;
+}
+
 export type PasswordProblem =
   "too-short" | "common" | "pattern" | "has-email" | "has-name";
 

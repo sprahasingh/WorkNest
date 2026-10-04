@@ -1,3 +1,4 @@
+import { scaled } from "../../lib/rateLimit.js";
 import {
   Router,
   type NextFunction,
@@ -18,7 +19,7 @@ const router = Router();
 // A handful an hour is plenty for real feedback and keeps the inbox safe.
 const feedbackLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 6,
+  limit: scaled(6),
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -30,8 +31,10 @@ async function signedInSender(req: Request) {
   if (!header?.startsWith("Bearer ")) return null;
   try {
     const { sub } = verifyAccessToken(header.slice("Bearer ".length));
-    const user = await User.findById(sub).select("name email").lean();
-    return user ? { name: user.name, email: user.email } : null;
+    const user = await User.findById(sub).select("name email status").lean();
+    if (!user || (user as { status?: string }).status === "deleted")
+      return null;
+    return { name: user.name, email: user.email };
   } catch {
     return null;
   }

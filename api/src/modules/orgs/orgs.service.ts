@@ -7,7 +7,7 @@ import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
 import { PLAN_LIMITS, type Plan } from "../../constants/plans.js";
-import { Project } from "../../models/Project.js";
+import { Project, binnedProjectIds } from "../../models/Project.js";
 import { dateKeyInTimeZone, dateOnlyDueDate } from "../../lib/timezone.js";
 import type { UpdateOrgInput } from "./orgs.schemas.js";
 
@@ -113,10 +113,48 @@ export async function updateOrg(input: UpdateOrgInput) {
             { session: dbSession, ordered: false },
           );
         }
+        // Projects with a date-only due date move the same way, so their
+        // calendar day doesn't shift when the organization's time zone does.
+        const projects = await Project.find({
+          dueDate: { $ne: null },
+          dueDateIsDateOnly: true,
+        })
+          .select("_id dueDate")
+          .session(dbSession)
+          .lean();
+        if (projects.length > 0) {
+          await Project.bulkWrite(
+            projects.map((project) => ({
+              updateOne: {
+                filter: { _id: project._id },
+                update: {
+                  $set: {
+                    dueDate: dateOnlyDueDate(
+                      dateKeyInTimeZone(
+                        project.dueDate as Date,
+                        previousTimeZone,
+                      ),
+                      input.timeZone!,
+                    ),
+                  },
+                  $inc: { reminderCycle: 1 },
+                },
+              },
+            })),
+            { session: dbSession, ordered: false },
+          );
+        }
         await Notification.deleteMany(
           {
             tenantId,
-            type: { $in: ["task_due_soon", "task_overdue"] },
+            type: {
+              $in: [
+                "task_due_soon",
+                "task_overdue",
+                "project_due_soon",
+                "project_overdue",
+              ],
+            },
           },
           { session: dbSession },
         );
@@ -196,6 +234,7 @@ export async function changePlan(
         .session(dbSession)
         .setOptions({ skipTenant: true });
 
+      const binned = await binnedProjectIds();
       // Projects already holding more active tasks than the new plan allows.
       const projectsOverTaskLimit =
         limits.activeTaskLimit === null
@@ -207,6 +246,9 @@ export async function changePlan(
                     status: { $ne: "done" },
                     archivedAt: null,
                     deletedAt: null,
+                    // Tasks in a binned project can't be seen, so they don't
+                    // count against a smaller plan either.
+                    projectId: { $nin: binned },
                   },
                 },
                 { $group: { _id: "$projectId", active: { $sum: 1 } } },

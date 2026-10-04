@@ -5,7 +5,18 @@ const emailSchema = z.string().trim().toLowerCase().email();
 // For passwords being chosen (not the ones being typed to sign in). The
 // finer rules (common, patterns, own name or email) live in passwordPolicy
 // and run in the service, where the email and name are known.
-export const newPasswordSchema = z.string().min(8).max(72);
+//
+// bcrypt only reads the first 72 bytes, so a longer password would be quietly
+// cut short. Counted in bytes, because accented letters and emoji take more
+// than one.
+export const PASSWORD_TOO_LONG =
+  "That password is too long. Use at most 72 bytes (accented letters and emoji count as more than one).";
+export const newPasswordSchema = z
+  .string()
+  .min(8)
+  .refine((value) => Buffer.byteLength(value, "utf8") <= 72, {
+    message: PASSWORD_TOO_LONG,
+  });
 
 export const registerSchema = z
   .object({

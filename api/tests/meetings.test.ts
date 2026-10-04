@@ -123,7 +123,9 @@ describe("meetings", () => {
     const invite = await Notification.findOne({
       userId: priya.id,
       type: "meeting_invited",
-    }).lean();
+    })
+      .setOptions({ skipTenant: true })
+      .lean();
     expect(invite?.meetingId?.toString()).toBe(id);
 
     const summary = await api(orgId, priya.token).get("/summary");
@@ -141,7 +143,7 @@ describe("meetings", () => {
       await Notification.countDocuments({
         userId: sam.id,
         type: "meeting_response",
-      }),
+      }).setOptions({ skipTenant: true }),
     ).toBe(1);
 
     // The organizer doesn't RSVP to their own meeting.
@@ -180,7 +182,7 @@ describe("meetings", () => {
       await Notification.countDocuments({
         userId: priya.id,
         type: "meeting_updated",
-      }),
+      }).setOptions({ skipTenant: true }),
     ).toBe(1);
   });
 
@@ -208,7 +210,7 @@ describe("meetings", () => {
       await Notification.countDocuments({
         userId: lee.id,
         type: "meeting_cancelled",
-      }),
+      }).setOptions({ skipTenant: true }),
     ).toBe(1);
 
     const upcoming = await api(orgId, lee.token).get("?view=upcoming");
@@ -266,7 +268,7 @@ describe("meetings", () => {
       await Notification.countDocuments({
         type: "meeting_starting",
         userId: { $in: [sam.id, priya.id] },
-      }),
+      }).setOptions({ skipTenant: true }),
     ).toBe(2);
   });
 

@@ -71,9 +71,11 @@ export async function downloadChatFileController(
   const attachment = await runWithTenant(
     { tenantId: payload.org, userId: payload.sub, role: membership.role },
     async () => {
+      // Not for a message this person deleted for themselves.
       const message = await Message.findOne({
         _id: payload.mid,
         deletedAt: null,
+        hiddenBy: { $ne: new mongoose.Types.ObjectId(payload.sub) },
       }).lean();
       if (!message) return null;
       const conversation = await Conversation.findOne({
