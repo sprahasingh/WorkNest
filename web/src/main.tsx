@@ -7,6 +7,8 @@ import { AuthProvider } from './auth/AuthProvider.tsx'
 import { ThemeProvider } from './theme/ThemeProvider.tsx'
 import { AppRoutes } from './routes.tsx'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary.tsx'
+import { PullToRefresh } from './components/PullToRefresh.tsx'
+import { ImageViewerProvider } from './components/ImageViewer.tsx'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -24,9 +26,12 @@ createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <BrowserRouter>
           <AuthProvider>
-            <RouteErrorBoundary>
-              <AppRoutes />
-            </RouteErrorBoundary>
+            <ImageViewerProvider>
+              <RouteErrorBoundary>
+                <AppRoutes />
+              </RouteErrorBoundary>
+            </ImageViewerProvider>
+            <PullToRefresh />
             <Toaster richColors position="top-right" />
           </AuthProvider>
         </BrowserRouter>
