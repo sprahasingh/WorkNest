@@ -12,6 +12,8 @@ export interface FeedbackInput {
   email?: string;
   page?: string;
   website?: string;
+  // A small image as a data URL. Only signed-in people can attach one.
+  screenshot?: string;
 }
 
 export async function sendFeedback(input: FeedbackInput): Promise<void> {

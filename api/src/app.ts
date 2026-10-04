@@ -48,6 +48,8 @@ export function createApp(): Express {
       credentials: true,
     }),
   );
+  // Feedback may carry one small screenshot; everything else stays tiny.
+  app.use("/api/feedback", express.json({ limit: "3mb" }));
   app.use(express.json({ limit: "100kb" }));
   app.use(cookieParser());
   app.use(pinoHttp({ logger }));

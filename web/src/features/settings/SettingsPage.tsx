@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useCooldown } from "@/hooks/useCooldown";
 import { useLocation } from "react-router";
-import { useController, useForm } from "react-hook-form";
+import { useController, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Card } from "@/components/ui/Card";
+import { PasswordHelp } from "@/components/ui/PasswordHelp";
 import {
   cancelEmailChange,
   resendEmailChange,
@@ -30,6 +31,7 @@ import {
 import { cn } from "@/lib/cn";
 import { ChatRetentionCard } from "./ChatRetentionCard";
 import { LeaveOrganizationCard } from "./LeaveOrganizationCard";
+import { SessionsCard } from "./SessionsCard";
 import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 import {
   PLAN_LIMITS,
@@ -348,6 +350,7 @@ function PersonalInformationCard() {
     handleSubmit,
     setError,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<PersonalInformationFormValues>({
     resolver: zodResolver(personalInformationSchema),
@@ -358,6 +361,8 @@ function PersonalInformationCard() {
       confirmNewPassword: "",
     },
   });
+  const newPasswordValue = useWatch({ control, name: "newPassword" }) ?? "";
+  const nameValue = useWatch({ control, name: "name" }) ?? "";
 
   const cancelEditing = () => {
     reset({
@@ -477,6 +482,11 @@ function PersonalInformationCard() {
                 id="profile-new-password"
                 autoComplete="new-password"
                 {...register("newPassword")}
+              />
+              <PasswordHelp
+                password={newPasswordValue}
+                email={user?.email}
+                name={nameValue}
               />
             </Field>
             <Field
@@ -735,7 +745,7 @@ interface DowngradeBlockedDetail {
 
 export function SettingsPage() {
   const { orgId } = useOrg();
-  const { logout, isLoggingOut, deleteAccount, isDeletingAccount } = useAuth();
+  const { deleteAccount, isDeletingAccount } = useAuth();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [dangerInfoOpen, setDangerInfoOpen] = useState(false);
@@ -1025,22 +1035,7 @@ export function SettingsPage() {
           <ChatRetentionCard orgId={orgId} org={org} canEdit={canUpdateOrg} />
         )}
 
-        <Card>
-          <h2 className="font-medium text-slate-800 dark:text-slate-100">
-            Session
-          </h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Sign out of WorkNest on this device.
-          </p>
-          <Button
-            variant="secondary"
-            onClick={() => void logout()}
-            loading={isLoggingOut}
-            className="mt-4"
-          >
-            {isLoggingOut ? "Logging out…" : "Log out"}
-          </Button>
-        </Card>
+        <SessionsCard />
 
         {org && <LeaveOrganizationCard orgId={orgId} orgName={org.name} />}
 

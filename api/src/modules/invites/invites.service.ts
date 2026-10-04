@@ -1,3 +1,4 @@
+import { assertPasswordAllowed } from "../../lib/passwordPolicy.js";
 import mongoose from "mongoose";
 import { Invite } from "../../models/Invite.js";
 import { Membership } from "../../models/Membership.js";
@@ -547,6 +548,10 @@ export async function signupViaInvite(
     );
   }
 
+  assertPasswordAllowed(input.password, {
+    email: invite.email,
+    name: input.name,
+  });
   const registrationToken = randomToken();
   const registrationTokenHash = sha256(registrationToken);
   const signupToken = randomToken();

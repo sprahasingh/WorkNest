@@ -24,6 +24,7 @@ const emailCapture = vi.hoisted(() => ({
     senderName: string | null;
     senderEmail: string | null;
     page: string | null;
+    attachment?: { name: string; content: string };
   }[],
 }));
 const sentVerificationEmails = emailCapture.sent;

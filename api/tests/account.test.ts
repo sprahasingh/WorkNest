@@ -18,7 +18,7 @@ async function registerOrg(email: string, orgName: string) {
   const res = await registerAndVerify(app, {
     name: "Admin User",
     email,
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName,
   });
   const accessToken = res.body.accessToken as string;
@@ -47,7 +47,7 @@ async function addMember(
   const token = takeInvitationToken(email);
   const signup = await signupInviteAndVerify(app, token, email, {
     name: `User ${email}`,
-    password: "password123",
+    password: "Harbor-lamp-91",
   });
   const accessToken = signup.body.accessToken as string;
   const me = await request(app)
@@ -87,7 +87,7 @@ describe("personal information", () => {
       .set("Cookie", account.refreshCookie!)
       .send({
         name: "Updated Person",
-        currentPassword: "password123",
+        currentPassword: "Harbor-lamp-91",
         newPassword: "new-password-456",
       });
 
@@ -156,7 +156,7 @@ describe("personal information", () => {
       .set("Authorization", `Bearer ${first.accessToken}`)
       .send({
         email: "taken-profile@example.com",
-        currentPassword: "password123",
+        currentPassword: "Harbor-lamp-91",
       });
     expect(duplicateEmail.status).toBe(409);
     expect(duplicateEmail.body.error.code).toBe("EMAIL_ALREADY_REGISTERED");
@@ -169,7 +169,7 @@ describe("personal information", () => {
       .set("Authorization", `Bearer ${account.accessToken}`)
       .send({
         email: "cancelled@example.com",
-        currentPassword: "password123",
+        currentPassword: "Harbor-lamp-91",
       });
     expect(changeRequest.status).toBe(202);
     const token = takeVerificationToken(
@@ -207,7 +207,7 @@ describe("personal information", () => {
         .set("Authorization", `Bearer ${account.accessToken}`)
         .send({
           email: "DEMO-CHANGE@example.com",
-          currentPassword: "password123",
+          currentPassword: "Harbor-lamp-91",
         });
 
       expect(response.status).toBe(200);
@@ -261,13 +261,13 @@ describe("account deletion", () => {
 
     const login = await request(app)
       .post("/api/auth/login")
-      .send({ email: "stayer@example.com", password: "password123" });
+      .send({ email: "stayer@example.com", password: "Harbor-lamp-91" });
     expect(login.status).toBe(401);
 
     const again = await registerAndVerify(app, {
       name: "Back Again",
       email: "stayer@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "Fresh Start",
     });
     expect(again.status).toBe(201);

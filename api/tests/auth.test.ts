@@ -20,7 +20,7 @@ describe("auth flow", () => {
       accountType: "user",
       name: "Standalone User",
       email: "standalone@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
     });
 
     expect(verification.status).toBe(201);
@@ -42,7 +42,7 @@ describe("auth flow", () => {
     const registerRes = await registerAndVerify(app, {
       name: "Test User",
       email: "test@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "Test Org",
     });
 
@@ -51,7 +51,7 @@ describe("auth flow", () => {
 
     const loginRes = await request(app).post("/api/auth/login").send({
       email: "test@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
     });
 
     expect(loginRes.status).toBe(200);
@@ -70,7 +70,7 @@ describe("auth flow", () => {
     await registerAndVerify(app, {
       name: "Test User",
       email: "test@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "Test Org",
     });
 
@@ -87,7 +87,7 @@ describe("auth flow", () => {
     await registerAndVerify(app, {
       name: "Reset User",
       email: "reset@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "Reset Org",
     });
 
@@ -100,18 +100,18 @@ describe("auth flow", () => {
     const token = takePasswordResetToken("reset@example.com");
     const reset = await request(app)
       .post("/api/auth/reset-password")
-      .send({ token, password: "newpassword123" });
+      .send({ token, password: "newHarbor-lamp-91" });
     expect(reset.status).toBe(200);
     expect(await Session.countDocuments({ revokedAt: null })).toBe(0);
 
     const oldPasswordLogin = await request(app)
       .post("/api/auth/login")
-      .send({ email: "reset@example.com", password: "password123" });
+      .send({ email: "reset@example.com", password: "Harbor-lamp-91" });
     expect(oldPasswordLogin.status).toBe(401);
 
     const newPasswordLogin = await request(app)
       .post("/api/auth/login")
-      .send({ email: "reset@example.com", password: "newpassword123" });
+      .send({ email: "reset@example.com", password: "newHarbor-lamp-91" });
     expect(newPasswordLogin.status).toBe(200);
 
     const reusedToken = await request(app)
@@ -135,13 +135,13 @@ describe("auth flow", () => {
     await registerAndVerify(app, {
       name: "Test User",
       email: "test@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "Test Org",
     });
 
     const loginRes = await request(app).post("/api/auth/login").send({
       email: "test@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
     });
 
     const originalCookie = loginRes.headers["set-cookie"][0] as string;
@@ -184,7 +184,7 @@ describe("auth flow", () => {
     const pending = await request(app).post("/api/auth/register").send({
       name: "Pending User",
       email: "pending@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "Pending Org",
     });
 
@@ -206,7 +206,7 @@ describe("auth flow", () => {
 
     const verified = await request(app)
       .post("/api/auth/verify-registration")
-      .send({ token, password: "password123" });
+      .send({ token, password: "Harbor-lamp-91" });
     expect(verified.status).toBe(201);
 
     const user = await User.findOne({ email: "pending@example.com" });
@@ -215,7 +215,7 @@ describe("auth flow", () => {
 
     const reused = await request(app)
       .post("/api/auth/verify-registration")
-      .send({ token, password: "password123" });
+      .send({ token, password: "Harbor-lamp-91" });
     expect(reused.status).toBe(400);
   });
 
@@ -227,7 +227,7 @@ describe("auth flow", () => {
       const response = await request(app).post("/api/auth/register").send({
         name: "Dummy User",
         email: "dummy@example.com",
-        password: "password123",
+        password: "Harbor-lamp-91",
         orgName: "Dummy Org",
       });
 
@@ -240,6 +240,30 @@ describe("auth flow", () => {
       expect(await Organization.findOne({ name: "Dummy Org" })).not.toBeNull();
     } finally {
       env.EMAIL_VERIFICATION_BYPASS_EMAILS = originalBypassEmails;
+    }
+  });
+
+  it("also skips the password rules for those demo addresses", async () => {
+    const original = env.EMAIL_VERIFICATION_BYPASS_EMAILS;
+    env.EMAIL_VERIFICATION_BYPASS_EMAILS = ["demo-simple@example.com"];
+    try {
+      const demo = await request(app).post("/api/auth/register").send({
+        name: "Demo Person",
+        email: "demo-simple@example.com",
+        password: "password123",
+        orgName: "Demo Simple Org",
+      });
+      expect(demo.status).toBe(201);
+
+      const other = await request(app).post("/api/auth/register").send({
+        name: "Other Person",
+        email: "not-demo@example.com",
+        password: "password123",
+        orgName: "Other Org",
+      });
+      expect(other.status).toBe(400);
+    } finally {
+      env.EMAIL_VERIFICATION_BYPASS_EMAILS = original;
     }
   });
 });

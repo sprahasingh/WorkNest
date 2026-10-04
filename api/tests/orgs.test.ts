@@ -9,7 +9,7 @@ async function registerUser() {
   const res = await registerAndVerify(app, {
     name: "Test User",
     email: "test@example.com",
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName: "First Org",
   });
   return res.body.accessToken as string;

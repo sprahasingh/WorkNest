@@ -10,7 +10,10 @@ import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { PasswordHelp } from "@/components/ui/PasswordHelp";
 import { CheckEmailPanel } from "@/components/CheckEmailPanel";
+import { EmailTypoHint } from "@/components/ui/EmailTypoHint";
+import { useEmailTypoHint } from "@/hooks/useEmailTypoHint";
 import { resolvePostAuthPath } from "@/lib/postAuthRedirect";
 
 const registerFormSchema = z
@@ -70,6 +73,7 @@ export function Register() {
     control,
     handleSubmit,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerFormSchema),
@@ -77,6 +81,11 @@ export function Register() {
     shouldUnregister: true,
   });
   const accountType = useWatch({ control, name: "accountType" });
+  const emailValue = useWatch({ control, name: "email" }) ?? "";
+  const nameValue = useWatch({ control, name: "name" }) ?? "";
+  const passwordValue = useWatch({ control, name: "password" }) ?? "";
+  const typoHint = useEmailTypoHint(emailValue);
+  const emailField = register("email");
 
   const onSubmit = async (values: RegisterFormValues) => {
     setFormError(null);
@@ -216,8 +225,21 @@ export function Register() {
             id="email"
             type="email"
             autoComplete="email"
-            {...register("email")}
+            {...emailField}
+            onBlur={(event) => {
+              void emailField.onBlur(event);
+              typoHint.check();
+            }}
             className={inputStyles}
+          />
+          <EmailTypoHint
+            suggestion={typoHint.suggestion}
+            onUse={(email) =>
+              setValue("email", email, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
           />
           {errors.email?.type === "exists" && (
             <p
@@ -244,6 +266,11 @@ export function Register() {
             id="password"
             autoComplete="new-password"
             {...register("password")}
+          />
+          <PasswordHelp
+            password={passwordValue}
+            email={emailValue}
+            name={nameValue}
           />
         </Field>
 

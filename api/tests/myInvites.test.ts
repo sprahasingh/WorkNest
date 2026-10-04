@@ -12,7 +12,7 @@ async function register(email: string, orgName: string) {
   const res = await registerAndVerify(app, {
     name: `${orgName} Owner`,
     email,
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName,
   });
   const accessToken = res.body.accessToken as string;

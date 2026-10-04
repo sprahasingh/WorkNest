@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/ui/Button";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Field } from "@/components/ui/Field";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { PasswordHelp } from "@/components/ui/PasswordHelp";
 import { resetPassword } from "@/api/auth";
 import { parseApiError } from "@/lib/apiError";
 
@@ -16,9 +17,14 @@ const schema = z
     password: z.string().min(8, "Use at least 8 characters").max(72),
     confirmPassword: z.string().min(1, "Confirm your new password"),
   })
-  .refine((values) => values.password === values.confirmPassword, {
-    path: ["confirmPassword"],
-    message: "Passwords do not match",
+  .superRefine((values, context) => {
+    if (values.password !== values.confirmPassword) {
+      context.addIssue({
+        code: "custom",
+        path: ["confirmPassword"],
+        message: "Passwords do not match",
+      });
+    }
   });
 
 type FormValues = z.infer<typeof schema>;
@@ -30,9 +36,11 @@ export function ResetPassword() {
   const [isComplete, setIsComplete] = useState(false);
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  const passwordValue = useWatch({ control, name: "password" }) ?? "";
 
   const onSubmit = async ({ password }: FormValues) => {
     if (!token) return;
@@ -108,6 +116,7 @@ export function ResetPassword() {
               autoComplete="new-password"
               {...register("password")}
             />
+            <PasswordHelp password={passwordValue} />
           </Field>
           <Field
             label="Confirm new password"

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useNavigate, useParams } from "react-router";
@@ -19,6 +19,7 @@ import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { PasswordHelp } from "@/components/ui/PasswordHelp";
 import { CheckEmailPanel } from "@/components/CheckEmailPanel";
 
 const signupFormSchema = z
@@ -84,10 +85,13 @@ export function InviteAccept() {
     register,
     handleSubmit,
     setError,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
   });
+  const passwordValue = useWatch({ control, name: "password" }) ?? "";
+  const nameValue = useWatch({ control, name: "name" }) ?? "";
 
   if (!token || previewQuery.isPending) {
     return (
@@ -345,6 +349,11 @@ export function InviteAccept() {
                 id="password"
                 autoComplete="new-password"
                 {...register("password")}
+              />
+              <PasswordHelp
+                password={passwordValue}
+                email={preview.email}
+                name={nameValue}
               />
             </Field>
 

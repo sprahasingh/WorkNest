@@ -15,7 +15,7 @@ async function registerAndGetOrg(email: string, orgName: string) {
   const res = await registerAndVerify(app, {
     name: "Test User",
     email,
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName,
   });
 
@@ -46,7 +46,7 @@ async function inviteAndSignup(
 
   const signupRes = await signupInviteAndVerify(app, token, email, {
     name: "Invited User",
-    password: "password123",
+    password: "Harbor-lamp-91",
   });
 
   const accessToken = signupRes.body.accessToken as string;
@@ -92,7 +92,7 @@ describe("member role changes and the last-admin rule", () => {
     const inviteeRes = await registerAndVerify(app, {
       name: "Admin B",
       email: "admin-b@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "Unused Org B",
     });
 
