@@ -293,8 +293,8 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 | Plan    | Price (one-time) | Seats | Active projects | Active tasks per project |
 | ------- | ---------------- | ----- | --------------- | ------------------------ |
 | Free    | ₹0               | 5     | 3               | 10                       |
-| Pro     | ₹499             | 30    | 25              | 50                       |
-| Premium | ₹999             | 100   | 50              | Unlimited                |
+| Pro     | ₹599             | 30    | 25              | 50                       |
+| Premium | ₹1,199           | 100   | 50              | Unlimited                |
 
 Only active projects use a project slot. Completed, archived, and binned projects do not count. If a project becomes active again, it uses a slot and may need to wait until one is free.
 
@@ -302,7 +302,7 @@ Each project also has a separate active-task limit. Done, archived, and binned t
 
 ### Paying for a plan
 
-Moving up a plan is a one-time payment through [Razorpay](https://razorpay.com), not a subscription. Pro costs ₹499 and Premium ₹999; going from Pro to Premium costs the difference. The app is meant to run with Razorpay **test keys**, so you can try the whole flow with fake payments and no real money moves. Moving down a plan is free (it isn't refunded) and still blocked while usage is over the smaller plan's limits.
+Moving up a plan is a one-time payment through [Razorpay](https://razorpay.com), not a subscription. Pro costs ₹599 and Premium ₹1,199; going from Pro to Premium costs the difference. The app is meant to run with Razorpay **test keys**, so you can try the whole flow with fake payments and no real money moves. Moving down a plan is free (it isn't refunded) and still blocked while usage is over the smaller plan's limits.
 
 How it works:
 
@@ -321,7 +321,7 @@ RAZORPAY_KEY_SECRET=...
 RAZORPAY_WEBHOOK_SECRET=...   # optional, but recommended
 ```
 
-For the webhook, add `https://your-api.example.com/api/billing/webhook` in the Razorpay dashboard under Webhooks, tick `payment.captured` and `order.paid`, and use the same secret you put in `RAZORPAY_WEBHOOK_SECRET`. In test mode, pay with the test card `4111 1111 1111 1111` (any future expiry, any CVV) or the test UPI id `success@razorpay`. The (i) next to "Plan" in Settings explains all of this to the people using the app.
+For the webhook, add `https://your-api.example.com/api/billing/webhook` in the Razorpay dashboard under Webhooks, tick `payment.captured` and `order.paid`, and use the same secret you put in `RAZORPAY_WEBHOOK_SECRET`. In test mode, pay with the Indian test card Visa `4386 2894 0766 0153` (any future expiry, any CVV, any name) or the test UPI id `success@razorpay`. Razorpay's test mode for India rejects most international test cards, such as `4111 1111 1111 1111`, with "International cards are not supported". Their Test Cards page lists more. The (i) next to "Plan" in Settings gives the short version to the people using the app. In test mode Settings also shows a small box with the test card number (one tap to copy) and a note that the expiry, CVV and name can be anything. The card number is also copied to the clipboard when you press Upgrade, since Razorpay's window covers the screen once it opens.
 
 ## API Example
 

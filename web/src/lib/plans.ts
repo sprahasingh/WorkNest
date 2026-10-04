@@ -26,12 +26,12 @@ export function formatTaskLimit(limit: number | null): string {
   return limit === null ? "Unlimited" : `Up to ${limit}`;
 }
 
-// What moving up to each plan costs, in paise (INR 499 and 999). It is a
+// What moving up to each plan costs, in paise (INR 599 and 1,199). It is a
 // one-time upgrade, not a subscription. Mirrors api/src/constants/plans.ts.
 export const PLAN_PRICE_PAISE: Record<Plan, number> = {
   free: 0,
-  pro: 49900,
-  premium: 99900,
+  pro: 59900,
+  premium: 119900,
 };
 
 export function formatRupees(paise: number): string {
