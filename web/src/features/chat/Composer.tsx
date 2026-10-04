@@ -277,7 +277,6 @@ export function Composer({
     setText(next);
     drafts.set(conversationId, next);
     requestAnimationFrame(() => {
-      element?.focus();
       element?.setSelectionRange(start + emoji.length, start + emoji.length);
     });
   };
@@ -440,6 +439,8 @@ export function Composer({
         <div
           role="menu"
           aria-label="Insert emoji"
+          // Keeps the textarea focused so the phone keyboard stays put.
+          onMouseDown={(event) => event.preventDefault()}
           className="absolute bottom-full left-3 z-20 mb-2 grid w-64 grid-cols-8 gap-0.5 rounded-xl border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-600 dark:bg-slate-800"
         >
           {COMMON_EMOJIS.map((emoji) => (
@@ -494,6 +495,7 @@ export function Composer({
           type="button"
           aria-label="Insert emoji"
           aria-expanded={emojiOpen}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={() => setEmojiOpen((open) => !open)}
           className={iconButton}
         >
