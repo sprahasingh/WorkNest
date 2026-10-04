@@ -49,4 +49,5 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm run screens:check
       - run: npm run build
