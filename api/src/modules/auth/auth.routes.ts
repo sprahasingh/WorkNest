@@ -32,6 +32,9 @@ import {
   registrationStatusController,
   requestPasswordResetController,
   resetPasswordController,
+  listSessionsController,
+  revokeSessionController,
+  revokeAllSessionsController,
 } from "./auth.controller.js";
 
 const router = Router();
@@ -162,6 +165,19 @@ router.delete(
   cancelEmailChangeController,
 );
 router.post("/me/onboarding", authenticate, markOnboardingSeenController);
+router.get("/me/sessions", authenticate, listSessionsController);
+router.delete(
+  "/me/sessions",
+  accountUpdateLimiter,
+  authenticate,
+  revokeAllSessionsController,
+);
+router.delete(
+  "/me/sessions/:sessionId",
+  accountUpdateLimiter,
+  authenticate,
+  revokeSessionController,
+);
 router.delete("/me", authenticate, deleteAccountController);
 
 export { router as authRouter };

@@ -31,7 +31,7 @@ async function twoPeople() {
   const response = await registerAndVerify(app, {
     name: "Admin User",
     email: "admin@files.test",
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName: "Files Org",
   });
   const token = response.body.accessToken as string;
@@ -47,7 +47,7 @@ async function twoPeople() {
     app,
     takeInvitationToken("sam@files.test"),
     "sam@files.test",
-    { name: "Sam", password: "password123" },
+    { name: "Sam", password: "Harbor-lamp-91" },
   );
   const sam = await request(app)
     .get("/api/auth/me")
@@ -210,7 +210,7 @@ describe("opening chat files", () => {
       const samToken = (
         await request(app)
           .post("/api/auth/login")
-          .send({ email: "sam@files.test", password: "password123" })
+          .send({ email: "sam@files.test", password: "Harbor-lamp-91" })
       ).body.accessToken as string;
       const list = await request(app)
         .get(`/api/orgs/${base.orgId}/chat/conversations/${base.id}/messages`)

@@ -41,7 +41,10 @@ const createProjectFormSchema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z]{2,6}$/, "Key must be 2-6 uppercase letters"),
+    .regex(
+      /^[A-Z][A-Z0-9]{1,5}$/,
+      "Key must be 2-6 letters or numbers, starting with a letter",
+    ),
   description: z.string().trim().max(500).optional(),
   priority: z.enum(["low", "medium", "high"]),
   dueDate: z.string().optional(),
@@ -599,7 +602,8 @@ export function ProjectsPage() {
             <input
               id="key"
               type="text"
-              placeholder="e.g. OPS"
+              placeholder="e.g. OPS or WEB2"
+              maxLength={6}
               {...register("key")}
               readOnly={editingProject !== null}
               className={cn(inputStyles, "font-mono uppercase")}

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { User } from "../../models/User.js";
+import { assertPasswordAllowed } from "../../lib/passwordPolicy.js";
 import { PendingRegistration } from "../../models/PendingRegistration.js";
 import { SignupClaim } from "../../models/SignupClaim.js";
 import { Invite } from "../../models/Invite.js";
@@ -52,7 +53,10 @@ function duplicateKey(error: unknown, field: "email"): boolean {
   return "message" in error && String(error.message).includes(`${field}_1`);
 }
 
-export async function createSession(userId: mongoose.Types.ObjectId | string) {
+export async function createSession(
+  userId: mongoose.Types.ObjectId | string,
+  userAgent = "",
+) {
   const rawToken = randomToken();
   const tokenHash = sha256(rawToken);
   const familyId = randomUUID();
@@ -63,12 +67,17 @@ export async function createSession(userId: mongoose.Types.ObjectId | string) {
     familyId,
     tokenHash,
     expiresAt,
+    userAgent: userAgent.slice(0, 300),
   });
 
   return { rawToken, expiresAt };
 }
 
 export async function register(input: RegisterInput) {
+  assertPasswordAllowed(input.password, {
+    email: input.email,
+    name: input.name,
+  });
   const existing = await User.findOne({ email: input.email });
   if (existing) {
     throw new AppError(
@@ -142,6 +151,7 @@ export async function register(input: RegisterInput) {
 }
 
 const RESEND_COOLDOWN_MS = 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
 // Sends the verification email again for a sign-up that is still waiting. It
 // answers the same way whether or not there is one, so it can't be used to
@@ -414,7 +424,28 @@ export async function login(input: LoginInput) {
     !user ||
     (user as unknown as Record<string, unknown>).status === "deleted"
   ) {
-    await bcrypt.compare(input.password, await dummyPasswordHash());
+    // Someone who signed up but hasn't clicked the link yet would otherwise
+    // see "invalid password". Only say so when they typed the right password,
+    // so this can't be used to find out who has a pending sign-up.
+    const pending = await PendingRegistration.findOne({
+      email: input.identifier,
+      expiresAt: { $gt: new Date() },
+    }).select("+passwordHash");
+    if (pending) {
+      const matches = await bcrypt.compare(
+        input.password,
+        pending.passwordHash as string,
+      );
+      if (matches) {
+        throw new AppError(
+          403,
+          "EMAIL_NOT_VERIFIED",
+          "You haven't confirmed your email yet. Open the link we sent you, or ask for a new one.",
+        );
+      }
+    } else {
+      await bcrypt.compare(input.password, await dummyPasswordHash());
+    }
     throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
   }
 
@@ -443,10 +474,19 @@ export async function requestPasswordReset(input: RequestPasswordResetInput) {
     return;
   }
 
+  // A link was sent a moment ago: don't send another (the link's expiry is
+  // sent-time plus an hour). Same quiet answer as any other request.
+  const lastSentAt = user.passwordResetExpiresAt
+    ? (user.passwordResetExpiresAt as Date).getTime() - PASSWORD_RESET_TTL_MS
+    : 0;
+  if (Date.now() - lastSentAt < RESEND_COOLDOWN_MS) {
+    return;
+  }
+
   const token = randomToken();
   const tokenHash = sha256(token);
   user.passwordResetTokenHash = tokenHash;
-  user.passwordResetExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  user.passwordResetExpiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
   await user.save();
 
   const resetUrl = new URL("/reset-password", env.CLIENT_ORIGIN);
@@ -489,6 +529,10 @@ export async function resetPassword(input: ResetPasswordInput) {
     );
   }
 
+  assertPasswordAllowed(input.password, {
+    email: user.email as string,
+    name: user.name as string,
+  });
   const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_COST);
   const updatedUser = await User.findOneAndUpdate(
     {
@@ -550,6 +594,11 @@ export async function updatePersonalInformation(
 
   user.name = input.name;
   if (input.newPassword) {
+    assertPasswordAllowed(
+      input.newPassword,
+      { email: user.email as string, name: input.name },
+      "newPassword",
+    );
     user.passwordHash = await bcrypt.hash(input.newPassword, env.BCRYPT_COST);
   }
 
@@ -973,6 +1022,7 @@ export async function refresh(rawToken: string) {
             familyId: session.familyId,
             tokenHash: sha256(newToken),
             expiresAt: newExpiresAt,
+            userAgent: session.userAgent,
           },
         ],
         { session: dbSession },
@@ -1008,6 +1058,41 @@ export async function logout(rawToken: string): Promise<void> {
   const tokenHash = sha256(rawToken);
   await Session.updateOne(
     { tokenHash, revokedAt: null },
+    { revokedAt: new Date() },
+  );
+}
+
+// One entry per signed-in device: the newest live token of each family.
+export async function listSessions(userId: string, currentRawToken?: string) {
+  const now = new Date();
+  const live = await Session.find({
+    userId,
+    revokedAt: null,
+    expiresAt: { $gt: now },
+  }).sort({ createdAt: -1 });
+
+  const currentFamily = currentRawToken
+    ? live.find((item) => item.tokenHash === sha256(currentRawToken))?.familyId
+    : undefined;
+
+  return live.map((item) => ({
+    id: item.familyId,
+    device: item.userAgent || "",
+    lastActiveAt: item.createdAt,
+    current: item.familyId === currentFamily,
+  }));
+}
+
+export async function revokeSession(userId: string, familyId: string) {
+  await Session.updateMany(
+    { userId, familyId, revokedAt: null },
+    { revokedAt: new Date() },
+  );
+}
+
+export async function revokeAllSessions(userId: string) {
+  await Session.updateMany(
+    { userId, revokedAt: null },
     { revokedAt: new Date() },
   );
 }

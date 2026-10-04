@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useLocation, useNavigate } from "react-router";
+import { toast } from "sonner";
 import { useAuth } from "@/auth/auth-context";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import { resolvePostAuthPath, safeNextPath } from "@/lib/postAuthRedirect";
@@ -12,6 +13,8 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { ServerWakeTimeoutError } from "@/api/client";
+import { resendVerification } from "@/api/auth";
+import { useCooldown } from "@/hooks/useCooldown";
 
 const loginFormSchema = z.object({
   identifier: z
@@ -34,6 +37,10 @@ export function Login() {
   const nextPath = safeNextPath(location.search);
   const [formError, setFormError] = useState<string | null>(null);
   const requestController = useRef<AbortController | null>(null);
+  // Set when the password is right but the email link was never opened.
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const resendCooldown = useCooldown(60);
 
   useEffect(() => {
     return () => {
@@ -50,8 +57,23 @@ export function Login() {
     resolver: zodResolver(loginFormSchema),
   });
 
+  const resendLink = async () => {
+    if (!unverifiedEmail) return;
+    setResending(true);
+    try {
+      await resendVerification(unverifiedEmail);
+      resendCooldown.start();
+      toast.success("We sent a new link. The old one no longer works.");
+    } catch (error) {
+      toast.error(parseApiError(error).message);
+    } finally {
+      setResending(false);
+    }
+  };
+
   const onSubmit = async (values: LoginFormValues) => {
     setFormError(null);
+    setUnverifiedEmail(null);
     const controller = new AbortController();
     let timedOut = false;
     requestController.current = controller;
@@ -82,6 +104,10 @@ export function Login() {
       }
 
       const parsed = parseApiError(error);
+      if (parsed.code === "EMAIL_NOT_VERIFIED") {
+        setUnverifiedEmail(values.identifier.trim().toLowerCase());
+        return;
+      }
       if (Object.keys(parsed.fieldErrors).length === 0) {
         setFormError(parsed.message);
         return;
@@ -119,6 +145,32 @@ export function Login() {
         </div>
 
         <ErrorBanner message={formError} />
+        {unverifiedEmail && (
+          <div
+            role="alert"
+            className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <p className="font-medium">
+              You haven&apos;t confirmed your email yet.
+            </p>
+            <p className="mt-1">
+              Open the link we sent to <strong>{unverifiedEmail}</strong> (check
+              spam too), then log in. Can&apos;t find it?
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-2"
+              loading={resending}
+              disabled={resending || resendCooldown.left > 0}
+              onClick={() => void resendLink()}
+            >
+              {resendCooldown.left > 0
+                ? `Send a new link (${resendCooldown.left}s)`
+                : "Send a new link"}
+            </Button>
+          </div>
+        )}
 
         <Field
           label="Email"

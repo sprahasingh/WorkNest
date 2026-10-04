@@ -2,12 +2,17 @@ import { z } from "zod";
 
 const emailSchema = z.string().trim().toLowerCase().email();
 
+// For passwords being chosen (not the ones being typed to sign in). The
+// finer rules (common, patterns, own name or email) live in passwordPolicy
+// and run in the service, where the email and name are known.
+export const newPasswordSchema = z.string().min(8).max(72);
+
 export const registerSchema = z
   .object({
     accountType: z.enum(["admin", "user"]).default("admin"),
     name: z.string().trim().min(1).max(100),
     email: emailSchema,
-    password: z.string().min(8).max(72),
+    password: newPasswordSchema,
     orgName: z.string().trim().max(80).optional(),
   })
   .superRefine((input, context) => {
@@ -48,7 +53,7 @@ export const updatePersonalInformationSchema = z
   .object({
     name: z.string().trim().min(2).max(100),
     currentPassword: z.string().min(1).max(72).optional(),
-    newPassword: z.string().min(8).max(72).optional(),
+    newPassword: newPasswordSchema.optional(),
   })
   .strict()
   .refine((input) => !input.newPassword || !!input.currentPassword, {
@@ -106,7 +111,7 @@ export type RequestPasswordResetInput = z.infer<
 export const resetPasswordSchema = z
   .object({
     token: z.string().min(1),
-    password: z.string().min(8).max(72),
+    password: newPasswordSchema,
   })
   .strict();
 

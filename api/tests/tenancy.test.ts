@@ -18,7 +18,7 @@ describe("tenant isolation", () => {
     const registerRes = await registerAndVerify(app, {
       name: "Org A User",
       email: "orga@example.com",
-      password: "password123",
+      password: "Harbor-lamp-91",
       orgName: "Org A",
     });
 

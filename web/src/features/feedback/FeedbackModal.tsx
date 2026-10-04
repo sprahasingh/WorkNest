@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { parseApiError } from "@/lib/apiError";
+import { shrinkImageToDataUrl } from "@/lib/shrinkImage";
 import { FEEDBACK_EMAIL, feedbackMailto } from "@/lib/feedback";
 
 // Feedback is typed here and sent by the server, so it works on every device.
@@ -42,6 +43,7 @@ function FeedbackBody({
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
+  const [screenshot, setScreenshot] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,20 @@ function FeedbackBody({
     queryFn: getFeedbackEnabled,
     staleTime: 5 * 60 * 1000,
   });
+
+  const pickPicture = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose an image.");
+      return;
+    }
+    try {
+      setScreenshot(await shrinkImageToDataUrl(file));
+      setError(null);
+    } catch {
+      setError("That picture couldn't be read. Try a PNG or JPG.");
+    }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -66,6 +82,7 @@ function FeedbackBody({
         email: sender ? undefined : email.trim() || undefined,
         page: from && from !== "/" ? from : undefined,
         website,
+        screenshot: sender ? (screenshot ?? undefined) : undefined,
       });
       setSent(true);
     } catch (failure) {
@@ -140,6 +157,39 @@ function FeedbackBody({
               className={inputStyles}
             />
           </Field>
+          {sender && (
+            <div>
+              {screenshot ? (
+                <div className="flex items-center gap-3">
+                  <img
+                    src={screenshot}
+                    alt="Screenshot you are sending"
+                    className="h-16 w-16 rounded-lg border border-slate-200 object-cover dark:border-slate-600"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setScreenshot(null)}
+                  >
+                    Remove picture
+                  </Button>
+                </div>
+              ) : (
+                <label className="inline-flex cursor-pointer items-center rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">
+                  Attach a screenshot (optional)
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(event) => {
+                      void pickPicture(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+          )}
           {!sender && (
             <Field
               label="Your email (optional)"

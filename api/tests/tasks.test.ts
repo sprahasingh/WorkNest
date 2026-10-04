@@ -18,7 +18,7 @@ async function registerOrg(email: string, orgName: string) {
   registrationIp += 1;
   const res = await registerAndVerify(
     app,
-    { name: "Test User", email, password: "password123", orgName },
+    { name: "Test User", email, password: "Harbor-lamp-91", orgName },
     `198.51.100.${registrationIp}`,
   );
 
@@ -89,7 +89,7 @@ describe("task ownership rules", () => {
       app,
       token,
       "member-owner@example.com",
-      { name: "Regular Member", password: "password123" },
+      { name: "Regular Member", password: "Harbor-lamp-91" },
     );
 
     const memberToken = signupRes.body.accessToken as string;

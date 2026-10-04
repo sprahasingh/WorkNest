@@ -16,7 +16,7 @@ export async function setupOrg(app: Express, domain: string) {
   const response = await registerAndVerify(app, {
     name: "Admin User",
     email: `admin@${domain}`,
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName: "Test Org",
   });
   const adminToken = response.body.accessToken as string;
@@ -38,7 +38,7 @@ export async function setupOrg(app: Express, domain: string) {
       app,
       takeInvitationToken(email),
       email,
-      { name, password: "password123" },
+      { name, password: "Harbor-lamp-91" },
     );
     const token = signup.body.accessToken as string;
     const profile = await request(app)

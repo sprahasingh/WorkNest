@@ -36,7 +36,7 @@ const STEPS: GuideStep[] = [
     id: "project",
     title: "Create a project",
     description:
-      "Go to Projects and choose New project. Give it a name and a short key (like WEB or APP) that labels its tasks. Admins and managers can create projects.",
+      "Go to Projects and choose New project. Give it a name and a short key (2 to 6 letters or numbers, starting with a letter, like WEB or APP2) that labels its tasks. Admins and managers can create projects.",
     screens: placement("guide.project"),
   },
   {

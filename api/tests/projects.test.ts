@@ -14,7 +14,7 @@ async function registerOrg(email: string, orgName: string) {
   const res = await registerAndVerify(app, {
     name: "Test User",
     email,
-    password: "password123",
+    password: "Harbor-lamp-91",
     orgName,
   });
 
@@ -503,5 +503,20 @@ describe("project due dates", () => {
     expect(updated.body.project.dueDate).toBeNull();
     expect(updated.body.project.dueDateIsDateOnly).toBe(false);
     expect(updated.body.project.reminderCycle).toBe(1);
+  });
+});
+
+describe("project keys", () => {
+  it("accepts letters and numbers, uppercases them, and rejects bad shapes", async () => {
+    const org = await registerOrg("proj-key@example.com", "Key Org");
+
+    const mixed = await createProject(org.orgId, org.accessToken, "web2");
+    expect(mixed.status).toBe(201);
+    expect(mixed.body.project.key).toBe("WEB2");
+
+    for (const bad of ["2WEB", "A", "TOOLONG7", "A-B"]) {
+      const res = await createProject(org.orgId, org.accessToken, bad);
+      expect(res.status).toBe(400);
+    }
   });
 });
