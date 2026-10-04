@@ -354,7 +354,7 @@ function MeetingForm({
             </button>
           );
         })}
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-500 dark:text-slate-400">
           {endsNextDay && validTimes
             ? "Ends the next day · times are in your time zone"
             : "Times are in your time zone"}
@@ -556,7 +556,7 @@ function MeetingForm({
         <legend className="flex w-full items-center justify-between text-sm font-medium text-slate-700 dark:text-slate-300">
           <span>
             Invite people{" "}
-            <span className="font-normal text-slate-400">
+            <span className="font-normal text-slate-500 dark:text-slate-400">
               ({attendeeIds.length} selected)
             </span>
           </span>
@@ -608,7 +608,7 @@ function MeetingForm({
             onToggle={toggle}
           />
         </div>
-        <p className="mt-1.5 text-xs text-slate-400">
+        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
           Only you and the people you invite can see this meeting.
         </p>
       </fieldset>

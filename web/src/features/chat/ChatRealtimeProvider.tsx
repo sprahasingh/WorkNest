@@ -57,7 +57,9 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
   const [typing, setTyping] = useState<Record<string, string[]>>({});
   const socketRef = useRef<Socket | null>(null);
   const typingTimers = useRef(new Map<string, number>());
-  const lastTypingSent = useRef(0);
+  // Per conversation, so switching chats right away still sends the first
+  // "typing" in the new one.
+  const lastTypingSent = useRef(new Map<string, number>());
   const userId = user?.id ?? null;
 
   useEffect(() => {
@@ -97,7 +99,11 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
     });
     socket.on("disconnect", () => setConnected(false));
     let retryTimer: number | undefined;
+    // Set when this socket's effect has been cleaned up (logout, switching
+    // organization). Anything still in flight must not bring it back to life.
+    let disposed = false;
     socket.on("connect_error", () => {
+      if (disposed) return;
       setConnected(false);
       // Socket.IO doesn't retry on its own when the server turns a connection
       // away, which is what an expired token does. Any API call renews the
@@ -107,8 +113,9 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
         .get(`/orgs/${orgId}/chat/config`)
         .catch(() => undefined)
         .finally(() => {
+          if (disposed) return;
           retryTimer = window.setTimeout(() => {
-            if (!socket.active) socket.connect();
+            if (!disposed && !socket.active) socket.connect();
           }, 3_000);
         });
     });
@@ -183,6 +190,7 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
     );
 
     return () => {
+      disposed = true;
       window.clearTimeout(retryTimer);
       for (const timer of timers.values()) window.clearTimeout(timer);
       timers.clear();
@@ -196,8 +204,9 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
   const sendTyping = useCallback(
     (conversationId: string) => {
       const now = Date.now();
-      if (now - lastTypingSent.current < TYPING_SEND_EVERY_MS) return;
-      lastTypingSent.current = now;
+      const last = lastTypingSent.current.get(conversationId) ?? 0;
+      if (now - last < TYPING_SEND_EVERY_MS) return;
+      lastTypingSent.current.set(conversationId, now);
       socketRef.current?.emit("chat:typing", { orgId, conversationId });
     },
     [orgId],

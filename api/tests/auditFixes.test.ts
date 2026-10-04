@@ -144,6 +144,23 @@ describe("accounts", () => {
   });
 });
 
+describe("passwords", () => {
+  it("must fit in the 72 bytes bcrypt reads, counting multi-byte letters", async () => {
+    // 40 accented letters are 80 bytes, though only 40 characters.
+    const tooLong = await request(app)
+      .post("/api/auth/register")
+      .set("X-Forwarded-For", nextIp())
+      .send({
+        name: "Long Person",
+        email: "long-pw@audit.test",
+        password: "\u00e9".repeat(40),
+        orgName: "Long Org",
+      });
+    expect(tooLong.status).toBe(400);
+    expect(JSON.stringify(tooLong.body)).toContain("72 bytes");
+  });
+});
+
 describe("counters and guards", () => {
   it("repairs the admin count along with the seat count", async () => {
     const { orgId, admin } = await setupOrg(app, "admins.test");

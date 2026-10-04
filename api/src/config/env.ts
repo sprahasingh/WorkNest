@@ -65,6 +65,9 @@ const envSchema = z
       (value) => (value === "" ? undefined : value),
       z.string().min(1).optional(),
     ),
+    // Multiplies every rate limit. For automated browser tests that sign up
+    // many times from one address. Leave it at 1 anywhere real people connect.
+    RATE_LIMIT_SCALE: z.coerce.number().min(1).max(1000).default(1),
     // How many proxies sit in front of the API. Behind Render alone it is 1.
     // If the web app reaches the API through Vercel's /api rewrite, it is 2,
     // otherwise every visitor looks like the same address to the rate limits.

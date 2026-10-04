@@ -1,3 +1,4 @@
+import { PASSWORD_TOO_LONG, passwordFitsLimit } from "@/lib/passwordPolicy";
 import { useState } from "react";
 import { Link, useLocation } from "react-router";
 import { z } from "zod";
@@ -14,7 +15,10 @@ import { parseApiError } from "@/lib/apiError";
 
 const schema = z
   .object({
-    password: z.string().min(8, "Use at least 8 characters").max(72),
+    password: z
+      .string()
+      .min(8, "Use at least 8 characters")
+      .refine(passwordFitsLimit, PASSWORD_TOO_LONG),
     confirmPassword: z.string().min(1, "Confirm your new password"),
   })
   .superRefine((values, context) => {

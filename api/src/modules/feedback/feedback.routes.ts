@@ -1,3 +1,4 @@
+import { scaled } from "../../lib/rateLimit.js";
 import {
   Router,
   type NextFunction,
@@ -18,7 +19,7 @@ const router = Router();
 // A handful an hour is plenty for real feedback and keeps the inbox safe.
 const feedbackLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 6,
+  limit: scaled(6),
   standardHeaders: true,
   legacyHeaders: false,
 });

@@ -17,9 +17,11 @@ import {
   type UploadedAttachment,
 } from "./api";
 import { COMMON_EMOJIS, formatBytes } from "./chatUtils";
+import { registerSignOutHook } from "@/lib/signOutHooks";
 
 // Unsent text survives switching to another conversation and back.
 const drafts = new Map<string, string>();
+registerSignOutHook(() => drafts.clear());
 
 interface Upload {
   id: string;
@@ -314,7 +316,7 @@ export function Composer({
             type="button"
             onClick={onCancelReply}
             aria-label="Cancel reply"
-            className="rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700"
+            className="rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700"
           >
             <svg
               viewBox="0 0 24 24"
@@ -371,7 +373,7 @@ export function Composer({
                     "block",
                     upload.status === "error"
                       ? "text-red-600 dark:text-red-400"
-                      : "text-slate-400",
+                      : "text-slate-500 dark:text-slate-400",
                   )}
                 >
                   {upload.status === "uploading"
@@ -400,7 +402,7 @@ export function Composer({
                 type="button"
                 onClick={() => removeUpload(upload.id)}
                 aria-label={`Remove ${upload.file.name}`}
-                className="absolute right-1 top-1 rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700"
+                className="absolute right-1 top-1 rounded p-1 text-slate-500 dark:text-slate-400 hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -582,7 +584,7 @@ export function Composer({
           </svg>
         </button>
       </div>
-      <p className="mt-1.5 hidden px-1 text-[11px] text-slate-400 sm:block">
+      <p className="mt-1.5 hidden px-1 text-[11px] text-slate-500 dark:text-slate-400 sm:block">
         Enter to send · Shift+Enter for a new line
       </p>
     </div>

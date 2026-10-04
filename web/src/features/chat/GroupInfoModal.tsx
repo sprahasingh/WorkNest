@@ -169,7 +169,9 @@ function GroupInfoBody({
                 <span className="block truncate text-sm font-medium text-slate-800 dark:text-slate-100">
                   {member.name}
                   {member.userId === myId && (
-                    <span className="ml-1 text-slate-400">(you)</span>
+                    <span className="ml-1 text-slate-500 dark:text-slate-400">
+                      (you)
+                    </span>
                   )}
                 </span>
                 <span className="block truncate text-xs text-slate-500 dark:text-slate-400">

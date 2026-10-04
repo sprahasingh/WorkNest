@@ -86,11 +86,14 @@ export function MeetingCard({ meeting, now, onOpen }: MeetingCardProps) {
           <span className="mt-1 block text-sm text-slate-600 dark:text-slate-300">
             {formatTimeRange(meeting.startsAt, meeting.endsAt)}
             {meeting.location && (
-              <span className="text-slate-400"> · {meeting.location}</span>
+              <span className="text-slate-500 dark:text-slate-400">
+                {" "}
+                · {meeting.location}
+              </span>
             )}
             {meeting.series?.frequency && (
               <span
-                className="text-slate-400"
+                className="text-slate-500 dark:text-slate-400"
                 title={`Repeats ${meeting.series.frequency}`}
               >
                 {" "}
@@ -98,7 +101,7 @@ export function MeetingCard({ meeting, now, onOpen }: MeetingCardProps) {
               </span>
             )}
             {meeting.link?.taskTitle || meeting.link?.projectName ? (
-              <span className="text-slate-400">
+              <span className="text-slate-500 dark:text-slate-400">
                 {" "}
                 · {meeting.link.taskTitle ?? meeting.link.projectName}
               </span>

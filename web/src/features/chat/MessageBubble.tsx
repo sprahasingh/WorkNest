@@ -384,14 +384,15 @@ export function MessageBubble({
               ? "rounded-br-md bg-teal-600 text-white"
               : "rounded-bl-md border border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100",
             highlighted && "ring-2 ring-amber-400",
-            deleted && "bg-transparent italic text-slate-400 shadow-none",
+            deleted &&
+              "bg-transparent italic text-slate-500 dark:text-slate-400 shadow-none",
             deleted && mine && "!bg-transparent",
             deleted &&
               "border border-dashed border-slate-300 !bg-transparent dark:border-slate-600",
           )}
         >
           {deleted ? (
-            <span className="text-slate-400 dark:text-slate-500">
+            <span className="text-slate-500 dark:text-slate-400">
               {mine ? "You" : senderName} deleted this message
             </span>
           ) : (
@@ -518,7 +519,9 @@ export function MessageBubble({
             <span
               className={cn(
                 "mt-1 flex items-center justify-end gap-1.5 text-[11px]",
-                mine && !deleted ? "text-white/80" : "text-slate-400",
+                mine && !deleted
+                  ? "text-white/80"
+                  : "text-slate-500 dark:text-slate-400",
               )}
             >
               {message.editedAt && !deleted && <span>edited</span>}
@@ -578,7 +581,7 @@ export function MessageBubble({
         )}
 
         {seenLabel && (
-          <p className="mt-1 text-right text-[11px] text-slate-400">
+          <p className="mt-1 text-right text-[11px] text-slate-500 dark:text-slate-400">
             {seenLabel}
           </p>
         )}

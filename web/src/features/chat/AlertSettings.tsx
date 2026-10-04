@@ -139,7 +139,7 @@ export function AlertSettings() {
           style={{ "--panel-top": `${panelTop}px` } as CSSProperties}
           className="fixed inset-x-3 top-(--panel-top) z-30 rounded-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-1 sm:w-72 border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-600 dark:bg-slate-800"
         >
-          <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             When a message arrives
           </p>
           {available && (
@@ -159,7 +159,7 @@ export function AlertSettings() {
               if (value) playChime();
             }}
           />
-          <p className="px-2 pb-1 pt-2 text-xs text-slate-400">
+          <p className="px-2 pb-1 pt-2 text-xs text-slate-500 dark:text-slate-400">
             The tab title and icon always show your unread count. Muted chats
             stay quiet unless someone mentions you.
           </p>
