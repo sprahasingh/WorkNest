@@ -8,6 +8,8 @@ const memberSchema = new Schema(
     lastReadAt: { type: Date, default: Date.now },
     joinedAt: { type: Date, default: Date.now },
     mutedAt: { type: Date, default: null },
+    // "Delete for me": messages up to this moment are hidden from this person.
+    clearedAt: { type: Date, default: null },
   },
   { _id: false },
 );

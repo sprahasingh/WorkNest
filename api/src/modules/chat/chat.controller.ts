@@ -10,6 +10,8 @@ import {
   listMessages,
   listOnlineMembers,
   markConversationRead,
+  clearConversationForMe,
+  markConversationUnread,
   removeConversationMember,
   searchMessages,
   setConversationMuted,
@@ -161,4 +163,20 @@ export async function searchController(
 ): Promise<void> {
   const { q } = req.validated!.query as { q: string };
   res.status(200).json(await searchMessages(q));
+}
+
+export async function markUnreadController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await markConversationUnread(params(req).conversationId);
+  res.status(204).send();
+}
+
+export async function clearConversationController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  await clearConversationForMe(params(req).conversationId);
+  res.status(204).send();
 }
