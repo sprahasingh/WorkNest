@@ -28,6 +28,8 @@ async function sendEmail(
   replyTo?: string,
   attachment?: EmailAttachment,
 ): Promise<void> {
+  // Names can come from people, so line breaks are never allowed in a subject.
+  subject = subject.replace(/[\r\n]+/g, " ");
   if (!isEmailDeliveryConfigured()) {
     throw new AppError(
       503,

@@ -5,9 +5,19 @@ on:
   push:
     branches: [main]
 
+# CI only needs to read the code.
+permissions:
+  contents: read
+
+# A newer push to the same branch makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   api:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: api
@@ -31,10 +41,14 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run format:check
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run build
       - run: npm test
 
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: web
@@ -49,11 +63,14 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm run format:check
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run screens:check
       - run: npm run build
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [api, web]
     steps:
       - uses: actions/checkout@v4
@@ -61,12 +78,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: ".nvmrc"
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            web/package-lock.json
+            e2e/package-lock.json
 
       - run: npm ci
         working-directory: api
       - run: npm ci
         working-directory: web
       - run: npm ci
+        working-directory: e2e
+      - run: npm run typecheck
         working-directory: e2e
       - run: npx playwright install --with-deps chromium
         working-directory: e2e

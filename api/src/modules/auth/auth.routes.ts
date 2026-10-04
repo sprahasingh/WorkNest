@@ -130,7 +130,7 @@ router.post(
 );
 
 router.post("/refresh", refreshLimiter, refreshController);
-router.post("/logout", logoutController);
+router.post("/logout", refreshLimiter, logoutController);
 router.post(
   "/verify-email-change",
   verificationLimiter,

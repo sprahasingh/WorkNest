@@ -286,7 +286,7 @@ How it works:
 3. After payment, the browser sends back the order id, payment id and a signature. The API checks the signature with the secret key and only then moves the organization to the new plan, in a transaction that also writes an audit entry naming the payment.
 4. As a safety net, Razorpay also calls `POST /api/billing/webhook` after a payment (signed with `RAZORPAY_WEBHOOK_SECRET`), so the plan still upgrades if the browser closed first. The browser and the webhook can both arrive: only the first one to mark the payment as paid applies the plan.
 
-Other rules: an organization can only confirm its own orders, only admins can start a payment, and while payments are switched on the plain `POST /api/orgs/:orgId/plan` call refuses upgrades with `402 PAYMENT_REQUIRED` (downgrades still work). With no Razorpay keys set, as in local development, upgrades stay simulated and free.
+Other rules: an organization can only confirm its own orders, only admins can start a payment, and while payments are switched on the plain `POST /api/orgs/:orgId/plan` call refuses upgrades with `402 PAYMENT_REQUIRED` (downgrades still work). With no Razorpay keys, upgrades are simulated and free in development, but refused in production unless `ALLOW_SIMULATED_UPGRADES=true`, so a lost key can't turn every plan free.
 
 To try it with test keys, set these on the API (the first two are in the Razorpay dashboard under API Keys, in test mode):
 
@@ -358,7 +358,7 @@ Open `http://localhost:5173` and register, or load the demo data first (below).
 In development the live connection for Messages goes through the same Vite proxy, so there's nothing extra to set up. For paid upgrades, add Razorpay test keys (see [Paying for a plan](#paying-for-a-plan)). For file attachments, add `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` to `api/.env`. Without them, Messages works but the attach button is hidden. Files are uploaded as private, so no upload preset is needed.
 
 When the frontend is on Vercel, its `/api` rewrite can't carry websockets. Set `VITE_SOCKET_URL` in Vercel to the API's address (for example `https://your-api.onrender.com`) and make sure `CLIENT_ORIGIN` on the API matches your Vercel URL exactly. If `VITE_SOCKET_URL` is left out, Messages still works, it just refreshes every few seconds instead of updating instantly.
-New registrations and email changes require verification email delivery. In-app feedback ("Send feedback") is emailed to the address in `FEEDBACK_TO_EMAIL`; without it the form shows a plain email address instead. For hosted deployments, configure Brevo in `api/.env` with `BREVO_API_KEY` and `BREVO_FROM` (a sender address verified in Brevo). Alternatively, configure `SMTP_URL` and `SMTP_FROM` for an SMTP provider.
+Behind Vercel's `/api` rewrite, set `TRUST_PROXY_HOPS=2` on the API so the rate limits see each visitor's own address rather than Vercel's. New registrations and email changes require verification email delivery. In-app feedback ("Send feedback") is emailed to the address in `FEEDBACK_TO_EMAIL`; without it the form shows a plain email address instead. For hosted deployments, configure Brevo in `api/.env` with `BREVO_API_KEY` and `BREVO_FROM` (a sender address verified in Brevo). Alternatively, configure `SMTP_URL` and `SMTP_FROM` for an SMTP provider.
 
 ### Seed Demo Data
 
@@ -422,7 +422,7 @@ api/
   src/
     tenancy/        AsyncLocalStorage context, the isolation plugin, tenant resolution middleware
     auth/           authentication middleware, RBAC, ownership checks
-    modules/        one folder per area (auth, orgs, members, invites, projects, tasks, notifications, audit, dashboard, chat, meetings, people, billing)
+    modules/        one folder per area (auth, orgs, members, invites, projects, tasks, notifications, audit, dashboard, chat, meetings, people, billing, feedback)
     realtime/       the Socket.IO server (live messages, typing, who's online)
     lib/            small helpers (email, tokens, Cloudinary, timezones)
     models/         one Mongoose schema per collection
@@ -446,6 +446,9 @@ These are deliberate trade-offs for a project of this size, not bugs.
 - **Single-instance Socket.IO:** online presence and live delivery rely on in-memory state in one server process. That's fine on a single instance. To scale out horizontally, I'd add Redis and the Socket.IO Redis adapter, and keep presence in Redis.
 - **Recurring meetings:** editing all upcoming dates of a repeating meeting across a daylight-saving change is a known edge case. The time shift is a fixed offset, with no special handling for the clock change, so a date after it can end up an hour off.
 - **Payments:** upgrades are one-time payments, with no subscriptions, renewals, invoices, tax or refunds. Razorpay's test mode is used, so nothing real is charged. Going live would mean a real Razorpay account and, depending on where you sell, taxes and terms of sale.
+- **Single-region, single database:** the free tiers used here sleep when idle (the first request after a while can take up to a minute, and meeting reminders don't go out while the API is asleep), and the free MongoDB tier has no continuous backups. Run `npm run sync-indexes` once after deploying schema changes to a new database; a few safety-critical indexes are also created at startup.
+- **Several API servers:** the background jobs (reminders, bin cleanup, chat retention) take a short database lock, so each runs once per tick. Live chat does not: sockets, who is online and live updates are per server, so the API should run as a single instance unless a Redis adapter is added.
+- **Sign-up reveals existing accounts:** registering with an email that already has an account says so, so people can log in instead. It is a deliberate usability choice; the login, password reset and resend forms don't reveal anything.
 - **Message search:** search uses application-level text matching over the chats you're in. At larger message volumes, MongoDB text indexes or Atlas Search would be the right tool.
 
 ## Author
