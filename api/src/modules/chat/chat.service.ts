@@ -24,6 +24,8 @@ import {
 } from "./chat.schemas.js";
 
 export const EDIT_WINDOW_MS = 10 * 60 * 1000;
+// How long after sending an author can delete a message for everyone.
+export const DELETE_WINDOW_MS = 30 * 60 * 1000;
 const DEFAULT_PAGE = 30;
 
 type Id = mongoose.Types.ObjectId;
@@ -177,6 +179,7 @@ async function countUnreadFor(
         senderId: { $ne: oid(myId()) },
         kind: "user",
         deletedAt: null,
+        hiddenBy: { $ne: oid(myId()) },
         $or: clauses,
       },
     },
@@ -204,6 +207,52 @@ async function countUnreadFor(
   );
 }
 
+// If the newest message in a chat is one you deleted for yourself, the list
+// shows the newest message you can still see instead.
+async function withVisibleLastMessage(
+  conversations: NonNullable<ConversationRecord>[],
+): Promise<NonNullable<ConversationRecord>[]> {
+  if (conversations.length === 0) return conversations;
+  const me = oid(myId());
+  const hidden = await Message.find({
+    hiddenBy: me,
+    $or: conversations.map((conversation) => ({
+      conversationId: conversation._id,
+      createdAt: conversation.lastMessageAt,
+    })),
+  })
+    .select("conversationId")
+    .lean();
+  if (hidden.length === 0) return conversations;
+  const affected = new Set(hidden.map((row) => String(row.conversationId)));
+  return Promise.all(
+    conversations.map(async (conversation) => {
+      if (!affected.has(String(conversation._id))) return conversation;
+      const cleared = myClearedAt(conversation);
+      const latest = await Message.findOne({
+        conversationId: conversation._id,
+        hiddenBy: { $ne: me },
+        ...(cleared ? { createdAt: { $gt: cleared } } : {}),
+      })
+        .sort({ _id: -1 })
+        .lean();
+      return {
+        ...conversation,
+        lastMessage: latest
+          ? {
+              senderId: latest.senderId,
+              text: previewOf(latest),
+              hasAttachment: latest.attachments.length > 0,
+              deleted: latest.deletedAt !== null,
+              system: latest.kind === "system",
+            }
+          : null,
+        lastMessageAt: latest ? latest.createdAt : conversation.lastMessageAt,
+      } as NonNullable<ConversationRecord>;
+    }),
+  );
+}
+
 export async function listConversations() {
   const conversations = await Conversation.find({ "members.userId": myId() })
     .sort({ lastMessageAt: -1 })
@@ -221,7 +270,8 @@ export async function listConversations() {
     loadPeople(conversations.flatMap(memberIds)),
     countUnreadFor(conversations),
   ]);
-  const items = conversations.map((conversation) =>
+  const shown = await withVisibleLastMessage(conversations);
+  const items = shown.map((conversation) =>
     serializeConversation(
       conversation,
       people,
@@ -245,8 +295,9 @@ async function serializeOne(conversationId: string) {
     loadPeople(memberIds(conversation)),
     countUnreadFor([conversation]),
   ]);
+  const [shown] = await withVisibleLastMessage([conversation]);
   return serializeConversation(
-    conversation,
+    shown,
     people,
     unread.get(String(conversation._id)) ?? { unread: 0, mentions: 0 },
   );
@@ -493,11 +544,13 @@ async function serializeMessages(messages: MessageRecord[]) {
   ];
   const replies = replyIds.length
     ? await Message.find({ _id: { $in: replyIds } })
-        .select("senderId text deletedAt attachments")
+        .select("senderId text deletedAt attachments hiddenBy")
         .lean()
     : [];
   const replyMap = new Map(replies.map((r) => [String(r._id), r]));
   const me = myId();
+  const hiddenForMe = (message: { hiddenBy?: unknown[] | null }) =>
+    (message.hiddenBy ?? []).map(String).includes(me);
   return messages.map((message) => {
     const deleted = message.deletedAt !== null;
     const reply = message.replyToId
@@ -513,8 +566,11 @@ async function serializeMessages(messages: MessageRecord[]) {
         ? {
             id: String(message.replyToId),
             senderId: reply ? String(reply.senderId) : null,
-            text: !reply || reply.deletedAt ? "" : previewOf(reply),
-            deleted: !reply || reply.deletedAt !== null,
+            text:
+              !reply || reply.deletedAt || hiddenForMe(reply)
+                ? ""
+                : previewOf(reply),
+            deleted: !reply || reply.deletedAt !== null || hiddenForMe(reply),
           }
         : null,
       mentions: deleted ? [] : (message.mentions ?? []).map(String),
@@ -556,6 +612,7 @@ export async function listMessages(
   const found = await loadMessages(
     {
       conversationId: conversation._id,
+      hiddenBy: { $ne: oid(myId()) },
       ...(query.before ? { _id: { $lt: oid(query.before) } } : {}),
       ...(myClearedAt(conversation)
         ? { createdAt: { $gt: myClearedAt(conversation) } }
@@ -760,6 +817,16 @@ export async function deleteMessage(messageId: string) {
       "You can only delete your own messages",
     );
   }
+  if (
+    !message.deletedAt &&
+    Date.now() - new Date(message.createdAt).getTime() > DELETE_WINDOW_MS
+  ) {
+    throw new AppError(
+      403,
+      "DELETE_WINDOW_EXPIRED",
+      "A message can only be deleted for everyone within 30 minutes of sending it. You can still delete it for yourself.",
+    );
+  }
   if (!message.deletedAt) {
     await Message.updateOne(
       { _id: message._id },
@@ -779,6 +846,20 @@ export async function deleteMessage(messageId: string) {
     messageId,
   });
   return { message: await serializeOneMessage(message._id) };
+}
+
+// "Delete for me": hides one message from the person asking, and only them.
+// Anyone can do this to any message in a conversation they belong to.
+export async function hideMessage(messageId: string) {
+  const { message } = await findMyMessage(messageId);
+  if (message.kind !== "user") {
+    throw new AppError(409, "NOT_ALLOWED", "This can't be deleted");
+  }
+  await Message.updateOne(
+    { _id: message._id },
+    { $addToSet: { hiddenBy: oid(myId()) } },
+  );
+  return { hidden: true, messageId };
 }
 
 export async function toggleReaction(messageId: string, emoji: string) {
@@ -893,6 +974,7 @@ export async function searchMessages(query: string) {
     }),
     kind: "user",
     deletedAt: null,
+    hiddenBy: { $ne: oid(myId()) },
     text: { $regex: escapeRegex(query), $options: "i" },
   })
     .sort({ _id: -1 })

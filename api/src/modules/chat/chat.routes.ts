@@ -19,6 +19,7 @@ import {
   configController,
   createConversationController,
   deleteMessageController,
+  hideMessageController,
   editMessageController,
   getConversationController,
   listConversationsController,
@@ -120,6 +121,12 @@ chatRouter.delete(
   "/messages/:messageId",
   validate({ params: messageIdParamsSchema }),
   deleteMessageController,
+  hideMessageController,
+);
+chatRouter.post(
+  "/messages/:messageId/hide",
+  validate({ params: messageIdParamsSchema }),
+  hideMessageController,
 );
 chatRouter.post(
   "/messages/:messageId/reactions",

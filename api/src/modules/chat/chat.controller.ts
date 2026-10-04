@@ -3,6 +3,7 @@ import {
   addConversationMembers,
   createConversation,
   deleteMessage,
+  hideMessage,
   editMessage,
   getChatConfig,
   getConversation,
@@ -114,6 +115,13 @@ export async function deleteMessageController(
   res: Response,
 ): Promise<void> {
   res.status(200).json(await deleteMessage(params(req).messageId));
+}
+
+export async function hideMessageController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  res.status(200).json(await hideMessage(params(req).messageId));
 }
 
 export async function reactController(
