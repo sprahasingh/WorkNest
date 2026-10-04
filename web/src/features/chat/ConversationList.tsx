@@ -6,6 +6,7 @@ import { inputControlStyles } from "@/components/ui/Field";
 import type { Conversation } from "./api";
 import { Avatar } from "@/components/ui/Avatar";
 import { AlertSettings } from "./AlertSettings";
+import { RetentionNote } from "./RetentionNote";
 import { ConversationMenu } from "./ConversationMenu";
 import { menuItemsFor, type ConversationAction } from "./conversationMenuItems";
 import { useConversationActions, useMessageSearch } from "./queries";
@@ -474,6 +475,7 @@ export function ConversationList({
           </section>
         )}
       </div>
+      <RetentionNote orgId={orgId} />
     </div>
   );
 }
