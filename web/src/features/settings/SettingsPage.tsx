@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCooldown } from "@/hooks/useCooldown";
 import { useLocation } from "react-router";
 import { useController, useForm, useWatch } from "react-hook-form";
@@ -33,11 +34,17 @@ import { cn } from "@/lib/cn";
 import { ChatRetentionCard } from "./ChatRetentionCard";
 import { LeaveOrganizationCard } from "./LeaveOrganizationCard";
 import { SessionsCard } from "./SessionsCard";
+import { billingQuery } from "@/features/billing/queries";
+import { payForPlan } from "@/features/billing/razorpay";
+import { orgKeys } from "@/features/org/queries";
+import { dashboardKeys } from "@/features/dashboard/queries";
 import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 import {
   PLAN_LIMITS,
   PLAN_NAMES,
   PLAN_ORDER,
+  PLAN_PRICE_PAISE,
+  formatRupees,
   formatTaskLimit,
 } from "@/lib/plans";
 
@@ -742,7 +749,8 @@ interface DowngradeBlockedDetail {
 
 export function SettingsPage() {
   const { orgId } = useOrg();
-  const { deleteAccount, isDeletingAccount } = useAuth();
+  const { user: signedInUser, deleteAccount, isDeletingAccount } = useAuth();
+  const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [dangerInfoOpen, setDangerInfoOpen] = useState(false);
@@ -762,6 +770,15 @@ export function SettingsPage() {
   }, [hash, org]);
   const updateOrg = useUpdateOrg(orgId);
   const changePlan = useChangePlan(orgId);
+  const planInfoId = useId();
+  const [planInfoOpen, setPlanInfoOpen] = useState(false);
+  const [payingFor, setPayingFor] = useState<Plan | null>(null);
+  const billing = useQuery({
+    ...billingQuery(orgId),
+    enabled: canChangePlan,
+  });
+  const paymentsOn = billing.data?.enabled === true;
+  const testMode = billing.data?.keyId?.startsWith("rzp_test_") === true;
 
   const {
     control,
@@ -802,6 +819,40 @@ export function SettingsPage() {
 
   const handlePlanChange = async (newPlan: Plan) => {
     const name = PLAN_NAMES[newPlan];
+    // Moving up costs money when payments are on; moving down never does.
+    if (
+      paymentsOn &&
+      PLAN_ORDER.indexOf(newPlan) >
+        PLAN_ORDER.indexOf((org?.plan ?? "free") as Plan)
+    ) {
+      setPayingFor(newPlan);
+      try {
+        const result = await payForPlan(
+          orgId,
+          newPlan as Exclude<Plan, "free">,
+          { name: signedInUser?.name, email: signedInUser?.email },
+        );
+        if (result === "paid") {
+          toast.success(`Payment received. You're now on the ${name} plan`);
+          void queryClient.invalidateQueries({
+            queryKey: orgKeys.detail(orgId),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: dashboardKeys.all(orgId),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: billingQuery(orgId).queryKey,
+          });
+        }
+      } catch (error) {
+        toast.error("The payment didn't go through", {
+          description: parseApiError(error).message,
+        });
+      } finally {
+        setPayingFor(null);
+      }
+      return;
+    }
     try {
       await changePlan.mutateAsync(newPlan);
       toast.success(`You're now on the ${name} plan`);
@@ -873,6 +924,14 @@ export function SettingsPage() {
 
   const currentPlan = org.plan as Plan;
   const currentRank = PLAN_ORDER.indexOf(currentPlan);
+  // " - Rs 499" on the upgrade button, using what this org would really pay.
+  const upgradeLabel = (plan: Plan) => {
+    if (!paymentsOn) return "";
+    const amount = billing.data?.upgrades.find(
+      (upgrade) => upgrade.plan === plan,
+    )?.amount;
+    return amount === undefined ? "" : ` \u00B7 ${formatRupees(amount)}`;
+  };
   const pendingPlan = changePlan.isPending ? changePlan.variables : null;
 
   return (
@@ -935,13 +994,61 @@ export function SettingsPage() {
 
         <Card>
           <div className="flex items-center justify-between">
-            <h2 className="font-medium text-slate-800 dark:text-slate-100">
+            <h2 className="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-100">
               Plan
+              <InfoButton
+                open={planInfoOpen}
+                onToggle={() => setPlanInfoOpen((open) => !open)}
+                label="About payments and plan changes"
+                controls={planInfoId}
+              />
             </h2>
             <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-sm font-medium text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
               {PLAN_NAMES[currentPlan]}
             </span>
           </div>
+
+          <InfoPanel
+            id={planInfoId}
+            open={planInfoOpen}
+            onClose={() => setPlanInfoOpen(false)}
+          >
+            {paymentsOn ? (
+              <>
+                <p>
+                  Upgrading is a one-time payment through Razorpay, not a
+                  subscription. Moving from Pro to Premium costs only the
+                  difference. Your plan changes as soon as the payment is
+                  confirmed, and every payment is recorded in the audit log.
+                </p>
+                <p className="mt-2">
+                  Switching to a smaller plan is free, but it is not refunded.
+                  It is blocked while you use more seats, projects or tasks than
+                  the smaller plan allows. Only admins can change the plan.
+                </p>
+                {testMode && (
+                  <p className="mt-2 font-medium">
+                    This app is in test mode, so no real money moves. Pay with
+                    the test card 4111 1111 1111 1111 (any future date, any CVV)
+                    or the test UPI id success@razorpay.
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p>
+                  Payments are not switched on for this app, so upgrades are
+                  simulated: the plan changes straight away and nothing is
+                  charged.
+                </p>
+                <p className="mt-2">
+                  Switching to a smaller plan is blocked while you use more
+                  seats, projects or tasks than it allows. Only admins can
+                  change the plan.
+                </p>
+              </>
+            )}
+          </InfoPanel>
 
           <dl className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between">
@@ -993,6 +1100,13 @@ export function SettingsPage() {
                       </span>
                     )}
                   </div>
+                  {paymentsOn && (
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {plan === "free"
+                        ? "Free"
+                        : `${formatRupees(PLAN_PRICE_PAISE[plan])} one-time`}
+                    </p>
+                  )}
                   <ul className="mt-3 flex-1 space-y-1 text-sm text-slate-600 dark:text-slate-300">
                     <li>{limits.seatLimit} seats</li>
                     <li>{limits.projectLimit} active projects</li>
@@ -1007,12 +1121,12 @@ export function SettingsPage() {
                       size="sm"
                       variant={isUpgrade ? "primary" : "secondary"}
                       onClick={() => void handlePlanChange(plan)}
-                      disabled={changePlan.isPending}
-                      loading={pendingPlan === plan}
+                      disabled={changePlan.isPending || payingFor !== null}
+                      loading={pendingPlan === plan || payingFor === plan}
                       className="mt-4 w-full"
                     >
                       {isUpgrade
-                        ? `Upgrade to ${PLAN_NAMES[plan]}`
+                        ? `Upgrade to ${PLAN_NAMES[plan]}${upgradeLabel(plan)}`
                         : `Switch to ${PLAN_NAMES[plan]}`}
                     </Button>
                   )}

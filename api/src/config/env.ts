@@ -48,6 +48,23 @@ const envSchema = z
       (value) => (value === "" ? undefined : value),
       z.string().min(1).optional(),
     ),
+    // Razorpay, for paid plan upgrades. Use test keys (rzp_test_...) to try the
+    // whole flow with fake payments. Leave them out and upgrades stay
+    // simulated, as they are in local development.
+    RAZORPAY_KEY_ID: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    RAZORPAY_KEY_SECRET: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
+    // Signs the webhook Razorpay calls after a payment, so a plan is still
+    // upgraded if the browser is closed right after paying.
+    RAZORPAY_WEBHOOK_SECRET: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z.string().min(1).optional(),
+    ),
     EMAIL_VERIFICATION_BYPASS_EMAILS: z.preprocess(
       (value) =>
         typeof value === "string"
@@ -79,6 +96,19 @@ const envSchema = z
         path: ["CLOUDINARY_CLOUD_NAME"],
         message:
           "CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET must be configured together",
+      });
+    }
+
+    if (
+      Boolean(values.RAZORPAY_KEY_ID) !== Boolean(values.RAZORPAY_KEY_SECRET)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: [
+          values.RAZORPAY_KEY_ID ? "RAZORPAY_KEY_SECRET" : "RAZORPAY_KEY_ID",
+        ],
+        message:
+          "RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be configured together",
       });
     }
 

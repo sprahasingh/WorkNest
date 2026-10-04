@@ -1,3 +1,5 @@
+import { billingRouter } from "./modules/billing/billing.routes.js";
+import { webhookController } from "./modules/billing/billing.controller.js";
 import express, { type Express } from "express";
 import mongoose from "mongoose";
 import helmet from "helmet";
@@ -47,6 +49,12 @@ export function createApp(): Express {
       origin: env.CLIENT_ORIGIN,
       credentials: true,
     }),
+  );
+  // Razorpay signs the exact bytes it sends, so its webhook needs the raw body.
+  app.post(
+    "/api/billing/webhook",
+    express.raw({ type: "application/json", limit: "100kb" }),
+    webhookController,
   );
   // Feedback may carry one small screenshot; everything else stays tiny.
   app.use("/api/feedback", express.json({ limit: "3mb" }));
@@ -127,6 +135,7 @@ export function createApp(): Express {
   orgRouter.use("/notifications", notificationsRouter);
   orgRouter.use("/chat", chatLimiter, chatRouter);
   orgRouter.use("/meetings", meetingsRouter);
+  orgRouter.use("/billing", billingRouter);
   app.use("/api/orgs/:orgId", authenticate, resolveTenant, orgRouter);
 
   app.use(notFound);

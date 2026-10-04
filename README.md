@@ -272,7 +272,7 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 - **Tenant isolation:** one Mongoose plugin scopes every query, write and aggregation to the current org. The current org lives in `AsyncLocalStorage` for the length of the request, and a query with no org context fails instead of leaking data.
 - **Accounts:** email must be verified before an account or its first organization is created. Sign-up asks for the password twice, every password box has a Show button, and the verification, password reset and email change links can each be sent again (after a minute, with a note to check spam). The browser that signed up gets a secret that lets it sign itself in once the link has been opened on any device, so a sign-up started on one device and confirmed on another still ends signed in. The sign-up form suggests a fix when an email looks like a typo of a well-known provider ("gmial.com", "gmail.con"), passwords are refused with a plain reason when they are among the most common, a repeated or sequential pattern, or contain the person's own name or email (the form shows a strength bar and an (i) explaining why, and the server enforces it), and logging in with the right password before confirming the email says so and offers a new link, instead of "invalid password". Addresses listed in `EMAIL_VERIFICATION_BYPASS_EMAILS` skip both email verification and these password rules, for shared demo logins. Password reset requests are limited to one email a minute per account, and Settings lists every signed-in device with a way to sign each one out, or all of them. Email changes require the current password and confirmation at the new address. Short-lived JWT access tokens (15 minutes) and rotating refresh tokens are used; only hashes of refresh tokens are stored. Reusing an old refresh token signs out that whole chain of sessions. People can delete their own account; it's soft-deleted so the audit history still makes sense, and the email is freed up for a new sign-up.
 - **Roles:** admin, manager and member, checked on the server for every request. The UI hides what a role can't use, but the API is what actually says no.
-- **Organizations and plans:** Free, Pro and Premium plans with limits on seats, projects and active tasks per project (see [Plans](#plans)). Upgrades are simulated. A downgrade is blocked while current usage is over the smaller plan's limits, and the error says what's over.
+- **Organizations and plans:** Free, Pro and Premium plans with limits on seats, projects and active tasks per project (see [Plans](#plans)). Upgrading is a one-time payment through Razorpay (in test mode, so no real money moves), confirmed on the server before the plan changes and written to the audit log; see [Paying for a plan](#paying-for-a-plan). A downgrade is free and is blocked while current usage is over the smaller plan's limits, and the error says what's over.
 - **Invites:** admins get a one-time invite link (only a hash of the token is stored), and a seat is reserved safely even if several invites go out at once. If the person already has an account, the invitation also shows up in their app under the bell and on their organizations page, where they can join or decline. Inviting an email that already has a pending invite offers a fresh link instead of a vague error.
 - **Members:** removing someone takes them out of that org only. Their account and other orgs stay as they are, their tasks in that org become unassigned, and they can be invited back later. If it happens while they're using the org, they're sent to their organizations page with a short note.
 - **Projects:** cards show active and total task counts. A project appears under Completed when all its tasks are done. Completed, archived, and binned projects do not use an active project slot. Unarchiving or restoring a project with unfinished work, or reopening work in a completed project, uses a slot again. Projects in the Bin can be restored for 30 days before the project and its tasks are permanently deleted.
@@ -290,15 +290,38 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 
 ## Plans
 
-| Plan    | Seats | Active projects | Active tasks per project |
-| ------- | ----- | --------------- | ------------------------ |
-| Free    | 5     | 3               | 10                       |
-| Pro     | 30    | 25              | 50                       |
-| Premium | 100   | 50              | Unlimited                |
+| Plan    | Price (one-time) | Seats | Active projects | Active tasks per project |
+| ------- | ---------------- | ----- | --------------- | ------------------------ |
+| Free    | ₹0               | 5     | 3               | 10                       |
+| Pro     | ₹499             | 30    | 25              | 50                       |
+| Premium | ₹999             | 100   | 50              | Unlimited                |
 
 Only active projects use a project slot. Completed, archived, and binned projects do not count. If a project becomes active again, it uses a slot and may need to wait until one is free.
 
 Each project also has a separate active-task limit. Done, archived, and binned tasks do not count toward it. Reopening or restoring an active task uses a task slot again.
+
+### Paying for a plan
+
+Moving up a plan is a one-time payment through [Razorpay](https://razorpay.com), not a subscription. Pro costs ₹499 and Premium ₹999; going from Pro to Premium costs the difference. The app is meant to run with Razorpay **test keys**, so you can try the whole flow with fake payments and no real money moves. Moving down a plan is free (it isn't refunded) and still blocked while usage is over the smaller plan's limits.
+
+How it works:
+
+1. An admin clicks "Upgrade to Pro" in Settings. The API creates a Razorpay order for the exact amount and records it as a pending payment.
+2. Razorpay's checkout window opens in the browser. Card details go to Razorpay only and never touch this server.
+3. After payment, the browser sends back the order id, payment id and a signature. The API checks the signature with the secret key and only then moves the organization to the new plan, in a transaction that also writes an audit entry naming the payment.
+4. As a safety net, Razorpay also calls `POST /api/billing/webhook` after a payment (signed with `RAZORPAY_WEBHOOK_SECRET`), so the plan still upgrades if the browser closed first. The browser and the webhook can both arrive: only the first one to mark the payment as paid applies the plan.
+
+Other rules: an organization can only confirm its own orders, only admins can start a payment, and while payments are switched on the plain `POST /api/orgs/:orgId/plan` call refuses upgrades with `402 PAYMENT_REQUIRED` (downgrades still work). With no Razorpay keys set, as in local development, upgrades stay simulated and free.
+
+To try it with test keys, set these on the API (the first two are in the Razorpay dashboard under API Keys, in test mode):
+
+```
+RAZORPAY_KEY_ID=rzp_test_...
+RAZORPAY_KEY_SECRET=...
+RAZORPAY_WEBHOOK_SECRET=...   # optional, but recommended
+```
+
+For the webhook, add `https://your-api.example.com/api/billing/webhook` in the Razorpay dashboard under Webhooks, tick `payment.captured` and `order.paid`, and use the same secret you put in `RAZORPAY_WEBHOOK_SECRET`. In test mode, pay with the test card `4111 1111 1111 1111` (any future expiry, any CVV) or the test UPI id `success@razorpay`. The (i) next to "Plan" in Settings explains all of this to the people using the app.
 
 ## API Example
 
@@ -357,7 +380,7 @@ npm run dev             # runs on http://localhost:5173 and proxies /api to loca
 
 Open `http://localhost:5173` and register, or load the demo data first (below).
 
-In development the live connection for Messages goes through the same Vite proxy, so there's nothing extra to set up. For file attachments, add `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` to `api/.env`. Without them, Messages works but the attach button is hidden. Files are uploaded as private, so no upload preset is needed.
+In development the live connection for Messages goes through the same Vite proxy, so there's nothing extra to set up. For paid upgrades, add Razorpay test keys (see [Paying for a plan](#paying-for-a-plan)). For file attachments, add `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` to `api/.env`. Without them, Messages works but the attach button is hidden. Files are uploaded as private, so no upload preset is needed.
 
 When the frontend is on Vercel, its `/api` rewrite can't carry websockets. Set `VITE_SOCKET_URL` in Vercel to the API's address (for example `https://your-api.onrender.com`) and make sure `CLIENT_ORIGIN` on the API matches your Vercel URL exactly. If `VITE_SOCKET_URL` is left out, Messages still works, it just refreshes every few seconds instead of updating instantly.
 New registrations and email changes require verification email delivery. In-app feedback ("Send feedback") is emailed to the address in `FEEDBACK_TO_EMAIL`; without it the form shows a plain email address instead. For hosted deployments, configure Brevo in `api/.env` with `BREVO_API_KEY` and `BREVO_FROM` (a sender address verified in Brevo). Alternatively, configure `SMTP_URL` and `SMTP_FROM` for an SMTP provider.
@@ -395,7 +418,7 @@ npm ci && npx playwright install chromium
 npm test           # starts an in-memory MongoDB, the API and the web app, then drives a browser
 ```
 
-The browser tests (`e2e/`) cover sign-up on one device and confirming on another, the email typo hint, refusing common passwords, the "confirm your email" message at login and the signed-in devices list. They run in CI as their own job. Emails are caught in a file instead of being sent.
+The browser tests (`e2e/`) cover an upgrade through a stand-in for Razorpay's checkout window, sign-up on one device and confirming on another, the email typo hint, refusing common passwords, the "confirm your email" message at login and the signed-in devices list. They run in CI as their own job. Emails are caught in a file instead of being sent.
 
 The backend tests cover:
 
@@ -414,6 +437,7 @@ The backend tests cover:
 - meeting visibility, RSVPs, rescheduling, cancelling and the reminder before a meeting starts
 - repeating meetings (replying to, editing and cancelling one date or all later ones), suggested times, and links to tasks and projects
 - what happens to chats and meetings when someone leaves an organization
+- paying for a plan: orders, signature checks, the webhook, repeated confirmations, one organization confirming another's order, and blocked unpaid upgrades
 - the sign-up flows: pending sign-ups, cross-device sign-in, resend limits, common passwords, the password reset cooldown, signed-in devices and feedback screenshots
 
 ## Project Structure
@@ -423,7 +447,7 @@ api/
   src/
     tenancy/        AsyncLocalStorage context, the isolation plugin, tenant resolution middleware
     auth/           authentication middleware, RBAC, ownership checks
-    modules/        one folder per area (auth, orgs, members, invites, projects, tasks, notifications, audit, dashboard, chat, meetings, people)
+    modules/        one folder per area (auth, orgs, members, invites, projects, tasks, notifications, audit, dashboard, chat, meetings, people, billing)
     realtime/       the Socket.IO server (live messages, typing, who's online)
     lib/            small helpers (email, tokens, Cloudinary, timezones)
     models/         one Mongoose schema per collection
@@ -446,6 +470,7 @@ These are deliberate trade-offs for a project of this size, not bugs.
 
 - **Single-instance Socket.IO:** online presence and live delivery rely on in-memory state in one server process. That's fine on a single instance. To scale out horizontally, I'd add Redis and the Socket.IO Redis adapter, and keep presence in Redis.
 - **Recurring meetings:** editing all upcoming dates of a repeating meeting across a daylight-saving change is a known edge case. The time shift is a fixed offset, with no special handling for the clock change, so a date after it can end up an hour off.
+- **Payments:** upgrades are one-time payments, with no subscriptions, renewals, invoices, tax or refunds. Razorpay's test mode is used, so nothing real is charged. Going live would mean a real Razorpay account and, depending on where you sell, taxes and terms of sale.
 - **Message search:** search uses application-level text matching over the chats you're in. At larger message volumes, MongoDB text indexes or Atlas Search would be the right tool.
 
 ## Author
