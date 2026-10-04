@@ -130,10 +130,13 @@ export function Composer({
   );
 
   const uploading = uploads.some((upload) => upload.status === "uploading");
+  // A file that failed is never sent quietly without; retry or remove it.
+  const hasFailed = uploads.some((upload) => upload.status === "error");
   const ready = uploads.filter((upload) => upload.status === "done");
   const canSend =
     !disabledReason &&
     !uploading &&
+    !hasFailed &&
     (text.trim().length > 0 || ready.length > 0);
 
   const updateUpload = (id: string, patch: Partial<Upload>) =>
@@ -142,6 +145,20 @@ export function Composer({
         upload.id === id ? { ...upload, ...patch } : upload,
       ),
     );
+
+  const startUpload = (id: string, file: File) => {
+    updateUpload(id, { status: "uploading", progress: 0 });
+    uploadAttachment(orgId, file, (progress) => updateUpload(id, { progress }))
+      .then((result) =>
+        updateUpload(id, { status: "done", progress: 1, result }),
+      )
+      .catch((error: unknown) => {
+        updateUpload(id, { status: "error" });
+        toast.error(`Couldn't upload ${file.name}`, {
+          description: parseApiError(error).message,
+        });
+      });
+  };
 
   const addFiles = (files: File[]) => {
     if (!attachmentsEnabled || files.length === 0) return;
@@ -163,18 +180,7 @@ export function Composer({
         ...current,
         { id, file, progress: 0, status: "uploading", previewUrl },
       ]);
-      uploadAttachment(orgId, file, (progress) =>
-        updateUpload(id, { progress }),
-      )
-        .then((result) =>
-          updateUpload(id, { status: "done", progress: 1, result }),
-        )
-        .catch((error: unknown) => {
-          updateUpload(id, { status: "error" });
-          toast.error(`Couldn't upload ${file.name}`, {
-            description: parseApiError(error).message,
-          });
-        });
+      startUpload(id, file);
     }
   };
 
@@ -331,7 +337,7 @@ export function Composer({
           {uploads.map((upload) => (
             <li
               key={upload.id}
-              className="relative flex max-w-[12rem] items-center gap-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-1.5 pr-8 text-xs dark:border-slate-700 dark:bg-slate-800"
+              className="relative flex max-w-[15rem] items-center gap-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-1.5 pr-8 text-xs dark:border-slate-700 dark:bg-slate-800"
             >
               {upload.previewUrl ? (
                 <img
@@ -371,9 +377,18 @@ export function Composer({
                   {upload.status === "uploading"
                     ? `Uploading ${Math.round(upload.progress * 100)}%`
                     : upload.status === "error"
-                      ? "Failed"
+                      ? "Failed to upload"
                       : formatBytes(upload.file.size)}
                 </span>
+                {upload.status === "error" && (
+                  <button
+                    type="button"
+                    onClick={() => startUpload(upload.id, upload.file)}
+                    className="mt-0.5 font-medium text-teal-700 underline dark:text-teal-400"
+                  >
+                    Try again
+                  </button>
+                )}
               </span>
               {upload.status === "uploading" && (
                 <span

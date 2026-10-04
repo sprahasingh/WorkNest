@@ -106,9 +106,13 @@ describe("chat attachments", () => {
 });
 
 describe("opening chat files", () => {
-  async function withFile() {
-    const base = await twoPeople();
-    const publicId = `worknest/${base.orgId}/chat/file1.txt`;
+  async function withFile(
+    name = "notes.txt",
+    mimeType = "text/plain",
+    existing?: Awaited<ReturnType<typeof twoPeople>>,
+  ) {
+    const base = existing ?? (await twoPeople());
+    const publicId = `worknest/${base.orgId}/chat/file1.${name.split(".").pop()}`;
     const sent = await request(app)
       .post(`/api/orgs/${base.orgId}/chat/conversations/${base.id}/messages`)
       .set("Authorization", `Bearer ${base.token}`)
@@ -119,8 +123,8 @@ describe("opening chat files", () => {
             url: `https://res.cloudinary.com/demo/raw/upload/v1/${publicId}`,
             publicId,
             resourceType: "raw",
-            name: "notes.txt",
-            mimeType: "text/plain",
+            name,
+            mimeType,
           },
         ],
       });
@@ -142,10 +146,44 @@ describe("opening chat files", () => {
       const file = await request(app).get(url).buffer(true);
       expect(file.status).toBe(200);
       expect(file.text ?? file.body.toString()).toBe("hello");
-      expect(file.headers["content-disposition"]).toContain("attachment");
+      // Plain text opens in the browser; the Download button saves it.
+      expect(file.headers["content-disposition"]).toContain("inline");
+      expect(file.headers["content-security-policy"]).toContain("sandbox");
+      const saved = await request(app).get(`${url}?download=1`).buffer(true);
+      expect(saved.headers["content-disposition"]).toContain("attachment");
+      expect(saved.headers["content-type"]).toContain("octet-stream");
       expect(file.headers["x-content-type-options"]).toBe("nosniff");
       expect(file.headers["cache-control"]).toContain("private");
       expect(String(fetchMock.mock.calls[0][0])).toContain("/authenticated/");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("show PDFs in the browser, but never let other types run as pages", async () => {
+    uploaded.bytes = 100;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("%PDF-1.4", { headers: { "content-length": "8" } }),
+      ),
+    );
+    try {
+      const pdf = await withFile("report.pdf", "application/pdf");
+      const opened = await request(app).get(pdf.url).buffer(true);
+      expect(opened.headers["content-disposition"]).toContain("inline");
+      expect(opened.headers["content-type"]).toContain("application/pdf");
+      expect(opened.headers["x-content-type-options"]).toBe("nosniff");
+      const saved = await request(app).get(`${pdf.url}?download=1`);
+      expect(saved.headers["content-disposition"]).toContain("attachment");
+
+      // Claiming to be a web page doesn't make it one.
+      const html = await withFile("page.html", "text/html", pdf);
+      const page = await request(app).get(html.url).buffer(true);
+      expect(page.headers["content-disposition"]).toContain("attachment");
+      expect(page.headers["content-type"]).toContain("octet-stream");
+      expect(page.headers["content-security-policy"]).toContain("sandbox");
     } finally {
       vi.unstubAllGlobals();
     }
