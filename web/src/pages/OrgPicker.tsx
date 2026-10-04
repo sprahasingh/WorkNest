@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { BrandLink } from "@/components/BrandLink";
+import { HelpLinks } from "@/components/HelpLinks";
+import { AccountCard, MenuButton, MenuPanel } from "@/components/MenuPanel";
 import { useMyInvites } from "@/features/invites/myInvites";
 import { MyInvitations } from "@/features/invites/MyInvitations";
 
@@ -28,7 +30,10 @@ type CreateOrgFormValues = z.infer<typeof createOrgFormSchema>;
 const CREATE_ORG_FIELDS = ["name"] as const;
 
 export function OrgPicker() {
-  const { memberships, logout, isLoggingOut, refreshMemberships } = useAuth();
+  const auth = useAuth();
+  const { memberships, logout, isLoggingOut, refreshMemberships } = auth;
+  const user = auth.status === "authenticated" ? auth.user : null;
+  const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const [formError, setFormError] = useState<string | null>(null);
   const invites = useMyInvites().data ?? [];
@@ -72,19 +77,34 @@ export function OrgPicker() {
 
   return (
     <div className="min-h-dvh bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-6">
+      {menuOpen && (
+        <MenuPanel
+          onClose={() => setMenuOpen(false)}
+          footer={
+            <HelpLinks
+              from={location.pathname}
+              onNavigate={() => setMenuOpen(false)}
+            />
+          }
+        >
+          {user && <AccountCard user={user} />}
+          <button
+            type="button"
+            onClick={() => void logout()}
+            disabled={isLoggingOut}
+            aria-busy={isLoggingOut || undefined}
+            className="flex w-full items-center justify-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:text-red-400 dark:hover:bg-red-950/30"
+          >
+            {isLoggingOut ? "Signing out…" : "Log out"}
+          </button>
+        </MenuPanel>
+      )}
       <div className="mx-auto max-w-lg space-y-8">
         <div className="flex items-center justify-between">
           <BrandLink />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3">
             <ThemeToggle />
-            <button
-              type="button"
-              onClick={() => void logout()}
-              disabled={isLoggingOut}
-              className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:underline disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
-            >
-              {isLoggingOut ? "Logging out…" : "Log out"}
-            </button>
+            <MenuButton open={menuOpen} onClick={() => setMenuOpen(true)} />
           </div>
         </div>
 
