@@ -7,9 +7,7 @@ export interface OrgContextValue {
   role: Role;
 }
 
-export const OrgContext = createContext<OrgContextValue | undefined>(
-  undefined,
-);
+export const OrgContext = createContext<OrgContextValue | undefined>(undefined);
 
 export function useOrg(): OrgContextValue {
   const context = useContext(OrgContext);

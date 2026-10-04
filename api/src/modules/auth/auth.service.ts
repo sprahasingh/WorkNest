@@ -1,3 +1,4 @@
+import { forgetAccountStatus } from "../../auth/userStatus.js";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { User } from "../../models/User.js";
@@ -96,6 +97,25 @@ export async function register(input: RegisterInput) {
       503,
       "EMAIL_DELIVERY_UNAVAILABLE",
       "Email verification is not configured. Contact your administrator.",
+    );
+  }
+
+  // Someone else can't keep replacing a waiting sign-up (which would stop the
+  // real owner finishing it) or use this to flood an inbox: one new link a
+  // minute per address, the same as asking for a new link.
+  const waiting = await PendingRegistration.findOne({
+    email: input.email,
+    expiresAt: { $gt: new Date() },
+  }).select("lastSentAt");
+  if (
+    !bypassVerification &&
+    waiting?.lastSentAt &&
+    Date.now() - waiting.lastSentAt.getTime() < RESEND_COOLDOWN_MS
+  ) {
+    throw new AppError(
+      429,
+      "RESEND_TOO_SOON",
+      "A confirmation link was just sent to that address. Wait a minute before trying again.",
     );
   }
 
@@ -842,6 +862,13 @@ export async function verifyEmailChange(input: VerifyEmailChangeInput) {
     throw error;
   }
 
+  // A new address ends every session, so someone holding a stolen session
+  // can't keep it after the owner notices and changes the address back.
+  await Session.updateMany(
+    { userId: user._id, revokedAt: null },
+    { revokedAt: new Date() },
+  );
+
   // Tell the old address, so an unexpected change doesn't go unnoticed.
   try {
     await sendEmailChangedNotice(String(previousEmail), String(email));
@@ -955,6 +982,7 @@ export async function deleteAccount(userId: string): Promise<void> {
         .setOptions({ skipTenant: true })
         .session(dbSession);
     });
+    forgetAccountStatus(userId);
   } finally {
     await dbSession.endSession();
   }
@@ -962,7 +990,7 @@ export async function deleteAccount(userId: string): Promise<void> {
 
 // A token replaced this recently is still accepted, so two tabs refreshing
 // at once don't look like a stolen token and sign the person out.
-const REFRESH_GRACE_MS = 30_000;
+const REFRESH_GRACE_MS = 10_000;
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function refresh(rawToken: string) {

@@ -232,7 +232,9 @@ describe("task notifications", () => {
       tenantId: admin.orgId,
       userId: admin.userId,
       type: "task_due_soon",
-    }).lean();
+    })
+      .setOptions({ skipTenant: true })
+      .lean();
     const previousReminder = reminders.find(
       (item) => item._id.toString() === firstReminder._id,
     );
@@ -437,7 +439,9 @@ describe("task notifications", () => {
       tenantId: admin.orgId,
       userId: admin.userId,
       taskId: created.body.task._id,
-    }).lean();
+    })
+      .setOptions({ skipTenant: true })
+      .lean();
     expect(
       reminders.find((item) => item.type === "task_due_soon")?.dismissedAt,
     ).toBeTruthy();

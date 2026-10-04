@@ -30,8 +30,10 @@ async function signedInSender(req: Request) {
   if (!header?.startsWith("Bearer ")) return null;
   try {
     const { sub } = verifyAccessToken(header.slice("Bearer ".length));
-    const user = await User.findById(sub).select("name email").lean();
-    return user ? { name: user.name, email: user.email } : null;
+    const user = await User.findById(sub).select("name email status").lean();
+    if (!user || (user as { status?: string }).status === "deleted")
+      return null;
+    return { name: user.name, email: user.email };
   } catch {
     return null;
   }

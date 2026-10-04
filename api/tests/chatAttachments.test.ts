@@ -56,7 +56,12 @@ async function twoPeople() {
     .post(`/api/orgs/${orgId}/chat/conversations`)
     .set("Authorization", `Bearer ${token}`)
     .send({ type: "direct", userId: sam.body.user.id });
-  return { orgId, token, id: created.body.conversation.id as string };
+  return {
+    orgId,
+    token,
+    userId: me.body.user.id as string,
+    id: created.body.conversation.id as string,
+  };
 }
 
 describe("chat attachments", () => {
@@ -66,18 +71,20 @@ describe("chat attachments", () => {
       .post(`/api/orgs/${orgId}/chat/attachments/sign`)
       .set("Authorization", `Bearer ${token}`);
     expect(sign.status).toBe(200);
-    expect(sign.body.folder).toBe(`worknest/${orgId}/chat`);
+    expect(sign.body.folder).toMatch(
+      new RegExp(`^worknest/${orgId}/chat/[a-f0-9]{24}$`),
+    );
   });
 
   it("only accept files uploaded to this organization's folder", async () => {
-    const { orgId, token, id } = await twoPeople();
+    const { orgId, token, id, userId } = await twoPeople();
     const send = (attachment: object) =>
       request(app)
         .post(`/api/orgs/${orgId}/chat/conversations/${id}/messages`)
         .set("Authorization", `Bearer ${token}`)
         .send({ text: "", attachments: [attachment] });
 
-    const publicId = `worknest/${orgId}/chat/abc123.txt`;
+    const publicId = `worknest/${orgId}/chat/${userId}/abc123.txt`;
     const good = {
       url: `https://res.cloudinary.com/demo/raw/upload/v1/${publicId}`,
       publicId,
@@ -112,7 +119,7 @@ describe("opening chat files", () => {
     existing?: Awaited<ReturnType<typeof twoPeople>>,
   ) {
     const base = existing ?? (await twoPeople());
-    const publicId = `worknest/${base.orgId}/chat/file1.${name.split(".").pop()}`;
+    const publicId = `worknest/${base.orgId}/chat/${base.userId}/file1.${name.split(".").pop()}`;
     const sent = await request(app)
       .post(`/api/orgs/${base.orgId}/chat/conversations/${base.id}/messages`)
       .set("Authorization", `Bearer ${base.token}`)
@@ -230,7 +237,7 @@ describe("opening chat files", () => {
       const base = await twoPeople();
       // The sender is the admin; a link minted for the other person works
       // until their membership is gone.
-      const publicId = `worknest/${base.orgId}/chat/file2.txt`;
+      const publicId = `worknest/${base.orgId}/chat/${base.userId}/file2.txt`;
       const sent = await request(app)
         .post(`/api/orgs/${base.orgId}/chat/conversations/${base.id}/messages`)
         .set("Authorization", `Bearer ${base.token}`)
@@ -277,8 +284,8 @@ describe("opening chat files", () => {
 
   it("reject a file that's bigger than the limit, whatever the browser said", async () => {
     uploaded.bytes = 11 * 1024 * 1024;
-    const { orgId, token, id } = await twoPeople();
-    const publicId = `worknest/${orgId}/chat/big.bin`;
+    const { orgId, token, id, userId } = await twoPeople();
+    const publicId = `worknest/${orgId}/chat/${userId}/big.bin`;
     const res = await request(app)
       .post(`/api/orgs/${orgId}/chat/conversations/${id}/messages`)
       .set("Authorization", `Bearer ${token}`)

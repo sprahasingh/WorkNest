@@ -60,7 +60,11 @@ function SystemIcon({ className }: { className?: string }) {
   );
 }
 
-const OPTIONS: { value: ThemePreference; label: string; icon: typeof SunIcon }[] = [
+const OPTIONS: {
+  value: ThemePreference;
+  label: string;
+  icon: typeof SunIcon;
+}[] = [
   { value: "system", label: "System", icon: SystemIcon },
   { value: "light", label: "Light", icon: SunIcon },
   { value: "dark", label: "Dark", icon: MoonIcon },
@@ -88,8 +92,7 @@ export function ThemeToggle({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  const ActiveIcon =
-    resolvedTheme === "dark" ? MoonIcon : SunIcon;
+  const ActiveIcon = resolvedTheme === "dark" ? MoonIcon : SunIcon;
 
   return (
     <div ref={containerRef} className="relative">
