@@ -94,9 +94,10 @@ export function SessionsCard() {
         </ul>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <Button
           variant="secondary"
+          className="w-full sm:w-52"
           onClick={() => void logout()}
           loading={isLoggingOut && !signingOutAll}
           disabled={isLoggingOut || signingOutAll}
@@ -106,6 +107,7 @@ export function SessionsCard() {
         {others.length > 0 && (
           <Button
             variant="secondary"
+            className="w-full sm:w-52"
             onClick={() => void signOutEverywhere()}
             loading={signingOutAll}
             disabled={isLoggingOut || signingOutAll}
