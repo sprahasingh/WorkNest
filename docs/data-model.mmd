@@ -32,6 +32,21 @@ erDiagram
         string passwordHash
         date onboardingSeenAt
     }
+    PENDING_REGISTRATION {
+        ObjectId id PK
+        string email
+        string kind
+        string tokenHash
+        string signupSecretHash
+        date lastSentAt
+        date expiresAt
+    }
+    SIGNUP_CLAIM {
+        ObjectId id PK
+        string secretHash
+        ObjectId userId FK
+        date expiresAt
+    }
     SESSION {
         ObjectId id PK
         ObjectId userId FK

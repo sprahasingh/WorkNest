@@ -285,6 +285,12 @@ export function InvitesPanel() {
                     ? `Invitation emailed to ${revealed.email}`
                     : `Invite created, but email could not be sent to ${revealed.email}`}
                 </p>
+                {revealed.emailSent && (
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                    If it doesn&apos;t arrive, ask them to check their spam or
+                    junk folder, then use Send again below.
+                  </p>
+                )}
                 {revealed.existingUser && (
                   <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                     They already have a WorkNest account, so the invite is also
@@ -367,20 +373,35 @@ export function InvitesPanel() {
                       {invite.existingUser && " · Has a WorkNest account"}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleRevoke(invite._id)}
-                    disabled={
-                      revokeInvite.isPending &&
+                  <div className="flex items-center gap-4 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void sendInvite(
+                          { email: invite.email, role: invite.role },
+                          true,
+                        )
+                      }
+                      disabled={createInvite.isPending}
+                      className="text-sm font-medium text-teal-700 hover:underline disabled:opacity-50 dark:text-teal-400"
+                    >
+                      Send again
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleRevoke(invite._id)}
+                      disabled={
+                        revokeInvite.isPending &&
+                        revokeInvite.variables === invite._id
+                      }
+                      className="text-sm font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                    >
+                      {revokeInvite.isPending &&
                       revokeInvite.variables === invite._id
-                    }
-                    className="self-start text-sm font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400 sm:self-auto"
-                  >
-                    {revokeInvite.isPending &&
-                    revokeInvite.variables === invite._id
-                      ? "Revoking…"
-                      : "Revoke"}
-                  </button>
+                        ? "Revoking…"
+                        : "Revoke"}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

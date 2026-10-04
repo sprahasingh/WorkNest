@@ -38,6 +38,8 @@ const DEMO = {
   chatToRightClick: "Govind",
   meetingToOpen: "Homepage design review",
   messageToRightClick: "Component library is on track",
+  // Sign-up pictures use made-up, generic values.
+  signUp: { name: "New Member", email: "you@sunshine.com", org: "Sunshine" },
 };
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -63,6 +65,55 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // What to do on the page before the picture is taken, for each screen.
 const shots = {
+  "account/register": async (p) => {
+    await p.goto(`${base}/register`);
+    await p.getByLabel("Your name").fill(DEMO.signUp.name);
+    await p.getByLabel("Email", { exact: true }).fill(DEMO.signUp.email);
+    // Two different passwords, so the picture shows the check in action.
+    await p.locator("#password").fill("a-long-password");
+    await p.locator("#confirm-password").fill("a-long-passwrod");
+    await p.getByLabel("Organization name").fill(DEMO.signUp.org);
+    await p.getByRole("button", { name: "Create account" }).click();
+    await p.getByText("The passwords don't match").waitFor();
+    await sleep(300);
+  },
+  "account/check-email": async (p) => {
+    // The server isn't asked to send a real email: the two calls the page makes
+    // are answered here, so this works without email delivery set up.
+    await p.route("**/api/auth/register", (route) =>
+      route.fulfill({
+        status: 202,
+        contentType: "application/json",
+        body: JSON.stringify({
+          email: DEMO.signUp.email,
+          verificationRequired: true,
+          signupToken: "picture-only-token-not-a-real-secret",
+        }),
+      }),
+    );
+    await p.route("**/api/auth/registration-status", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "waiting" }),
+      }),
+    );
+    await p.goto(`${base}/register`);
+    await p.getByLabel("Your name").fill(DEMO.signUp.name);
+    await p.getByLabel("Email", { exact: true }).fill(DEMO.signUp.email);
+    await p.locator("#password").fill("a-long-password");
+    await p.locator("#confirm-password").fill("a-long-password");
+    await p.getByLabel("Organization name").fill(DEMO.signUp.org);
+    await p.getByRole("button", { name: "Create account" }).click();
+    await p.getByText("Check your email").waitFor();
+    // Taken straight away, so the resend countdown still reads 60s.
+    await p.getByRole("button", { name: "Resend link in 60s" }).waitFor();
+  },
+  "account/first-tour": async (p) => {
+    await open(p, "/dashboard", 1800);
+    await p.getByRole("button", { name: "Show the tour" }).click();
+    await sleep(500);
+  },
   "dashboard/tasks-overview": async (p) => {
     await open(p, "/dashboard", 2200);
     await scrollToHeading(p, "Dashboard", 20);
@@ -234,6 +285,9 @@ const shots = {
 };
 
 // Screens that need a different person signed in.
+// Screens taken before anyone has signed in.
+const signedOut = new Set(["account/register", "account/check-email"]);
+
 const signedInAs = { "meetings/meeting-detail": DEMO.invitee };
 
 async function open(page, route, wait = 1200) {
@@ -315,6 +369,8 @@ async function signIn(dark, size, user, isPhone) {
   await context.clock.setFixedTime(new Date(ids.shotTime));
   const page = await context.newPage();
   page.on("pageerror", (error) => console.log("Page error:", error.message));
+  // Pictures of the sign-up pages are taken without signing in.
+  if (user === null) return page;
   await page.goto(`${base}/login`);
   await page.getByLabel("Email").fill(user);
   await page.locator('input[type="password"]').first().fill(DEMO.password);
@@ -338,7 +394,7 @@ for (const theme of themes) {
   const pages = new Map();
   for (const { key, section, screen, size } of wanted) {
     if (only && !only.includes(key)) continue;
-    const user = signedInAs[key] ?? DEMO.admin;
+    const user = signedOut.has(key) ? null : (signedInAs[key] ?? DEMO.admin);
     const isPhone = section.id === "phone";
     const pageKey = `${user}|${isPhone}`;
     if (!pages.has(pageKey))
