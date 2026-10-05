@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
+import { expireDuePlans } from "../src/modules/billing/planLifecycle.js";
 import { setupOrg } from "./orgHelpers.js";
 
 const app = createApp();
@@ -38,6 +39,24 @@ describe("paid plan expiry", () => {
     expect(org.body.organization.planExpiredFrom).toBe("pro");
     expect(org.body.organization.planExpiresAt).toBeNull();
     expect(org.body.usage.overLimit).toBe(false);
+  });
+
+  it("expires plans in the background without a request", async () => {
+    const { orgId } = await setupOrg(app, "expire3.test");
+    await Organization.updateOne(
+      { _id: orgId },
+      {
+        plan: "premium",
+        seatLimit: 100,
+        projectLimit: 50,
+        planExpiresAt: new Date(Date.now() - 1000),
+      },
+    );
+    expect(await expireDuePlans()).toBe(1);
+    const org = await Organization.findById(orgId).lean();
+    expect(org?.plan).toBe("free");
+    expect(org?.planExpiredFrom).toBe("premium");
+    expect(await expireDuePlans()).toBe(0);
   });
 
   it("leaves a plan alone until its date", async () => {

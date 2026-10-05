@@ -39,6 +39,23 @@ export async function expirePlanIfDue(
   return org !== null;
 }
 
+// Moves every organization whose paid plan has ended back to Free, so a plan
+// doesn't stay paid just because nobody has opened the app since.
+export async function expireDuePlans(now = new Date()): Promise<number> {
+  const due = await Organization.find({
+    plan: { $ne: "free" },
+    planExpiresAt: { $lte: now },
+  })
+    .select("_id")
+    .setOptions({ skipTenant: true })
+    .lean();
+  let expired = 0;
+  for (const org of due) {
+    if (await expirePlanIfDue(String(org._id), now)) expired += 1;
+  }
+  return expired;
+}
+
 export interface PlanUsage {
   seatsUsed: number;
   seatLimit: number;
