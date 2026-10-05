@@ -91,7 +91,11 @@ describe("grace period after a plan expires", () => {
       .set(auth(admin.token))
       .send({ name: "Renamed" });
     expect(edit.status).toBe(200);
-    expect(await Project.countDocuments({ archivedAt: { $ne: null } })).toBe(0);
+    expect(
+      await Project.countDocuments({ archivedAt: { $ne: null } }).setOptions({
+        skipTenant: true,
+      }),
+    ).toBe(0);
     expect(await enforceDueGracePeriods()).toBe(0);
   });
 
@@ -130,13 +134,19 @@ describe("grace period after a plan expires", () => {
       .set(auth(admin.token));
     expect(org.status).toBe(200);
 
-    const archived = await Project.find({ archivedAt: { $ne: null } });
+    const archived = await Project.find({
+      archivedAt: { $ne: null },
+    }).setOptions({ skipTenant: true });
     // Kept: EEE (recent comment), AAA, BBB. Archived: CCC and DDD.
     expect(archived.map((p) => p.key).sort()).toEqual(["CCC", "DDD"]);
     expect(archived.every((p) => p.archivedReason === "plan_limit")).toBe(true);
     // Nothing was deleted, and the tasks are still there.
-    expect(await Project.countDocuments({})).toBe(5);
-    expect(await Task.countDocuments({})).toBe(5);
+    expect(
+      await Project.countDocuments({}).setOptions({ skipTenant: true }),
+    ).toBe(5);
+    expect(await Task.countDocuments({}).setOptions({ skipTenant: true })).toBe(
+      5,
+    );
 
     const after = await Organization.findById(orgId).lean();
     expect(after?.projectCount).toBe(3);
@@ -188,7 +198,9 @@ describe("grace period after a plan expires", () => {
       .set(auth(admin.token));
     expect(org.status).toBe(200);
 
-    const archived = await Task.find({ archivedAt: { $ne: null } });
+    const archived = await Task.find({ archivedAt: { $ne: null } }).setOptions({
+      skipTenant: true,
+    });
     expect(archived).toHaveLength(3);
     expect(archived.map((t) => t.title).sort()).toEqual([
       "Task 10",
@@ -196,7 +208,9 @@ describe("grace period after a plan expires", () => {
       "Task 12",
     ]);
     expect(archived.every((t) => t.archivedReason === "plan_limit")).toBe(true);
-    expect(await Task.countDocuments({})).toBe(13);
+    expect(await Task.countDocuments({}).setOptions({ skipTenant: true })).toBe(
+      13,
+    );
     expect((await Organization.findById(orgId).lean())?.graceArchived).toEqual({
       projects: 0,
       tasks: 3,
@@ -329,7 +343,7 @@ describe("during the grace period, usage can't grow past Free", () => {
       const deleted = await request(app)
         .delete(`/api/orgs/${orgId}/tasks/${id}`)
         .set(auth(admin.token));
-      expect(deleted.status).toBe(200);
+      expect(deleted.status).toBe(204);
     }
     // 9 open tasks: room for exactly one more.
     expect((await create()).status).toBe(201);
@@ -380,7 +394,11 @@ describe("what the grace period leaves alone", () => {
       .get(`/api/orgs/${orgId}`)
       .set(auth(admin.token));
     expect(org.status).toBe(200);
-    expect(await Task.countDocuments({ archivedAt: { $ne: null } })).toBe(0);
+    expect(
+      await Task.countDocuments({ archivedAt: { $ne: null } }).setOptions({
+        skipTenant: true,
+      }),
+    ).toBe(0);
     expect((await Organization.findById(orgId).lean())?.graceArchived).toEqual({
       projects: 0,
       tasks: 0,
@@ -411,9 +429,15 @@ describe("what the grace period leaves alone", () => {
     await expireAgo(orgId, 12);
 
     await request(app).get(`/api/orgs/${orgId}`).set(auth(admin.token));
-    const archived = await Project.find({ archivedAt: { $ne: null } });
+    const archived = await Project.find({
+      archivedAt: { $ne: null },
+    }).setOptions({ skipTenant: true });
     expect(archived.map((p) => p.key)).toEqual(["DDD"]);
-    expect(await Task.countDocuments({ archivedAt: { $ne: null } })).toBe(0);
+    expect(
+      await Task.countDocuments({ archivedAt: { $ne: null } }).setOptions({
+        skipTenant: true,
+      }),
+    ).toBe(0);
   });
 
   it("never removes members, and stays paused over the seat limit", async () => {
@@ -421,7 +445,9 @@ describe("what the grace period leaves alone", () => {
     await expireAgo(orgId, 12);
     // More seats in use than Free allows.
     await Organization.updateOne({ _id: orgId }, { seatsUsed: 8 });
-    const before = await Membership.countDocuments({ tenantId: orgId });
+    const before = await Membership.countDocuments({
+      tenantId: orgId,
+    }).setOptions({ skipTenant: true });
 
     const blocked = await request(app)
       .post(`/api/orgs/${orgId}/projects`)
@@ -429,6 +455,10 @@ describe("what the grace period leaves alone", () => {
       .send({ name: "Blocked", key: "AAA" });
     expect(blocked.status).toBe(403);
     expect(blocked.body.error.code).toBe("PLAN_OVER_LIMIT");
-    expect(await Membership.countDocuments({ tenantId: orgId })).toBe(before);
+    expect(
+      await Membership.countDocuments({ tenantId: orgId }).setOptions({
+        skipTenant: true,
+      }),
+    ).toBe(before);
   });
 });
