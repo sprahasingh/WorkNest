@@ -938,13 +938,6 @@ export async function archiveTask(taskId: string) {
   assertCanManageTask(context.role as Role);
   const task = await findTaskInLiveProject(taskId);
   if (!task) throw new AppError(404, "NOT_FOUND", "Task not found");
-  if (task.status !== "done") {
-    throw new AppError(
-      400,
-      "TASK_NOT_COMPLETED",
-      "Only completed tasks can be archived",
-    );
-  }
   if (task.archivedAt) {
     throw new AppError(
       409,
@@ -958,7 +951,7 @@ export async function archiveTask(taskId: string) {
     let archivedTask;
     await dbSession.withTransaction(async () => {
       archivedTask = await Task.findOneAndUpdate(
-        { _id: taskId, status: "done", archivedAt: null },
+        { _id: taskId, archivedAt: null },
         { archivedAt: new Date() },
         { new: true, session: dbSession },
       );

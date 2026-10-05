@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
   useAccountPaused,
+  useGrowthBlocked,
+  GROWTH_BLOCKED_HINT,
   PAUSED_HINT,
 } from "@/features/billing/useAccountPaused";
 import { useForm } from "react-hook-form";
@@ -93,6 +95,7 @@ function daysUntil(iso: string): number {
 export function ProjectsPage() {
   const { orgId } = useOrg();
   const paused = useAccountPaused();
+  const growthBlocked = useGrowthBlocked();
   const navigate = useNavigate();
   const canWrite = useCan("project:write");
 
@@ -341,13 +344,15 @@ export function ProjectsPage() {
           {canWrite && (
             <Button
               onClick={openCreateModal}
-              disabled={paused || atProjectLimit}
+              disabled={paused || growthBlocked || atProjectLimit}
               title={
                 paused
                   ? PAUSED_HINT
-                  : atProjectLimit
-                    ? `All ${org?.projectLimit} project slots on the ${PLAN_NAMES[org!.plan]} plan are in use. Archive or delete a project, or upgrade.`
-                    : undefined
+                  : growthBlocked
+                    ? GROWTH_BLOCKED_HINT
+                    : atProjectLimit
+                      ? `All ${org?.projectLimit} project slots on the ${PLAN_NAMES[org!.plan]} plan are in use. Archive or delete a project, or upgrade.`
+                      : undefined
               }
             >
               New project

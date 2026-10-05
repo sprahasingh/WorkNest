@@ -7,8 +7,11 @@ import {
   type BillingCycle,
   type Plan,
 } from "../../constants/plans.js";
-import { expirePlanIfDue, getPlanUsage } from "./planLifecycle.js";
-import { enforceGraceIfDue } from "./gracePeriod.service.js";
+import {
+  enforceGraceFully,
+  expirePlanIfDue,
+  getPlanUsage,
+} from "./planLifecycle.js";
 import { sendPlanRenewalReminders } from "./planReminders.js";
 import { isTestControlEmail } from "../../lib/testControls.js";
 import { User } from "../../models/User.js";
@@ -325,6 +328,7 @@ export async function setTestPlanDates(input: TestPlanDatesInput) {
     changes.planExpiredFrom = org.planExpiredFrom ?? "pro";
     // Lets the grace period and archiving run again from the new date.
     changes.graceEnforcedAt = null;
+    changes.graceEnforcingAt = null;
     changes.graceArchived = null;
   }
 
@@ -353,7 +357,7 @@ export async function setTestPlanDates(input: TestPlanDatesInput) {
   const ran: string[] = [];
   if (input.run) {
     if (await expirePlanIfDue(tenantId)) ran.push("plan expired");
-    if (await enforceGraceIfDue(tenantId)) ran.push("extras archived");
+    if (await enforceGraceFully(tenantId)) ran.push("extras archived");
     const reminders = await sendPlanRenewalReminders(new Date(), tenantId);
     if (reminders > 0) ran.push("reminder sent");
   }

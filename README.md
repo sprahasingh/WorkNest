@@ -283,15 +283,17 @@ When a paid plan ends, the workspace goes back to Free on the next request and g
 
 During the grace period usage can't grow past the Free limits, while everything that reduces or maintains it keeps working:
 
-- New projects are refused when all 3 Free project slots are in use (the New project button is disabled with a hint), and new tasks are refused when a project already has 10 open tasks. Reopening a finished task or restoring one from the bin or from Archived is refused the same way. Creating is allowed while the workspace is still within the Free limits.
-- Editing, completing, archiving and deleting stay available, so people can bring usage down themselves. A workspace that is over the limits has to get back under them before it can add anything.
+- **While the workspace is over any Free limit** (more than 3 active projects, a project with more than 10 open tasks, or more than 5 seats), nothing new can be added anywhere: no new projects, no new tasks (not even in a project that is under its own limit), no invites, and nothing brought back from Archived or the bin. The server answers `403 PLAN_GRACE_RESTRICTED`, and the New project, New task and Send invite buttons are disabled with a hint.
+- **Once usage is back within the limits**, adding is allowed again up to the limits: the usual "project limit reached" and "task limit reached" messages apply at 3 projects and 10 open tasks per project. Reopening a finished task is refused at the limit too.
+- Editing, completing, archiving and deleting stay available, so people can bring usage down themselves. **Open tasks can be archived** (the Archive button on a task, not only on finished ones), and an archived task can come back from Archived only when its project has room for another open task.
 - Restoring an archived project is refused if its open tasks wouldn't fit the plan's per-project limit; it works after upgrading.
-- Seats are the same: invites are refused once every seat is used, and nobody is ever removed automatically.
+- Seats: invites are refused while the workspace is over its seats, and nobody is ever removed automatically.
 
 If the workspace is still over the Free limits when the 10 days are up, the extras are archived automatically (on the next request or in the 30 minute sweep, whichever comes first):
 
 - **Projects:** only projects that use a plan slot count. The 3 most recently active are kept and the rest are archived.
 - **Tasks:** in every project that is still active, the 10 most recently active open tasks are kept and the rest are archived. Tasks in a project that is already archived (by a person, or by the rule above) are left alone: the project isn't in use, its tasks stay readable, and it can only be restored when its open tasks fit the plan. Archived projects don't count towards the task limit.
+- **No pause while archiving runs.** The archiving takes a short hold and is marked done only when it has finished, so requests that arrive meanwhile still follow the grace rules instead of seeing a paused workspace. If a workspace is marked done but is still over on projects or tasks, the next change archives the rest.
 - **What "recently active" means:** the latest change to the project or task, or a comment or update on it. Ties are broken by id, so the same data always gives the same result.
 - **Nothing is deleted.** Archived projects and tasks keep their data and are marked as archived because of the plan. They can be restored from Archived once there is room: after renewing, or after freeing a slot. Restoring when the plan has no room is refused with the usual limit message.
 - **Seats** are not touched. People are never removed automatically, so a workspace with more than 5 members stays paused (read, delete, archive and pay only, as described below) until members are removed or a plan is bought.

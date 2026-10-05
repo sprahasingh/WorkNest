@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
   useAccountPaused,
+  useGrowthBlocked,
+  GROWTH_BLOCKED_HINT,
   PAUSED_HINT,
 } from "@/features/billing/useAccountPaused";
 import { Link, useParams, useSearchParams } from "react-router";
@@ -55,6 +57,7 @@ type DrawerState =
 export function ProjectBoard() {
   const { orgId, role } = useOrg();
   const paused = useAccountPaused();
+  const growthBlocked = useGrowthBlocked();
   const { projectId } = useParams<{ projectId: string }>();
   const auth = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -275,13 +278,15 @@ export function ProjectBoard() {
               <Button
                 className="h-10 flex-1 sm:flex-none"
                 onClick={() => setDrawerState({ mode: "create" })}
-                disabled={atTaskLimit || paused}
+                disabled={atTaskLimit || paused || growthBlocked}
                 title={
                   paused
                     ? PAUSED_HINT
-                    : atTaskLimit
-                      ? `This project has reached the ${planName} plan's active task limit`
-                      : undefined
+                    : growthBlocked
+                      ? GROWTH_BLOCKED_HINT
+                      : atTaskLimit
+                        ? `This project has reached the ${planName} plan's active task limit`
+                        : undefined
                 }
               >
                 New task

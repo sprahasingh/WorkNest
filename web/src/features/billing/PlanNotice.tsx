@@ -85,9 +85,8 @@ export function PlanNotice() {
           })}
           , the least recently active projects and tasks over the{" "}
           {PLAN_NAMES[org.plan]} limits are archived. Nothing is deleted, and
-          you can restore them once there is room. Until then you can edit,
-          finish, archive and delete, but not add projects or tasks beyond the{" "}
-          {PLAN_NAMES[org.plan]} limits.{" "}
+          you can restore them once there is room. Until then nothing new can be
+          added, but you can edit, finish, archive and delete.{" "}
           {canChangePlan ? (
             <Link to={settingsPath} className="font-medium underline">
               Renew your plan
