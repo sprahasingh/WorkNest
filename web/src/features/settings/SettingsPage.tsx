@@ -3,7 +3,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCooldown } from "@/hooks/useCooldown";
 import { useLocation } from "react-router";
-import { useController, useForm, useWatch } from "react-hook-form";
+import {
+  useController,
+  useForm,
+  useWatch,
+  type Control,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -112,9 +117,7 @@ function TimeZoneSelect({
   control,
   disabled,
 }: {
-  control: ReturnType<
-    typeof useForm<OrganizationSettingsFormValues>
-  >["control"];
+  control: Control<OrganizationSettingsFormValues>;
   disabled: boolean;
 }) {
   const { field } = useController({ name: "timeZone", control });
@@ -303,6 +306,12 @@ const organizationSettingsFormSchema = z.object({
         return false;
       }
     }, "Enter a valid IANA time zone"),
+  chatRetentionDays: z.union([
+    z.literal(90),
+    z.literal(180),
+    z.literal(365),
+    z.null(),
+  ]),
   currentPassword: z
     .string()
     .min(1, "Enter your current password to save organization settings"),
@@ -315,6 +324,7 @@ type OrganizationSettingsFormValues = z.infer<
 const ORGANIZATION_SETTINGS_FIELDS = [
   "name",
   "timeZone",
+  "chatRetentionDays",
   "currentPassword",
 ] as const;
 
@@ -812,14 +822,26 @@ export function SettingsPage() {
   } = useForm<OrganizationSettingsFormValues>({
     resolver: zodResolver(organizationSettingsFormSchema),
     values: org
-      ? { name: org.name, timeZone: org.timeZone ?? "UTC", currentPassword: "" }
+      ? {
+          name: org.name,
+          timeZone: org.timeZone ?? "UTC",
+          chatRetentionDays: (org.chatRetentionDays ?? null) as
+            90 | 180 | 365 | null,
+          currentPassword: "",
+        }
       : undefined,
   });
+  const chatRetentionValue =
+    useWatch({ control, name: "chatRetentionDays" }) ?? null;
 
   // Changing the time zone asks first whether date-only due dates should
   // stay on the same calendar day or be left exactly as stored.
   const [timeZoneChoice, setTimeZoneChoice] =
     useState<OrganizationSettingsFormValues | null>(null);
+  const [retentionConfirmation, setRetentionConfirmation] = useState<{
+    values: OrganizationSettingsFormValues;
+    moveDueDates?: boolean;
+  } | null>(null);
   const [isEditingOrganization, setIsEditingOrganization] = useState(false);
 
   const cancelOrganizationEdit = () => {
@@ -827,11 +849,14 @@ export function SettingsPage() {
       reset({
         name: org.name,
         timeZone: org.timeZone ?? "UTC",
+        chatRetentionDays: (org.chatRetentionDays ?? null) as
+          90 | 180 | 365 | null,
         currentPassword: "",
       });
     }
     setFormError(null);
     setTimeZoneChoice(null);
+    setRetentionConfirmation(null);
     setIsEditingOrganization(false);
   };
 
@@ -849,12 +874,28 @@ export function SettingsPage() {
       return;
     }
     setTimeZoneChoice(null);
+    if (
+      org &&
+      values.chatRetentionDays !== (org.chatRetentionDays ?? null) &&
+      values.chatRetentionDays !== null
+    ) {
+      setRetentionConfirmation({ values, moveDueDates });
+      return;
+    }
+    await saveOrganizationSettings(values, moveDueDates);
+  };
+
+  async function saveOrganizationSettings(
+    values: OrganizationSettingsFormValues,
+    moveDueDates?: boolean,
+  ) {
     try {
       await updateOrg.mutateAsync(
         moveDueDates === undefined ? values : { ...values, moveDueDates },
       );
       setValue("currentPassword", "");
       setIsEditingOrganization(false);
+      setRetentionConfirmation(null);
       toast.success("Organization settings updated");
     } catch (error) {
       const parsed = parseApiError(error);
@@ -871,7 +912,7 @@ export function SettingsPage() {
         setFormError(unmatched.join(" "));
       }
     }
-  };
+  }
 
   const handlePlanChange = async (newPlan: Plan) => {
     const name = PLAN_NAMES[newPlan];
@@ -1044,7 +1085,7 @@ export function SettingsPage() {
 
           {org && !isEditingOrganization ? (
             <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <dl className="grid gap-3 text-sm sm:grid-cols-2 sm:gap-8">
+              <dl className="grid gap-3 text-sm sm:grid-cols-3 sm:gap-8">
                 <div>
                   <dt className="text-slate-500 dark:text-slate-400">Name</dt>
                   <dd className="mt-0.5 font-medium text-slate-800 dark:text-slate-200">
@@ -1059,6 +1100,19 @@ export function SettingsPage() {
                     {org.timeZone ?? "UTC"}
                   </dd>
                 </div>
+                {org && (
+                  <ChatRetentionCard
+                    org={org}
+                    canEdit={canUpdateOrg}
+                    editing={false}
+                    value={chatRetentionValue}
+                    onChange={(value) =>
+                      setValue("chatRetentionDays", value, {
+                        shouldDirty: true,
+                      })
+                    }
+                  />
+                )}
               </dl>
               {canUpdateOrg && (
                 <Button
@@ -1103,6 +1157,19 @@ export function SettingsPage() {
                 >
                   <TimeZoneSelect control={control} disabled={false} />
                 </Field>
+                {org && (
+                  <ChatRetentionCard
+                    org={org}
+                    canEdit={canUpdateOrg}
+                    editing
+                    value={chatRetentionValue}
+                    onChange={(value) =>
+                      setValue("chatRetentionDays", value, {
+                        shouldDirty: true,
+                      })
+                    }
+                  />
+                )}
                 <Field
                   label="Current password (required to save)"
                   htmlFor="org-current-password"
@@ -1136,15 +1203,6 @@ export function SettingsPage() {
                 </div>
               </form>
             </>
-          )}
-          {org && (
-            <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
-              <ChatRetentionCard
-                orgId={orgId}
-                org={org}
-                canEdit={canUpdateOrg}
-              />
-            </div>
           )}
         </Card>
 
@@ -1188,6 +1246,43 @@ export function SettingsPage() {
               }
             >
               Keep same days
+            </Button>
+          </div>
+        </Modal>
+
+        <Modal
+          open={retentionConfirmation !== null}
+          onClose={() => setRetentionConfirmation(null)}
+          title="Delete old messages?"
+        >
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Messages and attached files older than{" "}
+            {retentionConfirmation?.values.chatRetentionDays
+              ? `${retentionConfirmation.values.chatRetentionDays} days`
+              : "the selected retention period"}{" "}
+            will be deleted for everyone, including existing messages. This
+            cannot be undone.
+          </p>
+          <div className="mt-4 flex justify-end gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => setRetentionConfirmation(null)}
+              disabled={updateOrg.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              loading={updateOrg.isPending}
+              onClick={() =>
+                retentionConfirmation &&
+                void saveOrganizationSettings(
+                  retentionConfirmation.values,
+                  retentionConfirmation.moveDueDates,
+                )
+              }
+            >
+              Save and delete old messages
             </Button>
           </div>
         </Modal>

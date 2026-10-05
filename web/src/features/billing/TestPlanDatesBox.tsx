@@ -109,7 +109,7 @@ export function TestPlanDatesBox({
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Quick dates
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {presets.map((preset) => (
             <Button
               key={preset.label}
@@ -117,6 +117,7 @@ export function TestPlanDatesBox({
               variant="secondary"
               disabled={busy}
               onClick={() => void apply(field, preset.at())}
+              className="h-full w-full justify-center whitespace-normal text-center"
             >
               {preset.label}
             </Button>
@@ -162,11 +163,12 @@ export function TestPlanDatesBox({
         />
         <span>
           <span className="block font-medium text-slate-700 dark:text-slate-200">
-            Run checks immediately
+            Run the plan checks now
           </span>
           <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-            Apply expiry, grace period, reminder and archive checks after
-            setting the date.
+            After setting the date, process plan expiry, archive extras if the
+            grace period has ended, and send any renewal reminder that is due.
+            Turn this off to set the date only.
           </span>
         </span>
       </label>

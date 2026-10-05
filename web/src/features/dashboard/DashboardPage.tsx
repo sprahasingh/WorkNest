@@ -440,17 +440,11 @@ export function DashboardPage() {
                 isDark={isDark}
               />
 
-              <div className="grid gap-4 @2xl:grid-cols-2">
-                <WorkloadCard
-                  workload={data.workload}
-                  unassigned={data.unassignedOpenCount}
-                  isDark={isDark}
-                />
-                <ProjectProgressCard
-                  orgId={orgId}
-                  projects={data.projectProgress}
-                />
-              </div>
+              <WorkloadCard
+                workload={data.workload}
+                unassigned={data.unassignedOpenCount}
+                isDark={isDark}
+              />
             </>
           ) : (
             <ProjectsOverview
