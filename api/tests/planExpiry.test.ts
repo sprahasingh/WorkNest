@@ -130,6 +130,16 @@ describe("account locked while over the plan", () => {
       .get(`/api/orgs/${orgId}`)
       .set(auth(admin.token));
     expect(after.body.usage.overLimit).toBe(false);
+    // Under the limit is not the same as having room: Free allows 3 active
+    // projects and 3 are still open, so a new one waits for a free slot.
+    const full = await makeProject(orgId, admin.token, "EEE");
+    expect(full.status).toBe(409);
+    expect(full.body.error.code).toBe("PROJECT_LIMIT_REACHED");
+
+    const archivedAgain = await request(app)
+      .post(`/api/orgs/${orgId}/projects/${ids[2]}/archive`)
+      .set(auth(admin.token));
+    expect(archivedAgain.status).toBe(200);
     const ok = await makeProject(orgId, admin.token, "EEE");
     expect(ok.status).toBe(201);
   });

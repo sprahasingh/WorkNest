@@ -66,7 +66,7 @@ test("upgrading a plan goes through a payment that the server verifies", async (
       (window as never as { __checkout: { amount: number; order_id: string } })
         .__checkout,
   );
-  expect(options.amount).toBe(59900);
+  expect(options.amount).toBe(44900);
 
   // Pay: only a signature made with the secret is accepted.
   const paymentId = "pay_e2e_1";
