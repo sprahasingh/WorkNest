@@ -128,12 +128,13 @@ describe("paying for a plan", () => {
     );
     expect(entry.metadata.payment.paymentId).toBe(paymentId);
 
-    // Going down stays free.
+    // Paid for, so it can't be cancelled early.
     const down = await request(app)
       .post(`/api/orgs/${orgId}/plan`)
       .set(auth(admin.token))
       .send({ plan: "free" });
-    expect(down.status).toBe(200);
+    expect(down.status).toBe(409);
+    expect(down.body.error.code).toBe("PLAN_ACTIVE_UNTIL_END");
   });
 
   it("keeps one organization from confirming another's order, and members out", async () => {
