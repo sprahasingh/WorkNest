@@ -7,8 +7,18 @@ function getLogLevel(): string {
   return "debug";
 }
 
+// Request logs include the headers, and those carry the sign-in token and the
+// refresh cookie. Anyone who can read the logs could use them, so they are
+// removed before anything is written.
+export const LOG_REDACT_PATHS = [
+  "req.headers.authorization",
+  "req.headers.cookie",
+  'res.headers["set-cookie"]',
+];
+
 export const logger = pino({
   level: getLogLevel(),
+  redact: { paths: LOG_REDACT_PATHS, remove: true },
   transport:
     env.NODE_ENV === "development"
       ? {

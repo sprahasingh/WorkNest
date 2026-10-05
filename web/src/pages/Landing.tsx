@@ -691,7 +691,7 @@ export function Landing() {
                 rel="noreferrer"
                 aria-label={label}
                 title={label}
-                className="text-slate-400 transition-colors hover:text-teal-700"
+                className="text-slate-500 dark:text-slate-400 transition-colors hover:text-teal-700"
               >
                 <Icon className="h-5 w-5" />
               </a>

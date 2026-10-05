@@ -1,8 +1,8 @@
 {
   "name": "api",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "WorkNest API: multi-tenant projects, tasks, chat and meetings",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "sync-indexes": "tsx src/scripts/syncIndexes.ts",
-    "seed": "tsx src/scripts/seed.ts"
+    "seed": "tsx src/scripts/seed.ts",
+    "format:check": "prettier --check src tests"
   },
   "keywords": [],
   "author": "",
@@ -53,5 +54,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.70.0",
     "vitest": "^5.0.1"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

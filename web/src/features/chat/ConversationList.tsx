@@ -282,7 +282,7 @@ export function ConversationList({
                           strokeWidth={2}
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          className="ml-1 inline h-3.5 w-3.5 shrink-0 text-slate-400"
+                          className="ml-1 inline h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400"
                           role="img"
                           aria-label="Muted"
                         >
@@ -293,7 +293,7 @@ export function ConversationList({
                           <line x1="1" y1="1" x2="23" y2="23" />
                         </svg>
                       )}
-                      <span className="shrink-0 text-xs text-slate-400 md:group-focus-within:invisible md:group-hover:invisible">
+                      <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400 md:group-focus-within:invisible md:group-hover:invisible">
                         {conversation.lastMessage
                           ? listTimeLabel(conversation.lastMessageAt)
                           : ""}
@@ -366,7 +366,7 @@ export function ConversationList({
 
         {debounced.length >= 2 && (
           <section aria-label="Matching messages" className="mb-2 mt-1">
-            <h2 className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <h2 className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Messages
             </h2>
             {messageHits.isPending && (
@@ -392,7 +392,7 @@ export function ConversationList({
                         {/* In a one to one chat the title already says who. */}
                         {(titles.get(hit.conversationId)?.isGroup ||
                           hit.senderId === myId) && (
-                          <span className="font-normal text-slate-400">
+                          <span className="font-normal text-slate-500 dark:text-slate-400">
                             {" · "}
                             {hit.senderId === myId ? "You" : hit.senderName}
                           </span>

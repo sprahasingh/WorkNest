@@ -10,6 +10,7 @@ export interface AccessTokenPayload {
 
 export function signAccessToken(userId: string): string {
   return jwt.sign({ sub: userId }, env.JWT_ACCESS_SECRET, {
+    algorithm: "HS256",
     expiresIn: env.ACCESS_TOKEN_TTL as jwt.SignOptions["expiresIn"],
     issuer: ISSUER,
     audience: AUDIENCE,
@@ -18,6 +19,7 @@ export function signAccessToken(userId: string): string {
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
   const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET, {
+    algorithms: ["HS256"],
     issuer: ISSUER,
     audience: AUDIENCE,
   });

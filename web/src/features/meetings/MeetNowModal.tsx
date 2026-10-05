@@ -83,7 +83,7 @@ function MeetNowForm({ onClose, orgId, myId }: MeetNowModalProps) {
         <div className="flex items-center justify-between text-sm font-medium text-slate-700 dark:text-slate-300">
           <span>
             Who should join?{" "}
-            <span className="font-normal text-slate-400">
+            <span className="font-normal text-slate-500 dark:text-slate-400">
               ({selected.length} selected)
             </span>
           </span>
@@ -115,7 +115,7 @@ function MeetNowForm({ onClose, orgId, myId }: MeetNowModalProps) {
             }
           />
         </div>
-        <p className="mt-1.5 text-xs text-slate-400">
+        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
           They're notified straight away. You can also start a meeting from any
           chat with its Meet now button.
         </p>

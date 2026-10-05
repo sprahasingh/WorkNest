@@ -82,7 +82,7 @@ export async function reconcileSeats(
     ).setOptions({ skipTenant: true });
 
     const org = await Organization.findById(tenantId)
-      .select("seatsUsed")
+      .select("seatsUsed adminCount")
       .session(dbSession)
       .setOptions({ skipTenant: true })
       .lean();
@@ -106,10 +106,17 @@ export async function reconcileSeats(
     const memberCount = roles.reduce((sum, entry) => sum + entry.count, 0);
     const seatsUsed = memberCount + pendingInvites;
 
-    if (org && org.seatsUsed !== seatsUsed) {
+    // The admin count is what stops the last admin being removed, so it is
+    // repaired here along with the seat count.
+    const adminCount = roleCounts.admin;
+    if (
+      org &&
+      (org.seatsUsed !== seatsUsed ||
+        (org as { adminCount?: number }).adminCount !== adminCount)
+    ) {
       await Organization.updateOne(
         { _id: tenantId },
-        { $set: { seatsUsed } },
+        { $set: { seatsUsed, adminCount } },
         { session: dbSession },
       ).setOptions({ skipTenant: true });
     }

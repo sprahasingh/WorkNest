@@ -75,7 +75,7 @@ export function OnboardingTour({ role, onClose }: OnboardingTourProps) {
           <button
             type="button"
             onClick={finish}
-            className="text-sm font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
           >
             Skip
           </button>

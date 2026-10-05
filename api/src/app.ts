@@ -1,3 +1,4 @@
+import { scaled } from "./lib/rateLimit.js";
 import { billingRouter } from "./modules/billing/billing.routes.js";
 import { webhookController } from "./modules/billing/billing.controller.js";
 import express, { type Express } from "express";
@@ -40,7 +41,7 @@ export function createApp(): Express {
   const app = express();
 
   if (env.NODE_ENV === "production") {
-    app.set("trust proxy", 1);
+    app.set("trust proxy", env.TRUST_PROXY_HOPS);
   }
 
   app.use(helmet());
@@ -64,7 +65,7 @@ export function createApp(): Express {
 
   const healthLimiter = rateLimit({
     windowMs: 60 * 1000,
-    limit: 120,
+    limit: scaled(120),
     standardHeaders: true,
     legacyHeaders: false,
   });
@@ -73,13 +74,12 @@ export function createApp(): Express {
     res.status(dbConnected ? 200 : 503).json({
       status: dbConnected ? "ok" : "degraded",
       db: dbConnected ? "connected" : "disconnected",
-      uptime: process.uptime(),
     });
   });
 
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 300,
+    limit: scaled(300),
     standardHeaders: true,
     legacyHeaders: false,
     // Chat has its own, more generous limit below: it refreshes often and a
@@ -93,7 +93,7 @@ export function createApp(): Express {
 
   const chatLimiter = rateLimit({
     windowMs: 60 * 1000,
-    limit: 240,
+    limit: scaled(240),
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => req.auth?.userId ?? "anonymous",
@@ -104,7 +104,7 @@ export function createApp(): Express {
   // so they carry a short-lived signed token and are checked on every open.
   const fileLimiter = rateLimit({
     windowMs: 60 * 1000,
-    limit: 600,
+    limit: scaled(600),
     standardHeaders: true,
     legacyHeaders: false,
   });

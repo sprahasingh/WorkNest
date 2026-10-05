@@ -5,6 +5,7 @@ import { changePlan, getOrg, updateOrg, type UpdateOrgInput } from "./api";
 
 export const orgKeys = {
   detail: (orgId: string) => ["orgs", orgId, "detail"] as const,
+  billing: (orgId: string) => ["orgs", orgId, "billing"] as const,
 };
 
 export function useOrgDetails(orgId: string) {

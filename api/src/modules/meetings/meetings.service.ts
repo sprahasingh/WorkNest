@@ -1,3 +1,4 @@
+import { logger } from "../../lib/logger.js";
 import mongoose from "mongoose";
 import { Meeting } from "../../models/Meeting.js";
 import { Membership } from "../../models/Membership.js";
@@ -594,9 +595,16 @@ export async function respondToMeeting(
     throw new AppError(400, "VALIDATION_ERROR", "You're the organizer");
   }
   const previous = meeting.attendees.find((a) => String(a.userId) === me);
-  const targets = await occurrencesFrom(meeting, scope, {
+  const found = await occurrencesFrom(meeting, scope, {
     endsAt: { $gte: new Date() },
   });
+  // Replying to just one date ignores that filter, so a meeting that has
+  // already ended is left out here.
+  const now = new Date();
+  const targets = found.filter((target) => target.endsAt >= now);
+  if (targets.length === 0) {
+    throw new AppError(409, "MEETING_OVER", "This meeting has already ended");
+  }
   await Meeting.updateMany(
     { _id: { $in: targets.map((t) => t._id) }, "attendees.userId": me },
     {
@@ -773,7 +781,19 @@ export async function sendMeetingReminders(): Promise<void> {
           };
         });
       if (operations.length > 0) {
-        await Notification.bulkWrite(operations, { ordered: false });
+        try {
+          await Notification.bulkWrite(operations, { ordered: false });
+        } catch (error) {
+          // Another server sent the same reminder a moment ago (the unique
+          // key caught it): fine. Anything else is only logged, so one
+          // meeting can't stop the reminders for the rest.
+          if ((error as { code?: number }).code !== 11000) {
+            logger.error(
+              { err: error, meetingId: String(meeting._id) },
+              "Could not write meeting reminders",
+            );
+          }
+        }
       }
     }
   } finally {

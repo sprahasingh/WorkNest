@@ -135,7 +135,7 @@ export function AuditPage() {
                 <p className="text-sm text-slate-800 dark:text-slate-200">
                   {describeAuditEntry(entry, formatContext)}
                 </p>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {new Date(entry.createdAt).toLocaleString()}
                 </p>
               </Card>

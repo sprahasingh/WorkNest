@@ -40,7 +40,7 @@ export function TaskMeetings({ orgId, taskId, onSchedule }: TaskMeetingsProps) {
             {meeting.cancelledAt ? " · Cancelled" : ""}
           </span>
         </span>
-        <span aria-hidden="true" className="text-slate-400">
+        <span aria-hidden="true" className="text-slate-500 dark:text-slate-400">
           ›
         </span>
       </Link>
@@ -72,7 +72,7 @@ export function TaskMeetings({ orgId, taskId, onSchedule }: TaskMeetingsProps) {
       )}
       {(upcoming.data?.length ?? 0) > 0 && (
         <section aria-label="Upcoming meetings">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Upcoming
           </h3>
           <ul className="space-y-2">{upcoming.data!.map((m) => row(m))}</ul>
@@ -80,7 +80,7 @@ export function TaskMeetings({ orgId, taskId, onSchedule }: TaskMeetingsProps) {
       )}
       {(past.data?.length ?? 0) > 0 && (
         <section aria-label="Past meetings">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Past
           </h3>
           <ul className="space-y-2">

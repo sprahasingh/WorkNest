@@ -1,3 +1,4 @@
+import { PASSWORD_TOO_LONG, passwordFitsLimit } from "@/lib/passwordPolicy";
 import { useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCooldown } from "@/hooks/useCooldown";
@@ -315,7 +316,10 @@ const personalInformationSchema = z
       .min(2, "Name must be at least 2 characters")
       .max(100),
     currentPassword: z.string().optional(),
-    newPassword: z.string().max(72).optional(),
+    newPassword: z
+      .string()
+      .refine(passwordFitsLimit, PASSWORD_TOO_LONG)
+      .optional(),
     confirmNewPassword: z.string().optional(),
   })
   .superRefine((values, context) => {

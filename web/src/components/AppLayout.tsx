@@ -1,3 +1,5 @@
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { lockScroll } from "@/lib/scrollLock";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { useOrg } from "@/hooks/useOrg";
@@ -92,11 +94,13 @@ function WorkspaceSwitcher() {
           <span className="block truncate font-semibold text-slate-800 dark:text-slate-100">
             {orgName}
           </span>
-          <span className="block font-mono text-xs text-slate-400">{role}</span>
+          <span className="block font-mono text-xs text-slate-500 dark:text-slate-400">
+            {role}
+          </span>
         </span>
         <ChevronDownIcon
           className={cn(
-            "h-4 w-4 shrink-0 text-slate-400 transition-transform",
+            "h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400 transition-transform",
             open && "rotate-180",
           )}
         />
@@ -106,7 +110,7 @@ function WorkspaceSwitcher() {
         <div className="absolute left-2 right-2 top-full z-20 mt-1 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
           {otherMemberships.length > 0 && (
             <>
-              <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-slate-400">
+              <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Switch workspace
               </p>
               {otherMemberships.map((membership) => (
@@ -117,7 +121,7 @@ function WorkspaceSwitcher() {
                   className="block truncate px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   {membership.tenantId.name}
-                  <span className="ml-1.5 text-xs text-slate-400">
+                  <span className="ml-1.5 text-xs text-slate-500 dark:text-slate-400">
                     {membership.role}
                   </span>
                 </Link>
@@ -144,7 +148,7 @@ function WorkspaceSwitcher() {
           >
             {isLoggingOut && (
               <svg
-                className="h-3.5 w-3.5 animate-spin text-slate-400"
+                className="h-3.5 w-3.5 animate-spin text-slate-500 dark:text-slate-400"
                 viewBox="0 0 24 24"
                 fill="none"
                 aria-hidden="true"
@@ -300,6 +304,7 @@ function SidebarContent({
                 {item.label}
                 {item.badge ? (
                   <span
+                    role="img"
                     aria-label={`${item.badge} new`}
                     className={cn(
                       "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-bold",
@@ -353,12 +358,13 @@ export function AppLayout() {
     }
   };
 
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(drawerRef, mobileNavOpen, () => setMobileNavOpen(false));
+
   const overlayOpen = mobileNavOpen || notificationsOpen;
   useEffect(() => {
-    document.body.style.overflow = overlayOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
+    if (!overlayOpen) return;
+    return lockScroll();
   }, [overlayOpen]);
 
   return (
@@ -396,7 +402,7 @@ export function AppLayout() {
         </header>
 
         <div className="md:flex">
-          <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:sticky md:top-16 md:block md:h-[calc(100vh-4rem)]">
+          <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:sticky md:top-16 md:block md:h-[calc(100dvh-4rem)] md:overflow-y-auto">
             <SidebarContent onShowTour={() => setShowOnboarding(true)} />
           </aside>
 
@@ -411,7 +417,14 @@ export function AppLayout() {
               className="absolute inset-0 bg-black/40"
               onClick={() => setMobileNavOpen(false)}
             />
-            <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl dark:bg-slate-900">
+            <div
+              ref={drawerRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu"
+              tabIndex={-1}
+              className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl dark:bg-slate-900"
+            >
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
                 <span className="font-semibold text-slate-800 dark:text-slate-100">
                   Menu

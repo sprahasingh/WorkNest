@@ -4,9 +4,12 @@
   "type": "module",
   "description": "Browser tests for sign-up, sign-in and account screens",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.0",
+    "typescript": "^5.9.0",
+    "@types/node": "^24.0.0"
   }
 }
