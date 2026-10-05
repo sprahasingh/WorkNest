@@ -279,7 +279,18 @@ Each project also has a separate active-task limit. Done, archived, and binned t
 
 Pro and Premium are bought for one month or one year at a time through [Razorpay](https://razorpay.com). Nothing renews by itself, so you pay again to renew; renewing adds a period on top of the current end date. Going from Pro to Premium on the same period costs the difference and keeps the end date. The app is meant to run with Razorpay **test keys**, so you can try the whole flow with fake payments and no real money moves. Moving down a plan is free (it isn't refunded) and still blocked while usage is over the smaller plan's limits.
 
-When a paid plan ends, the workspace goes back to Free on the next request. If it then uses more than Free allows, it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before this change have no end date and are left alone.
+When a paid plan ends, the workspace goes back to Free on the next request and gets a 10 day grace period. Nothing is blocked during it: people keep working, and an orange banner says how many days are left, what is over the Free limits, and links to renewing.
+
+If the workspace is still over the Free limits when the 10 days are up, the extras are archived automatically (on the next request or in the 30 minute sweep, whichever comes first):
+
+- **Projects:** only projects that use a plan slot count. The 3 most recently active are kept and the rest are archived.
+- **Tasks:** in every project, the 10 most recently active open tasks are kept and the rest are archived.
+- **What "recently active" means:** the latest change to the project or task, or a comment or update on it. Ties are broken by id, so the same data always gives the same result.
+- **Nothing is deleted.** Archived projects and tasks keep their data and are marked as archived because of the plan. They can be restored from Archived once there is room: after renewing, or after freeing a slot. Restoring when the plan has no room is refused with the usual limit message.
+- **Seats** are not touched. People are never removed automatically, so a workspace with more than 5 members stays paused (read, delete, archive and pay only, as described below) until members are removed or a plan is bought.
+- Renewing clears the grace period and the notice.
+
+If the workspace is over the limits and has no grace period left (seats, as above), it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before plans expired have no end date and are left alone. A workspace whose plan ended before the grace period existed has none left, so its extras are archived the first time it is checked.
 
 How it works:
 

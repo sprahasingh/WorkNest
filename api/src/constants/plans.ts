@@ -94,3 +94,11 @@ export function quotePlan(
   }
   return { amount: full, expiresAt: addBillingPeriod(now, cycle) };
 }
+
+// After a paid plan ends, the workspace has this long to renew or cut its
+// usage before the extra projects and tasks are archived.
+export const GRACE_PERIOD_DAYS = 10;
+
+export function graceEndsAt(planExpiredAt: Date): Date {
+  return new Date(planExpiredAt.getTime() + GRACE_PERIOD_DAYS * 86_400_000);
+}

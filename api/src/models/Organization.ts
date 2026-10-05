@@ -14,6 +14,19 @@ const organizationSchema = new Schema(
     // Set when a paid plan ran out and the organization went back to Free, so
     // the app can tell people why. Cleared on the next upgrade.
     planExpiredAt: { type: Date, default: null },
+    // Set once the grace period after an expired plan is over and the extra
+    // projects and tasks were archived, with how many of each.
+    graceEnforcedAt: { type: Date, default: null },
+    graceArchived: {
+      type: new Schema(
+        {
+          projects: { type: Number, default: 0 },
+          tasks: { type: Number, default: 0 },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
     planExpiredFrom: { type: String, enum: PLANS, default: null },
     seatLimit: { type: Number, required: true, default: 5 },
     seatsUsed: { type: Number, required: true, default: 1 },

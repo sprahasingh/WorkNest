@@ -319,7 +319,10 @@ export async function updateProject(
   }
 }
 
-export async function archiveProject(projectId: string) {
+export async function archiveProject(
+  projectId: string,
+  options: { reason?: "plan_limit" } = {},
+) {
   const dbSession = await mongoose.startSession();
 
   try {
@@ -333,7 +336,7 @@ export async function archiveProject(projectId: string) {
       const wasActive = await projectConsumesSlot(before._id, dbSession);
       const updated = await Project.findByIdAndUpdate(
         projectId,
-        { archivedAt: new Date() },
+        { archivedAt: new Date(), archivedReason: options.reason ?? null },
         { new: true, session: dbSession },
       );
 
@@ -352,7 +355,7 @@ export async function archiveProject(projectId: string) {
           action: "project.archived",
           entityType: "Project",
           entityId: projectId,
-          metadata: {},
+          metadata: options.reason ? { reason: options.reason } : {},
         },
         dbSession,
       );
@@ -382,7 +385,7 @@ export async function unarchiveProject(projectId: string) {
       }
       const updated = await Project.findOneAndUpdate(
         { _id: projectId, archivedAt: { $ne: null } },
-        { archivedAt: null },
+        { archivedAt: null, archivedReason: null },
         { new: true, session: dbSession },
       );
 

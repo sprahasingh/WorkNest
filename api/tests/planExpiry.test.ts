@@ -3,12 +3,21 @@ import request from "supertest";
 import { createApp } from "../src/app.js";
 import { Organization } from "../src/models/Organization.js";
 import { expireDuePlans } from "../src/modules/billing/planLifecycle.js";
+import { getPlanUsage } from "../src/modules/billing/planLifecycle.js";
+import { runWithTenant } from "../src/tenancy/context.js";
 import { setupOrg } from "./orgHelpers.js";
 
 const app = createApp();
 app.set("trust proxy", 1);
 
+const DAY = 24 * 60 * 60 * 1000;
+
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+const usageOf = (orgId: string, userId: string) =>
+  runWithTenant({ tenantId: orgId, userId, role: "admin" }, () =>
+    getPlanUsage(orgId),
+  );
 
 async function makeProject(orgId: string, token: string, key: string) {
   return request(app)
@@ -78,41 +87,34 @@ describe("paid plan expiry", () => {
   });
 });
 
-describe("account locked while over the plan", () => {
-  it("blocks changes until the extra work is removed", async () => {
+describe("account paused while over the plan", () => {
+  it("blocks changes only once the grace period is over", async () => {
     const { orgId, admin } = await setupOrg(app, "lock1.test");
+    // Seats can't be archived away, so they are what keeps an account paused
+    // after the grace period.
     await Organization.updateOne(
       { _id: orgId },
-      { plan: "pro", seatLimit: 30, projectLimit: 25 },
+      {
+        plan: "free",
+        seatsUsed: 8,
+        planExpiredAt: new Date(Date.now() - DAY),
+        planExpiredFrom: "pro",
+      },
     );
-    const ids: string[] = [];
-    for (const key of ["AAA", "BBB", "CCC", "DDD"]) {
-      const created = await makeProject(orgId, admin.token, key);
-      expect(created.status).toBe(201);
-      ids.push(created.body.project._id as string);
-    }
+
+    // Inside the grace period nothing is blocked.
+    const during = await makeProject(orgId, admin.token, "AAA");
+    expect(during.status).toBe(201);
+    expect((await usageOf(orgId, admin.id)).inGrace).toBe(true);
+    expect((await usageOf(orgId, admin.id)).paused).toBe(false);
 
     await Organization.updateOne(
       { _id: orgId },
-      { planExpiresAt: new Date(Date.now() - 1000) },
+      { planExpiredAt: new Date(Date.now() - 11 * DAY) },
     );
-
-    const org = await request(app)
-      .get(`/api/orgs/${orgId}`)
-      .set(auth(admin.token));
-    expect(org.body.organization.plan).toBe("free");
-    expect(org.body.usage.overLimit).toBe(true);
-    expect(org.body.usage.projectCount).toBe(4);
-
-    const blocked = await makeProject(orgId, admin.token, "EEE");
+    const blocked = await makeProject(orgId, admin.token, "BBB");
     expect(blocked.status).toBe(403);
     expect(blocked.body.error.code).toBe("PLAN_OVER_LIMIT");
-
-    const edit = await request(app)
-      .patch(`/api/orgs/${orgId}/projects/${ids[0]}`)
-      .set(auth(admin.token))
-      .send({ name: "Renamed" });
-    expect(edit.status).toBe(403);
 
     // Reading still works, so people can see what to remove.
     const list = await request(app)
@@ -120,27 +122,8 @@ describe("account locked while over the plan", () => {
       .set(auth(admin.token));
     expect(list.status).toBe(200);
 
-    // Archiving the extra project gets the account back under the plan.
-    const archived = await request(app)
-      .post(`/api/orgs/${orgId}/projects/${ids[3]}/archive`)
-      .set(auth(admin.token));
-    expect(archived.status).toBe(200);
-
-    const after = await request(app)
-      .get(`/api/orgs/${orgId}`)
-      .set(auth(admin.token));
-    expect(after.body.usage.overLimit).toBe(false);
-    // Under the limit is not the same as having room: Free allows 3 active
-    // projects and 3 are still open, so a new one waits for a free slot.
-    const full = await makeProject(orgId, admin.token, "EEE");
-    expect(full.status).toBe(409);
-    expect(full.body.error.code).toBe("PROJECT_LIMIT_REACHED");
-
-    const archivedAgain = await request(app)
-      .post(`/api/orgs/${orgId}/projects/${ids[2]}/archive`)
-      .set(auth(admin.token));
-    expect(archivedAgain.status).toBe(200);
-    const ok = await makeProject(orgId, admin.token, "EEE");
+    await Organization.updateOne({ _id: orgId }, { seatsUsed: 3 });
+    const ok = await makeProject(orgId, admin.token, "BBB");
     expect(ok.status).toBe(201);
   });
 });

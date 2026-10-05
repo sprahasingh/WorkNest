@@ -28,6 +28,9 @@ const taskSchema = new Schema(
     reminderCycle: { type: Number, default: 0 },
     completedAt: { type: Date, default: null },
     archivedAt: { type: Date, default: null },
+    // Why it was archived when the app did it ("plan_limit": the workspace
+    // went over its plan after the paid plan ended); null when a person did.
+    archivedReason: { type: String, enum: ["plan_limit"], default: null },
     deletedAt: { type: Date, default: null },
     deletedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },

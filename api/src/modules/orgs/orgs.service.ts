@@ -311,7 +311,12 @@ export async function changePlan(
           // A fresh plan change replaces the "your plan expired" notice.
           ...(newPlan === "free"
             ? {}
-            : { planExpiredAt: null, planExpiredFrom: null }),
+            : {
+                planExpiredAt: null,
+                planExpiredFrom: null,
+                graceEnforcedAt: null,
+                graceArchived: null,
+              }),
         },
         { returnDocument: "after", session: dbSession },
       ).setOptions({ skipTenant: true });
