@@ -254,6 +254,32 @@ describe("during the grace period, usage can't grow past Free", () => {
       .set(auth(token))
       .send({ status: value });
 
+  it("does not count completed tasks as active task usage", async () => {
+    const { orgId, admin } = await proOrg("grace-completed-count.test");
+    const projectId = await project(orgId, admin.token, "AAA");
+    const taskIds: string[] = [];
+    for (let n = 0; n < 11; n += 1) {
+      taskIds.push(await task(orgId, admin.token, projectId, n));
+    }
+    const completed = await status(orgId, admin.token, taskIds[0]!, "done");
+    expect(completed.status).toBe(200);
+    await expireAgo(orgId, 5);
+
+    const org = await request(app)
+      .get(`/api/orgs/${orgId}`)
+      .set(auth(admin.token));
+    expect(org.body.usage.projectsOverTaskLimit).toBe(0);
+    expect(org.body.usage.taskLimitOverages).toEqual([]);
+    expect(org.body.usage.overLimit).toBe(false);
+
+    const over = await request(app)
+      .post(`/api/orgs/${orgId}/projects/${projectId}/tasks`)
+      .set(auth(admin.token))
+      .send({ title: "Would exceed the open-task limit" });
+    expect(over.status).toBe(400);
+    expect(over.body.error.code).toBe("TASK_LIMIT_REACHED");
+  });
+
   it("blocks new projects at the limit but keeps edit, archive and delete", async () => {
     const { orgId, admin } = await proOrg("grace5.test");
     const ids: string[] = [];
@@ -269,6 +295,7 @@ describe("during the grace period, usage can't grow past Free", () => {
     // Over the Free limits, so nothing new can be added at all.
     expect(blocked.status).toBe(403);
     expect(blocked.body.error.code).toBe("PLAN_GRACE_RESTRICTED");
+    expect(blocked.body.error.message).toContain("project limit");
 
     const rename = await request(app)
       .patch(`/api/orgs/${orgId}/projects/${ids[0]}`)

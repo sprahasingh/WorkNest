@@ -8,6 +8,12 @@ export interface PlanUsage {
   projectCount: number;
   projectLimit: number;
   projectsOverTaskLimit: number;
+  taskLimitOverages: {
+    projectId: string;
+    projectName: string;
+    activeCount: number;
+    limit: number;
+  }[];
   activeTaskLimit: number | null;
   overLimit: boolean;
   // After a paid plan ends there is a grace period to renew or cut usage;

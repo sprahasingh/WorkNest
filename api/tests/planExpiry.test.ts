@@ -119,6 +119,7 @@ describe("account paused while over the plan", () => {
     const blocked = await makeProject(orgId, admin.token, "BBB");
     expect(blocked.status).toBe(403);
     expect(blocked.body.error.code).toBe("PLAN_OVER_LIMIT");
+    expect(blocked.body.error.message).toContain("Seat limit");
 
     // Reading still works, so people can see what to remove.
     const list = await request(app)
