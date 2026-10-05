@@ -14,6 +14,7 @@ import {
   registrationStatusSchema,
   requestPasswordResetSchema,
   resetPasswordSchema,
+  markOnboardingSeenSchema,
 } from "./auth.schemas.js";
 import {
   registerController,
@@ -165,7 +166,12 @@ router.delete(
   authenticate,
   cancelEmailChangeController,
 );
-router.post("/me/onboarding", authenticate, markOnboardingSeenController);
+router.post(
+  "/me/onboarding",
+  authenticate,
+  validate({ body: markOnboardingSeenSchema }),
+  markOnboardingSeenController,
+);
 router.get("/me/sessions", authenticate, listSessionsController);
 router.delete(
   "/me/sessions",

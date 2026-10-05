@@ -33,7 +33,7 @@
           "id": "first-tour",
           "file": "03-first-tour",
           "title": "The first-run tour",
-          "caption": "A short tour on first sign-in. Show the tour in the sidebar opens it again",
+          "caption": "A role-aware tour when you first enter an organization. Show the tour in the sidebar opens it again",
           "alt": "The welcome tour card over the dashboard"
         }
       ]

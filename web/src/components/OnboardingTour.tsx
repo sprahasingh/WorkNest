@@ -7,90 +7,207 @@ import type { Role } from "@/api/auth";
 interface Step {
   title: string;
   description: string;
-  // Steps about pages only some roles can open are left out for everyone else.
-  roles?: Role[];
+  action?: { label: string; to: string };
 }
-
-const STEPS: Step[] = [
-  {
-    title: "Welcome to WorkNest",
-    description:
-      "Projects, chat and meetings for your team in one place. Here is a quick look at where things are, so you're not guessing where to start.",
-  },
-  {
-    title: "Projects and tasks",
-    description:
-      "A project holds the tasks for one piece of work. Each task has a priority, a due date and one or more people on it. Admins and managers create projects, and everyone updates the tasks they are on.",
-  },
-  {
-    title: "Ask for and share updates",
-    description:
-      "Managers can ask for an update on a task or a whole project. People reply right on the task, and everyone involved gets a notification.",
-  },
-  {
-    title: "Messages",
-    description:
-      "Message anyone in your organization, or start a group. Chats are private to the people in them. Reply, react, mention people and share files, and press and hold a message for more options.",
-  },
-  {
-    title: "Meetings",
-    description:
-      "Schedule a meeting with a join link and an agenda. Invitees reply Accept, Maybe or Decline, and everyone gets a reminder before it starts.",
-  },
-  {
-    title: "People and roles",
-    description:
-      "Every person is an Admin, a Manager or a Member. Admins look after people, plans and settings, managers run projects and tasks, and members work on their own tasks.",
-  },
-  {
-    title: "Dashboard and audit log",
-    description:
-      "The dashboard shows how tasks and projects are doing over any period you choose. Admins can also open the audit log to see who changed what, and when.",
-    roles: ["admin", "manager"],
-  },
-];
 
 interface OnboardingTourProps {
   role: Role;
+  orgId: string;
+  orgName: string;
   onClose: () => void;
 }
 
-export function OnboardingTour({ role, onClose }: OnboardingTourProps) {
-  const steps = STEPS.filter(
-    (item) => !item.roles || item.roles.includes(role),
-  );
+const roleName: Record<Role, string> = {
+  admin: "Admin",
+  manager: "Manager",
+  member: "Member",
+};
+
+function stepsFor(role: Role, orgId: string, orgName: string): Step[] {
+  const path = (page: string) => `/orgs/${orgId}/${page}`;
+  const welcome: Step = {
+    title: `Welcome to ${orgName}`,
+    description: `You’re joining as an ${roleName[role]}. This quick tour covers what you can do in this organization and where to find it. You can replay it any time from the sidebar.`,
+  };
+  const shared: Record<string, Step> = {
+    messages: {
+      title: "Messages",
+      description:
+        "Chat one-to-one or in groups, reply, react, mention teammates and share files. Chat history follows the organization’s retention setting; admins choose the limit.",
+      action: { label: "Open Messages", to: path("messages") },
+    },
+    meetings: {
+      title: "Meetings",
+      description:
+        "Schedule a meeting with an agenda and join link, or respond to an invitation with Accept, Maybe or Decline. You’ll get reminders before it starts.",
+      action: { label: "Open Meetings", to: path("meetings") },
+    },
+  };
+
+  if (role === "admin") {
+    return [
+      welcome,
+      {
+        title: "Your dashboard",
+        description:
+          "Switch between Tasks and Projects to see workload, progress and what needs attention. Choose a date range to understand how work is changing.",
+        action: { label: "Open dashboard", to: path("dashboard") },
+      },
+      {
+        title: "Projects and tasks",
+        description:
+          "Create projects, organize work into tasks, set priorities and due dates, and assign teammates. Use project progress to see how work is moving.",
+        action: { label: "Open Projects", to: path("projects") },
+      },
+      {
+        title: "Keep work moving",
+        description:
+          "Ask for task updates, follow replies and comments, and use notifications to spot changes. Managers can do this too; members update the tasks they work on.",
+        action: { label: "View projects", to: path("projects") },
+      },
+      shared.messages,
+      shared.meetings,
+      {
+        title: "People and access",
+        description:
+          "Invite teammates as Admins, Managers or Members. You can review access, change roles and manage the team here.",
+        action: { label: "Manage people", to: path("members") },
+      },
+      {
+        title: "Organization settings",
+        description:
+          "Change the organization name and time zone, set chat-history retention and manage the plan. Organization changes ask you to confirm your current password.",
+        action: { label: "Open settings", to: path("settings") },
+      },
+      {
+        title: "Review organization activity",
+        description:
+          "The audit log records important changes, so you can see who changed what and when.",
+        action: { label: "Open audit log", to: path("audit") },
+      },
+    ];
+  }
+
+  if (role === "manager") {
+    return [
+      welcome,
+      {
+        title: "Your dashboard",
+        description:
+          "Use the Tasks and Projects views to review workload, project progress and overdue work. Change the date range to see recent activity.",
+        action: { label: "Open dashboard", to: path("dashboard") },
+      },
+      {
+        title: "Organize projects and tasks",
+        description:
+          "Create projects and tasks, set priorities and due dates, and assign work across the team. Project progress shows how much work is done.",
+        action: { label: "Open Projects", to: path("projects") },
+      },
+      {
+        title: "Ask for updates",
+        description:
+          "Request updates on tasks or projects, then follow replies and comments in context. Notifications help you see what changed.",
+        action: { label: "View projects", to: path("projects") },
+      },
+      shared.messages,
+      shared.meetings,
+      {
+        title: "Find your teammates",
+        description:
+          "View the organization’s members and their roles. Organization settings, invitations and billing are managed by an admin.",
+        action: { label: "View people", to: path("members") },
+      },
+    ];
+  }
+
+  return [
+    welcome,
+    {
+      title: "Find your work",
+      description:
+        "Open Projects to find tasks assigned to you. Check priorities and due dates, update your task status as you work, and leave comments for the team.",
+      action: { label: "Open Projects", to: path("projects") },
+    },
+    {
+      title: "Share progress",
+      description:
+        "When a manager asks for an update, reply on the task so the people following the work can see the latest. You can also comment or mention a teammate.",
+      action: { label: "View tasks", to: path("projects") },
+    },
+    shared.messages,
+    shared.meetings,
+    {
+      title: "Your organization",
+      description:
+        "See who is in the organization and check your personal settings. An admin manages organization details, chat-history retention and plans.",
+      action: { label: "View people", to: path("members") },
+    },
+  ];
+}
+
+export function OnboardingTour({
+  role,
+  orgId,
+  orgName,
+  onClose,
+}: OnboardingTourProps) {
+  const steps = stepsFor(role, orgId, orgName);
   const [stepIndex, setStepIndex] = useState(0);
   const isLastStep = stepIndex === steps.length - 1;
   const step = steps[stepIndex]!;
 
-  const finish = onClose;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="onboarding-title"
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800"
+      >
         <div className="flex items-start justify-between">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">
-            W
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">
+              W
+            </span>
+            <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 dark:bg-teal-900/40 dark:text-teal-200">
+              {roleName[role]}
+            </span>
+          </div>
           <button
             type="button"
-            onClick={finish}
-            className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            onClick={onClose}
+            className="text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
           >
-            Skip
+            Skip tour
           </button>
         </div>
 
-        <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-50">
+        <p className="mt-5 text-xs font-medium text-slate-500 dark:text-slate-400">
+          Step {stepIndex + 1} of {steps.length} · {orgName}
+        </p>
+        <h2
+          id="onboarding-title"
+          className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50"
+        >
           {step.title}
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           {step.description}
         </p>
 
+        {step.action && (
+          <Link
+            to={step.action.to}
+            onClick={onClose}
+            className="mt-4 inline-flex text-sm font-semibold text-teal-700 hover:underline dark:text-teal-400"
+          >
+            {step.action.label} →
+          </Link>
+        )}
+
         {isLastStep && (
           <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-            Want the full picture? See the{" "}
+            Need more detail? Open the{" "}
             <Link
               to="/how-to-use"
               target="_blank"
@@ -102,13 +219,13 @@ export function OnboardingTour({ role, onClose }: OnboardingTourProps) {
           </p>
         )}
 
-        <div className="mt-6 flex items-center justify-between">
-          <div className="flex gap-1.5">
-            {steps.map((s, index) => (
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 gap-1.5" aria-hidden="true">
+            {steps.map((item, index) => (
               <span
-                key={s.title}
+                key={item.title}
                 className={cn(
-                  "h-1.5 w-4 rounded-full transition-colors sm:w-6",
+                  "h-1.5 w-3 rounded-full transition-colors sm:w-4",
                   index === stepIndex
                     ? "bg-teal-600"
                     : "bg-slate-200 dark:bg-slate-700",
@@ -122,7 +239,7 @@ export function OnboardingTour({ role, onClose }: OnboardingTourProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setStepIndex((i) => i - 1)}
+                onClick={() => setStepIndex((index) => index - 1)}
               >
                 Back
               </Button>
@@ -130,14 +247,14 @@ export function OnboardingTour({ role, onClose }: OnboardingTourProps) {
             <Button
               size="sm"
               onClick={() =>
-                isLastStep ? finish() : setStepIndex((i) => i + 1)
+                isLastStep ? onClose() : setStepIndex((index) => index + 1)
               }
             >
-              {isLastStep ? "Get started" : "Next"}
+              {isLastStep ? "Finish" : "Next"}
             </Button>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

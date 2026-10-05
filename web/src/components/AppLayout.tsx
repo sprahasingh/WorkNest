@@ -335,7 +335,7 @@ function SidebarContent({
 }
 
 export function AppLayout() {
-  const { role } = useOrg();
+  const { role, orgId, orgName } = useOrg();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const closeNotifications = useCallback(() => setNotificationsOpen(false), []);
@@ -343,17 +343,26 @@ export function AppLayout() {
     setMobileNavOpen(false);
     setNotificationsOpen(true);
   };
-  // The first-run tour is remembered on the account, so it shows once per
-  // person on any device. "Show the tour" in the sidebar opens it again.
-  const { user, updateCurrentUser } = useAuth();
-  const [showOnboarding, setShowOnboarding] = useState(
-    () => user !== null && !user.onboardingSeenAt,
+  // Remember the tour for each person, org and role. "Show the tour" can
+  // always replay it from the sidebar.
+  const { user, memberships, refreshMemberships } = useAuth();
+  const currentMembership = memberships?.find(
+    (membership) => membership.tenantId.id === orgId,
   );
+  const hasSeenRoleTour = currentMembership?.onboardingSeenForRole === role;
+  const [manualTourOpen, setManualTourOpen] = useState(false);
+  const [dismissedTourKey, setDismissedTourKey] = useState<string | null>(null);
+  const tourKey = `${orgId}:${role}`;
+  const showOnboarding =
+    manualTourOpen ||
+    (!!currentMembership && !hasSeenRoleTour && dismissedTourKey !== tourKey);
+
   const closeOnboarding = () => {
-    setShowOnboarding(false);
-    if (user && !user.onboardingSeenAt) {
-      markOnboardingSeen()
-        .then(updateCurrentUser)
+    setManualTourOpen(false);
+    setDismissedTourKey(tourKey);
+    if (user && currentMembership && !hasSeenRoleTour) {
+      markOnboardingSeen(orgId)
+        .then(refreshMemberships)
         // If this fails the tour simply appears once more next time.
         .catch(() => undefined);
     }
@@ -404,7 +413,7 @@ export function AppLayout() {
 
         <div className="md:flex">
           <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:sticky md:top-16 md:block md:h-[calc(100dvh-4rem)] md:overflow-y-auto">
-            <SidebarContent onShowTour={() => setShowOnboarding(true)} />
+            <SidebarContent onShowTour={() => setManualTourOpen(true)} />
           </aside>
 
           <main className="min-w-0 flex-1">
@@ -458,7 +467,7 @@ export function AppLayout() {
                   onNavigate={() => setMobileNavOpen(false)}
                   onShowTour={() => {
                     setMobileNavOpen(false);
-                    setShowOnboarding(true);
+                    setManualTourOpen(true);
                   }}
                 />
               </div>
@@ -472,7 +481,13 @@ export function AppLayout() {
         />
 
         {showOnboarding && (
-          <OnboardingTour role={role} onClose={closeOnboarding} />
+          <OnboardingTour
+            key={`${orgId}:${role}`}
+            role={role}
+            orgId={orgId}
+            orgName={orgName}
+            onClose={closeOnboarding}
+          />
         )}
       </div>
     </ChatRealtimeProvider>

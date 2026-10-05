@@ -130,3 +130,14 @@ export const resetPasswordSchema = z
   .strict();
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const markOnboardingSeenSchema = z
+  .object({
+    tenantId: z
+      .string()
+      .regex(/^[a-f\d]{24}$/i)
+      .optional(),
+  })
+  .strict();
+
+export type MarkOnboardingSeenInput = z.infer<typeof markOnboardingSeenSchema>;
