@@ -44,4 +44,10 @@ export const listProjectsQuerySchema = z
   })
   .strict();
 
+export const restorePlanArchivedSchema = z
+  .object({
+    projectIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).max(500),
+  })
+  .strict();
+
 export type ListProjectsQuery = z.infer<typeof listProjectsQuerySchema>;

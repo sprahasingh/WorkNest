@@ -9,12 +9,22 @@ import {
   moveProjectToBin,
   restoreProject,
   deleteProjectPermanently,
+  restorePlanArchivedProjects,
 } from "./projects.service.js";
 import type {
   CreateProjectInput,
   UpdateProjectInput,
   ListProjectsQuery,
 } from "./projects.schemas.js";
+
+export async function restorePlanArchivedProjectsController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as { projectIds: string[] };
+  const projects = await restorePlanArchivedProjects(input.projectIds);
+  res.status(200).json({ projects });
+}
 
 export async function createProjectController(
   req: Request,

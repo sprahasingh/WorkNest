@@ -443,6 +443,75 @@ export async function unarchiveProject(projectId: string) {
   }
 }
 
+// Restores only projects archived by grace enforcement, in caller-selected
+// order, stopping when the upgraded plan has no remaining project capacity.
+export async function restorePlanArchivedProjects(projectIds: string[]) {
+  const tenantId = requireTenantId();
+  const dbSession = await mongoose.startSession();
+  try {
+    const restored: unknown[] = [];
+    await dbSession.withTransaction(async () => {
+      const org = await Organization.findById(tenantId)
+        .select("plan projectCount")
+        .session(dbSession)
+        .setOptions({ skipTenant: true })
+        .lean();
+      if (!org) throw new AppError(404, "NOT_FOUND", "Organization not found");
+      const limits = PLAN_LIMITS[org.plan as Plan];
+      const room = Math.max(0, limits.projectLimit - org.projectCount);
+      const candidates = await Project.find({
+        _id: { $in: projectIds },
+        archivedAt: { $ne: null },
+        archivedReason: "plan_limit",
+        deletedAt: null,
+      }).session(dbSession);
+      const ordered = new Map(candidates.map((p) => [String(p._id), p]));
+      const selected = projectIds
+        .map((id) => ordered.get(id))
+        .filter(Boolean) as typeof candidates;
+      const taskLimit = limits.activeTaskLimit;
+      let restoredCount = 0;
+      for (const p of selected) {
+        if (restoredCount >= room) break;
+        if (taskLimit !== null) {
+          const count = await Task.countDocuments({
+            projectId: p._id,
+            status: { $ne: "done" },
+            archivedAt: null,
+            deletedAt: null,
+          }).session(dbSession);
+          if (count > taskLimit) continue;
+        }
+        const updated = await Project.findOneAndUpdate(
+          {
+            _id: p._id,
+            archivedAt: { $ne: null },
+            archivedReason: "plan_limit",
+          },
+          { archivedAt: null, archivedReason: null },
+          { new: true, session: dbSession },
+        );
+        if (!updated) continue;
+        await syncProjectSlot(tenantId, updated._id, false, dbSession);
+        await recordAudit(
+          {
+            action: "project.unarchived",
+            entityType: "Project",
+            entityId: updated._id,
+            metadata: { name: updated.name, reason: "plan_upgrade_restore" },
+          },
+          dbSession,
+        );
+        restored.push(updated);
+        restoredCount += 1;
+      }
+    });
+    return restored;
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
 // Deleting moves a project to the bin: it disappears everywhere but can be
 // restored for BIN_RETENTION_DAYS. Its slot is freed straight away.
 export async function moveProjectToBin(projectId: string) {

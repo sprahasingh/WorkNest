@@ -126,6 +126,17 @@ export async function unarchiveProject(
   return response.data.project;
 }
 
+export async function restorePlanArchivedProjects(
+  orgId: string,
+  projectIds: string[],
+): Promise<Project[]> {
+  const response = await apiClient.post<{ projects: Project[] }>(
+    `/orgs/${orgId}/projects/restore-plan-archived`,
+    { projectIds },
+  );
+  return response.data.projects;
+}
+
 // Moves the project to the bin, where it can be restored for 30 days.
 export async function deleteProject(
   orgId: string,

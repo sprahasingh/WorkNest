@@ -66,6 +66,40 @@ const expireAgo = (orgId: string, days: number) =>
   );
 
 describe("grace period after a plan expires", () => {
+  it("restores only selected plan-archived projects within upgraded capacity", async () => {
+    const { orgId, admin } = await proOrg("restore-selection.test");
+    const firstId = await project(orgId, admin.token, "RST");
+    const secondId = await project(orgId, admin.token, "RSU");
+    await Project.updateMany(
+      { _id: { $in: [firstId, secondId] } },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    const manualId = await project(orgId, admin.token, "RSV");
+    await Project.updateOne(
+      { _id: manualId },
+      { archivedAt: new Date(), archivedReason: null },
+    ).setOptions({ skipTenant: true });
+    const response = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [firstId] });
+    expect(response.status).toBe(200);
+    expect(response.body.projects).toHaveLength(1);
+    const states = await Project.find({
+      _id: { $in: [firstId, secondId, manualId] },
+    })
+      .setOptions({ skipTenant: true })
+      .lean();
+    expect(
+      states.find((p) => String(p._id) === firstId)?.archivedAt,
+    ).toBeNull();
+    expect(
+      states.find((p) => String(p._id) === secondId)?.archivedAt,
+    ).not.toBeNull();
+    expect(
+      states.find((p) => String(p._id) === manualId)?.archivedAt,
+    ).not.toBeNull();
+  });
   it("keeps everything for 10 days, and the account stays usable", async () => {
     const { orgId, admin } = await proOrg("grace1.test");
     const ids: string[] = [];
