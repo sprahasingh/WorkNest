@@ -1,4 +1,8 @@
 import { useState } from "react";
+import {
+  useAccountPaused,
+  PAUSED_HINT,
+} from "@/features/billing/useAccountPaused";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -46,6 +50,7 @@ export function InvitesPanel() {
   const { orgId } = useOrg();
   const navigate = useNavigate();
   const canManage = useCan("invite:manage");
+  const paused = useAccountPaused();
 
   const [formError, setFormError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<RevealedInvite | null>(null);
@@ -223,8 +228,9 @@ export function InvitesPanel() {
 
             <Button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || paused}
               loading={isSubmitting}
+              title={paused ? PAUSED_HINT : undefined}
             >
               {isSubmitting ? "Sending…" : "Send invite"}
             </Button>

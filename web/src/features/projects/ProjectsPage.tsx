@@ -1,4 +1,8 @@
 import { useState } from "react";
+import {
+  useAccountPaused,
+  PAUSED_HINT,
+} from "@/features/billing/useAccountPaused";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -88,6 +92,7 @@ function daysUntil(iso: string): number {
 
 export function ProjectsPage() {
   const { orgId } = useOrg();
+  const paused = useAccountPaused();
   const navigate = useNavigate();
   const canWrite = useCan("project:write");
 
@@ -333,7 +338,15 @@ export function ProjectsPage() {
               </p>
             )}
           </div>
-          {canWrite && <Button onClick={openCreateModal}>New project</Button>}
+          {canWrite && (
+            <Button
+              onClick={openCreateModal}
+              disabled={paused}
+              title={paused ? PAUSED_HINT : undefined}
+            >
+              New project
+            </Button>
+          )}
         </div>
 
         <ViewTabs
@@ -656,6 +669,7 @@ export function ProjectsPage() {
             <Button
               type="submit"
               disabled={
+                paused ||
                 isSubmitting ||
                 createProject.isPending ||
                 updateProject.isPending

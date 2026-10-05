@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  useAccountPaused,
+  PAUSED_HINT,
+} from "@/features/billing/useAccountPaused";
 import { useSearchParams } from "react-router";
 import { useAuth } from "@/auth/auth-context";
 import { useOrg } from "@/hooks/useOrg";
@@ -48,6 +52,7 @@ function groupByDay(meetings: Meeting[]): [string, Meeting[]][] {
 
 export function MeetingsPage() {
   const { orgId } = useOrg();
+  const paused = useAccountPaused();
   const { user } = useAuth();
   const myId = user!.id;
   const now = useNow();
@@ -186,7 +191,11 @@ export function MeetingsPage() {
             </svg>
             Meet now
           </Button>
-          <Button onClick={() => startScheduling(selectedDay)}>
+          <Button
+            onClick={() => startScheduling(selectedDay)}
+            disabled={paused}
+            title={paused ? PAUSED_HINT : undefined}
+          >
             <svg
               viewBox="0 0 24 24"
               fill="none"

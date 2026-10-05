@@ -7,6 +7,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
 } from "react";
+import { useAccountPaused } from "@/features/billing/useAccountPaused";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { parseApiError } from "@/lib/apiError";
@@ -68,6 +69,7 @@ export function Composer({
   onTyping,
   onSend,
 }: ComposerProps) {
+  const paused = useAccountPaused();
   const [text, setText] = useState(() => drafts.get(conversationId) ?? "");
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -137,6 +139,7 @@ export function Composer({
   const ready = uploads.filter((upload) => upload.status === "done");
   const canSend =
     !disabledReason &&
+    !paused &&
     !uploading &&
     !hasFailed &&
     (text.trim().length > 0 || ready.length > 0);

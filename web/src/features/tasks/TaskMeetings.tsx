@@ -1,4 +1,8 @@
 import { Link } from "react-router";
+import {
+  useAccountPaused,
+  PAUSED_HINT,
+} from "@/features/billing/useAccountPaused";
 import { Button } from "@/components/ui/Button";
 import { useMeetings } from "@/features/meetings/queries";
 import { formatTimeRange, dayHeading } from "@/features/meetings/meetingUtils";
@@ -12,6 +16,7 @@ interface TaskMeetingsProps {
 // Meetings linked to this task. Each person only sees the ones they were
 // invited to, so the list can differ from one person to the next.
 export function TaskMeetings({ orgId, taskId, onSchedule }: TaskMeetingsProps) {
+  const paused = useAccountPaused();
   const upcoming = useMeetings(orgId, "upcoming", { taskId });
   const past = useMeetings(orgId, "past", { taskId });
 
@@ -59,7 +64,12 @@ export function TaskMeetings({ orgId, taskId, onSchedule }: TaskMeetingsProps) {
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Meetings about this task. You see the ones you're invited to.
         </p>
-        <Button size="sm" onClick={onSchedule}>
+        <Button
+          size="sm"
+          onClick={onSchedule}
+          disabled={paused}
+          title={paused ? PAUSED_HINT : undefined}
+        >
           Schedule meeting
         </Button>
       </div>

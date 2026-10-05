@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useAccountPaused } from "@/features/billing/useAccountPaused";
 import { toast } from "sonner";
 import { Modal } from "@/components/Modal";
 import { MemberPicker } from "@/components/MemberPicker";
@@ -74,6 +75,7 @@ function MeetingForm({
   preset,
   onSaved,
 }: MeetingFormModalProps) {
+  const paused = useAccountPaused();
   const defaults = useMemo(() => {
     if (meeting) {
       const start = new Date(meeting.startsAt);
@@ -617,7 +619,7 @@ function MeetingForm({
         <Button type="button" variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" loading={saving}>
+        <Button type="submit" loading={saving} disabled={paused}>
           {meeting ? "Save changes" : "Schedule meeting"}
         </Button>
       </div>
