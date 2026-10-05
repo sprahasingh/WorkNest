@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
   useAccountPaused,
+  useGrowthBlocked,
+  GROWTH_BLOCKED_HINT,
   PAUSED_HINT,
 } from "@/features/billing/useAccountPaused";
 import { useForm } from "react-hook-form";
@@ -51,6 +53,7 @@ export function InvitesPanel() {
   const navigate = useNavigate();
   const canManage = useCan("invite:manage");
   const paused = useAccountPaused();
+  const growthBlocked = useGrowthBlocked();
 
   const [formError, setFormError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<RevealedInvite | null>(null);
@@ -228,9 +231,15 @@ export function InvitesPanel() {
 
             <Button
               type="submit"
-              disabled={isSubmitting || paused}
+              disabled={isSubmitting || paused || growthBlocked}
               loading={isSubmitting}
-              title={paused ? PAUSED_HINT : undefined}
+              title={
+                paused
+                  ? PAUSED_HINT
+                  : growthBlocked
+                    ? GROWTH_BLOCKED_HINT
+                    : undefined
+              }
             >
               {isSubmitting ? "Sending…" : "Send invite"}
             </Button>

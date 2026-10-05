@@ -14,6 +14,13 @@ export interface PlanUsage {
   // graceEndsAt is when the extras get archived.
   inGrace: boolean;
   graceEndsAt: string | null;
+  // The grace period is over and the extras have been archived.
+  graceEnforced: boolean;
+  // Over on projects or tasks (not seats).
+  workOverLimit: boolean;
+  // Over the plan during the grace period, or until the archiving that ends
+  // it is done: nothing new can be added, but everything else works.
+  restricted: boolean;
   // Over the plan with no grace left: changes are refused.
   paused: boolean;
 }

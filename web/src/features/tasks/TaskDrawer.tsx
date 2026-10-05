@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useAccountPaused } from "@/features/billing/useAccountPaused";
+import {
+  useAccountPaused,
+  useGrowthBlocked,
+} from "@/features/billing/useAccountPaused";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -90,6 +93,7 @@ export function TaskDrawer({
   const userId = user?.id ?? "";
   const { data: organization } = useOrgDetails(orgId);
   const paused = useAccountPaused();
+  const growthBlocked = useGrowthBlocked();
   const timeZone = organization?.timeZone ?? "UTC";
   const canAssign = useCan("task:assign");
   const canDelete = useCan("task:delete");
@@ -144,7 +148,9 @@ export function TaskDrawer({
     !isArchived &&
     !isBinned &&
     (canUpdateAny || (canUpdateOwn && isAssignee));
-  const showArchive = isCompleted && !isArchived && !isBinned && canDelete;
+  // Open tasks can be archived too, which is how a workspace over its plan
+  // brings its usage down without losing work.
+  const showArchive = isEditing && !isArchived && !isBinned && canDelete;
   const showUnarchive = isArchived && !isBinned && canDelete;
   const showRestore = isBinned && canDelete;
   const showDelete = isEditing && canDelete && !isBinned;
@@ -743,7 +749,9 @@ export function TaskDrawer({
                 {canEdit && (
                   <Button
                     type="submit"
-                    disabled={isSubmitting || paused}
+                    disabled={
+                      isSubmitting || paused || (!isEditing && growthBlocked)
+                    }
                     loading={isSubmitting}
                     className="order-1 w-full whitespace-nowrap sm:order-2 sm:w-auto"
                   >
