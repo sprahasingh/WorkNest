@@ -737,14 +737,6 @@ export function TaskDrawer({
                       Request update
                     </Button>
                   )}
-                  <Button
-                    type="button"
-                    variant={canEdit ? "ghost" : "secondary"}
-                    onClick={onClose}
-                    className="whitespace-nowrap border border-slate-300 dark:border-slate-600 sm:border-0"
-                  >
-                    {canEdit ? "Cancel" : "Close"}
-                  </Button>
                 </div>
                 {canEdit && (
                   <Button
@@ -762,6 +754,14 @@ export function TaskDrawer({
                         : "Create task"}
                   </Button>
                 )}
+                <Button
+                  type="button"
+                  variant={canEdit ? "ghost" : "secondary"}
+                  onClick={onClose}
+                  className="order-3 w-full whitespace-nowrap border border-slate-300 dark:border-slate-600 sm:order-3 sm:w-auto sm:border-0"
+                >
+                  {canEdit ? "Cancel" : "Close"}
+                </Button>
               </div>
             </div>
 

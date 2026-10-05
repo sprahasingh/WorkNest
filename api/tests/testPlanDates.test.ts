@@ -4,6 +4,7 @@ import { createApp } from "../src/app.js";
 import { env } from "../src/config/env.js";
 import { Notification } from "../src/models/Notification.js";
 import { Organization } from "../src/models/Organization.js";
+import { Project } from "../src/models/Project.js";
 import { setupOrg } from "./orgHelpers.js";
 
 const app = createApp();
@@ -131,5 +132,34 @@ describe("test controls for the plan end date", () => {
     res = await t.setDates({ planExpiredAt: iso(-3 * DAY) });
     expect(res.body.organization.graceEnforcedAt).toBeNull();
     expect(res.body.usage.inGrace).toBe(true);
+  });
+
+  it("automatically archives excess projects when the test date is 11 days past expiry", async () => {
+    const t = await proOrg("tc6.test", true);
+    for (const key of ["AAA", "BBB", "CCC", "DDD", "EEE"]) {
+      const created = await request(app)
+        .post(`/api/orgs/${t.orgId}/projects`)
+        .set(auth(t.admin.token))
+        .send({ name: `Project ${key}`, key });
+      expect(created.status).toBe(201);
+    }
+    await Organization.updateOne(
+      { _id: t.orgId },
+      { plan: "free", seatLimit: 5, projectLimit: 3, planExpiresAt: null },
+    );
+
+    const res = await t.setDates({ planExpiredAt: iso(-11 * DAY), run: true });
+    expect(res.status).toBe(200);
+    expect(res.body.ran).toContain("extras archived");
+    expect(res.body.organization.graceEnforcingAt).toBeNull();
+    expect(res.body.organization.graceEnforcedAt).not.toBeNull();
+    expect(res.body.organization.graceArchived.projects).toBe(2);
+    expect(res.body.usage.paused).toBe(false);
+    expect(res.body.usage.restricted).toBe(false);
+    expect(
+      await Project.countDocuments({ archivedAt: { $ne: null } }).setOptions({
+        skipTenant: true,
+      }),
+    ).toBe(2);
   });
 });

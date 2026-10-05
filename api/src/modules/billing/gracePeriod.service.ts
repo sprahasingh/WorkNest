@@ -8,7 +8,7 @@ import { Task } from "../../models/Task.js";
 import { TaskActivity } from "../../models/TaskActivity.js";
 import { runWithTenant } from "../../tenancy/context.js";
 import { recordAudit } from "../audit/audit.service.js";
-import { archiveProject } from "../projects/projects.service.js";
+import { releaseProjectSlot } from "../orgs/orgs.service.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -83,9 +83,44 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
     })
     .sort(byRecency);
 
-  for (const extra of usingSlot.slice(limits.projectLimit)) {
-    await archiveProject(extra.id, { reason: "plan_limit" });
-    summary.projects += 1;
+  const extras = usingSlot.slice(limits.projectLimit);
+  if (extras.length > 0) {
+    // archiveProject recalculates slot usage from tasks. Since this operation
+    // archives several projects in sequence, its counter can become stale
+    // relative to the precomputed selection. Archive the chosen extras as one
+    // transaction and release exactly the slots they occupied.
+    const dbSession = await mongoose.startSession();
+    try {
+      await dbSession.withTransaction(async () => {
+        const tenantId = String(
+          await Project.findById(extras[0]!.id)
+            .select("tenantId")
+            .session(dbSession)
+            .then((project) => project?.tenantId),
+        );
+        for (const extra of extras) {
+          const project = await Project.findOneAndUpdate(
+            { _id: extra.id, archivedAt: null },
+            { archivedAt: new Date(), archivedReason: "plan_limit" },
+            { new: true, session: dbSession },
+          );
+          if (!project) continue;
+          await releaseProjectSlot(tenantId, dbSession);
+          await recordAudit(
+            {
+              action: "project.archived",
+              entityType: "Project",
+              entityId: extra.id,
+              metadata: { reason: "plan_limit" },
+            },
+            dbSession,
+          );
+          summary.projects += 1;
+        }
+      });
+    } finally {
+      await dbSession.endSession();
+    }
   }
 
   // 2. Open tasks, per project. Projects that are archived (by a person, or
