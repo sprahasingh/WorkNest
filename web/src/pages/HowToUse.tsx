@@ -42,7 +42,7 @@ const STEPS: GuideStep[] = [
       "After you register, open the link we email you. It works on any device: the page you registered on notices and signs you in by itself, and on another device you just type your password to confirm.",
       "Can't find the email? Check your spam or junk folder, and Promotions in Gmail. You can ask for a new link after a minute, and a newer link replaces the older one. Links work for one hour.",
       "The same goes for password reset and email change links: check spam or junk first, then use the resend button.",
-      "The first time you open a workspace, a short tour points out where things are. It shows once per account, on any device, and you can open it again from Show the tour at the bottom of the sidebar.",
+      "When you first enter an organization, a short tour explains the features available to your role. It is remembered for that organization and role on any device, and you can replay it from Show the tour at the bottom of the sidebar.",
     ],
     screens: placement("guide.account"),
   },

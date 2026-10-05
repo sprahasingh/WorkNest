@@ -39,6 +39,7 @@ import type {
   RegistrationStatusInput,
   RequestPasswordResetInput,
   ResetPasswordInput,
+  MarkOnboardingSeenInput,
 } from "./auth.schemas.js";
 import { Membership } from "../../models/Membership.js";
 
@@ -218,6 +219,35 @@ export async function markOnboardingSeenController(
   req: Request,
   res: Response,
 ): Promise<void> {
+  const input = req.validated!.body as MarkOnboardingSeenInput;
+  if (input.tenantId) {
+    const membership = await Membership.findOne({
+      userId: req.auth!.userId,
+      tenantId: input.tenantId,
+    }).setOptions({ skipTenant: true });
+    if (!membership) {
+      throw new AppError(404, "MEMBERSHIP_NOT_FOUND", "Membership not found");
+    }
+    if (membership.onboardingSeenForRole !== membership.role) {
+      await Membership.updateOne(
+        { _id: membership._id },
+        {
+          $set: {
+            onboardingSeenAt: new Date(),
+            onboardingSeenForRole: membership.role,
+          },
+        },
+      ).setOptions({ skipTenant: true });
+    }
+    const updatedMembership = await Membership.findById(
+      membership._id,
+    ).setOptions({
+      skipTenant: true,
+    });
+    res.status(200).json({ membership: updatedMembership });
+    return;
+  }
+
   // Only the first call sets the time; later calls leave it as it was.
   await User.updateOne(
     { _id: req.auth!.userId, onboardingSeenAt: null },

@@ -54,6 +54,8 @@ export interface OrgMembership {
   tenantId: OrganizationSummary;
   userId: string;
   role: Role;
+  onboardingSeenAt?: string | null;
+  onboardingSeenForRole?: Role | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -82,10 +84,9 @@ export async function updatePersonalInformation(
   return response.data.user;
 }
 
-// Remembers on the account that the first-run tour has been seen.
-export async function markOnboardingSeen(): Promise<User> {
-  const response = await apiClient.post<{ user: User }>("/auth/me/onboarding");
-  return response.data.user;
+// Remembers that this person has seen the tour for this role in this org.
+export async function markOnboardingSeen(tenantId: string): Promise<void> {
+  await apiClient.post("/auth/me/onboarding", { tenantId });
 }
 
 // Sends the pending email-change link again, replacing the old one.

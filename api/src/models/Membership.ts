@@ -16,6 +16,12 @@ const membershipSchema = new Schema(
       enum: ROLES,
       required: true,
     },
+    onboardingSeenAt: { type: Date, default: null },
+    onboardingSeenForRole: {
+      type: String,
+      enum: [...ROLES, null],
+      default: null,
+    },
     // Projects and tasks this person has muted. Muting stops general
     // chatter from them; anything addressed to the person still arrives.
     // Hidden by default so member lists don't expose them.
