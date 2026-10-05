@@ -873,12 +873,12 @@ export function SettingsPage() {
       setTimeZoneChoice(values);
       return;
     }
-    setTimeZoneChoice(null);
     if (
       org &&
       values.chatRetentionDays !== (org.chatRetentionDays ?? null) &&
       values.chatRetentionDays !== null
     ) {
+      setTimeZoneChoice(null);
       setRetentionConfirmation({ values, moveDueDates });
       return;
     }
@@ -894,6 +894,7 @@ export function SettingsPage() {
         moveDueDates === undefined ? values : { ...values, moveDueDates },
       );
       setValue("currentPassword", "");
+      setTimeZoneChoice(null);
       setIsEditingOrganization(false);
       setRetentionConfirmation(null);
       toast.success("Organization settings updated");
@@ -1208,20 +1209,34 @@ export function SettingsPage() {
 
         <Modal
           open={timeZoneChoice !== null}
-          onClose={() => setTimeZoneChoice(null)}
+          onClose={() => {
+            if (!updateOrg.isPending) setTimeZoneChoice(null);
+          }}
           title="Move due dates with the new time zone?"
         >
+          <ErrorBanner message={formError} />
           <p className="text-sm text-slate-600 dark:text-slate-300">
             Due dates that are just a date (no time of day) are stored in the
             organization&apos;s time zone. Keep each on the same calendar day,
             or leave them as stored, which can show a different day to people in
             the new time zone. Due dates with a time are never changed.
           </p>
+          {updateOrg.isPending && (
+            <p
+              className="mt-3 text-sm font-medium text-teal-700 dark:text-teal-300"
+              aria-live="polite"
+            >
+              Saving organization settings…
+            </p>
+          )}
           <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setTimeZoneChoice(null)}
+              onClick={() => {
+                if (!updateOrg.isPending) setTimeZoneChoice(null);
+              }}
+              disabled={updateOrg.isPending}
             >
               Cancel
             </Button>
