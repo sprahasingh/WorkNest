@@ -281,6 +281,8 @@ Pro and Premium are bought for one month or one year at a time through [Razorpay
 
 When a paid plan ends, the workspace goes back to Free on the next request. If it then uses more than Free allows, it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before this change have no end date and are left alone, and so are plans switched on without Razorpay keys (simulated upgrades), which never expire.
 
+Admins are reminded to renew: a notification (and an email, when email delivery is set up) goes out 7 days before the plan ends and again 1 day before. Each one replaces the one before it, so there is only ever a single renewal notice per admin. When the plan ends, "your plan ended, renew to get your limits back" replaces it, and buying or renewing a plan removes it. A notice an admin has dismissed is not sent again for the same step. These are written by the same 30-minute sweep, so they can be up to half an hour late.
+
 Expiry doesn't wait for someone to open the app: a sweep runs every 30 minutes and moves ended plans back to Free. While a workspace is paused, the buttons that create or change things (new project, new task, schedule meeting, send invite, the save buttons in the forms, and sending a chat message) are disabled with a hint, and a red banner at the top says what is over the limit.
 
 How it works:
@@ -417,7 +419,7 @@ The backend tests cover:
 - repeating meetings (replying to, editing and cancelling one date or all later ones), suggested times, and links to tasks and projects
 - what happens to chats and meetings when someone leaves an organization
 - paying for a plan: orders, signature checks, the webhook, repeated confirmations, one organization confirming another's order, blocked unpaid upgrades, monthly and yearly prices, and renewals
-- plan expiry: ended plans going back to Free (on a request and in the background), and the pause while a workspace is over its plan
+- plan expiry: ended plans going back to Free (on a request and in the background), the pause while a workspace is over its plan, and the 7 day, 1 day and ended renewal reminders
 - the sign-up flows: pending sign-ups, cross-device sign-in, resend limits, common passwords, the password reset cooldown, signed-in devices and feedback screenshots
 
 ## Project Structure

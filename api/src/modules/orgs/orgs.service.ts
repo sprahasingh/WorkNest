@@ -13,6 +13,7 @@ import {
 } from "../../constants/plans.js";
 import { Project, binnedProjectIds } from "../../models/Project.js";
 import { dateKeyInTimeZone, dateOnlyDueDate } from "../../lib/timezone.js";
+import { planReminderKey } from "../billing/planReminders.js";
 import type { UpdateOrgInput } from "./orgs.schemas.js";
 
 export function generateSlug(orgName: string): string {
@@ -317,6 +318,14 @@ export async function changePlan(
       ).setOptions({ skipTenant: true });
 
       if (!updated) blocked();
+
+      // Buying a plan answers any "renew your plan" notice.
+      if (newPlan !== "free") {
+        await Notification.deleteMany(
+          { tenantId, eventKey: planReminderKey(tenantId) },
+          { session: dbSession },
+        );
+      }
 
       await recordAudit(
         {
