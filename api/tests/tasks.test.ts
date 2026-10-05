@@ -235,12 +235,14 @@ describe("task archive and bin lifecycle", () => {
       .set("Authorization", `Bearer ${admin.accessToken}`);
     expect(unarchived.status).toBe(200);
     expect(unarchived.body.task.archivedAt).toBeNull();
-    const active = await request(app)
+    const restoredView = await request(app)
       .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .query({ view: "active" });
+      .query({ view: "completed" });
     expect(
-      active.body.items.some((item: { _id: string }) => item._id === taskId),
+      restoredView.body.items.some(
+        (item: { _id: string }) => item._id === taskId,
+      ),
     ).toBe(true);
   });
 
