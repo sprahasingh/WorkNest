@@ -289,12 +289,26 @@ export function InvitesPanel() {
               <div
                 role={revealed.emailSent ? "status" : "alert"}
                 className={cn(
-                  "rounded-lg border p-3",
+                  "relative rounded-lg border p-3 pr-10",
                   revealed.emailSent
                     ? "border-teal-200 bg-teal-50 dark:border-teal-900/40 dark:bg-teal-900/10"
                     : "border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-900/10",
                 )}
               >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRevealed(null);
+                    setCopied(false);
+                  }}
+                  aria-label="Dismiss invite message"
+                  title="Dismiss invite message"
+                  className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-md text-slate-500 hover:bg-black/5 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
+                >
+                  <span aria-hidden="true" className="text-xl leading-none">
+                    ×
+                  </span>
+                </button>
                 <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
                   {revealed.emailSent
                     ? `Invitation emailed to ${revealed.email}`

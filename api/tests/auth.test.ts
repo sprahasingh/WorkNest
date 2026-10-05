@@ -83,6 +83,17 @@ describe("auth flow", () => {
     expect(res.body.error.code).toBe("INVALID_CREDENTIALS");
   });
 
+  it("identifies an unregistered email and directs the user to register", async () => {
+    const res = await request(app).post("/api/auth/login").send({
+      email: "new-person@example.com",
+      password: "Harbor-lamp-91",
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("ACCOUNT_NOT_FOUND");
+    expect(res.body.error.message).toContain("Register instead");
+  });
+
   it("resets a password with a one-time email token", async () => {
     await registerAndVerify(app, {
       name: "Reset User",

@@ -3,7 +3,6 @@ import { Navigate, Outlet, useParams } from "react-router";
 import { setOrgAccessHandler } from "@/api/client";
 import { useAuth } from "./auth-context";
 import { OrgContext, type OrgContextValue } from "@/hooks/useOrg";
-import { NotFound } from "@/pages/NotFound";
 import { rememberLastOrg } from "@/lib/postAuthRedirect";
 
 export function OrgRoute() {
@@ -37,7 +36,7 @@ export function OrgRoute() {
         <Navigate to="/orgs" replace state={{ lostOrgName: lostOrgName }} />
       );
     }
-    return <NotFound />;
+    return <Navigate to="/orgs" replace state={{ unavailableOrg: true }} />;
   }
 
   const value: OrgContextValue = {
