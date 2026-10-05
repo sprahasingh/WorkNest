@@ -273,7 +273,7 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 
 Only active projects use a project slot. Completed, archived, and binned projects do not count. If a project becomes active again, it uses a slot and may need to wait until one is free.
 
-Each project also has a separate active-task limit. Done, archived, and binned tasks do not count toward it. Reopening or restoring an active task uses a task slot again.
+Each project also has a separate active-task limit. Done, archived, and binned tasks do not count toward it. Reopening or restoring an active task uses a task slot again. The same rule is used everywhere the limit is checked, including the downgrade check and the check after a plan ends: open tasks in an active project count, and open tasks in an archived or binned project don't, because that project isn't in use. Restoring a project is what checks its open tasks against the plan.
 
 ### Paying for a plan
 
@@ -299,9 +299,13 @@ If the workspace is still over the Free limits when the 10 days are up, the extr
 
 If the workspace is over the limits and has no grace period left (seats, as above), it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before plans expired have no end date and are left alone. A workspace whose plan ended before the grace period existed has none left, so its extras are archived the first time it is checked.
 
+Admins are reminded to renew: a notification (and an email, when email delivery is set up) goes out 7 days before the plan ends and again 1 day before. Each one replaces the one before it, so there is only ever a single renewal notice per admin. When the plan ends, "your plan ended, you have 10 days to renew or reduce usage, after which projects and tasks over the Free limits are archived (nothing is deleted)" replaces it, and when the grace period is over, "the extras were archived, renew to restore them" replaces that one. Buying or renewing a plan removes it. A notice an admin has dismissed is not sent again for the same step. These are written by the same 30-minute sweep, so they can be up to half an hour late.
+
+Expiry doesn't wait for someone to open the app: a sweep runs every 30 minutes and moves ended plans back to Free. While a workspace is paused, the buttons that create or change things (new project, new task, schedule meeting, send invite, the save buttons in the forms, and sending a chat message) are disabled with a hint, and a red banner at the top says what is over the limit.
+
 How it works:
 
-1. An admin clicks "Upgrade to Pro" in Settings. The API creates a Razorpay order for the exact amount and records it as a pending payment.
+1. An admin picks Monthly or Yearly and clicks a buy button in Settings, such as "Upgrade to Pro · ₹449" (every buy button shows its price, and the current plan has a "Renew" button). The API creates a Razorpay order for the exact amount and records it as a pending payment.
 2. Razorpay's checkout window opens in the browser. Card details go to Razorpay only and never touch this server.
 3. After payment, the browser sends back the order id, payment id and a signature. The API checks the signature with the secret key and only then moves the organization to the new plan, in a transaction that also writes an audit entry naming the payment.
 4. As a safety net, Razorpay also calls `POST /api/billing/webhook` after a payment (signed with `RAZORPAY_WEBHOOK_SECRET`), so the plan still upgrades if the browser closed first. The browser and the webhook can both arrive: only the first one to mark the payment as paid applies the plan.
@@ -432,7 +436,8 @@ The backend tests cover:
 - meeting visibility, RSVPs, rescheduling, cancelling and the reminder before a meeting starts
 - repeating meetings (replying to, editing and cancelling one date or all later ones), suggested times, and links to tasks and projects
 - what happens to chats and meetings when someone leaves an organization
-- paying for a plan: orders, signature checks, the webhook, repeated confirmations, one organization confirming another's order, and blocked unpaid upgrades
+- paying for a plan: orders, signature checks, the webhook, repeated confirmations, one organization confirming another's order, blocked unpaid upgrades, monthly and yearly prices, and renewals
+- plan expiry: ended plans going back to Free (on a request and in the background), the 10 day grace period (nothing past the Free limits can be added during it), archiving the least recently active extras afterwards and restoring them, the same task-limit rule for downgrades and after expiry, the pause while a workspace is over its plan, and the 7 day, 1 day, ended and archived renewal reminders
 - the sign-up flows: pending sign-ups, cross-device sign-in, resend limits, common passwords, the password reset cooldown, signed-in devices and feedback screenshots
 
 ## Project Structure

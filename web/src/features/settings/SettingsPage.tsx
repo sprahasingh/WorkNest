@@ -971,8 +971,12 @@ export function SettingsPage() {
   // " - Rs 449" on the buy button, using what this org would really pay.
   const upgradeLabel = (plan: Plan) => {
     if (!paymentsOn || plan === "free") return "";
-    const amount = billing.data?.quotes[plan]?.[cycle]?.amount;
-    return amount === undefined ? "" : ` \u00B7 ${formatRupees(amount)}`;
+    // Falls back to the list price while the personal quote is still loading,
+    // so every buy button shows what it costs.
+    const amount =
+      billing.data?.quotes?.[plan]?.[cycle]?.amount ??
+      PLAN_PRICE_PAISE[plan][cycle];
+    return ` \u00B7 ${formatRupees(amount)}`;
   };
   const planEndsAt = org.planExpiresAt ? new Date(org.planExpiresAt) : null;
   const pendingPlan = changePlan.isPending ? changePlan.variables : null;

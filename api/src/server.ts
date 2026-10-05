@@ -18,6 +18,7 @@ import { purgeExpiredTasks } from "./modules/tasks/tasks.service.js";
 import { ensureDueNotificationsForAllUsers } from "./modules/notifications/notifications.service.js";
 import { expireDuePlans } from "./modules/billing/planLifecycle.js";
 import { enforceDueGracePeriods } from "./modules/billing/gracePeriod.service.js";
+import { sendPlanRenewalReminders } from "./modules/billing/planReminders.js";
 import { sendMeetingReminders } from "./modules/meetings/meetings.service.js";
 import { purgeExpiredChatMessages } from "./modules/chat/chatRetention.service.js";
 import { closeRealtime, startRealtime } from "./realtime/hub.js";
@@ -85,6 +86,7 @@ async function main(): Promise<void> {
     void runExclusive("plan-expiry", 25 * 60 * 1000, async () => {
       await expireDuePlans();
       await enforceDueGracePeriods();
+      await sendPlanRenewalReminders();
     }).catch((err: unknown) =>
       logger.error({ err }, "Plan expiry sweep failed"),
     );

@@ -38,6 +38,8 @@ const notificationSchema = new Schema(
         "meeting_response",
         "meeting_starting",
         "meeting_proposal",
+        "plan_expiring",
+        "plan_expired",
       ],
       default: null,
     },
@@ -46,6 +48,9 @@ const notificationSchema = new Schema(
     readAt: { type: Date, default: null },
     dismissedAt: { type: Date, default: null },
     eventKey: { type: String, default: null },
+    // Which step of a repeating reminder this is (plan renewal: "7d", "1d" or
+    // "expired"), so a later step can replace an earlier one.
+    stage: { type: String, default: null },
   },
   { timestamps: true },
 );

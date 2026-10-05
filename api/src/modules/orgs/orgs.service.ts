@@ -11,8 +11,10 @@ import {
   type BillingCycle,
   type Plan,
 } from "../../constants/plans.js";
-import { Project, binnedProjectIds } from "../../models/Project.js";
+import { Project } from "../../models/Project.js";
 import { dateKeyInTimeZone, dateOnlyDueDate } from "../../lib/timezone.js";
+import { countProjectsOverTaskLimit } from "../billing/taskUsage.js";
+import { planReminderKey } from "../billing/planReminders.js";
 import type { UpdateOrgInput } from "./orgs.schemas.js";
 
 export function generateSlug(orgName: string): string {
@@ -245,27 +247,12 @@ export async function changePlan(
         .session(dbSession)
         .setOptions({ skipTenant: true });
 
-      const binned = await binnedProjectIds();
-      // Projects already holding more active tasks than the new plan allows.
-      const projectsOverTaskLimit =
-        limits.activeTaskLimit === null
-          ? 0
-          : (
-              await Task.aggregate<{ _id: unknown }>([
-                {
-                  $match: {
-                    status: { $ne: "done" },
-                    archivedAt: null,
-                    deletedAt: null,
-                    // Tasks in a binned project can't be seen, so they don't
-                    // count against a smaller plan either.
-                    projectId: { $nin: binned },
-                  },
-                },
-                { $group: { _id: "$projectId", active: { $sum: 1 } } },
-                { $match: { active: { $gt: limits.activeTaskLimit } } },
-              ]).session(dbSession)
-            ).length;
+      // Projects already holding more open tasks than the new plan allows.
+      // Same rule as the check after a plan ends (see taskUsage.ts).
+      const projectsOverTaskLimit = await countProjectsOverTaskLimit(
+        limits.activeTaskLimit,
+        dbSession,
+      );
 
       const blocked = (): never => {
         throw new AppError(
@@ -322,6 +309,14 @@ export async function changePlan(
       ).setOptions({ skipTenant: true });
 
       if (!updated) blocked();
+
+      // Buying a plan answers any "renew your plan" notice.
+      if (newPlan !== "free") {
+        await Notification.deleteMany(
+          { tenantId, eventKey: planReminderKey(tenantId) },
+          { session: dbSession },
+        );
+      }
 
       await recordAudit(
         {

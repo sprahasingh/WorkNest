@@ -3,9 +3,8 @@ import { PLAN_LIMITS, graceEndsAt, type Plan } from "../../constants/plans.js";
 import { AppError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { Organization } from "../../models/Organization.js";
-import { Task } from "../../models/Task.js";
-import { Project, binnedProjectIds } from "../../models/Project.js";
 import { requireTenantId } from "../../tenancy/context.js";
+import { countProjectsOverTaskLimit } from "./taskUsage.js";
 import { enforceGraceIfDue } from "./gracePeriod.service.js";
 
 // An organization whose paid plan has run out goes back to Free. This runs on
@@ -86,27 +85,8 @@ export async function getPlanUsage(tenantId: string): Promise<PlanUsage> {
 
   const activeTaskLimit =
     PLAN_LIMITS[(org.plan ?? "free") as Plan].activeTaskLimit;
-  let projectsOverTaskLimit = 0;
-  if (activeTaskLimit !== null) {
-    // Tasks in a binned or archived project aren't in use, so they don't count.
-    const unused = [
-      ...(await binnedProjectIds()),
-      ...(await Project.find({ archivedAt: { $ne: null } }).distinct("_id")),
-    ];
-    const rows = await Task.aggregate<{ _id: unknown }>([
-      {
-        $match: {
-          status: { $ne: "done" },
-          archivedAt: null,
-          deletedAt: null,
-          projectId: { $nin: unused },
-        },
-      },
-      { $group: { _id: "$projectId", active: { $sum: 1 } } },
-      { $match: { active: { $gt: activeTaskLimit } } },
-    ]);
-    projectsOverTaskLimit = rows.length;
-  }
+  const projectsOverTaskLimit =
+    await countProjectsOverTaskLimit(activeTaskLimit);
 
   const overLimit =
     org.seatsUsed > org.seatLimit ||
