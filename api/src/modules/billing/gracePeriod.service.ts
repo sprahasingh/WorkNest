@@ -85,8 +85,10 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
     summary.projects += 1;
   }
 
-  // 2. Open tasks, per project (archived projects too, so one that is
-  // restored later isn't over the limit again).
+  // 2. Open tasks, per project. Projects that are archived (by a person, or
+  // just now because of the plan) are left alone: they aren't in use, their
+  // tasks are still readable, and a project can only be restored if its open
+  // tasks fit the plan.
   const taskLimit = limits.activeTaskLimit;
   if (taskLimit !== null) {
     const crowded = await Task.aggregate<{ _id: mongoose.Types.ObjectId }>([
@@ -96,7 +98,10 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
     ]);
     const liveProjects = new Set(
       (
-        await Project.find({ _id: { $in: crowded.map((row) => row._id) } })
+        await Project.find({
+          _id: { $in: crowded.map((row) => row._id) },
+          archivedAt: null,
+        })
           .select("_id")
           .lean()
       ).map((project) => String(project._id)),

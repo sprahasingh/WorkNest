@@ -279,12 +279,19 @@ Each project also has a separate active-task limit. Done, archived, and binned t
 
 Pro and Premium are bought for one month or one year at a time through [Razorpay](https://razorpay.com). Nothing renews by itself, so you pay again to renew; renewing adds a period on top of the current end date. Going from Pro to Premium on the same period costs the difference and keeps the end date. The app is meant to run with Razorpay **test keys**, so you can try the whole flow with fake payments and no real money moves. Moving down a plan is free (it isn't refunded) and still blocked while usage is over the smaller plan's limits.
 
-When a paid plan ends, the workspace goes back to Free on the next request and gets a 10 day grace period. Nothing is blocked during it: people keep working, and an orange banner says how many days are left, what is over the Free limits, and links to renewing.
+When a paid plan ends, the workspace goes back to Free on the next request and gets a 10 day grace period. People keep working, and an orange banner says how many days are left, what is over the Free limits, and links to renewing.
+
+During the grace period usage can't grow past the Free limits, while everything that reduces or maintains it keeps working:
+
+- New projects are refused when all 3 Free project slots are in use (the New project button is disabled with a hint), and new tasks are refused when a project already has 10 open tasks. Reopening a finished task or restoring one from the bin or from Archived is refused the same way. Creating is allowed while the workspace is still within the Free limits.
+- Editing, completing, archiving and deleting stay available, so people can bring usage down themselves. A workspace that is over the limits has to get back under them before it can add anything.
+- Restoring an archived project is refused if its open tasks wouldn't fit the plan's per-project limit; it works after upgrading.
+- Seats are the same: invites are refused once every seat is used, and nobody is ever removed automatically.
 
 If the workspace is still over the Free limits when the 10 days are up, the extras are archived automatically (on the next request or in the 30 minute sweep, whichever comes first):
 
 - **Projects:** only projects that use a plan slot count. The 3 most recently active are kept and the rest are archived.
-- **Tasks:** in every project, the 10 most recently active open tasks are kept and the rest are archived.
+- **Tasks:** in every project that is still active, the 10 most recently active open tasks are kept and the rest are archived. Tasks in a project that is already archived (by a person, or by the rule above) are left alone: the project isn't in use, its tasks stay readable, and it can only be restored when its open tasks fit the plan. Archived projects don't count towards the task limit.
 - **What "recently active" means:** the latest change to the project or task, or a comment or update on it. Ties are broken by id, so the same data always gives the same result.
 - **Nothing is deleted.** Archived projects and tasks keep their data and are marked as archived because of the plan. They can be restored from Archived once there is room: after renewing, or after freeing a slot. Restoring when the plan has no room is refused with the usual limit message.
 - **Seats** are not touched. People are never removed automatically, so a workspace with more than 5 members stays paused (read, delete, archive and pay only, as described below) until members are removed or a plan is bought.

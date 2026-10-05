@@ -341,8 +341,14 @@ export function ProjectsPage() {
           {canWrite && (
             <Button
               onClick={openCreateModal}
-              disabled={paused}
-              title={paused ? PAUSED_HINT : undefined}
+              disabled={paused || atProjectLimit}
+              title={
+                paused
+                  ? PAUSED_HINT
+                  : atProjectLimit
+                    ? `All ${org?.projectLimit} project slots on the ${PLAN_NAMES[org!.plan]} plan are in use. Archive or delete a project, or upgrade.`
+                    : undefined
+              }
             >
               New project
             </Button>

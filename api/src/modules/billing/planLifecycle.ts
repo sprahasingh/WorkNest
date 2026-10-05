@@ -4,7 +4,7 @@ import { AppError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { Organization } from "../../models/Organization.js";
 import { Task } from "../../models/Task.js";
-import { binnedProjectIds } from "../../models/Project.js";
+import { Project, binnedProjectIds } from "../../models/Project.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { enforceGraceIfDue } from "./gracePeriod.service.js";
 
@@ -88,14 +88,18 @@ export async function getPlanUsage(tenantId: string): Promise<PlanUsage> {
     PLAN_LIMITS[(org.plan ?? "free") as Plan].activeTaskLimit;
   let projectsOverTaskLimit = 0;
   if (activeTaskLimit !== null) {
-    const binned = await binnedProjectIds();
+    // Tasks in a binned or archived project aren't in use, so they don't count.
+    const unused = [
+      ...(await binnedProjectIds()),
+      ...(await Project.find({ archivedAt: { $ne: null } }).distinct("_id")),
+    ];
     const rows = await Task.aggregate<{ _id: unknown }>([
       {
         $match: {
           status: { $ne: "done" },
           archivedAt: null,
           deletedAt: null,
-          projectId: { $nin: binned },
+          projectId: { $nin: unused },
         },
       },
       { $group: { _id: "$projectId", active: { $sum: 1 } } },
