@@ -1,5 +1,5 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
-import { PLANS } from "../constants/plans.js";
+import { BILLING_CYCLES, PLANS } from "../constants/plans.js";
 import { tenantPlugin } from "../tenancy/plugin.js";
 
 // One row per attempt to pay for a plan upgrade. Only the ids Razorpay gives
@@ -16,6 +16,7 @@ const paymentSchema = new Schema(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     fromPlan: { type: String, enum: PLANS, required: true },
     plan: { type: String, enum: PLANS, required: true },
+    billingCycle: { type: String, enum: BILLING_CYCLES, default: "monthly" },
     // In paise.
     amount: { type: Number, required: true },
     currency: { type: String, default: "INR" },
@@ -27,6 +28,10 @@ const paymentSchema = new Schema(
       default: "created",
     },
     paidAt: { type: Date, default: null },
+    // When the plan was actually moved. Paid but not applied means a retry
+    // should finish the job.
+    applyingAt: { type: Date, default: null },
+    appliedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

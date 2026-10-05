@@ -1,5 +1,6 @@
 import { createPaymentOrder, verifyPayment, type PaymentOrder } from "./api";
 import type { Plan } from "@/api/auth";
+import type { BillingCycle } from "@/lib/plans";
 
 interface RazorpaySuccess {
   razorpay_payment_id: string;
@@ -56,9 +57,14 @@ export type PaymentResult =
 export async function payForPlan(
   orgId: string,
   plan: Exclude<Plan, "free">,
+  billingCycle: BillingCycle,
   prefill: { name?: string; email?: string },
 ): Promise<PaymentResult> {
-  const order: PaymentOrder = await createPaymentOrder(orgId, plan);
+  const order: PaymentOrder = await createPaymentOrder(
+    orgId,
+    plan,
+    billingCycle,
+  );
   await loadCheckoutScript();
   const Razorpay = window.Razorpay;
   if (!Razorpay) throw new Error("The payment window couldn't be loaded.");
@@ -71,7 +77,7 @@ export async function payForPlan(
       currency: order.currency,
       order_id: order.orderId,
       name: "WorkNest",
-      description: `Upgrade to ${plan === "pro" ? "Pro" : "Premium"}`,
+      description: `${plan === "pro" ? "Pro" : "Premium"} plan, ${billingCycle}`,
       prefill,
       theme: { color: "#0d9488" },
       handler: (response) => {

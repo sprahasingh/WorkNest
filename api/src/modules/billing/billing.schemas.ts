@@ -1,7 +1,11 @@
 import { z } from "zod";
+import { BILLING_CYCLES } from "../../constants/plans.js";
 
 export const createOrderSchema = z
-  .object({ plan: z.enum(["pro", "premium"]) })
+  .object({
+    plan: z.enum(["pro", "premium"]),
+    billingCycle: z.enum(BILLING_CYCLES).default("monthly"),
+  })
   .strict();
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 

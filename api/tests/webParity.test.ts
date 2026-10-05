@@ -25,10 +25,13 @@ describe("web and API agree", () => {
       );
     }
     for (const [plan, paise] of Object.entries(PLAN_PRICE_PAISE)) {
-      const price = new RegExp(`${plan}:\\s*(\\d+),`).exec(
-        source.slice(source.indexOf("PLAN_PRICE_PAISE")),
+      const price = new RegExp(
+        `${plan}:\\s*\\{\\s*monthly:\\s*(\\d+),\\s*yearly:\\s*(\\d+)`,
+      ).exec(source.slice(source.indexOf("PLAN_PRICE_PAISE")));
+      expect(Number(price![1]), `monthly price for ${plan}`).toBe(
+        paise.monthly,
       );
-      expect(Number(price![1]), `price for ${plan}`).toBe(paise);
+      expect(Number(price![2]), `yearly price for ${plan}`).toBe(paise.yearly);
     }
   });
 

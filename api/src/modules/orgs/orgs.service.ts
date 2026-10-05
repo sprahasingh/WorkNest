@@ -6,7 +6,11 @@ import { Notification } from "../../models/Notification.js";
 import { requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
 import { recordAudit } from "../audit/audit.service.js";
-import { PLAN_LIMITS, type Plan } from "../../constants/plans.js";
+import {
+  PLAN_LIMITS,
+  type BillingCycle,
+  type Plan,
+} from "../../constants/plans.js";
 import { Project, binnedProjectIds } from "../../models/Project.js";
 import { dateKeyInTimeZone, dateOnlyDueDate } from "../../lib/timezone.js";
 import type { UpdateOrgInput } from "./orgs.schemas.js";
@@ -227,7 +231,7 @@ export async function updateOrg(input: UpdateOrgInput) {
 export async function changePlan(
   newPlan: Plan,
   payment?: { paymentId: string; orderId: string; amount: number },
-  expiresAt: Date | null = null,
+  period: { expiresAt: Date; cycle: BillingCycle } | null = null,
 ) {
   const tenantId = requireTenantId();
   const limits = PLAN_LIMITS[newPlan];
@@ -297,7 +301,13 @@ export async function changePlan(
           plan: newPlan,
           seatLimit: limits.seatLimit,
           projectLimit: limits.projectLimit,
-          planExpiresAt: newPlan === "free" ? null : expiresAt,
+          // Moving down to another paid plan keeps the period already paid
+          // for; only Free clears it.
+          ...(newPlan === "free"
+            ? { planExpiresAt: null, billingCycle: null }
+            : period
+              ? { planExpiresAt: period.expiresAt, billingCycle: period.cycle }
+              : {}),
           // A fresh plan change replaces the "your plan expired" notice.
           ...(newPlan === "free"
             ? {}

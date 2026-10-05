@@ -26,12 +26,15 @@ export function formatTaskLimit(limit: number | null): string {
   return limit === null ? "Unlimited" : `Up to ${limit}`;
 }
 
-// What moving up to each plan costs, in paise (INR 599 and 1,199). It is a
-// one-time upgrade, not a subscription. Mirrors api/src/constants/plans.ts.
-export const PLAN_PRICE_PAISE: Record<Plan, number> = {
-  free: 0,
-  pro: 59900,
-  premium: 119900,
+export type BillingCycle = "monthly" | "yearly";
+
+// What each plan costs for a month or a year, in paise (INR 449 and 1,149 a
+// month, 4,499 and 11,499 a year). Paying buys one period; nothing renews by
+// itself. Mirrors api/src/constants/plans.ts.
+export const PLAN_PRICE_PAISE: Record<Plan, Record<BillingCycle, number>> = {
+  free: { monthly: 0, yearly: 0 },
+  pro: { monthly: 44900, yearly: 449900 },
+  premium: { monthly: 114900, yearly: 1149900 },
 };
 
 export function formatRupees(paise: number): string {

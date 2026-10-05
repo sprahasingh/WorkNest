@@ -52,10 +52,10 @@ describe("paying for a plan", () => {
       .set(auth(admin.token));
     expect(config.body.enabled).toBe(true);
     expect(config.body.keyId).toBe("rzp_test_abc123");
-    expect(config.body.upgrades).toEqual([
-      { plan: "pro", amount: 59900 },
-      { plan: "premium", amount: 119900 },
-    ]);
+    expect(config.body.quotes).toEqual({
+      pro: { monthly: { amount: 44900 }, yearly: { amount: 449900 } },
+      premium: { monthly: { amount: 114900 }, yearly: { amount: 1149900 } },
+    });
 
     // With payments on, moving up without paying is refused.
     const skipped = await request(app)
@@ -74,7 +74,7 @@ describe("paying for a plan", () => {
       .set(auth(admin.token))
       .send({ plan: "pro" });
     expect(order.status).toBe(201);
-    expect(order.body.amount).toBe(59900);
+    expect(order.body.amount).toBe(44900);
 
     const forged = await request(app)
       .post(`/api/orgs/${orgId}/billing/verify`)
@@ -119,7 +119,7 @@ describe("paying for a plan", () => {
       .post(`/api/orgs/${orgId}/billing/order`)
       .set(auth(admin.token))
       .send({ plan: "premium" });
-    expect(next.body.amount).toBe(60000);
+    expect(next.body.amount).toBe(70000);
     const audit = await request(app)
       .get(`/api/orgs/${orgId}/audit-logs`)
       .set(auth(admin.token));
@@ -160,6 +160,91 @@ describe("paying for a plan", () => {
       .set(auth(member.token))
       .send({ plan: "pro" });
     expect(denied.status).toBe(403);
+  });
+});
+
+describe("monthly and yearly plans", () => {
+  const pay = async (
+    orgId: string,
+    token: string,
+    plan: string,
+    billingCycle: string,
+    paymentId: string,
+  ) => {
+    const order = await request(app)
+      .post(`/api/orgs/${orgId}/billing/order`)
+      .set(auth(token))
+      .send({ plan, billingCycle });
+    expect(order.status).toBe(201);
+    const ok = await request(app)
+      .post(`/api/orgs/${orgId}/billing/verify`)
+      .set(auth(token))
+      .send({
+        orderId: order.body.orderId,
+        paymentId,
+        signature: sign(order.body.orderId, paymentId),
+      });
+    expect(ok.status).toBe(200);
+    return { order: order.body, org: ok.body.organization };
+  };
+
+  it("charges the yearly price and runs for a year", async () => {
+    stubRazorpay();
+    const { orgId, admin } = await setupOrg(app, "cycle1.test");
+    const { order, org } = await pay(
+      orgId,
+      admin.token,
+      "pro",
+      "yearly",
+      "pay_y1",
+    );
+    expect(order.amount).toBe(449900);
+    expect(org.billingCycle).toBe("yearly");
+    const days =
+      (new Date(org.planExpiresAt).getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(364);
+    expect(days).toBeLessThan(367);
+
+    // Moving up on the same cycle costs the yearly difference and keeps the
+    // end date.
+    const next = await request(app)
+      .post(`/api/orgs/${orgId}/billing/order`)
+      .set(auth(admin.token))
+      .send({ plan: "premium", billingCycle: "yearly" });
+    expect(next.body.amount).toBe(1149900 - 449900);
+    const upgraded = await pay(
+      orgId,
+      admin.token,
+      "premium",
+      "yearly",
+      "pay_y2",
+    );
+    expect(upgraded.org.plan).toBe("premium");
+    expect(upgraded.org.planExpiresAt).toBe(org.planExpiresAt);
+  });
+
+  it("renews the same plan by adding a month to the end date", async () => {
+    stubRazorpay();
+    const { orgId, admin } = await setupOrg(app, "cycle2.test");
+    const first = await pay(orgId, admin.token, "pro", "monthly", "pay_m1");
+    const renewed = await pay(orgId, admin.token, "pro", "monthly", "pay_m2");
+    expect(renewed.order.amount).toBe(44900);
+    const gap =
+      new Date(renewed.org.planExpiresAt).getTime() -
+      new Date(first.org.planExpiresAt).getTime();
+    expect(gap / 86_400_000).toBeGreaterThanOrEqual(28);
+    expect(gap / 86_400_000).toBeLessThanOrEqual(31);
+  });
+
+  it("refuses to buy a lower plan", async () => {
+    stubRazorpay();
+    const { orgId, admin } = await setupOrg(app, "cycle3.test");
+    await pay(orgId, admin.token, "premium", "monthly", "pay_m3");
+    const lower = await request(app)
+      .post(`/api/orgs/${orgId}/billing/order`)
+      .set(auth(admin.token))
+      .send({ plan: "pro", billingCycle: "monthly" });
+    expect(lower.status).toBe(409);
   });
 });
 

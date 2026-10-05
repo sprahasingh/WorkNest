@@ -1,5 +1,5 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
-import { PLANS } from "../constants/plans.js";
+import { BILLING_CYCLES, PLANS } from "../constants/plans.js";
 
 const organizationSchema = new Schema(
   {
@@ -10,6 +10,7 @@ const organizationSchema = new Schema(
     // When a paid plan ends. Null means it doesn't end (free, or an older
     // paid plan from before plans expired).
     planExpiresAt: { type: Date, default: null },
+    billingCycle: { type: String, enum: BILLING_CYCLES, default: null },
     // Set when a paid plan ran out and the organization went back to Free, so
     // the app can tell people why. Cleared on the next upgrade.
     planExpiredAt: { type: Date, default: null },
