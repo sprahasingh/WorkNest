@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/Modal";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { inputControlStyles } from "@/components/ui/Field";
 import { parseApiError } from "@/lib/apiError";
 import { useUpdateOrg } from "@/features/org/queries";
 import type { Organization } from "@/features/org/api";
 import { retentionPhrase } from "./retention";
+import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 type Retention = "forever" | "90" | "180" | "365";
 
@@ -37,16 +38,21 @@ export function ChatRetentionCard({
   const saved = toValue(org.chatRetentionDays ?? null);
   const [choice, setChoice] = useState<Retention>(saved);
   const [confirming, setConfirming] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [infoOpen, setInfoOpen] = useState(false);
+  const infoId = useId();
 
   const apply = () => {
     update.mutate(
       {
+        currentPassword,
         chatRetentionDays:
           choice === "forever" ? null : (Number(choice) as 90 | 180 | 365),
       },
       {
         onSuccess: () => {
           setConfirming(false);
+          setCurrentPassword("");
           toast.success(
             choice === "forever"
               ? "Chat messages will be kept"
@@ -55,6 +61,7 @@ export function ChatRetentionCard({
         },
         onError: (error) => {
           setConfirming(false);
+          setCurrentPassword("");
           toast.error(parseApiError(error).message);
         },
       },
@@ -64,58 +71,58 @@ export function ChatRetentionCard({
   const save = () => (choice === "forever" ? apply() : setConfirming(true));
 
   if (!canEdit) {
-    const limited = org.chatRetentionDays != null;
     return (
-      <Card id="chat-history" className="scroll-mt-24">
-        <h2 className="font-medium text-slate-800 dark:text-slate-100">
-          Chat history
-        </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {limited
-            ? "Older messages and the files attached to them are deleted automatically, for everyone in the organization."
-            : "Messages are not deleted automatically."}
-        </p>
-        <div className="mt-4 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5 shrink-0 text-teal-600 dark:text-teal-400"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 2" />
-          </svg>
-          <div className="min-w-0">
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Messages are kept{" "}
-              {limited
-                ? `for ${retentionPhrase(org.chatRetentionDays)}`
-                : retentionPhrase(null)}
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Set by your organization's admins. Only an admin can change it.
-            </p>
-          </div>
+      <div id="chat-history" className="scroll-mt-24">
+        <div className="flex items-center gap-2">
+          <h3 className="font-medium text-slate-800 dark:text-slate-100">
+            Chat history
+          </h3>
+          <InfoButton
+            open={infoOpen}
+            onToggle={() => setInfoOpen((open) => !open)}
+            label="About chat history retention"
+            controls={infoId}
+          />
         </div>
-      </Card>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {saved === "forever"
+            ? "Messages are kept forever."
+            : `Messages are kept for ${retentionPhrase(org.chatRetentionDays)}.`}
+        </p>
+        <InfoPanel
+          id={infoId}
+          open={infoOpen}
+          onClose={() => setInfoOpen(false)}
+        >
+          Older messages and their attached files are deleted automatically
+          according to this organization-wide limit. Admins can change the limit
+          in Organization settings.
+        </InfoPanel>
+      </div>
     );
   }
 
   return (
-    <Card id="chat-history" className="scroll-mt-24">
-      <h2 className="font-medium text-slate-800 dark:text-slate-100">
-        Chat history
-      </h2>
+    <div id="chat-history" className="scroll-mt-24">
+      <div className="flex items-center gap-2">
+        <h3 className="font-medium text-slate-800 dark:text-slate-100">Chat history</h3>
+        <InfoButton
+          open={infoOpen}
+          onToggle={() => setInfoOpen((open) => !open)}
+          label="About chat history retention"
+          controls={infoId}
+        />
+      </div>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Choose how long messages in Messages are kept. Older messages and the
-        files attached to them are deleted automatically. This applies to
-        everyone in the organization, and members can see the limit in Messages
-        and in their Settings.
+        {saved === "forever"
+          ? "Messages are kept forever."
+          : `Messages are kept for ${retentionPhrase(org.chatRetentionDays)}.`}
       </p>
+      <InfoPanel id={infoId} open={infoOpen} onClose={() => setInfoOpen(false)}>
+        Choose how long messages in Messages are kept. Older messages and their
+        attached files are deleted automatically. The limit applies to everyone
+        in the organization, and members can see it in Messages and Settings.
+      </InfoPanel>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <label className="sr-only" htmlFor="chat-retention">
           How long to keep chat messages
@@ -135,12 +142,30 @@ export function ChatRetentionCard({
         <Button
           variant="secondary"
           onClick={save}
-          disabled={choice === saved}
+          disabled={choice === saved || !currentPassword}
           loading={update.isPending && !confirming}
         >
           Save
         </Button>
       </div>
+      {choice !== saved && (
+        <div className="mt-4 max-w-sm">
+          <label
+            htmlFor="retention-current-password"
+            className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
+          >
+            Current password (required to save)
+          </label>
+          <PasswordInput
+            id="retention-current-password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            className={inputControlStyles}
+            required
+          />
+        </div>
+      )}
 
       <Modal
         open={confirming}
@@ -160,11 +185,16 @@ export function ChatRetentionCard({
           <Button variant="ghost" onClick={() => setConfirming(false)}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={apply} loading={update.isPending}>
+          <Button
+            variant="danger"
+            onClick={apply}
+            loading={update.isPending}
+            disabled={!currentPassword}
+          >
             Delete old messages
           </Button>
         </div>
       </Modal>
-    </Card>
+    </div>
   );
 }

@@ -24,6 +24,7 @@ export const updateOrgSchema = z
     chatRetentionDays: z
       .union([z.literal(90), z.literal(180), z.literal(365), z.null()])
       .optional(),
+    currentPassword: z.string().min(1, "Enter your current password").max(72),
   })
   .refine(
     (input) =>

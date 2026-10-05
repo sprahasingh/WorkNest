@@ -330,7 +330,7 @@ describe("task notifications", () => {
     const timeZoneUpdated = await request(app)
       .patch(`/api/orgs/${admin.orgId}`)
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ timeZone: "America/New_York" });
+      .send({ timeZone: "America/New_York", currentPassword: "Harbor-lamp-91" });
     expect(timeZoneUpdated.status).toBe(200);
     expect(timeZoneUpdated.body.organization.timeZone).toBe("America/New_York");
 
@@ -351,7 +351,7 @@ describe("task notifications", () => {
     const invalidTimeZone = await request(app)
       .patch(`/api/orgs/${admin.orgId}`)
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ timeZone: "Mars/Olympus" });
+      .send({ timeZone: "Mars/Olympus", currentPassword: "Harbor-lamp-91" });
     expect(invalidTimeZone.status).toBe(400);
   });
 
@@ -372,7 +372,7 @@ describe("task notifications", () => {
     const updated = await request(app)
       .patch(`/api/orgs/${admin.orgId}`)
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ timeZone: "America/New_York", moveDueDates: false });
+      .send({ timeZone: "America/New_York", moveDueDates: false, currentPassword: "Harbor-lamp-91" });
     expect(updated.status).toBe(200);
     expect(updated.body.organization.timeZone).toBe("America/New_York");
 
@@ -388,7 +388,7 @@ describe("task notifications", () => {
     const notABoolean = await request(app)
       .patch(`/api/orgs/${admin.orgId}`)
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ timeZone: "Asia/Kolkata", moveDueDates: "no" });
+      .send({ timeZone: "Asia/Kolkata", moveDueDates: "no", currentPassword: "Harbor-lamp-91" });
     expect(notABoolean.status).toBe(400);
   });
 

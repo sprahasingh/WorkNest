@@ -39,7 +39,7 @@ export function PlanNotice() {
   }, [location.pathname, refetch]);
 
   if (!org) return null;
-  const settingsPath = `/orgs/${orgId}/settings`;
+  const settingsPath = `/orgs/${orgId}/settings#plan`;
   const usage = org.usage;
 
   const parts: string[] = [];

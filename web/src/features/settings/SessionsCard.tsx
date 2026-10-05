@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/auth-context";
-import { listSessions, revokeAllSessions, revokeSession } from "@/api/auth";
+import { listSessions, revokeOtherSessions, revokeSession } from "@/api/auth";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { parseApiError } from "@/lib/apiError";
@@ -30,13 +30,15 @@ export function SessionsCard() {
     onError: (error) => toast.error(parseApiError(error).message),
   });
 
-  const signOutEverywhere = async () => {
+  const signOutEverywhereElse = async () => {
     setSigningOutAll(true);
     try {
-      await revokeAllSessions();
-      await logout();
+      await revokeOtherSessions();
+      await queryClient.invalidateQueries({ queryKey: ["auth", "sessions"] });
+      toast.success("Signed out of other devices");
     } catch (error) {
       toast.error(parseApiError(error).message);
+    } finally {
       setSigningOutAll(false);
     }
   };
@@ -108,11 +110,11 @@ export function SessionsCard() {
           <Button
             variant="secondary"
             className="w-full sm:w-52"
-            onClick={() => void signOutEverywhere()}
+            onClick={() => void signOutEverywhereElse()}
             loading={signingOutAll}
             disabled={isLoggingOut || signingOutAll}
           >
-            Log out everywhere
+            Log out everywhere else
           </Button>
         )}
       </div>

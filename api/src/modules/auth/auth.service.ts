@@ -605,19 +605,16 @@ export async function updatePersonalInformation(
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
 
-  // Only a password change needs the current password; a new name doesn't.
-  if (input.newPassword) {
-    const currentPasswordIsValid = await bcrypt.compare(
-      input.currentPassword ?? "",
-      user.passwordHash as string,
+  const currentPasswordIsValid = await bcrypt.compare(
+    input.currentPassword,
+    user.passwordHash as string,
+  );
+  if (!currentPasswordIsValid) {
+    throw new AppError(
+      401,
+      "CURRENT_PASSWORD_INVALID",
+      "Current password is incorrect",
     );
-    if (!currentPasswordIsValid) {
-      throw new AppError(
-        401,
-        "CURRENT_PASSWORD_INVALID",
-        "Current password is incorrect",
-      );
-    }
   }
 
   user.name = input.name;
@@ -1126,9 +1123,28 @@ export async function revokeSession(userId: string, familyId: string) {
   );
 }
 
-export async function revokeAllSessions(userId: string) {
+export async function revokeOtherSessions(
+  userId: string,
+  currentRawToken?: string,
+) {
+  if (!currentRawToken) {
+    throw new AppError(
+      401,
+      "REFRESH_TOKEN_MISSING",
+      "No refresh token provided",
+    );
+  }
+
+  const currentSession = await Session.findOne({
+    userId,
+    tokenHash: sha256(currentRawToken),
+  }).select("familyId");
+  if (!currentSession) {
+    throw new AppError(401, "INVALID_REFRESH_TOKEN", "Invalid refresh token");
+  }
+
   await Session.updateMany(
-    { userId, revokedAt: null },
+    { userId, familyId: { $ne: currentSession.familyId }, revokedAt: null },
     { revokedAt: new Date() },
   );
 }

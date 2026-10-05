@@ -18,7 +18,7 @@ import {
   resetPassword,
   listSessions,
   revokeSession,
-  revokeAllSessions,
+  revokeOtherSessions,
 } from "./auth.service.js";
 import {
   setRefreshCookie,
@@ -309,11 +309,10 @@ export async function revokeSessionController(
   res.status(204).send();
 }
 
-export async function revokeAllSessionsController(
+export async function revokeOtherSessionsController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  await revokeAllSessions(req.auth!.userId);
-  clearRefreshCookie(res);
+  await revokeOtherSessions(req.auth!.userId, getRefreshCookie(req.cookies));
   res.status(204).send();
 }

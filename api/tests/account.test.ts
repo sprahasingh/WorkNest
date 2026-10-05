@@ -129,15 +129,25 @@ describe("personal information", () => {
     expect(refresh.status).toBe(401);
   });
 
-  it("renames without a password, rejects a wrong current password, and a duplicate email", async () => {
+  it("requires the current password to rename, rejects a wrong password, and rejects a duplicate email", async () => {
     const first = await registerOrg("first-profile@example.com", "First Org");
     await registerOrg("taken-profile@example.com", "Second Org");
 
-    // A new name alone doesn't need the password.
-    const renamed = await request(app)
+    const missingPassword = await request(app)
       .patch("/api/auth/me")
       .set("Authorization", `Bearer ${first.accessToken}`)
       .send({ name: "Changed Person" });
+    expect(missingPassword.status).toBe(400);
+    expect(missingPassword.body.error.details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: ["currentPassword"] }),
+      ]),
+    );
+
+    const renamed = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${first.accessToken}`)
+      .send({ name: "Changed Person", currentPassword: "Harbor-lamp-91" });
     expect(renamed.status).toBe(200);
     expect(renamed.body.user.name).toBe("Changed Person");
 
@@ -147,7 +157,6 @@ describe("personal information", () => {
       .send({
         name: "Changed Person",
         currentPassword: "wrong-password",
-        newPassword: "another-password-1",
       });
     expect(incorrectPassword.status).toBe(401);
     expect(incorrectPassword.body.error.code).toBe("CURRENT_PASSWORD_INVALID");
