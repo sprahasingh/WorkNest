@@ -9,10 +9,14 @@ export type MeetingNotificationType =
   | "meeting_response"
   | "meeting_starting"
   | "meeting_proposal";
+export type PlanNotificationType = "plan_expiring" | "plan_expired";
 export type ReminderNotificationType =
   TaskNotificationType | ProjectNotificationType;
 export type NotificationType =
-  ActivityType | ReminderNotificationType | MeetingNotificationType;
+  | ActivityType
+  | ReminderNotificationType
+  | MeetingNotificationType
+  | PlanNotificationType;
 export const TASK_REMINDER_TYPES: TaskNotificationType[] = [
   "task_due_soon",
   "task_overdue",
@@ -86,6 +90,12 @@ export function notificationLink(
   orgId: string,
   notification: Notification,
 ): string | null {
+  if (
+    notification.type === "plan_expiring" ||
+    notification.type === "plan_expired"
+  ) {
+    return `/orgs/${orgId}/settings`;
+  }
   if (notification.meetingId) {
     return `/orgs/${orgId}/meetings?meeting=${notification.meetingId}`;
   }

@@ -279,11 +279,15 @@ Each project also has a separate active-task limit. Done, archived, and binned t
 
 Pro and Premium are bought for one month or one year at a time through [Razorpay](https://razorpay.com). Nothing renews by itself, so you pay again to renew; renewing adds a period on top of the current end date. Going from Pro to Premium on the same period costs the difference and keeps the end date. The app is meant to run with Razorpay **test keys**, so you can try the whole flow with fake payments and no real money moves. Moving down a plan is free (it isn't refunded) and still blocked while usage is over the smaller plan's limits.
 
-When a paid plan ends, the workspace goes back to Free on the next request. If it then uses more than Free allows, it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before this change have no end date and are left alone.
+When a paid plan ends, the workspace goes back to Free on the next request. If it then uses more than Free allows, it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before this change have no end date and are left alone, and so are plans switched on without Razorpay keys (simulated upgrades), which never expire.
+
+Admins are reminded to renew: a notification (and an email, when email delivery is set up) goes out 7 days before the plan ends and again 1 day before. Each one replaces the one before it, so there is only ever a single renewal notice per admin. When the plan ends, "your plan ended, renew to get your limits back" replaces it, and buying or renewing a plan removes it. A notice an admin has dismissed is not sent again for the same step. These are written by the same 30-minute sweep, so they can be up to half an hour late.
+
+Expiry doesn't wait for someone to open the app: a sweep runs every 30 minutes and moves ended plans back to Free. While a workspace is paused, the buttons that create or change things (new project, new task, schedule meeting, send invite, the save buttons in the forms, and sending a chat message) are disabled with a hint, and a red banner at the top says what is over the limit.
 
 How it works:
 
-1. An admin clicks "Upgrade to Pro" in Settings. The API creates a Razorpay order for the exact amount and records it as a pending payment.
+1. An admin picks Monthly or Yearly and clicks a buy button in Settings, such as "Upgrade to Pro · ₹449" (every buy button shows its price, and the current plan has a "Renew" button). The API creates a Razorpay order for the exact amount and records it as a pending payment.
 2. Razorpay's checkout window opens in the browser. Card details go to Razorpay only and never touch this server.
 3. After payment, the browser sends back the order id, payment id and a signature. The API checks the signature with the secret key and only then moves the organization to the new plan, in a transaction that also writes an audit entry naming the payment.
 4. As a safety net, Razorpay also calls `POST /api/billing/webhook` after a payment (signed with `RAZORPAY_WEBHOOK_SECRET`), so the plan still upgrades if the browser closed first. The browser and the webhook can both arrive: only the first one to mark the payment as paid applies the plan.
@@ -414,7 +418,8 @@ The backend tests cover:
 - meeting visibility, RSVPs, rescheduling, cancelling and the reminder before a meeting starts
 - repeating meetings (replying to, editing and cancelling one date or all later ones), suggested times, and links to tasks and projects
 - what happens to chats and meetings when someone leaves an organization
-- paying for a plan: orders, signature checks, the webhook, repeated confirmations, one organization confirming another's order, and blocked unpaid upgrades
+- paying for a plan: orders, signature checks, the webhook, repeated confirmations, one organization confirming another's order, blocked unpaid upgrades, monthly and yearly prices, and renewals
+- plan expiry: ended plans going back to Free (on a request and in the background), the pause while a workspace is over its plan, and the 7 day, 1 day and ended renewal reminders
 - the sign-up flows: pending sign-ups, cross-device sign-in, resend limits, common passwords, the password reset cooldown, signed-in devices and feedback screenshots
 
 ## Project Structure

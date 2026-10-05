@@ -1,6 +1,7 @@
 import type { ActivityType, TaskNotificationType } from "./api";
 import type {
   MeetingNotificationType,
+  PlanNotificationType,
   ProjectNotificationType,
 } from "@/features/notifications/api";
 
@@ -60,4 +61,13 @@ export const MEETING_NOTIFICATION_BADGE_STYLES: Record<
     "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
   meeting_proposal:
     "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+};
+
+export const PLAN_NOTIFICATION_BADGE_STYLES: Record<
+  PlanNotificationType,
+  string
+> = {
+  plan_expiring:
+    "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  plan_expired: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
 };
