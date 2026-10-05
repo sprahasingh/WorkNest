@@ -31,7 +31,8 @@ export async function expirePlanIfDue(
         },
       },
     ],
-    { returnDocument: "before" },
+    // An array is an update pipeline, which Mongoose only accepts when told so.
+    { returnDocument: "before", updatePipeline: true },
   ).setOptions({ skipTenant: true });
   if (org) {
     logger.info({ tenantId, from: org.plan }, "Paid plan expired");
