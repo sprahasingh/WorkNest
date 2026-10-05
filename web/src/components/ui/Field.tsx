@@ -5,6 +5,10 @@ export const inputControlStyles =
 
 export const inputStyles = `mt-1 ${inputControlStyles}`;
 
+// Native select arrows sit close to the edge in some browsers; reserve room
+// consistently so both the text and arrow have comfortable inset spacing.
+export const selectControlStyles = `${inputControlStyles} appearance-none pr-10`;
+
 interface FieldProps {
   label: string;
   htmlFor?: string;

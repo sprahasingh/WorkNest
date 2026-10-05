@@ -36,7 +36,7 @@ export function OrgRoute() {
         <Navigate to="/orgs" replace state={{ lostOrgName: lostOrgName }} />
       );
     }
-    return <Navigate to="/orgs" replace state={{ unavailableOrg: true }} />;
+    return <Navigate to="/orgs" replace />;
   }
 
   const value: OrgContextValue = {
