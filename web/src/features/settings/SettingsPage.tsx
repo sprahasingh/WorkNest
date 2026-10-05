@@ -39,6 +39,7 @@ import { SessionsCard } from "./SessionsCard";
 import { billingQuery } from "@/features/billing/queries";
 import { payForPlan } from "@/features/billing/razorpay";
 import { TestPaymentBox } from "@/features/billing/TestPaymentBox";
+import { TestPlanDatesBox } from "@/features/billing/TestPlanDatesBox";
 import { copyTestCard } from "@/features/billing/testDetails";
 import { orgKeys } from "@/features/org/queries";
 import { dashboardKeys } from "@/features/dashboard/queries";
@@ -779,6 +780,8 @@ export function SettingsPage() {
   const updateOrg = useUpdateOrg(orgId);
   const changePlan = useChangePlan(orgId);
   const planInfoId = useId();
+  // A lower plan the person asked for while the paid one is still running.
+  const [switchNotice, setSwitchNotice] = useState<Plan | null>(null);
   const [planInfoOpen, setPlanInfoOpen] = useState(false);
   const [payingFor, setPayingFor] = useState<Plan | null>(null);
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
@@ -845,6 +848,18 @@ export function SettingsPage() {
 
   const handlePlanChange = async (newPlan: Plan) => {
     const name = PLAN_NAMES[newPlan];
+    // A paid plan can't be left or cancelled before its end date: the period
+    // is already paid for. Say so instead of calling the server.
+    if (
+      org &&
+      org.plan !== "free" &&
+      org.planExpiresAt &&
+      new Date(org.planExpiresAt) > new Date() &&
+      PLAN_ORDER.indexOf(newPlan) < PLAN_ORDER.indexOf(org.plan)
+    ) {
+      setSwitchNotice(newPlan);
+      return;
+    }
     // Moving up, or renewing the current plan, costs money when payments are
     // on; moving down never does.
     if (
@@ -902,6 +917,11 @@ export function SettingsPage() {
       toast.success(`You're now on the ${name} plan`);
     } catch (error) {
       const parsed = parseApiError(error);
+
+      if (parsed.code === "PLAN_ACTIVE_UNTIL_END") {
+        setSwitchNotice(newPlan);
+        return;
+      }
 
       if (parsed.code === "PLAN_DOWNGRADE_BLOCKED" && parsed.details[0]) {
         const detail = parsed.details[0] as DowngradeBlockedDetail;
@@ -1117,8 +1137,9 @@ export function SettingsPage() {
                   confirmed.
                 </p>
                 <p className="mt-2">
-                  Moving to a smaller plan is free but not refunded, and is
-                  blocked while you use more than it allows.
+                  A paid plan can&apos;t be switched or cancelled before it
+                  ends, since that period is already paid for. When it ends you
+                  move to Free by yourself, and you can buy a smaller plan then.
                 </p>
               </>
             ) : (
@@ -1278,12 +1299,51 @@ export function SettingsPage() {
 
           {testMode && canChangePlan && <TestPaymentBox />}
 
+          {canChangePlan && billing.data?.testControls && (
+            <TestPlanDatesBox
+              orgId={orgId}
+              onFreePlan={currentPlan === "free"}
+            />
+          )}
+
           {!canChangePlan && (
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
               Only admins can change the plan.
             </p>
           )}
         </Card>
+
+        {org && switchNotice && (
+          <Modal
+            open
+            onClose={() => setSwitchNotice(null)}
+            title={
+              switchNotice === "free"
+                ? "Your plan stays active until it ends"
+                : `Switch to ${PLAN_NAMES[switchNotice]} after your plan ends`
+            }
+          >
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              {switchNotice === "free"
+                ? "Your current paid plan will remain active until it ends. You\u2019ll automatically switch to Free when it expires."
+                : `You can switch to ${PLAN_NAMES[switchNotice]} after your current ${PLAN_NAMES[org.plan]} plan ends.`}
+            </p>
+            {org.planExpiresAt && (
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Your {PLAN_NAMES[org.plan]} plan ends on{" "}
+                {new Date(org.planExpiresAt).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+                .
+              </p>
+            )}
+            <div className="mt-5 flex justify-end">
+              <Button onClick={() => setSwitchNotice(null)}>Got it</Button>
+            </div>
+          </Modal>
+        )}
 
         {org && (
           <ChatRetentionCard orgId={orgId} org={org} canEdit={canUpdateOrg} />

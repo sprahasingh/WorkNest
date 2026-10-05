@@ -3,6 +3,8 @@ import type { Plan } from "@/api/auth";
 import type { BillingCycle } from "@/lib/plans";
 
 export interface BillingConfig {
+  // True for the demo and test accounts that may move a plan's end date.
+  testControls: boolean;
   enabled: boolean;
   keyId: string | null;
   prices: Record<Plan, Record<BillingCycle, number>>;
@@ -52,4 +54,23 @@ export async function verifyPayment(
   input: { orderId: string; paymentId: string; signature: string },
 ): Promise<void> {
   await apiClient.post(`/orgs/${orgId}/billing/verify`, input);
+}
+
+export interface TestPlanDatesInput {
+  planExpiresAt?: string | null;
+  planExpiredAt?: string | null;
+  run?: boolean;
+}
+
+// Test accounts only: moves a plan's end date (or the date it ended) and can
+// run the expiry, grace period and reminder checks straight away.
+export async function setTestPlanDates(
+  orgId: string,
+  input: TestPlanDatesInput,
+): Promise<{ ran: string[] }> {
+  const response = await apiClient.post<{ ran: string[] }>(
+    `/orgs/${orgId}/billing/test-plan-dates`,
+    input,
+  );
+  return response.data;
 }

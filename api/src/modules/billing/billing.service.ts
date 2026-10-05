@@ -7,13 +7,20 @@ import {
   type BillingCycle,
   type Plan,
 } from "../../constants/plans.js";
-import { expirePlanIfDue } from "./planLifecycle.js";
+import { expirePlanIfDue, getPlanUsage } from "./planLifecycle.js";
+import { enforceGraceIfDue } from "./gracePeriod.service.js";
+import { sendPlanRenewalReminders } from "./planReminders.js";
+import { isTestControlEmail } from "../../lib/testControls.js";
+import { User } from "../../models/User.js";
+import { recordAudit } from "../audit/audit.service.js";
+import type { TestPlanDatesInput } from "./billing.schemas.js";
 import { AppError } from "../../lib/errors.js";
 import {
   createRazorpayOrder,
   isRazorpayConfigured,
   verifyPaymentSignature,
 } from "../../lib/razorpay.js";
+import mongoose from "mongoose";
 import { logger } from "../../lib/logger.js";
 import { Organization } from "../../models/Organization.js";
 import { Payment } from "../../models/Payment.js";
@@ -58,6 +65,7 @@ export async function getBillingConfig() {
     .limit(5)
     .lean();
   return {
+    testControls: await canUseTestControls(),
     enabled: isRazorpayConfigured(),
     keyId: env.RAZORPAY_KEY_ID ?? null,
     prices: PLAN_PRICE_PAISE,
@@ -268,4 +276,90 @@ export async function confirmPayment(input: {
     skipTenant: true,
   });
   return org!;
+}
+
+// Test-only tools are for the accounts in EMAIL_VERIFICATION_BYPASS_EMAILS.
+export async function canUseTestControls(): Promise<boolean> {
+  const user = await User.findById(getTenantContext()!.userId)
+    .select("email")
+    .lean();
+  return isTestControlEmail(user?.email);
+}
+
+// Moves the end date of a paid plan, or the date a plan ended, and can run the
+// expiry, grace period and reminder checks straight away. Only for the test
+// accounts: anyone else gets a plain "not found".
+export async function setTestPlanDates(input: TestPlanDatesInput) {
+  if (!(await canUseTestControls())) {
+    throw new AppError(404, "NOT_FOUND", "Not found");
+  }
+  const tenantId = requireTenantId();
+  const org = await Organization.findById(tenantId)
+    .select("plan planExpiredFrom")
+    .setOptions({ skipTenant: true })
+    .lean();
+  if (!org) throw new AppError(404, "NOT_FOUND", "Organization not found");
+
+  const changes: Record<string, unknown> = {};
+  if (input.planExpiresAt !== undefined) {
+    if (org.plan === "free") {
+      throw new AppError(
+        409,
+        "NOT_ON_PAID_PLAN",
+        "This workspace is on Free. Set the date it ended instead (planExpiredAt).",
+      );
+    }
+    changes.planExpiresAt =
+      input.planExpiresAt === null ? null : new Date(input.planExpiresAt);
+  }
+  if (input.planExpiredAt !== undefined) {
+    if (org.plan !== "free") {
+      throw new AppError(
+        409,
+        "NOT_EXPIRED",
+        "This workspace is on a paid plan. Set its end date instead (planExpiresAt).",
+      );
+    }
+    changes.planExpiredAt =
+      input.planExpiredAt === null ? null : new Date(input.planExpiredAt);
+    changes.planExpiredFrom = org.planExpiredFrom ?? "pro";
+    // Lets the grace period and archiving run again from the new date.
+    changes.graceEnforcedAt = null;
+    changes.graceArchived = null;
+  }
+
+  if (Object.keys(changes).length > 0) {
+    const dbSession = await mongoose.startSession();
+    try {
+      await dbSession.withTransaction(async () => {
+        await Organization.updateOne({ _id: tenantId }, changes, {
+          session: dbSession,
+        }).setOptions({ skipTenant: true });
+        await recordAudit(
+          {
+            action: "plan.test_dates_set",
+            entityType: "Organization",
+            entityId: tenantId,
+            metadata: { test: true, ...input },
+          },
+          dbSession,
+        );
+      });
+    } finally {
+      await dbSession.endSession();
+    }
+  }
+
+  const ran: string[] = [];
+  if (input.run) {
+    if (await expirePlanIfDue(tenantId)) ran.push("plan expired");
+    if (await enforceGraceIfDue(tenantId)) ran.push("extras archived");
+    const reminders = await sendPlanRenewalReminders(new Date(), tenantId);
+    if (reminders > 0) ran.push("reminder sent");
+  }
+
+  const updated = await Organization.findById(tenantId).setOptions({
+    skipTenant: true,
+  });
+  return { organization: updated!, usage: await getPlanUsage(tenantId), ran };
 }

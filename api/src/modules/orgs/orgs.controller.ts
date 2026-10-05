@@ -6,7 +6,7 @@ import {
   isRazorpayConfigured,
   simulatedUpgradesAllowed,
 } from "../../lib/razorpay.js";
-import { planRank, type Plan } from "../../constants/plans.js";
+import { PLAN_NAMES, planRank, type Plan } from "../../constants/plans.js";
 import { getPlanUsage } from "../billing/planLifecycle.js";
 import { changePlan, createOrg, updateOrg } from "./orgs.service.js";
 import { reconcileSeats } from "../invites/invites.service.js";
@@ -53,11 +53,47 @@ export async function updateOrgController(
   res.status(200).json({ organization: org });
 }
 
+// A paid plan has been paid for until its end date, so it can't be switched to
+// a lower plan, or cancelled, before then. Free comes by itself when it ends,
+// and a lower paid plan can be bought after that. Plans with no end date (set
+// up before plans expired, or simulated) have nothing paid for, so they can
+// still be changed.
+async function assertPaidPlanCanBeLeft(target: Plan): Promise<void> {
+  const org = await Organization.findById(requireTenantId())
+    .select("plan planExpiresAt")
+    .setOptions({ skipTenant: true })
+    .lean();
+  const current = (org?.plan ?? "free") as Plan;
+  if (
+    current === "free" ||
+    planRank(target) >= planRank(current) ||
+    !org?.planExpiresAt ||
+    org.planExpiresAt <= new Date()
+  ) {
+    return;
+  }
+  throw new AppError(
+    409,
+    "PLAN_ACTIVE_UNTIL_END",
+    target === "free"
+      ? "Your current paid plan will remain active until it ends. You'll automatically switch to Free when it expires."
+      : `You can switch to ${PLAN_NAMES[target]} after your current ${PLAN_NAMES[current]} plan ends.`,
+    [
+      {
+        currentPlan: current,
+        targetPlan: target,
+        planExpiresAt: org.planExpiresAt.toISOString(),
+      },
+    ],
+  );
+}
+
 export async function changePlanController(
   req: Request,
   res: Response,
 ): Promise<void> {
   const input = req.validated!.body as ChangePlanInput;
+  await assertPaidPlanCanBeLeft(input.plan);
   // With payments switched on, moving up has to go through checkout. Moving
   // down is always free.
   const paymentsOn = isRazorpayConfigured();

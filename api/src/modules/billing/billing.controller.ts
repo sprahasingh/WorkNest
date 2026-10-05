@@ -7,9 +7,11 @@ import {
   confirmPayment,
   createOrder,
   getBillingConfig,
+  setTestPlanDates,
 } from "./billing.service.js";
 import type {
   CreateOrderInput,
+  TestPlanDatesInput,
   VerifyPaymentInput,
 } from "./billing.schemas.js";
 
@@ -81,4 +83,12 @@ export async function webhookController(
     }
   }
   res.status(200).json({ received: true });
+}
+
+export async function testPlanDatesController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as TestPlanDatesInput;
+  res.status(200).json(await setTestPlanDates(input));
 }
