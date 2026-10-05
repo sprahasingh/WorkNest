@@ -6,9 +6,10 @@ import { Organization } from "../../models/Organization.js";
 import { Project } from "../../models/Project.js";
 import { Task } from "../../models/Task.js";
 import { TaskActivity } from "../../models/TaskActivity.js";
-import { runWithTenant } from "../../tenancy/context.js";
+import { requireTenantId, runWithTenant } from "../../tenancy/context.js";
 import { recordAudit } from "../audit/audit.service.js";
 import { releaseProjectSlot } from "../orgs/orgs.service.js";
+import { getPlanUsage } from "./planLifecycle.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -33,166 +34,177 @@ function byRecency<T extends { last: number; id: string }>(a: T, b: T) {
 export async function archiveExcessForFree(): Promise<GraceSummary> {
   const limits = PLAN_LIMITS.free;
   const summary: GraceSummary = { projects: 0, tasks: 0 };
+  const tenantId = requireTenantId();
+  const dbSession = await mongoose.startSession();
 
-  // 1. Projects. Only those that use a plan slot (not archived, and with open
-  // work or no tasks yet) count against the limit.
-  const [taskStats, activityByProject] = await Promise.all([
-    Task.aggregate<{
-      _id: mongoose.Types.ObjectId;
-      total: number;
-      unfinished: number;
-      last: Date | null;
-    }>([
-      { $match: { deletedAt: null } },
-      {
-        $group: {
-          _id: "$projectId",
-          total: { $sum: 1 },
-          unfinished: { $sum: { $cond: [{ $ne: ["$status", "done"] }, 1, 0] } },
-          last: { $max: "$updatedAt" },
-        },
-      },
-    ]),
-    TaskActivity.aggregate<{ _id: mongoose.Types.ObjectId; last: Date }>([
-      { $group: { _id: "$projectId", last: { $max: "$createdAt" } } },
-    ]),
-  ]);
-  const stats = new Map(taskStats.map((row) => [String(row._id), row]));
-  const activity = new Map(
-    activityByProject.map((row) => [String(row._id), time(row.last)]),
-  );
+  try {
+    await dbSession.withTransaction(async () => {
+      summary.projects = 0;
+      summary.tasks = 0;
 
-  const projects = await Project.find({ archivedAt: null })
-    .select("updatedAt")
-    .lean();
-  const usingSlot = projects
-    .filter((project) => {
-      const row = stats.get(String(project._id));
-      return !row || row.total === 0 || row.unfinished > 0;
-    })
-    .map((project) => {
-      const id = String(project._id);
-      return {
-        id,
-        last: Math.max(
-          time(project.updatedAt),
-          time(stats.get(id)?.last),
-          activity.get(id) ?? 0,
-        ),
-      };
-    })
-    .sort(byRecency);
-
-  const extras = usingSlot.slice(limits.projectLimit);
-  if (extras.length > 0) {
-    // archiveProject recalculates slot usage from tasks. Since this operation
-    // archives several projects in sequence, its counter can become stale
-    // relative to the precomputed selection. Archive the chosen extras as one
-    // transaction and release exactly the slots they occupied.
-    const dbSession = await mongoose.startSession();
-    try {
-      await dbSession.withTransaction(async () => {
-        const tenantId = String(
-          await Project.findById(extras[0]!.id)
-            .select("tenantId")
-            .session(dbSession)
-            .then((project) => project?.tenantId),
-        );
-        for (const extra of extras) {
-          const project = await Project.findOneAndUpdate(
-            { _id: extra.id, archivedAt: null },
-            { archivedAt: new Date(), archivedReason: "plan_limit" },
-            { new: true, session: dbSession },
-          );
-          if (!project) continue;
-          await releaseProjectSlot(tenantId, dbSession);
-          await recordAudit(
-            {
-              action: "project.archived",
-              entityType: "Project",
-              entityId: extra.id,
-              metadata: { reason: "plan_limit" },
-            },
-            dbSession,
-          );
-          summary.projects += 1;
-        }
-      });
-    } finally {
-      await dbSession.endSession();
-    }
-  }
-
-  // 2. Open tasks, per project. Projects that are archived (by a person, or
-  // just now because of the plan) are left alone: they aren't in use, their
-  // tasks are still readable, and a project can only be restored if its open
-  // tasks fit the plan.
-  const taskLimit = limits.activeTaskLimit;
-  if (taskLimit !== null) {
-    const crowded = await Task.aggregate<{ _id: mongoose.Types.ObjectId }>([
-      {
-        $match: { status: { $ne: "done" }, archivedAt: null, deletedAt: null },
-      },
-      { $group: { _id: "$projectId", active: { $sum: 1 } } },
-      { $match: { active: { $gt: taskLimit } } },
-    ]);
-    const liveProjects = new Set(
-      (
-        await Project.find({
-          _id: { $in: crowded.map((row) => row._id) },
-          archivedAt: null,
-        })
-          .select("_id")
-          .lean()
-      ).map((project) => String(project._id)),
-    );
-
-    for (const row of crowded) {
-      if (!liveProjects.has(String(row._id))) continue;
-      const tasks = await Task.find({
-        projectId: row._id,
-        status: { $ne: "done" },
-        archivedAt: null,
+      const organization = await Organization.findOne({
+        _id: tenantId,
+        plan: "free",
       })
-        .select("updatedAt")
+        .select("_id")
+        .session(dbSession)
+        .setOptions({ skipTenant: true })
         .lean();
-      const taskActivity = new Map(
-        (
-          await TaskActivity.aggregate<{
-            _id: mongoose.Types.ObjectId;
-            last: Date;
-          }>([
-            { $match: { taskId: { $in: tasks.map((task) => task._id) } } },
-            { $group: { _id: "$taskId", last: { $max: "$createdAt" } } },
-          ])
-        ).map((entry) => [String(entry._id), time(entry.last)]),
-      );
-      const extras = tasks
-        .map((task) => ({
-          id: String(task._id),
-          last: Math.max(
-            time(task.updatedAt),
-            taskActivity.get(String(task._id)) ?? 0,
-          ),
-        }))
-        .sort(byRecency)
-        .slice(taskLimit);
-      if (extras.length === 0) continue;
+      if (!organization) return;
 
-      const ids = extras.map((task) => task.id);
-      const dbSession = await mongoose.startSession();
-      try {
-        await dbSession.withTransaction(async () => {
+      // 1. Projects. Done-only projects do not use a slot; empty projects and
+      // projects with at least one open task do.
+      const taskStats = await Task.aggregate<{
+        _id: mongoose.Types.ObjectId;
+        total: number;
+        unfinished: number;
+        last: Date | null;
+      }>([
+        { $match: { deletedAt: null } },
+        {
+          $group: {
+            _id: "$projectId",
+            total: { $sum: 1 },
+            unfinished: {
+              $sum: { $cond: [{ $ne: ["$status", "done"] }, 1, 0] },
+            },
+            last: { $max: "$updatedAt" },
+          },
+        },
+      ]).session(dbSession);
+      const activityByProject = await TaskActivity.aggregate<{
+        _id: mongoose.Types.ObjectId;
+        last: Date;
+      }>([
+        { $group: { _id: "$projectId", last: { $max: "$createdAt" } } },
+      ]).session(dbSession);
+      const stats = new Map(taskStats.map((row) => [String(row._id), row]));
+      const activity = new Map(
+        activityByProject.map((row) => [String(row._id), time(row.last)]),
+      );
+      const projects = await Project.find({ archivedAt: null })
+        .select("updatedAt")
+        .session(dbSession)
+        .lean();
+      const usingSlot = projects
+        .filter((project) => {
+          const row = stats.get(String(project._id));
+          return !row || row.total === 0 || row.unfinished > 0;
+        })
+        .map((project) => {
+          const id = String(project._id);
+          return {
+            id,
+            last: Math.max(
+              time(project.updatedAt),
+              time(stats.get(id)?.last),
+              activity.get(id) ?? 0,
+            ),
+          };
+        })
+        .sort(byRecency);
+      for (const extra of usingSlot.slice(limits.projectLimit)) {
+        const project = await Project.findOneAndUpdate(
+          { _id: extra.id, archivedAt: null },
+          { archivedAt: new Date(), archivedReason: "plan_limit" },
+          { returnDocument: "after", session: dbSession },
+        );
+        if (!project) continue;
+        await releaseProjectSlot(tenantId, dbSession);
+        await recordAudit(
+          {
+            action: "project.archived",
+            entityType: "Project",
+            entityId: extra.id,
+            metadata: { reason: "plan_limit" },
+          },
+          dbSession,
+        );
+        summary.projects += 1;
+      }
+
+      // 2. Trim open tasks only in projects that remain active. Explicitly
+      // exclude completed, archived and binned tasks from both counting and
+      // selection.
+      const taskLimit = limits.activeTaskLimit;
+      if (taskLimit !== null) {
+        const crowded = await Task.aggregate<{
+          _id: mongoose.Types.ObjectId;
+        }>([
+          {
+            $match: {
+              status: { $ne: "done" },
+              archivedAt: null,
+              deletedAt: null,
+            },
+          },
+          { $group: { _id: "$projectId", active: { $sum: 1 } } },
+          { $match: { active: { $gt: taskLimit } } },
+        ]).session(dbSession);
+        const liveProjects = new Set(
+          (
+            await Project.find({
+              _id: { $in: crowded.map((row) => row._id) },
+              archivedAt: null,
+            })
+              .select("_id")
+              .session(dbSession)
+              .lean()
+          ).map((project) => String(project._id)),
+        );
+
+        for (const row of crowded) {
+          if (!liveProjects.has(String(row._id))) continue;
+          const tasks = await Task.find({
+            projectId: row._id,
+            status: { $ne: "done" },
+            archivedAt: null,
+            deletedAt: null,
+          })
+            .select("updatedAt")
+            .session(dbSession)
+            .lean();
+          const taskActivity = new Map(
+            (
+              await TaskActivity.aggregate<{
+                _id: mongoose.Types.ObjectId;
+                last: Date;
+              }>([
+                { $match: { taskId: { $in: tasks.map((task) => task._id) } } },
+                { $group: { _id: "$taskId", last: { $max: "$createdAt" } } },
+              ]).session(dbSession)
+            ).map((entry) => [String(entry._id), time(entry.last)]),
+          );
+          const extras = tasks
+            .map((task) => ({
+              id: String(task._id),
+              last: Math.max(
+                time(task.updatedAt),
+                taskActivity.get(String(task._id)) ?? 0,
+              ),
+            }))
+            .sort(byRecency)
+            .slice(taskLimit);
+          if (extras.length === 0) continue;
+
+          const ids = extras.map((task) => task.id);
+          const project = await Project.findById(row._id)
+            .select("tenantId")
+            .session(dbSession);
+          if (!project) continue;
           await Task.updateMany(
-            { _id: { $in: ids }, archivedAt: null },
+            {
+              _id: { $in: ids },
+              status: { $ne: "done" },
+              archivedAt: null,
+              deletedAt: null,
+            },
             { archivedAt: new Date(), archivedReason: "plan_limit" },
-            // Keep "last changed" as it was, so the order stays meaningful.
             { session: dbSession, timestamps: false },
           );
           await Notification.updateMany(
             {
-              tenantId: (await Project.findById(row._id).session(dbSession))!
-                .tenantId,
+              tenantId: project.tenantId,
               taskId: { $in: ids },
               type: { $in: ["task_due_soon", "task_overdue"] },
               dismissedAt: null,
@@ -209,14 +221,54 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
             },
             dbSession,
           );
-        });
-      } finally {
-        await dbSession.endSession();
+          summary.tasks += ids.length;
+        }
       }
-      summary.tasks += ids.length;
-    }
+
+      // Refresh the slot counter from the same completed/open task semantics
+      // before committing so usage checks see the actual post-archive count.
+      const remaining = await Project.find({ archivedAt: null })
+        .select("_id")
+        .session(dbSession)
+        .lean();
+      const remainingStats = await Task.aggregate<{
+        _id: mongoose.Types.ObjectId;
+        total: number;
+        unfinished: number;
+      }>([
+        {
+          $match: {
+            projectId: { $in: remaining.map((project) => project._id) },
+            deletedAt: null,
+          },
+        },
+        {
+          $group: {
+            _id: "$projectId",
+            total: { $sum: 1 },
+            unfinished: {
+              $sum: { $cond: [{ $ne: ["$status", "done"] }, 1, 0] },
+            },
+          },
+        },
+      ]).session(dbSession);
+      const remainingById = new Map(
+        remainingStats.map((row) => [String(row._id), row]),
+      );
+      const activeProjects = remaining.filter((project) => {
+        const row = remainingById.get(String(project._id));
+        return !row || row.total === 0 || row.unfinished > 0;
+      }).length;
+      await Organization.updateOne(
+        { _id: tenantId },
+        { projectCount: activeProjects },
+        { session: dbSession },
+      ).setOptions({ skipTenant: true });
+    });
+    return summary;
+  } finally {
+    await dbSession.endSession();
   }
-  return summary;
 }
 
 const CLAIM_STALE_MS = 2 * 60 * 1000;
@@ -266,8 +318,13 @@ export async function enforceGraceIfDue(
       projects: summary.projects + (claimed.graceArchived?.projects ?? 0),
       tasks: summary.tasks + (claimed.graceArchived?.tasks ?? 0),
     };
-    await Organization.updateOne(
-      { _id: tenantId },
+    const completed = await Organization.updateOne(
+      {
+        _id: tenantId,
+        plan: "free",
+        planExpiredAt: { $ne: null, $lte: cutoff },
+        graceEnforcingAt: now,
+      },
       options.again
         ? { graceArchived: total, graceEnforcingAt: null }
         : {
@@ -276,12 +333,13 @@ export async function enforceGraceIfDue(
             graceEnforcingAt: null,
           },
     ).setOptions({ skipTenant: true });
+    if (completed.matchedCount === 0) return false;
     logger.info({ tenantId, ...summary }, "Archived usage over the Free plan");
     return true;
   } catch (error) {
     // Let the next request or sweep try again.
     await Organization.updateOne(
-      { _id: tenantId },
+      { _id: tenantId, graceEnforcingAt: now },
       { graceEnforcingAt: null },
     ).setOptions({ skipTenant: true });
     logger.error({ err: error, tenantId }, "Could not archive over-plan usage");
@@ -296,14 +354,24 @@ export async function enforceDueGracePeriods(
   const due = await Organization.find({
     plan: "free",
     planExpiredAt: { $ne: null, $lte: cutoff },
-    graceEnforcedAt: null,
   })
     .select("_id")
     .setOptions({ skipTenant: true })
     .lean();
   let done = 0;
   for (const org of due) {
-    if (await enforceGraceIfDue(String(org._id), { now })) done += 1;
+    const tenantId = String(org._id);
+    if (await enforceGraceIfDue(tenantId, { now })) {
+      done += 1;
+      continue;
+    }
+    const usage = await runWithTenant(
+      { tenantId, userId: "system", role: "admin" },
+      () => getPlanUsage(tenantId),
+    );
+    if (usage.graceEnforced && usage.workOverLimit) {
+      if (await enforceGraceIfDue(tenantId, { again: true, now })) done += 1;
+    }
   }
   return done;
 }

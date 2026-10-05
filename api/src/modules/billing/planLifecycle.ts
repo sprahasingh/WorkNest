@@ -4,14 +4,13 @@ import { AppError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { Organization } from "../../models/Organization.js";
 import { requireTenantId } from "../../tenancy/context.js";
-import { countProjectsOverTaskLimit } from "./taskUsage.js";
+import { findProjectsOverTaskLimit } from "./taskUsage.js";
 import { enforceGraceIfDue } from "./gracePeriod.service.js";
 
 // An organization whose paid plan has run out goes back to Free. This runs on
 // the first request after the date passes, so it works even when the server
-// was asleep at the moment of expiry. Nothing is blocked or deleted here: if
-// the organization uses more than Free allows, it is locked (see below) until
-// the extra work is removed or a plan is bought.
+// was asleep at the moment of expiry. The workspace gets its grace period
+// before excess projects and tasks are archived.
 export async function expirePlanIfDue(
   tenantId: string,
   now = new Date(),
@@ -67,6 +66,12 @@ export interface PlanUsage {
   projectCount: number;
   projectLimit: number;
   projectsOverTaskLimit: number;
+  taskLimitOverages: {
+    projectId: string;
+    projectName: string;
+    activeCount: number;
+    limit: number;
+  }[];
   activeTaskLimit: number | null;
   // True when the organization uses more than its plan allows.
   overLimit: boolean;
@@ -98,8 +103,8 @@ export async function getPlanUsage(tenantId: string): Promise<PlanUsage> {
 
   const activeTaskLimit =
     PLAN_LIMITS[(org.plan ?? "free") as Plan].activeTaskLimit;
-  const projectsOverTaskLimit =
-    await countProjectsOverTaskLimit(activeTaskLimit);
+  const taskLimitOverages = await findProjectsOverTaskLimit(activeTaskLimit);
+  const projectsOverTaskLimit = taskLimitOverages.length;
 
   const workOverLimit =
     org.projectCount > org.projectLimit || projectsOverTaskLimit > 0;
@@ -119,6 +124,7 @@ export async function getPlanUsage(tenantId: string): Promise<PlanUsage> {
     projectCount: org.projectCount,
     projectLimit: org.projectLimit,
     projectsOverTaskLimit,
+    taskLimitOverages,
     activeTaskLimit,
     overLimit,
     inGrace,
@@ -173,6 +179,26 @@ export async function enforceGraceFully(tenantId: string): Promise<boolean> {
   return ran;
 }
 
+function overageReasons(usage: PlanUsage): string[] {
+  const reasons: string[] = [];
+  if (usage.projectCount > usage.projectLimit) {
+    reasons.push(
+      `Project limit: ${usage.projectCount} active projects; Free allows ${usage.projectLimit}`,
+    );
+  }
+  if (usage.projectsOverTaskLimit > 0 && usage.activeTaskLimit !== null) {
+    reasons.push(
+      `Task limit: ${usage.projectsOverTaskLimit} projects exceed ${usage.activeTaskLimit} open tasks per project`,
+    );
+  }
+  if (usage.seatsUsed > usage.seatLimit) {
+    reasons.push(
+      `Seat limit: ${usage.seatsUsed} members; Free allows ${usage.seatLimit}`,
+    );
+  }
+  return reasons;
+}
+
 export async function enforcePlanState(
   req: Request,
   _res: Response,
@@ -186,18 +212,20 @@ export async function enforcePlanState(
     req.method === "OPTIONS" ||
     allowedWhileOverLimit(req)
   ) {
-    // Reading is never blocked, but it still moves a due archiving along.
-    await enforceGraceIfDue(tenantId);
+    // Reading is never blocked, but it still moves due or incomplete cleanup
+    // along, just like a mutation request.
+    await enforceGraceFully(tenantId);
     next();
     return;
   }
   await enforceGraceFully(tenantId);
   const usage = await getPlanUsage(tenantId);
+  const reasons = overageReasons(usage);
   if (usage.paused) {
     throw new AppError(
       403,
       "PLAN_OVER_LIMIT",
-      "This account uses more than its plan allows. Delete or archive the extra projects or tasks, or upgrade your plan, to keep working.",
+      `${reasons.join(". ")}. Archive excess work, remove extra members, or renew your plan.`,
       [usage],
     );
   }
@@ -205,9 +233,7 @@ export async function enforcePlanState(
     throw new AppError(
       403,
       "PLAN_GRACE_RESTRICTED",
-      usage.inGrace
-        ? "Your workspace is over the Free plan limits, so nothing new can be added until you renew or bring usage down by deleting or archiving the extras. Extra projects and tasks are archived automatically when the grace period ends."
-        : "Your workspace is over the Free plan limits, so nothing new can be added until you renew or bring usage down.",
+      `New resources are blocked during grace because the workspace exceeds its Free ${reasons.map((reason) => reason.split(":")[0]!.toLowerCase()).join(" and ")}.`,
       [usage],
     );
   }

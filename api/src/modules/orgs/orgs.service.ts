@@ -302,6 +302,7 @@ export async function changePlan(
                 planExpiredAt: null,
                 planExpiredFrom: null,
                 graceEnforcedAt: null,
+                graceEnforcingAt: null,
                 graceArchived: null,
               }),
         },
