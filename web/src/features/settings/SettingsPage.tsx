@@ -877,7 +877,7 @@ export function SettingsPage() {
           });
         }
         if (result.status === "paid") {
-          toast.success(`Payment received. You're on the ${name} plan`);
+          toast.success(`Payment received. You're now on the ${name} plan`);
           void queryClient.invalidateQueries({
             queryKey: orgKeys.detail(orgId),
           });
