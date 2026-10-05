@@ -17,3 +17,28 @@ export const verifyPaymentSchema = z
   })
   .strict();
 export type VerifyPaymentInput = z.infer<typeof verifyPaymentSchema>;
+
+// Test controls: move a plan's end date (or, once it has ended, the date it
+// ended) so expiry, the grace period, reminders and archiving can be tried
+// without waiting. null clears the date.
+export const testPlanDatesSchema = z
+  .object({
+    planExpiresAt: z
+      .union([z.iso.datetime({ offset: true }), z.null()])
+      .optional(),
+    planExpiredAt: z
+      .union([z.iso.datetime({ offset: true }), z.null()])
+      .optional(),
+    // Run the expiry, grace period and reminder checks for this organization
+    // straight away instead of waiting for the next sweep.
+    run: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.planExpiresAt !== undefined ||
+      value.planExpiredAt !== undefined ||
+      value.run === true,
+    { message: "Give a date to set, or run the checks" },
+  );
+export type TestPlanDatesInput = z.infer<typeof testPlanDatesSchema>;

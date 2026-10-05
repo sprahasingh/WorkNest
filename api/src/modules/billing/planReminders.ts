@@ -112,8 +112,12 @@ async function writeReminder(input: {
 
 export async function sendPlanRenewalReminders(
   now = new Date(),
+  // Only this organization, instead of all of them (used by the test controls).
+  onlyTenantId?: string,
 ): Promise<number> {
+  const scope = onlyTenantId ? { _id: onlyTenantId } : {};
   const expiring = await Organization.find({
+    ...scope,
     plan: { $ne: "free" },
     planExpiresAt: { $gt: now, $lte: new Date(now.getTime() + 7 * DAY_MS) },
   })
@@ -121,6 +125,7 @@ export async function sendPlanRenewalReminders(
     .setOptions({ skipTenant: true })
     .lean();
   const expired = await Organization.find({
+    ...scope,
     plan: "free",
     planExpiredAt: {
       $gt: new Date(now.getTime() - EXPIRED_NOTICE_DAYS * DAY_MS),

@@ -3,10 +3,15 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { validate } from "../../middleware/validate.js";
 import { requirePermission } from "../../auth/requirePermission.js";
-import { createOrderSchema, verifyPaymentSchema } from "./billing.schemas.js";
+import {
+  createOrderSchema,
+  testPlanDatesSchema,
+  verifyPaymentSchema,
+} from "./billing.schemas.js";
 import {
   billingConfigController,
   createOrderController,
+  testPlanDatesController,
   verifyPaymentController,
 } from "./billing.controller.js";
 
@@ -34,6 +39,15 @@ router.post(
   requirePermission("plan:change"),
   validate({ body: verifyPaymentSchema }),
   verifyPaymentController,
+);
+
+// Test accounts only (EMAIL_VERIFICATION_BYPASS_EMAILS), checked in the
+// service on top of the admin permission.
+router.post(
+  "/test-plan-dates",
+  requirePermission("plan:change"),
+  validate({ body: testPlanDatesSchema }),
+  testPlanDatesController,
 );
 
 export { router as billingRouter };

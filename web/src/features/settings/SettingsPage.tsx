@@ -39,6 +39,7 @@ import { SessionsCard } from "./SessionsCard";
 import { billingQuery } from "@/features/billing/queries";
 import { payForPlan } from "@/features/billing/razorpay";
 import { TestPaymentBox } from "@/features/billing/TestPaymentBox";
+import { TestPlanDatesBox } from "@/features/billing/TestPlanDatesBox";
 import { copyTestCard } from "@/features/billing/testDetails";
 import { orgKeys } from "@/features/org/queries";
 import { dashboardKeys } from "@/features/dashboard/queries";
@@ -1297,6 +1298,13 @@ export function SettingsPage() {
           </ul>
 
           {testMode && canChangePlan && <TestPaymentBox />}
+
+          {canChangePlan && billing.data?.testControls && (
+            <TestPlanDatesBox
+              orgId={orgId}
+              onFreePlan={currentPlan === "free"}
+            />
+          )}
 
           {!canChangePlan && (
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">

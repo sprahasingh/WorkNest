@@ -303,6 +303,16 @@ Admins are reminded to renew: a notification (and an email, when email delivery 
 
 Expiry doesn't wait for someone to open the app: a sweep runs every 30 minutes and moves ended plans back to Free. While a workspace is paused, the buttons that create or change things (new project, new task, schedule meeting, send invite, the save buttons in the forms, and sending a chat message) are disabled with a hint, and a red banner at the top says what is over the limit.
 
+#### Trying out expiry without waiting
+
+Accounts whose email is in `EMAIL_VERIFICATION_BYPASS_EMAILS` (and only those) get a "Test account" box under the plans in Settings, for admins. It moves the plan's end date, so expiry, the grace period, the reminders and the archiving can be tried in minutes:
+
+- While on a paid plan: **Ends in 6 days** (the 7 day reminder), **Ends in 20 hours** (the 1 day reminder), **Ends now** (the plan expires and the workspace goes back to Free), or any date and time you pick.
+- Once the plan has ended: **Ended 5 days ago** (inside the grace period), **Ended 11 days ago** (the grace period is over, so the extras are archived), or any date. Moving the date re-arms the archiving.
+- Leave "Run the checks right away" ticked and the expiry, grace period and reminder checks for that workspace run straight after the date is set, instead of at the next 30 minute sweep.
+
+Under the box it is `POST /api/orgs/:orgId/billing/test-plan-dates` with `{ planExpiresAt?, planExpiredAt?, run? }` (ISO dates, `null` clears one). The server only accepts it from an admin whose own email is in `EMAIL_VERIFICATION_BYPASS_EMAILS`; for anyone else it answers `404`, and the box never shows. It can't be used on a workspace on the wrong side of the date (the end date while on Free, or the ended date while on a paid plan), and every use is written to the audit log. Don't put real customers' addresses in that list.
+
 How it works:
 
 1. An admin picks Monthly or Yearly and clicks a buy button in Settings, such as "Upgrade to Pro · ₹449" (every buy button shows its price, and the current plan has a "Renew" button). The API creates a Razorpay order for the exact amount and records it as a pending payment.
