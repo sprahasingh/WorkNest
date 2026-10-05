@@ -40,6 +40,8 @@ export function OrgPicker() {
   const location = useLocation();
   const lostOrgName = (location.state as { lostOrgName?: unknown } | null)
     ?.lostOrgName;
+  const unavailableOrg = (location.state as { unavailableOrg?: unknown } | null)
+    ?.unavailableOrg;
 
   const {
     register,
@@ -126,6 +128,16 @@ export function OrgPicker() {
             <span className="font-medium">{lostOrgName}</span>. An admin may
             have removed you. Your account and other organizations are
             unaffected.
+          </p>
+        )}
+
+        {unavailableOrg === true && (
+          <p
+            role="status"
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300"
+          >
+            That workspace link isn&apos;t available to this account. Choose a
+            workspace below or accept an invitation.
           </p>
         )}
 

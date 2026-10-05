@@ -263,7 +263,8 @@ describe("account deletion", () => {
     const login = await request(app)
       .post("/api/auth/login")
       .send({ email: "stayer@example.com", password: "Harbor-lamp-91" });
-    expect(login.status).toBe(401);
+    expect(login.status).toBe(404);
+    expect(login.body.error.code).toBe("ACCOUNT_NOT_FOUND");
 
     const again = await registerAndVerify(app, {
       name: "Back Again",

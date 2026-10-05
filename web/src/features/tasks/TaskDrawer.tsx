@@ -177,6 +177,7 @@ export function TaskDrawer({
     setError,
     control,
     setValue,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -264,6 +265,14 @@ export function TaskDrawer({
           input.dueDate = values.dueDate;
         }
         await createTask.mutateAsync(input);
+        reset({
+          title: "",
+          description: "",
+          priority: "medium",
+          assigneeIds: canAssign ? [] : [userId],
+          dueDate: "",
+          status: "todo",
+        });
         toast.success("Task created");
       }
       onClose();
@@ -454,6 +463,29 @@ export function TaskDrawer({
             className="space-y-4"
           >
             <ErrorBanner message={formError} />
+
+            {!isEditing && (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    reset({
+                      title: "",
+                      description: "",
+                      priority: "medium",
+                      assigneeIds: canAssign ? [] : [userId],
+                      dueDate: "",
+                      status: "todo",
+                    });
+                    setFormError(null);
+                  }}
+                >
+                  Clear form
+                </Button>
+              </div>
+            )}
 
             {task && (
               <p className="text-sm text-slate-500 dark:text-slate-400">

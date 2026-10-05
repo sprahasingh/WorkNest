@@ -427,8 +427,7 @@ export async function verifyRegistration(input: VerifyRegistrationInput) {
   }
 }
 
-// Compared against when there's no account, so a wrong email takes as long
-// as a wrong password and response times don't reveal who has an account.
+// Keeps the unknown-email path from being much faster than password checks.
 let timingDummyHash: Promise<string> | null = null;
 function dummyPasswordHash(): Promise<string> {
   timingDummyHash ??= bcrypt.hash(randomToken(), env.BCRYPT_COST);
@@ -463,10 +462,19 @@ export async function login(input: LoginInput) {
           "You haven't confirmed your email yet. Open the link we sent you, or ask for a new one.",
         );
       }
+      throw new AppError(
+        401,
+        "INVALID_CREDENTIALS",
+        "Invalid email or password",
+      );
     } else {
       await bcrypt.compare(input.password, await dummyPasswordHash());
     }
-    throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
+    throw new AppError(
+      404,
+      "ACCOUNT_NOT_FOUND",
+      "This email isn't registered. Register instead.",
+    );
   }
 
   const isValid = await bcrypt.compare(

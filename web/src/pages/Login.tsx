@@ -37,6 +37,9 @@ export function Login() {
   const location = useLocation();
   const nextPath = safeNextPath(location.search);
   const [formError, setFormError] = useState<string | null>(null);
+  const [unregisteredEmail, setUnregisteredEmail] = useState<string | null>(
+    null,
+  );
   const requestController = useRef<AbortController | null>(null);
   // Set when the password is right but the email link was never opened.
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
@@ -74,6 +77,7 @@ export function Login() {
 
   const onSubmit = async (values: LoginFormValues) => {
     setFormError(null);
+    setUnregisteredEmail(null);
     setUnverifiedEmail(null);
     const controller = new AbortController();
     let timedOut = false;
@@ -107,6 +111,10 @@ export function Login() {
       const parsed = parseApiError(error);
       if (parsed.code === "EMAIL_NOT_VERIFIED") {
         setUnverifiedEmail(values.identifier.trim().toLowerCase());
+        return;
+      }
+      if (parsed.code === "ACCOUNT_NOT_FOUND") {
+        setUnregisteredEmail(values.identifier.trim().toLowerCase());
         return;
       }
       if (Object.keys(parsed.fieldErrors).length === 0) {
@@ -146,6 +154,23 @@ export function Login() {
         </div>
 
         <ErrorBanner message={formError} />
+        {unregisteredEmail && (
+          <div
+            role="alert"
+            className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <p>
+              No account is registered with <strong>{unregisteredEmail}</strong>
+              .
+            </p>
+            <Link
+              to="/register"
+              className="mt-1 inline-block font-medium underline"
+            >
+              Register instead
+            </Link>
+          </div>
+        )}
         {unverifiedEmail && (
           <div
             role="alert"
