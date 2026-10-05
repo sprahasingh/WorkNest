@@ -266,8 +266,9 @@ describe("during the grace period, usage can't grow past Free", () => {
       .post(`/api/orgs/${orgId}/projects`)
       .set(auth(admin.token))
       .send({ name: "Another", key: "FFF" });
-    expect(blocked.status).toBe(409);
-    expect(blocked.body.error.code).toBe("PROJECT_LIMIT_REACHED");
+    // Over the Free limits, so nothing new can be added at all.
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe("PLAN_GRACE_RESTRICTED");
 
     const rename = await request(app)
       .patch(`/api/orgs/${orgId}/projects/${ids[0]}`)
@@ -275,7 +276,7 @@ describe("during the grace period, usage can't grow past Free", () => {
       .send({ name: "Renamed" });
     expect(rename.status).toBe(200);
 
-    // Archiving brings usage down; room opens only once it is under the limit.
+    // Archiving brings usage down. At the limit, there is still no room.
     for (const id of [ids[4]!, ids[3]!]) {
       const archived = await request(app)
         .post(`/api/orgs/${orgId}/projects/${id}/archive`)
@@ -321,8 +322,8 @@ describe("during the grace period, usage can't grow past Free", () => {
         .send({ title: "One more" });
 
     const blocked = await create();
-    expect(blocked.status).toBe(400);
-    expect(blocked.body.error.code).toBe("TASK_LIMIT_REACHED");
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe("PLAN_GRACE_RESTRICTED");
 
     const edit = await request(app)
       .patch(`/api/orgs/${orgId}/tasks/${ids[5]}`)
@@ -334,7 +335,7 @@ describe("during the grace period, usage can't grow past Free", () => {
     expect((await status(orgId, admin.token, ids[0]!, "done")).status).toBe(
       200,
     );
-    expect((await create()).status).toBe(400);
+    expect((await create()).status).toBe(403);
     const reopened = await status(orgId, admin.token, ids[0]!, "todo");
     expect(reopened.status).toBe(400);
     expect(reopened.body.error.code).toBe("TASK_LIMIT_REACHED");

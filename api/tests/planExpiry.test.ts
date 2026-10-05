@@ -88,7 +88,7 @@ describe("paid plan expiry", () => {
 });
 
 describe("account paused while over the plan", () => {
-  it("blocks changes only once the grace period is over", async () => {
+  it("restricts during the grace period and pauses once it is over (seats)", async () => {
     const { orgId, admin } = await setupOrg(app, "lock1.test");
     // Seats can't be archived away, so they are what keeps an account paused
     // after the grace period.
@@ -102,11 +102,15 @@ describe("account paused while over the plan", () => {
       },
     );
 
-    // Inside the grace period nothing is blocked.
+    // Inside the grace period nothing is paused, but a workspace that is over
+    // the Free limits can't add anything new.
     const during = await makeProject(orgId, admin.token, "AAA");
-    expect(during.status).toBe(201);
-    expect((await usageOf(orgId, admin.id)).inGrace).toBe(true);
-    expect((await usageOf(orgId, admin.id)).paused).toBe(false);
+    expect(during.status).toBe(403);
+    expect(during.body.error.code).toBe("PLAN_GRACE_RESTRICTED");
+    const graceUsage = await usageOf(orgId, admin.id);
+    expect(graceUsage.inGrace).toBe(true);
+    expect(graceUsage.restricted).toBe(true);
+    expect(graceUsage.paused).toBe(false);
 
     await Organization.updateOne(
       { _id: orgId },

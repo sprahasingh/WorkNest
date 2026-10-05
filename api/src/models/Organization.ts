@@ -17,6 +17,9 @@ const organizationSchema = new Schema(
     // Set once the grace period after an expired plan is over and the extra
     // projects and tasks were archived, with how many of each.
     graceEnforcedAt: { type: Date, default: null },
+    // Held while the extras are being archived, so only one request or sweep
+    // does it at a time. A hold older than a couple of minutes is ignored.
+    graceEnforcingAt: { type: Date, default: null },
     graceArchived: {
       type: new Schema(
         {

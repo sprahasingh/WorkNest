@@ -28,6 +28,10 @@ export async function expirePlanIfDue(
           planExpiresAt: null,
           seatLimit: free.seatLimit,
           projectLimit: free.projectLimit,
+          // A new expiry starts a new grace period.
+          graceEnforcedAt: null,
+          graceEnforcingAt: null,
+          graceArchived: null,
         },
       },
     ],
@@ -70,7 +74,16 @@ export interface PlanUsage {
   // renew or cut usage. graceEndsAt is when the extras get archived.
   inGrace: boolean;
   graceEndsAt: string | null;
-  // Over the plan with no grace left: changes are refused.
+  // The grace period is over and the extra projects and tasks have been
+  // archived (or there was nothing to archive).
+  graceEnforced: boolean;
+  // Over on projects or tasks, as opposed to seats, which can't be archived.
+  workOverLimit: boolean;
+  // Over the plan during the grace period, or while the archiving that ends
+  // it is still due: nothing new can be added, but everything that brings
+  // usage down or keeps work going still works.
+  restricted: boolean;
+  // Over the plan with no grace left (seats): changes are refused.
   paused: boolean;
 }
 
@@ -88,15 +101,17 @@ export async function getPlanUsage(tenantId: string): Promise<PlanUsage> {
   const projectsOverTaskLimit =
     await countProjectsOverTaskLimit(activeTaskLimit);
 
-  const overLimit =
-    org.seatsUsed > org.seatLimit ||
-    org.projectCount > org.projectLimit ||
-    projectsOverTaskLimit > 0;
+  const workOverLimit =
+    org.projectCount > org.projectLimit || projectsOverTaskLimit > 0;
+  const overLimit = workOverLimit || org.seatsUsed > org.seatLimit;
   const graceEnd =
-    org.plan === "free" && org.planExpiredAt && !org.graceEnforcedAt
+    org.plan === "free" && org.planExpiredAt
       ? graceEndsAt(org.planExpiredAt)
       : null;
-  const inGrace = graceEnd !== null && graceEnd > new Date();
+  const graceOver = graceEnd !== null && graceEnd <= new Date();
+  const inGrace = graceEnd !== null && !graceOver;
+  const graceEnforced = graceOver && Boolean(org.graceEnforcedAt);
+  const archivalDue = graceOver && !graceEnforced;
 
   return {
     seatsUsed: org.seatsUsed,
@@ -108,7 +123,10 @@ export async function getPlanUsage(tenantId: string): Promise<PlanUsage> {
     overLimit,
     inGrace,
     graceEndsAt: inGrace ? graceEnd!.toISOString() : null,
-    paused: overLimit && !inGrace,
+    graceEnforced,
+    workOverLimit,
+    restricted: overLimit && (inGrace || archivalDue),
+    paused: overLimit && !inGrace && !archivalDue,
   };
 }
 
@@ -126,6 +144,35 @@ function allowedWhileOverLimit(req: Request): boolean {
   );
 }
 
+// Things that add to what a workspace uses: new projects and tasks, invites,
+// and bringing archived or binned work back.
+function growsUsage(req: Request): boolean {
+  const path = req.path.replace(/\/+$/, "");
+  if (req.method === "POST") {
+    return (
+      path === "/projects" ||
+      /^\/projects\/[^/]+\/tasks$/.test(path) ||
+      path === "/invites" ||
+      path.endsWith("/restore") ||
+      path.endsWith("/unarchive")
+    );
+  }
+  return req.method === "PATCH" && path.endsWith("/unarchive");
+}
+
+// The grace period, then the archiving that ends it. Safe to call on every
+// request: it does nothing unless an organization is due.
+export async function enforceGraceFully(tenantId: string): Promise<boolean> {
+  let ran = await enforceGraceIfDue(tenantId);
+  // Archiving already happened but the workspace is over on projects or tasks
+  // again (an earlier run failed halfway, or limits changed): finish the job.
+  const usage = await getPlanUsage(tenantId);
+  if (usage.graceEnforced && usage.workOverLimit) {
+    ran = (await enforceGraceIfDue(tenantId, { again: true })) || ran;
+  }
+  return ran;
+}
+
 export async function enforcePlanState(
   req: Request,
   _res: Response,
@@ -133,22 +180,34 @@ export async function enforcePlanState(
 ): Promise<void> {
   const tenantId = requireTenantId();
   await expirePlanIfDue(tenantId);
-  await enforceGraceIfDue(tenantId);
   if (
     req.method === "GET" ||
     req.method === "HEAD" ||
     req.method === "OPTIONS" ||
     allowedWhileOverLimit(req)
   ) {
+    // Reading is never blocked, but it still moves a due archiving along.
+    await enforceGraceIfDue(tenantId);
     next();
     return;
   }
+  await enforceGraceFully(tenantId);
   const usage = await getPlanUsage(tenantId);
   if (usage.paused) {
     throw new AppError(
       403,
       "PLAN_OVER_LIMIT",
       "This account uses more than its plan allows. Delete or archive the extra projects or tasks, or upgrade your plan, to keep working.",
+      [usage],
+    );
+  }
+  if (usage.restricted && growsUsage(req)) {
+    throw new AppError(
+      403,
+      "PLAN_GRACE_RESTRICTED",
+      usage.inGrace
+        ? "Your workspace is over the Free plan limits, so nothing new can be added until you renew or bring usage down by deleting or archiving the extras. Extra projects and tasks are archived automatically when the grace period ends."
+        : "Your workspace is over the Free plan limits, so nothing new can be added until you renew or bring usage down.",
       [usage],
     );
   }

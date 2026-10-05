@@ -17,6 +17,8 @@ export interface GraceSummary {
   tasks: number;
 }
 
+const time = (date: Date | null | undefined) => (date ? date.getTime() : 0);
+
 // Newest first; the id breaks ties so the same data always gives the same
 // order.
 function byRecency<T extends { last: number; id: string }>(a: T, b: T) {
@@ -39,8 +41,9 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
       _id: mongoose.Types.ObjectId;
       total: number;
       unfinished: number;
-      last: Date;
+      last: Date | null;
     }>([
+      { $match: { deletedAt: null } },
       {
         $group: {
           _id: "$projectId",
@@ -56,7 +59,7 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
   ]);
   const stats = new Map(taskStats.map((row) => [String(row._id), row]));
   const activity = new Map(
-    activityByProject.map((row) => [String(row._id), row.last.getTime()]),
+    activityByProject.map((row) => [String(row._id), time(row.last)]),
   );
 
   const projects = await Project.find({ archivedAt: null })
@@ -72,8 +75,8 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
       return {
         id,
         last: Math.max(
-          project.updatedAt.getTime(),
-          stats.get(id)?.last.getTime() ?? 0,
+          time(project.updatedAt),
+          time(stats.get(id)?.last),
           activity.get(id) ?? 0,
         ),
       };
@@ -92,7 +95,9 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
   const taskLimit = limits.activeTaskLimit;
   if (taskLimit !== null) {
     const crowded = await Task.aggregate<{ _id: mongoose.Types.ObjectId }>([
-      { $match: { status: { $ne: "done" }, archivedAt: null } },
+      {
+        $match: { status: { $ne: "done" }, archivedAt: null, deletedAt: null },
+      },
       { $group: { _id: "$projectId", active: { $sum: 1 } } },
       { $match: { active: { $gt: taskLimit } } },
     ]);
@@ -125,13 +130,13 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
             { $match: { taskId: { $in: tasks.map((task) => task._id) } } },
             { $group: { _id: "$taskId", last: { $max: "$createdAt" } } },
           ])
-        ).map((entry) => [String(entry._id), entry.last.getTime()]),
+        ).map((entry) => [String(entry._id), time(entry.last)]),
       );
       const extras = tasks
         .map((task) => ({
           id: String(task._id),
           last: Math.max(
-            task.updatedAt.getTime(),
+            time(task.updatedAt),
             taskActivity.get(String(task._id)) ?? 0,
           ),
         }))
@@ -179,26 +184,40 @@ export async function archiveExcessForFree(): Promise<GraceSummary> {
   return summary;
 }
 
+const CLAIM_STALE_MS = 2 * 60 * 1000;
+
 // Once the grace period after an expired plan is over, archives whatever the
-// Free plan doesn't allow. Runs once per expiry: the first caller claims it, so
-// a request and the sweep can't both do it. Returns whether it ran.
+// Free plan doesn't allow. Runs once per expiry: the first caller takes a hold
+// and the work is only marked done (graceEnforcedAt) when it has finished, so
+// a request that arrives meanwhile still sees the grace rules instead of a
+// workspace that looks paused. With `again`, runs on a workspace that was
+// already done but is over on projects or tasks. Returns whether it ran.
 export async function enforceGraceIfDue(
   tenantId: string,
-  now = new Date(),
+  options: { again?: boolean; now?: Date } = {},
 ): Promise<boolean> {
+  const now = options.now ?? new Date();
   const cutoff = new Date(now.getTime() - GRACE_PERIOD_DAYS * DAY_MS);
   const claimed = await Organization.findOneAndUpdate(
     {
       _id: tenantId,
       plan: "free",
       planExpiredAt: { $ne: null, $lte: cutoff },
-      graceEnforcedAt: null,
+      graceEnforcedAt: options.again ? { $ne: null } : null,
+      $or: [
+        { graceEnforcingAt: null },
+        { graceEnforcingAt: { $lt: new Date(now.getTime() - CLAIM_STALE_MS) } },
+      ],
     },
-    { graceEnforcedAt: now },
+    { graceEnforcingAt: now },
     { returnDocument: "before" },
   )
-    .select("createdBy")
-    .setOptions({ skipTenant: true });
+    .select("createdBy graceArchived")
+    .setOptions({ skipTenant: true })
+    .lean<{
+      createdBy: unknown;
+      graceArchived?: { projects?: number; tasks?: number } | null;
+    }>();
   if (!claimed) return false;
 
   try {
@@ -208,21 +227,31 @@ export async function enforceGraceIfDue(
       { tenantId, userId: String(claimed.createdBy), role: "admin" },
       archiveExcessForFree,
     );
+    const total = {
+      projects: summary.projects + (claimed.graceArchived?.projects ?? 0),
+      tasks: summary.tasks + (claimed.graceArchived?.tasks ?? 0),
+    };
     await Organization.updateOne(
       { _id: tenantId },
-      { graceArchived: summary },
+      options.again
+        ? { graceArchived: total, graceEnforcingAt: null }
+        : {
+            graceArchived: summary,
+            graceEnforcedAt: new Date(),
+            graceEnforcingAt: null,
+          },
     ).setOptions({ skipTenant: true });
     logger.info({ tenantId, ...summary }, "Archived usage over the Free plan");
+    return true;
   } catch (error) {
     // Let the next request or sweep try again.
     await Organization.updateOne(
       { _id: tenantId },
-      { graceEnforcedAt: null },
+      { graceEnforcingAt: null },
     ).setOptions({ skipTenant: true });
     logger.error({ err: error, tenantId }, "Could not archive over-plan usage");
     return false;
   }
-  return true;
 }
 
 export async function enforceDueGracePeriods(
@@ -239,7 +268,7 @@ export async function enforceDueGracePeriods(
     .lean();
   let done = 0;
   for (const org of due) {
-    if (await enforceGraceIfDue(String(org._id), now)) done += 1;
+    if (await enforceGraceIfDue(String(org._id), { now })) done += 1;
   }
   return done;
 }
