@@ -1012,9 +1012,19 @@ export async function unarchiveTask(taskId: string) {
   try {
     let task;
     await dbSession.withTransaction(async () => {
+      // An open task takes an active-task slot again, so it needs room.
+      if (archivedTask.status !== "done") {
+        await projectConsumesSlot(archivedTask.projectId, dbSession);
+        await assertRoomForActiveTask(
+          requireTenantId(),
+          String(archivedTask.projectId),
+          "restore",
+          dbSession,
+        );
+      }
       task = await Task.findOneAndUpdate(
         { _id: taskId, archivedAt: { $ne: null }, deletedAt: null },
-        { archivedAt: null },
+        { archivedAt: null, archivedReason: null },
         { new: true, session: dbSession },
       );
       if (!task) {

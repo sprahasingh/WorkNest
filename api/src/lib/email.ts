@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
+import { GRACE_PERIOD_DAYS } from "../constants/plans.js";
 import { AppError } from "./errors.js";
 import { logger } from "./logger.js";
 
@@ -202,11 +203,11 @@ export async function sendPlanRenewalEmail(
   recipient: string,
   organizationName: string,
   planName: string,
-  stage: "7d" | "1d" | "expired",
+  stage: "7d" | "1d" | "expired" | "archived",
   endsOn: string,
   settingsUrl: string,
 ): Promise<void> {
-  const expired = stage === "expired";
+  const expired = stage === "expired" || stage === "archived";
   const subject = expired
     ? `Your ${planName} plan for ${organizationName} has ended`
     : `Your ${planName} plan for ${organizationName} ends on ${endsOn}`;
@@ -215,9 +216,11 @@ export async function sendPlanRenewalEmail(
       ? `The ${planName} plan for ${organizationName} on WorkNest ended on ${endsOn}, so the workspace is back on Free.`
       : `The ${planName} plan for ${organizationName} on WorkNest ends on ${endsOn}, after which the workspace goes back to Free.`,
     "",
-    expired
-      ? "If it now uses more than Free allows, it is paused until you renew or remove the extra projects, tasks or members."
-      : "Renew before then to keep your limits and avoid any pause.",
+    stage === "archived"
+      ? `The ${GRACE_PERIOD_DAYS} day grace period is over: projects and tasks over the Free limits were archived. Nothing was deleted, and you can restore them after renewing.`
+      : expired
+        ? `You have ${GRACE_PERIOD_DAYS} days to renew or reduce usage. After that, projects and tasks over the Free limits are archived. Nothing is deleted.`
+        : "Renew before then to keep your limits and avoid any pause.",
     "",
     `Renew here: ${settingsUrl}`,
   ].join("\n");

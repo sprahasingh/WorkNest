@@ -1,11 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
-import { PLAN_LIMITS, type Plan } from "../../constants/plans.js";
+import { PLAN_LIMITS, graceEndsAt, type Plan } from "../../constants/plans.js";
 import { AppError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { Organization } from "../../models/Organization.js";
-import { Task } from "../../models/Task.js";
-import { binnedProjectIds } from "../../models/Project.js";
 import { requireTenantId } from "../../tenancy/context.js";
+import { countProjectsOverTaskLimit } from "./taskUsage.js";
+import { enforceGraceIfDue } from "./gracePeriod.service.js";
 
 // An organization whose paid plan has run out goes back to Free. This runs on
 // the first request after the date passes, so it works even when the server
@@ -66,34 +66,37 @@ export interface PlanUsage {
   activeTaskLimit: number | null;
   // True when the organization uses more than its plan allows.
   overLimit: boolean;
+  // After a paid plan ends there is a grace period, with nothing blocked, to
+  // renew or cut usage. graceEndsAt is when the extras get archived.
+  inGrace: boolean;
+  graceEndsAt: string | null;
+  // Over the plan with no grace left: changes are refused.
+  paused: boolean;
 }
 
 export async function getPlanUsage(tenantId: string): Promise<PlanUsage> {
   const org = await Organization.findById(tenantId)
-    .select("plan seatsUsed seatLimit projectCount projectLimit")
+    .select(
+      "plan seatsUsed seatLimit projectCount projectLimit planExpiredAt graceEnforcedAt",
+    )
     .setOptions({ skipTenant: true })
     .lean();
   if (!org) throw new AppError(404, "NOT_FOUND", "Organization not found");
 
   const activeTaskLimit =
     PLAN_LIMITS[(org.plan ?? "free") as Plan].activeTaskLimit;
-  let projectsOverTaskLimit = 0;
-  if (activeTaskLimit !== null) {
-    const binned = await binnedProjectIds();
-    const rows = await Task.aggregate<{ _id: unknown }>([
-      {
-        $match: {
-          status: { $ne: "done" },
-          archivedAt: null,
-          deletedAt: null,
-          projectId: { $nin: binned },
-        },
-      },
-      { $group: { _id: "$projectId", active: { $sum: 1 } } },
-      { $match: { active: { $gt: activeTaskLimit } } },
-    ]);
-    projectsOverTaskLimit = rows.length;
-  }
+  const projectsOverTaskLimit =
+    await countProjectsOverTaskLimit(activeTaskLimit);
+
+  const overLimit =
+    org.seatsUsed > org.seatLimit ||
+    org.projectCount > org.projectLimit ||
+    projectsOverTaskLimit > 0;
+  const graceEnd =
+    org.plan === "free" && org.planExpiredAt && !org.graceEnforcedAt
+      ? graceEndsAt(org.planExpiredAt)
+      : null;
+  const inGrace = graceEnd !== null && graceEnd > new Date();
 
   return {
     seatsUsed: org.seatsUsed,
@@ -102,10 +105,10 @@ export async function getPlanUsage(tenantId: string): Promise<PlanUsage> {
     projectLimit: org.projectLimit,
     projectsOverTaskLimit,
     activeTaskLimit,
-    overLimit:
-      org.seatsUsed > org.seatLimit ||
-      org.projectCount > org.projectLimit ||
-      projectsOverTaskLimit > 0,
+    overLimit,
+    inGrace,
+    graceEndsAt: inGrace ? graceEnd!.toISOString() : null,
+    paused: overLimit && !inGrace,
   };
 }
 
@@ -130,6 +133,7 @@ export async function enforcePlanState(
 ): Promise<void> {
   const tenantId = requireTenantId();
   await expirePlanIfDue(tenantId);
+  await enforceGraceIfDue(tenantId);
   if (
     req.method === "GET" ||
     req.method === "HEAD" ||
@@ -140,7 +144,7 @@ export async function enforcePlanState(
     return;
   }
   const usage = await getPlanUsage(tenantId);
-  if (usage.overLimit) {
+  if (usage.paused) {
     throw new AppError(
       403,
       "PLAN_OVER_LIMIT",

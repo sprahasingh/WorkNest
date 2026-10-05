@@ -273,15 +273,33 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 
 Only active projects use a project slot. Completed, archived, and binned projects do not count. If a project becomes active again, it uses a slot and may need to wait until one is free.
 
-Each project also has a separate active-task limit. Done, archived, and binned tasks do not count toward it. Reopening or restoring an active task uses a task slot again.
+Each project also has a separate active-task limit. Done, archived, and binned tasks do not count toward it. Reopening or restoring an active task uses a task slot again. The same rule is used everywhere the limit is checked, including the downgrade check and the check after a plan ends: open tasks in an active project count, and open tasks in an archived or binned project don't, because that project isn't in use. Restoring a project is what checks its open tasks against the plan.
 
 ### Paying for a plan
 
 Pro and Premium are bought for one month or one year at a time through [Razorpay](https://razorpay.com). Nothing renews by itself, so you pay again to renew; renewing adds a period on top of the current end date. Going from Pro to Premium on the same period costs the difference and keeps the end date. The app is meant to run with Razorpay **test keys**, so you can try the whole flow with fake payments and no real money moves. Moving down a plan is free (it isn't refunded) and still blocked while usage is over the smaller plan's limits.
 
-When a paid plan ends, the workspace goes back to Free on the next request. If it then uses more than Free allows, it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before this change have no end date and are left alone, and so are plans switched on without Razorpay keys (simulated upgrades), which never expire.
+When a paid plan ends, the workspace goes back to Free on the next request and gets a 10 day grace period. People keep working, and an orange banner says how many days are left, what is over the Free limits, and links to renewing.
 
-Admins are reminded to renew: a notification (and an email, when email delivery is set up) goes out 7 days before the plan ends and again 1 day before. Each one replaces the one before it, so there is only ever a single renewal notice per admin. When the plan ends, "your plan ended, renew to get your limits back" replaces it, and buying or renewing a plan removes it. A notice an admin has dismissed is not sent again for the same step. These are written by the same 30-minute sweep, so they can be up to half an hour late.
+During the grace period usage can't grow past the Free limits, while everything that reduces or maintains it keeps working:
+
+- New projects are refused when all 3 Free project slots are in use (the New project button is disabled with a hint), and new tasks are refused when a project already has 10 open tasks. Reopening a finished task or restoring one from the bin or from Archived is refused the same way. Creating is allowed while the workspace is still within the Free limits.
+- Editing, completing, archiving and deleting stay available, so people can bring usage down themselves. A workspace that is over the limits has to get back under them before it can add anything.
+- Restoring an archived project is refused if its open tasks wouldn't fit the plan's per-project limit; it works after upgrading.
+- Seats are the same: invites are refused once every seat is used, and nobody is ever removed automatically.
+
+If the workspace is still over the Free limits when the 10 days are up, the extras are archived automatically (on the next request or in the 30 minute sweep, whichever comes first):
+
+- **Projects:** only projects that use a plan slot count. The 3 most recently active are kept and the rest are archived.
+- **Tasks:** in every project that is still active, the 10 most recently active open tasks are kept and the rest are archived. Tasks in a project that is already archived (by a person, or by the rule above) are left alone: the project isn't in use, its tasks stay readable, and it can only be restored when its open tasks fit the plan. Archived projects don't count towards the task limit.
+- **What "recently active" means:** the latest change to the project or task, or a comment or update on it. Ties are broken by id, so the same data always gives the same result.
+- **Nothing is deleted.** Archived projects and tasks keep their data and are marked as archived because of the plan. They can be restored from Archived once there is room: after renewing, or after freeing a slot. Restoring when the plan has no room is refused with the usual limit message.
+- **Seats** are not touched. People are never removed automatically, so a workspace with more than 5 members stays paused (read, delete, archive and pay only, as described below) until members are removed or a plan is bought.
+- Renewing clears the grace period and the notice.
+
+If the workspace is over the limits and has no grace period left (seats, as above), it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before plans expired have no end date and are left alone. A workspace whose plan ended before the grace period existed has none left, so its extras are archived the first time it is checked.
+
+Admins are reminded to renew: a notification (and an email, when email delivery is set up) goes out 7 days before the plan ends and again 1 day before. Each one replaces the one before it, so there is only ever a single renewal notice per admin. When the plan ends, "your plan ended, you have 10 days to renew or reduce usage, after which projects and tasks over the Free limits are archived (nothing is deleted)" replaces it, and when the grace period is over, "the extras were archived, renew to restore them" replaces that one. Buying or renewing a plan removes it. A notice an admin has dismissed is not sent again for the same step. These are written by the same 30-minute sweep, so they can be up to half an hour late.
 
 Expiry doesn't wait for someone to open the app: a sweep runs every 30 minutes and moves ended plans back to Free. While a workspace is paused, the buttons that create or change things (new project, new task, schedule meeting, send invite, the save buttons in the forms, and sending a chat message) are disabled with a hint, and a red banner at the top says what is over the limit.
 
@@ -419,7 +437,7 @@ The backend tests cover:
 - repeating meetings (replying to, editing and cancelling one date or all later ones), suggested times, and links to tasks and projects
 - what happens to chats and meetings when someone leaves an organization
 - paying for a plan: orders, signature checks, the webhook, repeated confirmations, one organization confirming another's order, blocked unpaid upgrades, monthly and yearly prices, and renewals
-- plan expiry: ended plans going back to Free (on a request and in the background), the pause while a workspace is over its plan, and the 7 day, 1 day and ended renewal reminders
+- plan expiry: ended plans going back to Free (on a request and in the background), the 10 day grace period (nothing past the Free limits can be added during it), archiving the least recently active extras afterwards and restoring them, the same task-limit rule for downgrades and after expiry, the pause while a workspace is over its plan, and the 7 day, 1 day, ended and archived renewal reminders
 - the sign-up flows: pending sign-ups, cross-device sign-in, resend limits, common passwords, the password reset cooldown, signed-in devices and feedback screenshots
 
 ## Project Structure

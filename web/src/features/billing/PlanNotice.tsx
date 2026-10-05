@@ -6,10 +6,11 @@ import { useOrgDetails } from "@/features/org/queries";
 import { PLAN_NAMES } from "@/lib/plans";
 
 const DISMISS_KEY = "worknest:plan-expired-dismissed";
+const ARCHIVED_DISMISS_KEY = "worknest:plan-archived-dismissed";
 
-function readDismissed(): string | null {
+function readDismissed(key: string): string | null {
   try {
-    return localStorage.getItem(DISMISS_KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
@@ -22,7 +23,11 @@ export function PlanNotice() {
   const canChangePlan = useCan("plan:change");
   const { data: org, refetch } = useOrgDetails(orgId);
   const location = useLocation();
-  const [dismissed, setDismissed] = useState(readDismissed);
+  const [now] = useState(() => Date.now());
+  const [dismissed, setDismissed] = useState(() => readDismissed(DISMISS_KEY));
+  const [archivedDismissed, setArchivedDismissed] = useState(() =>
+    readDismissed(ARCHIVED_DISMISS_KEY),
+  );
 
   // Deleting or archiving can lift the lock, so look again as people move
   // around.
@@ -34,8 +39,8 @@ export function PlanNotice() {
   const settingsPath = `/orgs/${orgId}/settings`;
   const usage = org.usage;
 
+  const parts: string[] = [];
   if (usage?.overLimit) {
-    const parts: string[] = [];
     if (usage.projectCount > usage.projectLimit) {
       parts.push(
         `${usage.projectCount} active projects (${PLAN_NAMES[org.plan]} allows ${usage.projectLimit})`,
@@ -53,6 +58,49 @@ export function PlanNotice() {
         `${usage.seatsUsed} seats used (${PLAN_NAMES[org.plan]} allows ${usage.seatLimit})`,
       );
     }
+  }
+
+  if (usage?.inGrace && usage.overLimit && usage.graceEndsAt) {
+    const endsAt = new Date(usage.graceEndsAt);
+    const daysLeft = Math.max(
+      1,
+      Math.ceil((endsAt.getTime() - now) / 86_400_000),
+    );
+    return (
+      <div
+        role="alert"
+        className="border-b border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-100"
+      >
+        <p className="font-semibold">
+          Your {org.planExpiredFrom ? PLAN_NAMES[org.planExpiredFrom] : "paid"}{" "}
+          plan has ended. {daysLeft} {daysLeft === 1 ? "day" : "days"} left to
+          renew or reduce usage.
+        </p>
+        <p className="mt-1">
+          Right now: {parts.join("; ")}. On{" "}
+          {endsAt.toLocaleDateString(undefined, {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          })}
+          , the least recently active projects and tasks over the{" "}
+          {PLAN_NAMES[org.plan]} limits are archived. Nothing is deleted, and
+          you can restore them once there is room. Until then you can edit,
+          finish, archive and delete, but not add projects or tasks beyond the{" "}
+          {PLAN_NAMES[org.plan]} limits.{" "}
+          {canChangePlan ? (
+            <Link to={settingsPath} className="font-medium underline">
+              Renew your plan
+            </Link>
+          ) : (
+            "Ask an admin to renew the plan."
+          )}
+        </p>
+      </div>
+    );
+  }
+
+  if (usage?.paused) {
     return (
       <div
         role="alert"
@@ -75,6 +123,64 @@ export function PlanNotice() {
           )}
           .
         </p>
+      </div>
+    );
+  }
+
+  const archivedCount =
+    (org.graceArchived?.projects ?? 0) + (org.graceArchived?.tasks ?? 0);
+  if (
+    org.graceEnforcedAt &&
+    archivedCount > 0 &&
+    org.graceEnforcedAt !== archivedDismissed
+  ) {
+    const archivedAt = org.graceEnforcedAt;
+    const summary = [
+      org.graceArchived!.projects > 0
+        ? `${org.graceArchived!.projects} ${
+            org.graceArchived!.projects === 1 ? "project" : "projects"
+          }`
+        : null,
+      org.graceArchived!.tasks > 0
+        ? `${org.graceArchived!.tasks} ${
+            org.graceArchived!.tasks === 1 ? "task" : "tasks"
+          }`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" and ");
+    return (
+      <div
+        role="status"
+        className="flex items-start justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"
+      >
+        <p>
+          The grace period after your plan ended is over, so {summary} over the{" "}
+          {PLAN_NAMES[org.plan]} limits {archivedCount === 1 ? "was" : "were"}{" "}
+          archived. Nothing was deleted. After you{" "}
+          {canChangePlan ? (
+            <Link to={settingsPath} className="font-medium underline">
+              renew your plan
+            </Link>
+          ) : (
+            "renew the plan"
+          )}
+          , restore them from Archived.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              localStorage.setItem(ARCHIVED_DISMISS_KEY, archivedAt);
+            } catch {
+              // Not being able to remember it just means it shows again.
+            }
+            setArchivedDismissed(archivedAt);
+          }}
+          className="shrink-0 font-medium underline"
+        >
+          Dismiss
+        </button>
       </div>
     );
   }

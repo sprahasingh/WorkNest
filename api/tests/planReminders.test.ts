@@ -100,8 +100,37 @@ describe("plan renewal reminders", () => {
     expect(rows[0]!.type).toBe("plan_expired");
     expect(rows[0]!.message).toContain("ended");
     expect(rows[0]!.message).toContain("Pro");
+    // It says what happens next.
+    expect(rows[0]!.message).toContain("10 days to renew or reduce usage");
+    expect(rows[0]!.message).toContain("archived");
     // Not sent twice.
     expect(await sendPlanRenewalReminders()).toBe(0);
+  });
+
+  it("replaces the ended notice once the grace period is over", async () => {
+    const { orgId } = await paidOrg("remind6.test", 5 * DAY);
+    await Organization.updateOne(
+      { _id: orgId },
+      { planExpiresAt: new Date(Date.now() - DAY) },
+    );
+    await expireDuePlans();
+    await sendPlanRenewalReminders();
+    let rows = await notices(orgId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.stage).toBe("expired");
+
+    // 10 days later the grace period is over.
+    await Organization.updateOne(
+      { _id: orgId },
+      { planExpiredAt: new Date(Date.now() - 11 * DAY) },
+    );
+    expect(await sendPlanRenewalReminders()).toBe(1);
+    rows = await notices(orgId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.type).toBe("plan_expired");
+    expect(rows[0]!.stage).toBe("archived");
+    expect(rows[0]!.message).toContain("grace period");
+    expect(rows[0]!.message).toContain("nothing was deleted");
   });
 
   it("removes the notice when the plan is renewed", async () => {

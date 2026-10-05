@@ -10,6 +10,12 @@ export interface PlanUsage {
   projectsOverTaskLimit: number;
   activeTaskLimit: number | null;
   overLimit: boolean;
+  // After a paid plan ends there is a grace period to renew or cut usage;
+  // graceEndsAt is when the extras get archived.
+  inGrace: boolean;
+  graceEndsAt: string | null;
+  // Over the plan with no grace left: changes are refused.
+  paused: boolean;
 }
 
 export interface Organization {
@@ -23,6 +29,9 @@ export interface Organization {
   // Set when a paid plan ran out and the account went back to Free.
   planExpiredAt: string | null;
   planExpiredFrom: Plan | null;
+  // Set once the grace period ended and the extras were archived.
+  graceEnforcedAt: string | null;
+  graceArchived: { projects: number; tasks: number } | null;
   usage?: PlanUsage;
   seatLimit: number;
   seatsUsed: number;

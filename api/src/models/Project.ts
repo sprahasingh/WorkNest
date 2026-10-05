@@ -30,6 +30,9 @@ const projectSchema = new Schema(
     // slot, so concurrent changes conflict instead of racing.
     revision: { type: Number, default: 0 },
     archivedAt: { type: Date, default: null },
+    // Why it was archived when the app did it ("plan_limit": the workspace
+    // went over its plan after the paid plan ended); null when a person did.
+    archivedReason: { type: String, enum: ["plan_limit"], default: null },
     // Set when the project is moved to the bin; it's permanently deleted
     // BIN_RETENTION_DAYS later unless restored.
     deletedAt: { type: Date, default: null },

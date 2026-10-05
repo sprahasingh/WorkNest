@@ -1,5 +1,10 @@
 import { env } from "../../config/env.js";
-import { PLAN_NAMES, type Plan } from "../../constants/plans.js";
+import {
+  GRACE_PERIOD_DAYS,
+  PLAN_NAMES,
+  graceEndsAt,
+  type Plan,
+} from "../../constants/plans.js";
 import {
   isEmailDeliveryConfigured,
   sendPlanRenewalEmail,
@@ -14,7 +19,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // How long after a plan ends the "it ended" notice is still worth sending.
 const EXPIRED_NOTICE_DAYS = 30;
 
-export type RenewalStage = "7d" | "1d" | "expired";
+// "expired" is the plan having ended (with the grace period running);
+// "archived" is the grace period being over.
+export type RenewalStage = "7d" | "1d" | "expired" | "archived";
 
 // One renewal notification per admin per organization. Every later step
 // replaces the one before it, and renewing removes it.
@@ -46,7 +53,10 @@ function reminderMessage(
   endsOn: string,
 ): string {
   if (stage === "expired") {
-    return `Your ${planName} plan ended on ${endsOn}, so the workspace is back on Free. Renew to get your limits back.`;
+    return `Your ${planName} plan ended on ${endsOn}, so the workspace is back on Free. You have ${GRACE_PERIOD_DAYS} days to renew or reduce usage. After that, projects and tasks over the Free limits are archived (nothing is deleted).`;
+  }
+  if (stage === "archived") {
+    return `The ${GRACE_PERIOD_DAYS} day grace period after your ${planName} plan ended is over. Projects and tasks over the Free limits were archived, and nothing was deleted. Renew to restore them.`;
   }
   return stage === "1d"
     ? `Your ${planName} plan ends tomorrow, on ${endsOn}. Renew to keep your limits.`
@@ -81,7 +91,10 @@ async function writeReminder(input: {
   try {
     await Notification.create({
       ...filter,
-      type: input.stage === "expired" ? "plan_expired" : "plan_expiring",
+      type:
+        input.stage === "expired" || input.stage === "archived"
+          ? "plan_expired"
+          : "plan_expiring",
       stage: input.stage,
       dueDate: input.date,
       message: input.message,
@@ -128,7 +141,9 @@ export async function sendPlanRenewalReminders(
       org,
       plan: (org.planExpiredFrom ?? "pro") as Plan,
       date: org.planExpiredAt!,
-      stage: "expired" as RenewalStage | null,
+      stage: (graceEndsAt(org.planExpiredAt!) <= now
+        ? "archived"
+        : "expired") as RenewalStage | null,
     })),
   ];
 

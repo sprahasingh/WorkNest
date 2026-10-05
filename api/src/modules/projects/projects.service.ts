@@ -7,6 +7,7 @@ import { Notification } from "../../models/Notification.js";
 import { Organization } from "../../models/Organization.js";
 import { getTenantContext, requireTenantId } from "../../tenancy/context.js";
 import { AppError } from "../../lib/errors.js";
+import { PLAN_LIMITS, PLAN_NAMES, type Plan } from "../../constants/plans.js";
 import { dateOnlyDueDate } from "../../lib/timezone.js";
 import {
   projectConsumesSlot,
@@ -319,7 +320,10 @@ export async function updateProject(
   }
 }
 
-export async function archiveProject(projectId: string) {
+export async function archiveProject(
+  projectId: string,
+  options: { reason?: "plan_limit" } = {},
+) {
   const dbSession = await mongoose.startSession();
 
   try {
@@ -333,7 +337,7 @@ export async function archiveProject(projectId: string) {
       const wasActive = await projectConsumesSlot(before._id, dbSession);
       const updated = await Project.findByIdAndUpdate(
         projectId,
-        { archivedAt: new Date() },
+        { archivedAt: new Date(), archivedReason: options.reason ?? null },
         { new: true, session: dbSession },
       );
 
@@ -352,7 +356,7 @@ export async function archiveProject(projectId: string) {
           action: "project.archived",
           entityType: "Project",
           entityId: projectId,
-          metadata: {},
+          metadata: options.reason ? { reason: options.reason } : {},
         },
         dbSession,
       );
@@ -380,9 +384,33 @@ export async function unarchiveProject(projectId: string) {
       if (!before) {
         throw new AppError(404, "NOT_FOUND", "Archived project not found");
       }
+      // A restored project has its open tasks back in use, so they have to fit
+      // the plan's per-project limit.
+      const org = await Organization.findById(requireTenantId())
+        .select("plan")
+        .session(dbSession)
+        .setOptions({ skipTenant: true })
+        .lean();
+      const taskLimit =
+        PLAN_LIMITS[(org?.plan ?? "free") as Plan].activeTaskLimit;
+      if (taskLimit !== null) {
+        const open = await Task.countDocuments({
+          projectId,
+          status: { $ne: "done" },
+          archivedAt: null,
+          deletedAt: null,
+        }).session(dbSession);
+        if (open > taskLimit) {
+          throw new AppError(
+            409,
+            "TASK_LIMIT_REACHED",
+            `This project has ${open} open tasks, more than the ${PLAN_NAMES[(org?.plan ?? "free") as Plan]} plan allows (${taskLimit}). Finish or delete some, or upgrade your plan, to restore it.`,
+          );
+        }
+      }
       const updated = await Project.findOneAndUpdate(
         { _id: projectId, archivedAt: { $ne: null } },
-        { archivedAt: null },
+        { archivedAt: null, archivedReason: null },
         { new: true, session: dbSession },
       );
 
