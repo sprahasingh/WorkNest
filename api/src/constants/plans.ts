@@ -22,19 +22,75 @@ export const PLAN_NAMES: Record<Plan, string> = {
   premium: "Premium",
 };
 
-// What each plan costs to move up to, in paise (INR 599.00 and 1,199.00). Paying
-// is a one-time upgrade, not a subscription. Moving from Pro to Premium costs
-// the difference. Keep in sync with web/src/lib/plans.ts.
-export const PLAN_PRICE_PAISE: Record<Plan, number> = {
-  free: 0,
-  pro: 59900,
-  premium: 119900,
+export const BILLING_CYCLES = ["monthly", "yearly"] as const;
+export type BillingCycle = (typeof BILLING_CYCLES)[number];
+
+// What each plan costs for a month or a year, in paise (INR 449 and 1,149 a
+// month, 4,499 and 11,499 a year). Paying buys one period; nothing renews by
+// itself. Keep in sync with web/src/lib/plans.ts.
+export const PLAN_PRICE_PAISE: Record<Plan, Record<BillingCycle, number>> = {
+  free: { monthly: 0, yearly: 0 },
+  pro: { monthly: 44900, yearly: 449900 },
+  premium: { monthly: 114900, yearly: 1149900 },
 };
 
 export function planRank(plan: Plan): number {
   return PLANS.indexOf(plan);
 }
 
-export function upgradeAmountPaise(from: Plan, to: Plan): number {
-  return Math.max(0, PLAN_PRICE_PAISE[to] - PLAN_PRICE_PAISE[from]);
+// The end of a paid period that starts at `from`.
+export function addBillingPeriod(from: Date, cycle: BillingCycle): Date {
+  const end = new Date(from);
+  end.setMonth(end.getMonth() + (cycle === "yearly" ? 12 : 1));
+  return end;
+}
+
+export interface PlanQuote {
+  // In paise.
+  amount: number;
+  // When the plan ends once this is paid.
+  expiresAt: Date;
+}
+
+interface BillingState {
+  plan: Plan;
+  planExpiresAt?: Date | null;
+  billingCycle?: BillingCycle | null;
+}
+
+// What buying `target` for `cycle` costs this organization right now, or null
+// when it can't be bought (a lower plan, or Free).
+//   - Moving up while a paid plan of the same cycle is running costs the
+//     difference and keeps the current end date.
+//   - Renewing the same plan costs the full price and adds a period on top of
+//     the current end date (or from today if it has ended or is a different
+//     cycle).
+//   - Anything else costs the full price for a period starting today.
+export function quotePlan(
+  org: BillingState,
+  target: Plan,
+  cycle: BillingCycle,
+  now = new Date(),
+): PlanQuote | null {
+  if (target === "free" || planRank(target) < planRank(org.plan)) return null;
+  const full = PLAN_PRICE_PAISE[target][cycle];
+  const running =
+    org.plan !== "free" &&
+    org.planExpiresAt != null &&
+    org.planExpiresAt > now &&
+    org.billingCycle === cycle;
+
+  if (target === org.plan) {
+    return {
+      amount: full,
+      expiresAt: addBillingPeriod(running ? org.planExpiresAt! : now, cycle),
+    };
+  }
+  if (running) {
+    return {
+      amount: Math.max(0, full - PLAN_PRICE_PAISE[org.plan][cycle]),
+      expiresAt: org.planExpiresAt!,
+    };
+  }
+  return { amount: full, expiresAt: addBillingPeriod(now, cycle) };
 }

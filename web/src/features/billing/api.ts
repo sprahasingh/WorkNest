@@ -1,13 +1,24 @@
 import { apiClient } from "@/api/client";
 import type { Plan } from "@/api/auth";
+import type { BillingCycle } from "@/lib/plans";
 
 export interface BillingConfig {
   enabled: boolean;
   keyId: string | null;
-  prices: Record<Plan, number>;
-  // What each step up costs from the current plan, in paise.
-  upgrades: { plan: Plan; amount: number }[];
-  payments: { id: string; plan: Plan; amount: number; paidAt: string }[];
+  prices: Record<Plan, Record<BillingCycle, number>>;
+  // What buying each plan costs this organization right now, in paise. Null
+  // where it can't be bought (a lower plan).
+  quotes: Record<
+    "pro" | "premium",
+    Record<BillingCycle, { amount: number } | null>
+  >;
+  payments: {
+    id: string;
+    plan: Plan;
+    billingCycle: BillingCycle;
+    amount: number;
+    paidAt: string;
+  }[];
 }
 
 export interface PaymentOrder {
@@ -16,6 +27,7 @@ export interface PaymentOrder {
   currency: string;
   keyId: string;
   plan: Plan;
+  billingCycle: BillingCycle;
 }
 
 export async function getBillingConfig(orgId: string): Promise<BillingConfig> {
@@ -26,10 +38,11 @@ export async function getBillingConfig(orgId: string): Promise<BillingConfig> {
 export async function createPaymentOrder(
   orgId: string,
   plan: Exclude<Plan, "free">,
+  billingCycle: BillingCycle,
 ): Promise<PaymentOrder> {
   const response = await apiClient.post<PaymentOrder>(
     `/orgs/${orgId}/billing/order`,
-    { plan },
+    { plan, billingCycle },
   );
   return response.data;
 }

@@ -16,6 +16,7 @@ import { logger } from "./lib/logger.js";
 import { purgeExpiredProjects } from "./modules/projects/projects.service.js";
 import { purgeExpiredTasks } from "./modules/tasks/tasks.service.js";
 import { ensureDueNotificationsForAllUsers } from "./modules/notifications/notifications.service.js";
+import { expireDuePlans } from "./modules/billing/planLifecycle.js";
 import { sendMeetingReminders } from "./modules/meetings/meetings.service.js";
 import { purgeExpiredChatMessages } from "./modules/chat/chatRetention.service.js";
 import { closeRealtime, startRealtime } from "./realtime/hub.js";
@@ -78,6 +79,16 @@ async function main(): Promise<void> {
   };
   sweepOldChat();
   setInterval(sweepOldChat, 60 * 60 * 1000).unref();
+
+  const sweepExpiredPlans = () => {
+    void runExclusive("plan-expiry", 25 * 60 * 1000, async () => {
+      await expireDuePlans();
+    }).catch((err: unknown) =>
+      logger.error({ err }, "Plan expiry sweep failed"),
+    );
+  };
+  sweepExpiredPlans();
+  setInterval(sweepExpiredPlans, 30 * 60 * 1000).unref();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

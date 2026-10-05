@@ -1,10 +1,13 @@
 import { env } from "../../config/env.js";
 import {
+  BILLING_CYCLES,
   PLAN_PRICE_PAISE,
   planRank,
-  upgradeAmountPaise,
+  quotePlan,
+  type BillingCycle,
   type Plan,
 } from "../../constants/plans.js";
+import { expirePlanIfDue } from "./planLifecycle.js";
 import { AppError } from "../../lib/errors.js";
 import {
   createRazorpayOrder,
@@ -21,25 +24,35 @@ import {
 } from "../../tenancy/context.js";
 import { changePlan } from "../orgs/orgs.service.js";
 
-async function currentPlan(tenantId: string): Promise<Plan> {
+async function currentBilling(tenantId: string) {
   const org = await Organization.findById(tenantId)
-    .select("plan")
+    .select("plan planExpiresAt billingCycle")
     .setOptions({ skipTenant: true })
     .lean();
-  return (org?.plan ?? "free") as Plan;
+  return {
+    plan: (org?.plan ?? "free") as Plan,
+    planExpiresAt: org?.planExpiresAt ?? null,
+    billingCycle: (org?.billingCycle ?? null) as BillingCycle | null,
+  };
 }
 
-// What the app needs to show the upgrade buttons: whether paying is switched
-// on, the key the browser needs, and what each step up costs from here.
+// What the app needs to show the buy buttons: whether paying is switched on,
+// the key the browser needs, the price list, and what each choice costs this
+// organization right now (null where it can't be bought).
 export async function getBillingConfig() {
   const tenantId = requireTenantId();
-  const plan = await currentPlan(tenantId);
-  const upgrades = (["pro", "premium"] as const)
-    .filter((target) => planRank(target) > planRank(plan))
-    .map((target) => ({
-      plan: target,
-      amount: upgradeAmountPaise(plan, target),
-    }));
+  const billing = await currentBilling(tenantId);
+  const quotes = Object.fromEntries(
+    (["pro", "premium"] as const).map((target) => [
+      target,
+      Object.fromEntries(
+        BILLING_CYCLES.map((cycle) => {
+          const quote = quotePlan(billing, target, cycle);
+          return [cycle, quote && { amount: quote.amount }];
+        }),
+      ),
+    ]),
+  );
   const recent = await Payment.find({ status: "paid" })
     .sort({ paidAt: -1 })
     .limit(5)
@@ -48,17 +61,21 @@ export async function getBillingConfig() {
     enabled: isRazorpayConfigured(),
     keyId: env.RAZORPAY_KEY_ID ?? null,
     prices: PLAN_PRICE_PAISE,
-    upgrades,
+    quotes,
     payments: recent.map((payment) => ({
       id: String(payment._id),
       plan: payment.plan,
+      billingCycle: payment.billingCycle,
       amount: payment.amount,
       paidAt: payment.paidAt,
     })),
   };
 }
 
-export async function createOrder(target: Exclude<Plan, "free">) {
+export async function createOrder(
+  target: Exclude<Plan, "free">,
+  cycle: BillingCycle,
+) {
   if (!isRazorpayConfigured()) {
     throw new AppError(
       503,
@@ -67,25 +84,28 @@ export async function createOrder(target: Exclude<Plan, "free">) {
     );
   }
   const context = requireContext();
-  const from = await currentPlan(context.tenantId);
-  if (planRank(target) <= planRank(from)) {
+  const billing = await currentBilling(context.tenantId);
+  const from = billing.plan;
+  const quote = quotePlan(billing, target, cycle);
+  if (!quote) {
     throw new AppError(
       409,
       "ALREADY_ON_PLAN",
-      "This organization is already on that plan or a higher one.",
+      "This organization is already on a higher plan.",
     );
   }
-  const amount = upgradeAmountPaise(from, target);
+  const amount = quote.amount;
   const order = await createRazorpayOrder({
     amount,
     receipt: `wn_${Date.now().toString(36)}`,
-    notes: { tenantId: context.tenantId, plan: target },
+    notes: { tenantId: context.tenantId, plan: target, cycle },
   });
   await Payment.create({
     tenantId: context.tenantId,
     userId: context.userId,
     fromPlan: from,
     plan: target,
+    billingCycle: cycle,
     amount,
     razorpayOrderId: order.id,
   });
@@ -95,6 +115,7 @@ export async function createOrder(target: Exclude<Plan, "free">) {
     currency: order.currency,
     keyId: env.RAZORPAY_KEY_ID!,
     plan: target,
+    billingCycle: cycle,
   };
 }
 
@@ -140,6 +161,7 @@ export async function applyPaidOrder(
   if (!claimed) {
     const existing = await Payment.findOne({ razorpayOrderId: orderId })
       .setOptions({ skipTenant: true })
+      .select("_id")
       .lean();
     if (!existing) {
       throw new AppError(
@@ -148,58 +170,75 @@ export async function applyPaidOrder(
         "No payment was found for that order",
       );
     }
-    // Marked paid but the plan never moved (the server stopped in between, or
-    // another request is still applying it): finish the job. It never moves
-    // anyone down, and does nothing when the plan is already there.
-    if (existing.status === "paid") {
-      await runWithTenant(
-        {
-          tenantId: String(existing.tenantId),
-          userId: String(existing.userId),
-        },
-        async () => {
-          const plan = await currentPlan(String(existing.tenantId));
-          if (planRank(existing.plan as Plan) > planRank(plan)) {
-            await changePlan(existing.plan as Plan, {
-              paymentId: existing.razorpayPaymentId ?? paymentId,
-              orderId,
-              amount: existing.amount,
-            });
-          }
-        },
-      );
-    }
-    return { applied: false };
   }
+  // Paid but the plan never moved (the server stopped in between): finish the
+  // job. Only one caller applies a payment, so a repeat can't extend it twice.
+  const applied = await applyPayment(orderId, paymentId);
+  return { applied: claimed !== null && applied };
+}
+
+const APPLY_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+const APPLY_CLAIM_STALE_MS = 2 * 60 * 1000;
+
+async function applyPayment(
+  orderId: string,
+  paymentId: string,
+): Promise<boolean> {
+  const now = Date.now();
+  const payment = await Payment.findOneAndUpdate(
+    {
+      razorpayOrderId: orderId,
+      status: "paid",
+      appliedAt: null,
+      paidAt: { $gt: new Date(now - APPLY_RETRY_WINDOW_MS) },
+      $or: [
+        { applyingAt: null },
+        { applyingAt: { $lt: new Date(now - APPLY_CLAIM_STALE_MS) } },
+      ],
+    },
+    { applyingAt: new Date(now) },
+    { returnDocument: "after" },
+  ).setOptions({ skipTenant: true });
+  if (!payment) return false;
 
   try {
     await runWithTenant(
-      {
-        tenantId: String(claimed.tenantId),
-        userId: String(claimed.userId),
-      },
+      { tenantId: String(payment.tenantId), userId: String(payment.userId) },
       async () => {
-        const plan = await currentPlan(String(claimed.tenantId));
-        // Never move someone down because of a late or repeated payment.
-        if (planRank(claimed.plan as Plan) > planRank(plan)) {
-          await changePlan(claimed.plan as Plan, {
-            paymentId,
+        const tenantId = String(payment.tenantId);
+        await expirePlanIfDue(tenantId);
+        const billing = await currentBilling(tenantId);
+        const target = payment.plan as Plan;
+        const cycle = (payment.billingCycle ?? "monthly") as BillingCycle;
+        // Never move someone down because of a late payment.
+        if (planRank(target) < planRank(billing.plan)) return;
+        const paidAt = payment.paidAt ?? new Date();
+        const quote = quotePlan(billing, target, cycle, paidAt);
+        await changePlan(
+          target,
+          {
+            paymentId: payment.razorpayPaymentId ?? paymentId,
             orderId,
-            amount: claimed.amount,
-          });
-        }
+            amount: payment.amount,
+          },
+          quote ? { expiresAt: quote.expiresAt, cycle } : null,
+        );
       },
     );
   } catch (error) {
-    // Put it back so a retry (the webhook, or the person) can finish the job.
+    // Let a retry (the webhook, or the person) finish the job.
     await Payment.updateOne(
-      { _id: claimed._id },
-      { status: "created", razorpayPaymentId: null, paidAt: null },
+      { _id: payment._id },
+      { applyingAt: null },
     ).setOptions({ skipTenant: true });
     logger.error({ err: error, orderId }, "Could not apply a paid plan");
     throw error;
   }
-  return { applied: true };
+  await Payment.updateOne(
+    { _id: payment._id },
+    { appliedAt: new Date() },
+  ).setOptions({ skipTenant: true });
+  return true;
 }
 
 export async function confirmPayment(input: {

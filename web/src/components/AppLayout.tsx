@@ -16,6 +16,7 @@ import { HelpLinks } from "@/components/HelpLinks";
 import { BrandLink } from "@/components/BrandLink";
 import { ChatRealtimeProvider } from "@/features/chat/ChatRealtimeProvider";
 import { useChatUnreadCount } from "@/features/chat/queries";
+import { PlanNotice } from "@/features/billing/PlanNotice";
 import { useMeetingSummary } from "@/features/meetings/queries";
 
 interface NavItem {
@@ -407,6 +408,7 @@ export function AppLayout() {
           </aside>
 
           <main className="min-w-0 flex-1">
+            <PlanNotice />
             <Outlet />
           </main>
         </div>

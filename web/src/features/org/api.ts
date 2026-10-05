@@ -1,12 +1,29 @@
 import { apiClient } from "@/api/client";
 import type { Plan } from "@/api/auth";
 
+// How much of the plan is in use. overLimit means the account is locked.
+export interface PlanUsage {
+  seatsUsed: number;
+  seatLimit: number;
+  projectCount: number;
+  projectLimit: number;
+  projectsOverTaskLimit: number;
+  activeTaskLimit: number | null;
+  overLimit: boolean;
+}
+
 export interface Organization {
   id: string;
   name: string;
   slug: string;
   timeZone: string;
   plan: Plan;
+  // When a paid plan ends; null when it doesn't.
+  planExpiresAt: string | null;
+  // Set when a paid plan ran out and the account went back to Free.
+  planExpiredAt: string | null;
+  planExpiredFrom: Plan | null;
+  usage?: PlanUsage;
   seatLimit: number;
   seatsUsed: number;
   projectLimit: number;
@@ -29,10 +46,11 @@ export interface UpdateOrgInput {
 }
 
 export async function getOrg(orgId: string): Promise<Organization> {
-  const response = await apiClient.get<{ organization: Organization }>(
-    `/orgs/${orgId}`,
-  );
-  return response.data.organization;
+  const response = await apiClient.get<{
+    organization: Omit<Organization, "usage">;
+    usage: PlanUsage;
+  }>(`/orgs/${orgId}`);
+  return { ...response.data.organization, usage: response.data.usage };
 }
 
 export async function updateOrg(

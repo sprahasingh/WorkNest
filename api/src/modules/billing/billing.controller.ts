@@ -25,7 +25,7 @@ export async function createOrderController(
   res: Response,
 ): Promise<void> {
   const input = req.validated!.body as CreateOrderInput;
-  res.status(201).json(await createOrder(input.plan));
+  res.status(201).json(await createOrder(input.plan, input.billingCycle));
 }
 
 export async function verifyPaymentController(

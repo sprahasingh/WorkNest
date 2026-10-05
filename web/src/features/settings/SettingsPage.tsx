@@ -50,6 +50,7 @@ import {
   PLAN_PRICE_PAISE,
   formatRupees,
   formatTaskLimit,
+  type BillingCycle,
 } from "@/lib/plans";
 
 const DELETE_CONFIRMATION_TEXT = "delete my account";
@@ -780,6 +781,7 @@ export function SettingsPage() {
   const planInfoId = useId();
   const [planInfoOpen, setPlanInfoOpen] = useState(false);
   const [payingFor, setPayingFor] = useState<Plan | null>(null);
+  const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const billing = useQuery({
     ...billingQuery(orgId),
     enabled: canChangePlan,
@@ -843,10 +845,12 @@ export function SettingsPage() {
 
   const handlePlanChange = async (newPlan: Plan) => {
     const name = PLAN_NAMES[newPlan];
-    // Moving up costs money when payments are on; moving down never does.
+    // Moving up, or renewing the current plan, costs money when payments are
+    // on; moving down never does.
     if (
       paymentsOn &&
-      PLAN_ORDER.indexOf(newPlan) >
+      newPlan !== "free" &&
+      PLAN_ORDER.indexOf(newPlan) >=
         PLAN_ORDER.indexOf((org?.plan ?? "free") as Plan)
     ) {
       setPayingFor(newPlan);
@@ -854,11 +858,10 @@ export function SettingsPage() {
       // card number is already on the clipboard, ready to paste.
       if (testMode) void copyTestCard();
       try {
-        const result = await payForPlan(
-          orgId,
-          newPlan as Exclude<Plan, "free">,
-          { name: signedInUser?.name, email: signedInUser?.email },
-        );
+        const result = await payForPlan(orgId, newPlan, cycle, {
+          name: signedInUser?.name,
+          email: signedInUser?.email,
+        });
         if (result.status === "dismissed" && result.reason) {
           const tryTestCard = testMode && /international/i.test(result.reason);
           toast.error("The payment didn't go through", {
@@ -965,14 +968,13 @@ export function SettingsPage() {
 
   const currentPlan = org.plan as Plan;
   const currentRank = PLAN_ORDER.indexOf(currentPlan);
-  // " - Rs 599" on the upgrade button, using what this org would really pay.
+  // " - Rs 449" on the buy button, using what this org would really pay.
   const upgradeLabel = (plan: Plan) => {
-    if (!paymentsOn) return "";
-    const amount = billing.data?.upgrades.find(
-      (upgrade) => upgrade.plan === plan,
-    )?.amount;
+    if (!paymentsOn || plan === "free") return "";
+    const amount = billing.data?.quotes[plan]?.[cycle]?.amount;
     return amount === undefined ? "" : ` \u00B7 ${formatRupees(amount)}`;
   };
+  const planEndsAt = org.planExpiresAt ? new Date(org.planExpiresAt) : null;
   const pendingPlan = changePlan.isPending ? changePlan.variables : null;
 
   return (
@@ -1103,9 +1105,12 @@ export function SettingsPage() {
             {paymentsOn ? (
               <>
                 <p>
-                  Upgrading is a one-time payment through Razorpay. Going from
-                  Pro to Premium costs only the difference. The plan changes
-                  once the payment is confirmed.
+                  Pay for a month or a year of Pro or Premium through Razorpay.
+                  Nothing renews by itself: when the time is up the workspace
+                  goes back to Free, and you can renew any time before that.
+                  Going from Pro to Premium on the same billing period costs
+                  only the difference. The plan changes once the payment is
+                  confirmed.
                 </p>
                 <p className="mt-2">
                   Moving to a smaller plan is free but not refunded, and is
@@ -1153,6 +1158,43 @@ export function SettingsPage() {
             </div>
           </dl>
 
+          {planEndsAt && (
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+              Your {PLAN_NAMES[currentPlan]} plan runs until{" "}
+              {planEndsAt.toLocaleDateString(undefined, {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+              , then the workspace goes back to Free.
+            </p>
+          )}
+
+          {paymentsOn && canChangePlan && (
+            <div
+              role="group"
+              aria-label="Billing period"
+              className="mt-4 inline-flex rounded-lg border border-slate-200 p-0.5 text-sm dark:border-slate-700"
+            >
+              {(["monthly", "yearly"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={cycle === option}
+                  onClick={() => setCycle(option)}
+                  className={cn(
+                    "rounded-md px-3 py-1 font-medium",
+                    cycle === option
+                      ? "bg-teal-600 text-white"
+                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
+                  )}
+                >
+                  {option === "monthly" ? "Monthly" : "Yearly"}
+                </button>
+              ))}
+            </div>
+          )}
+
           <ul aria-label="Plans" className="mt-5 grid gap-3 sm:grid-cols-3">
             {PLAN_ORDER.map((plan, rank) => {
               const limits = PLAN_LIMITS[plan];
@@ -1182,7 +1224,9 @@ export function SettingsPage() {
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                       {plan === "free"
                         ? "Free"
-                        : `${formatRupees(PLAN_PRICE_PAISE[plan])} one-time`}
+                        : `${formatRupees(PLAN_PRICE_PAISE[plan][cycle])} ${
+                            cycle === "yearly" ? "a year" : "a month"
+                          }`}
                     </p>
                   )}
                   <ul className="mt-3 flex-1 space-y-1 text-sm text-slate-600 dark:text-slate-300">
@@ -1194,6 +1238,21 @@ export function SettingsPage() {
                         : `${limits.activeTaskLimit} active tasks per project`}
                     </li>
                   </ul>
+                  {canChangePlan &&
+                    isCurrent &&
+                    paymentsOn &&
+                    plan !== "free" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => void handlePlanChange(plan)}
+                        disabled={changePlan.isPending || payingFor !== null}
+                        loading={payingFor === plan}
+                        className="mt-4 w-full"
+                      >
+                        {`Renew${upgradeLabel(plan)}`}
+                      </Button>
+                    )}
                   {canChangePlan && !isCurrent && (
                     <Button
                       size="sm"

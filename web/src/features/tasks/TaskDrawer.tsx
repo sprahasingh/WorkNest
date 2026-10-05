@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useAccountPaused } from "@/features/billing/useAccountPaused";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -88,6 +89,7 @@ export function TaskDrawer({
   const { user } = useAuth();
   const userId = user?.id ?? "";
   const { data: organization } = useOrgDetails(orgId);
+  const paused = useAccountPaused();
   const timeZone = organization?.timeZone ?? "UTC";
   const canAssign = useCan("task:assign");
   const canDelete = useCan("task:delete");
@@ -741,7 +743,7 @@ export function TaskDrawer({
                 {canEdit && (
                   <Button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || paused}
                     loading={isSubmitting}
                     className="order-1 w-full whitespace-nowrap sm:order-2 sm:w-auto"
                   >

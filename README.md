@@ -180,7 +180,7 @@ I wanted a project that went further than CRUD and made me deal with the parts o
 - **Tenant isolation:** one Mongoose plugin scopes every query, write and aggregation to the current org. The current org lives in `AsyncLocalStorage` for the length of the request, and a query with no org context fails instead of leaking data.
 - **Accounts:** email must be verified before an account or its first organization is created. Sign-up asks for the password twice, every password box has a Show button, and the verification, password reset and email change links can each be sent again (after a minute, with a note to check spam). The browser that signed up gets a secret that lets it sign itself in once the link has been opened on any device, so a sign-up started on one device and confirmed on another still ends signed in. The sign-up form suggests a fix when an email looks like a typo of a well-known provider ("gmial.com", "gmail.con"), passwords are refused with a plain reason when they are among the most common, a repeated or sequential pattern, or contain the person's own name or email (the form shows a strength bar and an (i) explaining why, and the server enforces it), and logging in with the right password before confirming the email says so and offers a new link, instead of "invalid password". Addresses listed in `EMAIL_VERIFICATION_BYPASS_EMAILS` skip both email verification and these password rules, for shared demo logins. Password reset requests are limited to one email a minute per account, and Settings lists every signed-in device with a way to sign each one out, or all of them. Email changes require the current password and confirmation at the new address. Short-lived JWT access tokens (15 minutes) and rotating refresh tokens are used; only hashes of refresh tokens are stored. Reusing an old refresh token signs out that whole chain of sessions. People can delete their own account; it's soft-deleted so the audit history still makes sense, and the email is freed up for a new sign-up.
 - **Roles:** admin, manager and member, checked on the server for every request. The UI hides what a role can't use, but the API is what actually says no.
-- **Organizations and plans:** Free, Pro and Premium plans with limits on seats, projects and active tasks per project (see [Plans](#plans)). Upgrading is a one-time payment through Razorpay (in test mode, so no real money moves), confirmed on the server before the plan changes and written to the audit log; see [Paying for a plan](#paying-for-a-plan). A downgrade is free and is blocked while current usage is over the smaller plan's limits, and the error says what's over.
+- **Organizations and plans:** Free, Pro and Premium plans with limits on seats, projects and active tasks per project (see [Plans](#plans)). Pro and Premium are paid for by the month or the year through Razorpay (in test mode, so no real money moves), confirmed on the server before the plan changes and written to the audit log; see [Paying for a plan](#paying-for-a-plan). When the paid time runs out the workspace goes back to Free. A downgrade is free and is blocked while current usage is over the smaller plan's limits, and the error says what's over.
 - **Invites:** admins get a one-time invite link (only a hash of the token is stored), and a seat is reserved safely even if several invites go out at once. If the person already has an account, the invitation also shows up in their app under the bell and on their organizations page, where they can join or decline. Inviting an email that already has a pending invite offers a fresh link instead of a vague error.
 - **Members:** removing someone takes them out of that org only. Their account and other orgs stay as they are, their tasks in that org become unassigned, and they can be invited back later. If it happens while they're using the org, they're sent to their organizations page with a short note.
 - **Projects:** cards show active and total task counts. A project appears under Completed when all its tasks are done. Completed, archived, and binned projects do not use an active project slot. Unarchiving or restoring a project with unfinished work, or reopening work in a completed project, uses a slot again. Projects in the Bin can be restored for 30 days before the project and its tasks are permanently deleted.
@@ -265,11 +265,11 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 
 ## Plans
 
-| Plan    | Price (one-time) | Seats | Active projects | Active tasks per project |
-| ------- | ---------------- | ----- | --------------- | ------------------------ |
-| Free    | ₹0               | 5     | 3               | 10                       |
-| Pro     | ₹599             | 30    | 25              | 50                       |
-| Premium | ₹1,199           | 100   | 50              | Unlimited                |
+| Plan    | Per month | Per year | Seats | Active projects | Active tasks per project |
+| ------- | --------- | -------- | ----- | --------------- | ------------------------ |
+| Free    | ₹0        | ₹0       | 5     | 3               | 10                       |
+| Pro     | ₹449      | ₹4,499   | 30    | 25              | 50                       |
+| Premium | ₹1,149    | ₹11,499  | 100   | 50              | Unlimited                |
 
 Only active projects use a project slot. Completed, archived, and binned projects do not count. If a project becomes active again, it uses a slot and may need to wait until one is free.
 
@@ -277,7 +277,9 @@ Each project also has a separate active-task limit. Done, archived, and binned t
 
 ### Paying for a plan
 
-Moving up a plan is a one-time payment through [Razorpay](https://razorpay.com), not a subscription. Pro costs ₹599 and Premium ₹1,199; going from Pro to Premium costs the difference. The app is meant to run with Razorpay **test keys**, so you can try the whole flow with fake payments and no real money moves. Moving down a plan is free (it isn't refunded) and still blocked while usage is over the smaller plan's limits.
+Pro and Premium are bought for one month or one year at a time through [Razorpay](https://razorpay.com). Nothing renews by itself, so you pay again to renew; renewing adds a period on top of the current end date. Going from Pro to Premium on the same period costs the difference and keeps the end date. The app is meant to run with Razorpay **test keys**, so you can try the whole flow with fake payments and no real money moves. Moving down a plan is free (it isn't refunded) and still blocked while usage is over the smaller plan's limits.
+
+When a paid plan ends, the workspace goes back to Free on the next request. If it then uses more than Free allows, it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before this change have no end date and are left alone.
 
 How it works:
 
@@ -445,7 +447,7 @@ These are deliberate trade-offs for a project of this size, not bugs.
 
 - **Single-instance Socket.IO:** online presence and live delivery rely on in-memory state in one server process. That's fine on a single instance. To scale out horizontally, I'd add Redis and the Socket.IO Redis adapter, and keep presence in Redis.
 - **Recurring meetings:** editing all upcoming dates of a repeating meeting across a daylight-saving change is a known edge case. The time shift is a fixed offset, with no special handling for the clock change, so a date after it can end up an hour off.
-- **Payments:** upgrades are one-time payments, with no subscriptions, renewals, invoices, tax or refunds. Razorpay's test mode is used, so nothing real is charged. Going live would mean a real Razorpay account and, depending on where you sell, taxes and terms of sale.
+- **Payments:** each payment buys one month or one year, with no automatic renewal, invoices, tax or refunds. Razorpay's test mode is used, so nothing real is charged. Going live would mean a real Razorpay account and, depending on where you sell, taxes and terms of sale.
 - **Single-region, single database:** the free tiers used here sleep when idle (the first request after a while can take up to a minute, and meeting reminders don't go out while the API is asleep), and the free MongoDB tier has no continuous backups. Run `npm run sync-indexes` once after deploying schema changes to a new database; a few safety-critical indexes are also created at startup.
 - **Several API servers:** the background jobs (reminders, bin cleanup, chat retention) take a short database lock, so each runs once per tick. Live chat does not: sockets, who is online and live updates are per server, so the API should run as a single instance unless a Redis adapter is added.
 - **Sign-up reveals existing accounts:** registering with an email that already has an account says so, so people can log in instead. It is a deliberate usability choice; the login, password reset and resend forms don't reveal anything.
