@@ -303,13 +303,20 @@ const organizationSettingsFormSchema = z.object({
         return false;
       }
     }, "Enter a valid IANA time zone"),
+  currentPassword: z
+    .string()
+    .min(1, "Enter your current password to save organization settings"),
 });
 
 type OrganizationSettingsFormValues = z.infer<
   typeof organizationSettingsFormSchema
 >;
 
-const ORGANIZATION_SETTINGS_FIELDS = ["name", "timeZone"] as const;
+const ORGANIZATION_SETTINGS_FIELDS = [
+  "name",
+  "timeZone",
+  "currentPassword",
+] as const;
 
 const personalInformationSchema = z
   .object({
@@ -326,12 +333,11 @@ const personalInformationSchema = z
     confirmNewPassword: z.string().optional(),
   })
   .superRefine((values, context) => {
-    // Renaming alone doesn't need the password; changing it does.
-    if (values.newPassword && !values.currentPassword) {
+    if (!values.currentPassword) {
       context.addIssue({
         code: "custom",
         path: ["currentPassword"],
-        message: "Enter your current password to set a new one",
+        message: "Enter your current password to save personal information",
       });
     }
     if (values.newPassword && values.newPassword.length < 8) {
@@ -397,12 +403,8 @@ function PersonalInformationCard() {
     try {
       const updatedUser = await updatePersonalInformation({
         name: values.name,
-        ...(values.newPassword
-          ? {
-              currentPassword: values.currentPassword,
-              newPassword: values.newPassword,
-            }
-          : {}),
+        currentPassword: values.currentPassword,
+        ...(values.newPassword ? { newPassword: values.newPassword } : {}),
       });
       updateCurrentUser(updatedUser);
       reset({
@@ -480,7 +482,7 @@ function PersonalInformationCard() {
               />
             </Field>
             <Field
-              label="Current password (only to change it)"
+              label="Current password (required to save changes)"
               htmlFor="profile-current-password"
               error={errors.currentPassword?.message}
             >
@@ -491,7 +493,7 @@ function PersonalInformationCard() {
               />
             </Field>
             <Field
-              label="New password (optional)"
+              label="New password (leave blank to keep your current password)"
               htmlFor="profile-new-password"
               error={errors.newPassword?.message}
             >
@@ -520,8 +522,8 @@ function PersonalInformationCard() {
             </Field>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Confirm your current password to save changes. Leave the new
-            password blank to keep it unchanged.
+            Your current password confirms it’s you. Enter a new password only
+            if you want to replace it.
           </p>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
@@ -774,8 +776,15 @@ export function SettingsPage() {
   // A link from Messages lands on the chat history card.
   const { hash } = useLocation();
   useEffect(() => {
-    if (hash !== "#chat-history" || !org) return;
-    document.getElementById("chat-history")?.scrollIntoView({ block: "start" });
+    if (!org) return;
+    const targetId =
+      hash === "#chat-history"
+        ? "chat-history"
+        : hash === "#plan"
+          ? "plan"
+          : null;
+    if (!targetId) return;
+    document.getElementById(targetId)?.scrollIntoView({ block: "start" });
   }, [hash, org]);
   const updateOrg = useUpdateOrg(orgId);
   const changePlan = useChangePlan(orgId);
@@ -797,11 +806,13 @@ export function SettingsPage() {
     register,
     handleSubmit,
     setError,
+    setValue,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<OrganizationSettingsFormValues>({
     resolver: zodResolver(organizationSettingsFormSchema),
     values: org
-      ? { name: org.name, timeZone: org.timeZone ?? "UTC" }
+      ? { name: org.name, timeZone: org.timeZone ?? "UTC", currentPassword: "" }
       : undefined,
   });
 
@@ -809,6 +820,20 @@ export function SettingsPage() {
   // stay on the same calendar day or be left exactly as stored.
   const [timeZoneChoice, setTimeZoneChoice] =
     useState<OrganizationSettingsFormValues | null>(null);
+  const [isEditingOrganization, setIsEditingOrganization] = useState(false);
+
+  const cancelOrganizationEdit = () => {
+    if (org) {
+      reset({
+        name: org.name,
+        timeZone: org.timeZone ?? "UTC",
+        currentPassword: "",
+      });
+    }
+    setFormError(null);
+    setTimeZoneChoice(null);
+    setIsEditingOrganization(false);
+  };
 
   const onOrganizationSettingsSubmit = async (
     values: OrganizationSettingsFormValues,
@@ -828,6 +853,8 @@ export function SettingsPage() {
       await updateOrg.mutateAsync(
         moveDueDates === undefined ? values : { ...values, moveDueDates },
       );
+      setValue("currentPassword", "");
+      setIsEditingOrganization(false);
       toast.success("Organization settings updated");
     } catch (error) {
       const parsed = parseApiError(error);
@@ -1015,50 +1042,110 @@ export function SettingsPage() {
             Organization settings
           </h2>
 
-          <div className="mt-3">
-            <ErrorBanner message={formError} />
-          </div>
-
-          <form
-            onSubmit={(event) =>
-              void handleSubmit((values) =>
-                onOrganizationSettingsSubmit(values),
-              )(event)
-            }
-            noValidate
-            className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
-          >
-            <div className="flex-1">
-              <Field label="Name" htmlFor="name" error={errors.name?.message}>
-                <input
-                  id="name"
-                  type="text"
-                  disabled={!canUpdateOrg}
-                  {...register("name")}
-                  className={inputStyles}
-                />
-              </Field>
+          {org && !isEditingOrganization ? (
+            <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <dl className="grid gap-3 text-sm sm:grid-cols-2 sm:gap-8">
+                <div>
+                  <dt className="text-slate-500 dark:text-slate-400">Name</dt>
+                  <dd className="mt-0.5 font-medium text-slate-800 dark:text-slate-200">
+                    {org.name}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500 dark:text-slate-400">
+                    Time zone
+                  </dt>
+                  <dd className="mt-0.5 font-medium text-slate-800 dark:text-slate-200">
+                    {org.timeZone ?? "UTC"}
+                  </dd>
+                </div>
+              </dl>
+              {canUpdateOrg && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setFormError(null);
+                    setIsEditingOrganization(true);
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  Edit
+                </Button>
+              )}
             </div>
-            <div className="flex-1">
-              <Field
-                label="Time zone"
-                htmlFor="timeZone"
-                error={errors.timeZone?.message}
+          ) : (
+            <>
+              <div className="mt-3">
+                <ErrorBanner message={formError} />
+              </div>
+              <form
+                onSubmit={(event) =>
+                  void handleSubmit((values) =>
+                    onOrganizationSettingsSubmit(values),
+                  )(event)
+                }
+                noValidate
+                className="mt-3 grid gap-3 sm:grid-cols-2"
               >
-                <TimeZoneSelect control={control} disabled={!canUpdateOrg} />
-              </Field>
+                <Field label="Name" htmlFor="name" error={errors.name?.message}>
+                  <input
+                    id="name"
+                    type="text"
+                    {...register("name")}
+                    className={inputStyles}
+                  />
+                </Field>
+                <Field
+                  label="Time zone"
+                  htmlFor="timeZone"
+                  error={errors.timeZone?.message}
+                >
+                  <TimeZoneSelect control={control} disabled={false} />
+                </Field>
+                <Field
+                  label="Current password (required to save)"
+                  htmlFor="org-current-password"
+                  error={errors.currentPassword?.message}
+                >
+                  <PasswordInput
+                    id="org-current-password"
+                    autoComplete="current-password"
+                    {...register("currentPassword")}
+                    className={inputStyles}
+                  />
+                </Field>
+                <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={cancelOrganizationEdit}
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    loading={isSubmitting}
+                    className="w-full sm:w-auto"
+                  >
+                    {isSubmitting ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+              </form>
+            </>
+          )}
+          {org && (
+            <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+              <ChatRetentionCard
+                orgId={orgId}
+                org={org}
+                canEdit={canUpdateOrg}
+              />
             </div>
-
-            {canUpdateOrg && (
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                loading={isSubmitting}
-              >
-                {isSubmitting ? "Saving…" : "Save"}
-              </Button>
-            )}
-          </form>
+          )}
         </Card>
 
         <Modal
@@ -1105,7 +1192,7 @@ export function SettingsPage() {
           </div>
         </Modal>
 
-        <Card>
+        <Card id="plan" className="scroll-mt-24">
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-100">
               Plan
@@ -1348,10 +1435,6 @@ export function SettingsPage() {
               Got it
             </Button>
           </Modal>
-        )}
-
-        {org && (
-          <ChatRetentionCard orgId={orgId} org={org} canEdit={canUpdateOrg} />
         )}
 
         <SessionsCard />

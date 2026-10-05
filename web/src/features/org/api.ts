@@ -59,6 +59,7 @@ export interface Organization {
 }
 
 export interface UpdateOrgInput {
+  currentPassword: string;
   name?: string;
   timeZone?: string;
   // With a new time zone: keep date-only due dates on the same calendar day

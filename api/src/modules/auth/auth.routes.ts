@@ -35,7 +35,7 @@ import {
   resetPasswordController,
   listSessionsController,
   revokeSessionController,
-  revokeAllSessionsController,
+  revokeOtherSessionsController,
 } from "./auth.controller.js";
 
 const router = Router();
@@ -171,7 +171,7 @@ router.delete(
   "/me/sessions",
   accountUpdateLimiter,
   authenticate,
-  revokeAllSessionsController,
+  revokeOtherSessionsController,
 );
 router.delete(
   "/me/sessions/:sessionId",

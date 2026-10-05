@@ -229,6 +229,6 @@ export async function revokeSession(id: string): Promise<void> {
   await apiClient.delete(`/auth/me/sessions/${id}`);
 }
 
-export async function revokeAllSessions(): Promise<void> {
+export async function revokeOtherSessions(): Promise<void> {
   await apiClient.delete("/auth/me/sessions");
 }

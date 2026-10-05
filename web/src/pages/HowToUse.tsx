@@ -136,7 +136,7 @@ const STEPS: GuideStep[] = [
   {
     id: "plan",
     title: "Manage your plan and chat history",
-    description: `Open Settings to compare plans and check usage. ${planLimitsText()} Only admins can change plans. Pro and Premium are paid for by the month or the year and go back to Free when the time is up, the little i next to Plan explains how it works, and a downgrade is free once your usage fits the lower limits. Settings also lists every device signed in to your account, so you can sign one out or choose Log out everywhere. On a phone, pulling down from the top of any page refreshes it. Admins also choose how long chat history is kept, from forever down to 90 days. The choice applies to the whole organization, and every member can see it in Settings and at the bottom of their chat list.`,
+    description: `Open Settings to compare plans and check usage. ${planLimitsText()} Only admins can change plans. Pro and Premium are paid for by the month or the year and go back to Free when the time is up, the little i next to Plan explains how it works, and a downgrade is free once your usage fits the lower limits. Settings also lists every device signed in to your account, so you can sign one out or choose Log out everywhere else. On a phone, pulling down from the top of any page refreshes it. Admins also choose how long chat history is kept, from forever down to 90 days. The choice applies to the whole organization, and every member can see it in Settings and at the bottom of their chat list.`,
     screens: placement("guide.plan"),
   },
 ];

@@ -94,7 +94,7 @@ export function notificationLink(
     notification.type === "plan_expiring" ||
     notification.type === "plan_expired"
   ) {
-    return `/orgs/${orgId}/settings`;
+    return `/orgs/${orgId}/settings#plan`;
   }
   if (notification.meetingId) {
     return `/orgs/${orgId}/meetings?meeting=${notification.meetingId}`;

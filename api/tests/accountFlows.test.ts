@@ -294,12 +294,13 @@ describe("signed-in devices", () => {
     const email = "devices@accounts.test";
     await register(email);
     const link = takeVerificationToken(email, "registration");
-    await request(app)
+    const desktop = await request(app)
       .post("/api/auth/verify-registration")
       .set("X-Forwarded-For", ip())
       .set("User-Agent", "Mozilla/5.0 (Macintosh) Chrome/120")
       .send({ token: link, password: "Harbor-lamp-91" })
       .expect(201);
+    const desktopCookie = desktop.headers["set-cookie"];
 
     const phone = await request(app)
       .post("/api/auth/login")
@@ -336,14 +337,41 @@ describe("signed-in devices", () => {
       .expect(200);
     expect(after.body.sessions).toHaveLength(1);
 
+    const tablet = await request(app)
+      .post("/api/auth/login")
+      .set("X-Forwarded-For", ip())
+      .set("User-Agent", "Mozilla/5.0 (iPad) Safari/604")
+      .send({ email, password: "Harbor-lamp-91" })
+      .expect(200);
+    const tabletCookie = tablet.headers["set-cookie"];
+
     await request(app)
       .delete("/api/auth/me/sessions")
       .set("Authorization", `Bearer ${token}`)
+      .set("Cookie", cookie)
       .expect(204);
+    const afterEverywhereElse = await request(app)
+      .get("/api/auth/me/sessions")
+      .set("Authorization", `Bearer ${token}`)
+      .set("Cookie", cookie)
+      .expect(200);
+    expect(afterEverywhereElse.body.sessions).toHaveLength(1);
+    expect(afterEverywhereElse.body.sessions[0].current).toBe(true);
+
+    await request(app)
+      .post("/api/auth/refresh")
+      .set("X-Forwarded-For", ip())
+      .set("Cookie", desktopCookie)
+      .expect(401);
+    await request(app)
+      .post("/api/auth/refresh")
+      .set("X-Forwarded-For", ip())
+      .set("Cookie", tabletCookie)
+      .expect(401);
     await request(app)
       .post("/api/auth/refresh")
       .set("X-Forwarded-For", ip())
       .set("Cookie", cookie)
-      .expect(401);
+      .expect(200);
   });
 });
