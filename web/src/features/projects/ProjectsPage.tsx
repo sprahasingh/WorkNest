@@ -66,6 +66,14 @@ const CREATE_PROJECT_FIELDS = [
   "dueDate",
 ] as const;
 
+const EMPTY_PROJECT_FORM: CreateProjectFormValues = {
+  name: "",
+  key: "",
+  description: "",
+  priority: "medium",
+  dueDate: "",
+};
+
 type ConfirmAction = "archive" | "bin" | "permanent";
 
 interface ConfirmTarget {
@@ -162,13 +170,15 @@ export function ProjectsPage() {
     formState: { errors, isSubmitting },
   } = useForm<CreateProjectFormValues>({
     resolver: zodResolver(createProjectFormSchema),
+    defaultValues: EMPTY_PROJECT_FORM,
   });
 
   const closeCreateModal = () => {
+    const wasEditing = editingProject !== null;
     setIsCreateOpen(false);
     setEditingProject(null);
     setFormError(null);
-    reset();
+    if (wasEditing) reset(EMPTY_PROJECT_FORM);
   };
 
   const onCreateSubmit = async (values: CreateProjectFormValues) => {
@@ -191,6 +201,7 @@ export function ProjectsPage() {
           priority: values.priority,
           dueDate: values.dueDate || undefined,
         });
+        reset(EMPTY_PROJECT_FORM);
       }
       closeCreateModal();
     } catch (error) {
@@ -225,14 +236,8 @@ export function ProjectsPage() {
   };
 
   const openCreateModal = () => {
+    if (editingProject) reset(EMPTY_PROJECT_FORM);
     setEditingProject(null);
-    reset({
-      name: "",
-      key: "",
-      description: "",
-      priority: "medium",
-      dueDate: "",
-    });
     setFormError(null);
     setIsCreateOpen(true);
   };
@@ -669,6 +674,19 @@ export function ProjectsPage() {
           </Field>
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+            {!editingProject && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full sm:mr-auto sm:w-auto"
+                onClick={() => {
+                  reset(EMPTY_PROJECT_FORM);
+                  setFormError(null);
+                }}
+              >
+                Clear form
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
