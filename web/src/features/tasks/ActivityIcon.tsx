@@ -2,11 +2,13 @@ import { cn } from "@/lib/cn";
 import type { ActivityType, TaskNotificationType } from "./api";
 import type {
   MeetingNotificationType,
+  PlanNotificationType,
   ProjectNotificationType,
 } from "@/features/notifications/api";
 import {
   ACTIVITY_BADGE_STYLES,
   MEETING_NOTIFICATION_BADGE_STYLES,
+  PLAN_NOTIFICATION_BADGE_STYLES,
   PROJECT_NOTIFICATION_BADGE_STYLES,
   TASK_NOTIFICATION_BADGE_STYLES,
 } from "./activityTypes";
@@ -23,9 +25,16 @@ const ICON_PATHS: Record<
   | TaskNotificationType
   | ProjectNotificationType
   | MeetingNotificationType
+  | PlanNotificationType
   | "default",
   string[]
 > = {
+  plan_expiring: ["M12 8v4l3 2", "M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z"],
+  plan_expired: [
+    "M12 9v4",
+    "M12 17h.01",
+    "M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z",
+  ],
   meeting_invited: CALENDAR_PATHS,
   meeting_updated: CALENDAR_PATHS,
   meeting_cancelled: CALENDAR_PATHS,
@@ -74,6 +83,7 @@ export function ActivityIcon({
     | TaskNotificationType
     | ProjectNotificationType
     | MeetingNotificationType
+    | PlanNotificationType
     | null;
   className?: string;
 }) {
@@ -93,7 +103,9 @@ export function ActivityIcon({
                 ? MEETING_NOTIFICATION_BADGE_STYLES[
                     type as MeetingNotificationType
                   ]
-                : TASK_NOTIFICATION_BADGE_STYLES[type as TaskNotificationType]
+                : type in PLAN_NOTIFICATION_BADGE_STYLES
+                  ? PLAN_NOTIFICATION_BADGE_STYLES[type as PlanNotificationType]
+                  : TASK_NOTIFICATION_BADGE_STYLES[type as TaskNotificationType]
           : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300",
         className,
       )}
