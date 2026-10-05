@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { lockScroll } from "@/lib/scrollLock";
 
@@ -91,7 +92,10 @@ export function Modal({
 
   if (!open) return null;
 
-  return (
+  // Drawn on the page itself, not inside whatever opened it. Inside a spaced
+  // layout (space-y-*) or a clipped or stacked parent, the dimmed layer was
+  // pushed out of place and left a strip of the page sharp at the edge.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4"
       onMouseDown={(event) => {
@@ -151,6 +155,7 @@ export function Modal({
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
