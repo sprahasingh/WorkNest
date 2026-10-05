@@ -16,6 +16,7 @@ import { authRouter } from "./modules/auth/auth.routes.js";
 import { feedbackRouter } from "./modules/feedback/feedback.routes.js";
 import { authenticate } from "./auth/authenticate.js";
 import { resolveTenant } from "./tenancy/resolveTenant.js";
+import { enforcePlanState } from "./modules/billing/planLifecycle.js";
 import { membersRouter } from "./modules/members/members.routes.js";
 import { orgsRouter } from "./modules/orgs/orgs.routes.js";
 import { createOrgController } from "./modules/orgs/orgs.controller.js";
@@ -136,7 +137,13 @@ export function createApp(): Express {
   orgRouter.use("/chat", chatLimiter, chatRouter);
   orgRouter.use("/meetings", meetingsRouter);
   orgRouter.use("/billing", billingRouter);
-  app.use("/api/orgs/:orgId", authenticate, resolveTenant, orgRouter);
+  app.use(
+    "/api/orgs/:orgId",
+    authenticate,
+    resolveTenant,
+    enforcePlanState,
+    orgRouter,
+  );
 
   app.use(notFound);
   app.use(errorHandler);

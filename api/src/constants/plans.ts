@@ -38,3 +38,10 @@ export function planRank(plan: Plan): number {
 export function upgradeAmountPaise(from: Plan, to: Plan): number {
   return Math.max(0, PLAN_PRICE_PAISE[to] - PLAN_PRICE_PAISE[from]);
 }
+
+// How long a paid plan lasts after paying.
+export function planEndDate(from: Date): Date {
+  const end = new Date(from);
+  end.setMonth(end.getMonth() + 1);
+  return end;
+}

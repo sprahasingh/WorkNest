@@ -1,6 +1,7 @@
 import { env } from "../../config/env.js";
 import {
   PLAN_PRICE_PAISE,
+  planEndDate,
   planRank,
   upgradeAmountPaise,
   type Plan,
@@ -160,11 +161,15 @@ export async function applyPaidOrder(
         async () => {
           const plan = await currentPlan(String(existing.tenantId));
           if (planRank(existing.plan as Plan) > planRank(plan)) {
-            await changePlan(existing.plan as Plan, {
-              paymentId: existing.razorpayPaymentId ?? paymentId,
-              orderId,
-              amount: existing.amount,
-            });
+            await changePlan(
+              existing.plan as Plan,
+              {
+                paymentId: existing.razorpayPaymentId ?? paymentId,
+                orderId,
+                amount: existing.amount,
+              },
+              planEndDate(existing.paidAt ?? new Date()),
+            );
           }
         },
       );
@@ -182,11 +187,15 @@ export async function applyPaidOrder(
         const plan = await currentPlan(String(claimed.tenantId));
         // Never move someone down because of a late or repeated payment.
         if (planRank(claimed.plan as Plan) > planRank(plan)) {
-          await changePlan(claimed.plan as Plan, {
-            paymentId,
-            orderId,
-            amount: claimed.amount,
-          });
+          await changePlan(
+            claimed.plan as Plan,
+            {
+              paymentId,
+              orderId,
+              amount: claimed.amount,
+            },
+            planEndDate(claimed.paidAt ?? new Date()),
+          );
         }
       },
     );

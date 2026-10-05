@@ -227,6 +227,7 @@ export async function updateOrg(input: UpdateOrgInput) {
 export async function changePlan(
   newPlan: Plan,
   payment?: { paymentId: string; orderId: string; amount: number },
+  expiresAt: Date | null = null,
 ) {
   const tenantId = requireTenantId();
   const limits = PLAN_LIMITS[newPlan];
@@ -296,6 +297,11 @@ export async function changePlan(
           plan: newPlan,
           seatLimit: limits.seatLimit,
           projectLimit: limits.projectLimit,
+          planExpiresAt: newPlan === "free" ? null : expiresAt,
+          // A fresh plan change replaces the "your plan expired" notice.
+          ...(newPlan === "free"
+            ? {}
+            : { planExpiredAt: null, planExpiredFrom: null }),
         },
         { returnDocument: "after", session: dbSession },
       ).setOptions({ skipTenant: true });

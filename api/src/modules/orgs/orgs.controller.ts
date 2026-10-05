@@ -7,6 +7,7 @@ import {
   simulatedUpgradesAllowed,
 } from "../../lib/razorpay.js";
 import { planRank, type Plan } from "../../constants/plans.js";
+import { getPlanUsage } from "../billing/planLifecycle.js";
 import { changePlan, createOrg, updateOrg } from "./orgs.service.js";
 import { reconcileSeats } from "../invites/invites.service.js";
 import type {
@@ -38,7 +39,9 @@ export async function getOrgController(
     throw new AppError(404, "NOT_FOUND", "Organization not found");
   }
 
-  res.status(200).json({ organization: org });
+  res
+    .status(200)
+    .json({ organization: org, usage: await getPlanUsage(tenantId) });
 }
 
 export async function updateOrgController(
