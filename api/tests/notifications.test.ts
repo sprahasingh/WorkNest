@@ -330,7 +330,10 @@ describe("task notifications", () => {
     const timeZoneUpdated = await request(app)
       .patch(`/api/orgs/${admin.orgId}`)
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ timeZone: "America/New_York", currentPassword: "Harbor-lamp-91" });
+      .send({
+        timeZone: "America/New_York",
+        currentPassword: "Harbor-lamp-91",
+      });
     expect(timeZoneUpdated.status).toBe(200);
     expect(timeZoneUpdated.body.organization.timeZone).toBe("America/New_York");
 
@@ -372,7 +375,11 @@ describe("task notifications", () => {
     const updated = await request(app)
       .patch(`/api/orgs/${admin.orgId}`)
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ timeZone: "America/New_York", moveDueDates: false, currentPassword: "Harbor-lamp-91" });
+      .send({
+        timeZone: "America/New_York",
+        moveDueDates: false,
+        currentPassword: "Harbor-lamp-91",
+      });
     expect(updated.status).toBe(200);
     expect(updated.body.organization.timeZone).toBe("America/New_York");
 
@@ -388,7 +395,11 @@ describe("task notifications", () => {
     const notABoolean = await request(app)
       .patch(`/api/orgs/${admin.orgId}`)
       .set("Authorization", `Bearer ${admin.accessToken}`)
-      .send({ timeZone: "Asia/Kolkata", moveDueDates: "no", currentPassword: "Harbor-lamp-91" });
+      .send({
+        timeZone: "Asia/Kolkata",
+        moveDueDates: "no",
+        currentPassword: "Harbor-lamp-91",
+      });
     expect(notABoolean.status).toBe(400);
   });
 

@@ -303,14 +303,20 @@ const organizationSettingsFormSchema = z.object({
         return false;
       }
     }, "Enter a valid IANA time zone"),
-  currentPassword: z.string().min(1, "Enter your current password to save organization settings"),
+  currentPassword: z
+    .string()
+    .min(1, "Enter your current password to save organization settings"),
 });
 
 type OrganizationSettingsFormValues = z.infer<
   typeof organizationSettingsFormSchema
 >;
 
-const ORGANIZATION_SETTINGS_FIELDS = ["name", "timeZone", "currentPassword"] as const;
+const ORGANIZATION_SETTINGS_FIELDS = [
+  "name",
+  "timeZone",
+  "currentPassword",
+] as const;
 
 const personalInformationSchema = z
   .object({
@@ -1046,7 +1052,9 @@ export function SettingsPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500 dark:text-slate-400">Time zone</dt>
+                  <dt className="text-slate-500 dark:text-slate-400">
+                    Time zone
+                  </dt>
                   <dd className="mt-0.5 font-medium text-slate-800 dark:text-slate-200">
                     {org.timeZone ?? "UTC"}
                   </dd>
@@ -1131,7 +1139,11 @@ export function SettingsPage() {
           )}
           {org && (
             <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
-              <ChatRetentionCard orgId={orgId} org={org} canEdit={canUpdateOrg} />
+              <ChatRetentionCard
+                orgId={orgId}
+                org={org}
+                canEdit={canUpdateOrg}
+              />
             </div>
           )}
         </Card>

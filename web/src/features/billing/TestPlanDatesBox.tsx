@@ -110,17 +110,17 @@ export function TestPlanDatesBox({
           Quick dates
         </p>
         <div className="flex flex-wrap gap-2">
-        {presets.map((preset) => (
-          <Button
-            key={preset.label}
-            size="sm"
-            variant="secondary"
-            disabled={busy}
-            onClick={() => void apply(field, preset.at())}
-          >
-            {preset.label}
-          </Button>
-        ))}
+          {presets.map((preset) => (
+            <Button
+              key={preset.label}
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => void apply(field, preset.at())}
+            >
+              {preset.label}
+            </Button>
+          ))}
         </div>
       </div>
 
@@ -135,7 +135,9 @@ export function TestPlanDatesBox({
           <input
             id="test-plan-custom-date"
             type="datetime-local"
-            aria-label={onFreePlan ? "Date the plan ended" : "Date the plan ends"}
+            aria-label={
+              onFreePlan ? "Date the plan ended" : "Date the plan ends"
+            }
             value={custom}
             onChange={(event) => setCustom(event.target.value)}
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 sm:w-auto"
@@ -163,7 +165,8 @@ export function TestPlanDatesBox({
             Run checks immediately
           </span>
           <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-            Apply expiry, grace period, reminder and archive checks after setting the date.
+            Apply expiry, grace period, reminder and archive checks after
+            setting the date.
           </span>
         </span>
       </label>

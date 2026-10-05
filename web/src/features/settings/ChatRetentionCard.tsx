@@ -105,7 +105,9 @@ export function ChatRetentionCard({
   return (
     <div id="chat-history" className="scroll-mt-24">
       <div className="flex items-center gap-2">
-        <h3 className="font-medium text-slate-800 dark:text-slate-100">Chat history</h3>
+        <h3 className="font-medium text-slate-800 dark:text-slate-100">
+          Chat history
+        </h3>
         <InfoButton
           open={infoOpen}
           onToggle={() => setInfoOpen((open) => !open)}

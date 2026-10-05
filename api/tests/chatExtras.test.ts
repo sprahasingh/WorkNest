@@ -170,13 +170,25 @@ describe("chat retention", () => {
         .send(body);
 
     await patch(sam.token, { chatRetentionDays: 90 }).expect(403);
-    await patch(admin.token, { chatRetentionDays: 30, currentPassword: "Harbor-lamp-91" }).expect(400);
-    await patch(admin.token, { chatRetentionDays: 90, currentPassword: "wrong-password" }).expect(401);
+    await patch(admin.token, {
+      chatRetentionDays: 30,
+      currentPassword: "Harbor-lamp-91",
+    }).expect(400);
+    await patch(admin.token, {
+      chatRetentionDays: 90,
+      currentPassword: "wrong-password",
+    }).expect(401);
     await patch(admin.token, { chatRetentionDays: 90 }).expect(400);
-    const ok = await patch(admin.token, { chatRetentionDays: 180, currentPassword: "Harbor-lamp-91" });
+    const ok = await patch(admin.token, {
+      chatRetentionDays: 180,
+      currentPassword: "Harbor-lamp-91",
+    });
     expect(ok.status).toBe(200);
     expect(ok.body.organization.chatRetentionDays).toBe(180);
-    const cleared = await patch(admin.token, { chatRetentionDays: null, currentPassword: "Harbor-lamp-91" });
+    const cleared = await patch(admin.token, {
+      chatRetentionDays: null,
+      currentPassword: "Harbor-lamp-91",
+    });
     expect(cleared.body.organization.chatRetentionDays).toBeNull();
   });
 

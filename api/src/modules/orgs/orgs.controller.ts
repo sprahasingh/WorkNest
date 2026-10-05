@@ -51,13 +51,25 @@ export async function updateOrgController(
   res: Response,
 ): Promise<void> {
   const input = req.validated!.body as UpdateOrgInput;
-  const user = await User.findById(req.auth!.userId).select("+passwordHash +status");
-  if (!user || (user as unknown as Record<string, unknown>).status === "deleted") {
+  const user = await User.findById(req.auth!.userId).select(
+    "+passwordHash +status",
+  );
+  if (
+    !user ||
+    (user as unknown as Record<string, unknown>).status === "deleted"
+  ) {
     throw new AppError(404, "USER_NOT_FOUND", "User not found");
   }
-  const passwordIsValid = await bcrypt.compare(input.currentPassword, user.passwordHash as string);
+  const passwordIsValid = await bcrypt.compare(
+    input.currentPassword,
+    user.passwordHash as string,
+  );
   if (!passwordIsValid) {
-    throw new AppError(401, "CURRENT_PASSWORD_INVALID", "Current password is incorrect");
+    throw new AppError(
+      401,
+      "CURRENT_PASSWORD_INVALID",
+      "Current password is incorrect",
+    );
   }
   const org = await updateOrg(input);
   res.status(200).json({ organization: org });

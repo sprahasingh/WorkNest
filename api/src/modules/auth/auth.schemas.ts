@@ -63,7 +63,10 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export const updatePersonalInformationSchema = z
   .object({
     name: z.string().trim().min(2).max(100),
-    currentPassword: z.string().min(1, "Enter your current password to save personal information").max(72),
+    currentPassword: z
+      .string()
+      .min(1, "Enter your current password to save personal information")
+      .max(72),
     newPassword: newPasswordSchema.optional(),
   })
   .strict()
