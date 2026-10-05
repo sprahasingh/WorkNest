@@ -1,6 +1,12 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
+/* Keep native select arrows inset from the border across browser engines. */
+select {
+  padding-right: 2.5rem;
+  background-position: right 0.75rem center;
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {

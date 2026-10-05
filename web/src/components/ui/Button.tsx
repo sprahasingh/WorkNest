@@ -91,7 +91,10 @@ export function Button({
   if (isDisabled) {
     return (
       <span
-        className={cn("relative inline-flex cursor-not-allowed", className)}
+        className={cn(
+          "relative inline-flex max-w-full cursor-not-allowed",
+          className,
+        )}
         title={disabledMessage}
         onPointerEnter={(event) => {
           if (event.pointerType === "mouse") setShowDisabledMessage(true);
@@ -125,7 +128,7 @@ export function Button({
           <span
             id={tooltipId}
             role="tooltip"
-            className="absolute left-1/2 top-full z-50 mt-2 w-max max-w-56 -translate-x-1/2 rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900"
+            className="absolute left-1/2 top-full z-50 mt-2 w-max max-w-[min(14rem,calc(100vw-2rem))] -translate-x-1/2 whitespace-normal break-words rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900"
           >
             {disabledMessage}
           </span>

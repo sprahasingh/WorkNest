@@ -257,12 +257,11 @@ export function ProjectsPage() {
     setIsCreateOpen(true);
   };
 
-  const showError = (error: unknown) => {
+  const showError = (error: unknown, projectName: string) => {
     const parsed = parseApiError(error);
     if (parsed.code === "PROJECT_LIMIT_REACHED") {
       toast.error("No free project slot", {
-        description:
-          "Archive or delete another project, or upgrade your plan, to restore this one.",
+        description: `Upgrade your plan to restore "${projectName}" and use more active projects. You can also archive another project to free a slot.`,
         action: {
           label: "Settings",
           onClick: () => navigate(`/orgs/${orgId}/settings`),
@@ -278,7 +277,7 @@ export function ProjectsPage() {
       await restoreProject.mutateAsync(project._id);
       toast.success(`Restored "${project.name}"`);
     } catch (error) {
-      showError(error);
+      showError(error, project.name);
     }
   };
 
@@ -287,7 +286,19 @@ export function ProjectsPage() {
       await unarchiveProject.mutateAsync(project._id);
       toast.success(`"${project.name}" is active again`);
     } catch (error) {
-      showError(error);
+      const parsed = parseApiError(error);
+      if (parsed.code === "TASK_LIMIT_REACHED") {
+        toast.error(`"${project.name}" has too many open tasks`, {
+          description:
+            "Upgrade your plan to use more active tasks in this project, or finish some tasks before unarchiving it.",
+          action: {
+            label: "Settings",
+            onClick: () => navigate(`/orgs/${orgId}/settings`),
+          },
+        });
+        return;
+      }
+      showError(error, project.name);
     }
   };
 
@@ -312,7 +323,7 @@ export function ProjectsPage() {
         toast.success(`Deleted "${project.name}" permanently`);
       }
     } catch (error) {
-      showError(error);
+      showError(error, project.name);
     }
     setConfirmTarget(null);
   };

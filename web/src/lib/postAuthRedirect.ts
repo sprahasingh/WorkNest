@@ -29,6 +29,16 @@ export function resolvePostAuthPath(memberships: OrgMembership[]): string {
   if (last && memberships.some((m) => m.tenantId.id === last)) {
     return `/orgs/${last}/dashboard`;
   }
+  // A remembered workspace belongs to this browser, not necessarily to the
+  // account that just signed in. Drop stale/cross-account values so the
+  // organization picker opens without an alarming access warning.
+  if (last) {
+    try {
+      localStorage.removeItem(LAST_ORG_KEY);
+    } catch {
+      // Storage can be unavailable (private mode).
+    }
+  }
   return "/orgs";
 }
 
