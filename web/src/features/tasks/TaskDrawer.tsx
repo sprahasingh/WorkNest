@@ -323,7 +323,7 @@ export function TaskDrawer({
         toast.success("Task archived");
       } else if (action === "unarchive") {
         await unarchiveTaskMutation.mutateAsync(task._id);
-        setTaskView("completed");
+        setTaskView(task.status === "done" ? "completed" : "active");
         toast.success("Task unarchived");
       } else {
         await restoreTaskMutation.mutateAsync(task._id);
@@ -709,7 +709,13 @@ export function TaskDrawer({
                       showArchive ||
                       showUnarchive ||
                       showRestore
-                      ? "grid-cols-2"
+                      ? showUnarchive &&
+                        !canReopen &&
+                        !showArchive &&
+                        !showRestore &&
+                        !showRequestUpdate
+                        ? "grid-cols-1"
+                        : "grid-cols-2"
                       : "grid-cols-1",
                   )}
                 >

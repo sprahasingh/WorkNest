@@ -235,6 +235,13 @@ describe("task archive and bin lifecycle", () => {
       .set("Authorization", `Bearer ${admin.accessToken}`);
     expect(unarchived.status).toBe(200);
     expect(unarchived.body.task.archivedAt).toBeNull();
+    const active = await request(app)
+      .get(`/api/orgs/${admin.orgId}/projects/${projectId}/tasks`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .query({ view: "active" });
+    expect(
+      active.body.items.some((item: { _id: string }) => item._id === taskId),
+    ).toBe(true);
   });
 
   it("moves tasks to the bin, restores them, and only permanently deletes from bin", async () => {

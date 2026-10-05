@@ -5,6 +5,7 @@ import {
   createProjectSchema,
   updateProjectSchema,
   listProjectsQuerySchema,
+  restorePlanArchivedSchema,
 } from "./projects.schemas.js";
 import {
   createProjectController,
@@ -16,9 +17,17 @@ import {
   deleteProjectController,
   restoreProjectController,
   deleteProjectPermanentlyController,
+  restorePlanArchivedProjectsController,
 } from "./projects.controller.js";
 
 const router = Router({ mergeParams: true });
+
+router.post(
+  "/restore-plan-archived",
+  requirePermission("project:write"),
+  validate({ body: restorePlanArchivedSchema }),
+  restorePlanArchivedProjectsController,
+);
 
 router.get(
   "/",

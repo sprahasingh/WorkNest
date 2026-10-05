@@ -1017,7 +1017,11 @@ export async function unarchiveTask(taskId: string) {
       }
       task = await Task.findOneAndUpdate(
         { _id: taskId, archivedAt: { $ne: null }, deletedAt: null },
-        { archivedAt: null, archivedReason: null },
+        {
+          archivedAt: null,
+          archivedReason: null,
+          ...(archivedTask.status === "done" ? {} : { completedAt: null }),
+        },
         { new: true, session: dbSession },
       );
       if (!task) {
