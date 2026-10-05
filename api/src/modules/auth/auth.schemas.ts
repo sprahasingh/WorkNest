@@ -138,6 +138,7 @@ export const markOnboardingSeenSchema = z
       .regex(/^[a-f\d]{24}$/i)
       .optional(),
   })
-  .strict();
+  .strict()
+  .default({});
 
 export type MarkOnboardingSeenInput = z.infer<typeof markOnboardingSeenSchema>;
