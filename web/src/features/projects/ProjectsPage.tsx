@@ -469,21 +469,41 @@ export function ProjectsPage() {
           {!isPending && !isError && sortedProjects.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {sortedProjects.map((project) => (
-                <Card key={project._id} className="relative flex flex-col p-4">
-                  {view !== "bin" && (
-                    <Link
-                      to={`/orgs/${orgId}/projects/${project._id}`}
-                      aria-label={`Open ${project.name}`}
-                      className="absolute inset-0 z-0 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600"
-                    >
-                      <span className="sr-only">Open project</span>
-                    </Link>
+                <Card
+                  key={project._id}
+                  className={cn(
+                    "flex flex-col p-4",
+                    view !== "bin" && "cursor-pointer",
                   )}
-                  <div className="relative z-10 flex items-start justify-between gap-2 pointer-events-none">
+                  onClick={(event) => {
+                    const target = event.target;
+                    if (
+                      target instanceof Element &&
+                      target.closest(
+                        "a, button, summary, input, select, textarea",
+                      )
+                    ) {
+                      return;
+                    }
+                    if (view !== "bin") {
+                      navigate(`/orgs/${orgId}/projects/${project._id}`);
+                    }
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="font-medium text-slate-800 dark:text-slate-100">
-                        {project.name}
-                      </span>
+                      {view === "bin" ? (
+                        <span className="font-medium text-slate-800 dark:text-slate-100">
+                          {project.name}
+                        </span>
+                      ) : (
+                        <Link
+                          to={`/orgs/${orgId}/projects/${project._id}`}
+                          className="font-medium text-slate-800 hover:text-teal-700 hover:underline dark:text-slate-100 dark:hover:text-teal-400"
+                        >
+                          {project.name}
+                        </Link>
+                      )}
                       <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
                         {project.key}
                       </p>
@@ -507,7 +527,7 @@ export function ProjectsPage() {
                         {project.priority}
                       </span>
                     </div>
-                    <div className="flex shrink-0 items-start gap-1 pointer-events-auto">
+                    <div className="flex shrink-0 items-start gap-1">
                       {view === "bin" && project.purgeAt && (
                         <span
                           className={cn(
@@ -584,12 +604,12 @@ export function ProjectsPage() {
                     </div>
                   </div>
                   {project.description && (
-                    <p className="relative z-10 mt-2 text-sm text-slate-600 pointer-events-none dark:text-slate-400">
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
                       {project.description}
                     </p>
                   )}
                   {project.dueDate && (
-                    <p className="relative z-10 mt-2 text-sm text-slate-600 pointer-events-none dark:text-slate-400">
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
                       Due{" "}
                       {formatDateInTimeZone(
                         project.dueDate,
@@ -597,7 +617,7 @@ export function ProjectsPage() {
                       )}
                     </p>
                   )}
-                  <div className="relative z-10 pointer-events-none">
+                  <div>
                     <TaskCounts
                       project={project}
                       limit={
