@@ -165,6 +165,16 @@ export async function listPlanArchivedRestoreTasks(
   return response.data.tasks;
 }
 
+export async function keepPlanArchived(
+  orgId: string,
+  kind: "project" | "task",
+  resourceId: string,
+): Promise<void> {
+  await apiClient.post(
+    `/orgs/${orgId}/projects/keep-plan-archived/${kind}/${resourceId}`,
+  );
+}
+
 // Moves the project to the bin, where it can be restored for 30 days.
 export async function deleteProject(
   orgId: string,

@@ -658,6 +658,95 @@ export async function restorePlanArchivedProjects(
   }
 }
 
+// Intentionally keeps a plan-archived project or task archived. This is an
+// atomic server-side transition so it cannot reappear as a restore candidate.
+export async function keepPlanArchivedResource(
+  kind: "project" | "task",
+  resourceId: string,
+) {
+  requireTenantId();
+  const userId = getTenantContext()!.userId;
+  const dbSession = await mongoose.startSession();
+  try {
+    let result: unknown = null;
+    await dbSession.withTransaction(async () => {
+      if (kind === "project") {
+        const project = await Project.findOneAndUpdate(
+          {
+            _id: resourceId,
+            archivedAt: { $ne: null },
+            archivedReason: "plan_limit",
+            deletedAt: null,
+          },
+          { archivedReason: null },
+          { new: true, session: dbSession },
+        );
+        if (!project) {
+          throw new AppError(
+            409,
+            "RESTORE_CANDIDATE_CHANGED",
+            "This project is no longer eligible to keep archived. Refresh and try again.",
+          );
+        }
+        // Child force archives can only be restored together with their parent.
+        // Once the parent is deliberately kept archived, make those children
+        // ordinary archives too so none are stranded as independent candidates.
+        await Task.updateMany(
+          {
+            projectId: project._id,
+            archivedAt: { $ne: null },
+            archivedReason: "plan_limit",
+            deletedAt: null,
+          },
+          { archivedReason: null },
+          { session: dbSession, timestamps: false },
+        );
+        result = project;
+        await recordAudit(
+          {
+            action: "project.archived",
+            entityType: "Project",
+            entityId: project._id,
+            metadata: { reason: "kept_archived", userId },
+          },
+          dbSession,
+        );
+      } else {
+        const task = await Task.findOneAndUpdate(
+          {
+            _id: resourceId,
+            archivedAt: { $ne: null },
+            archivedReason: "plan_limit",
+            deletedAt: null,
+          },
+          { archivedReason: null },
+          { new: true, session: dbSession },
+        );
+        if (!task) {
+          throw new AppError(
+            409,
+            "RESTORE_CANDIDATE_CHANGED",
+            "This task is no longer eligible to keep archived. Refresh and try again.",
+          );
+        }
+        result = task;
+        await recordAudit(
+          {
+            action: "task.archived",
+            entityType: "Task",
+            entityId: task._id,
+            metadata: { title: task.title, reason: "kept_archived", userId },
+          },
+          dbSession,
+        );
+      }
+    });
+    return result;
+  } finally {
+    await dbSession.endSession();
+  }
+}
+
 // Force-archived tasks in projects that stayed active are offered separately
 // from projects that were archived by grace enforcement.
 export async function listPlanArchivedRestoreTasks() {

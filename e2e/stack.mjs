@@ -36,6 +36,7 @@ const api = spawn("npx", ["tsx", "src/server.ts"], {
     BREVO_API_KEY: "e2e",
     BREVO_FROM: "noreply@worknest.test",
     RATE_LIMIT_SCALE: "100",
+    EMAIL_VERIFICATION_BYPASS_EMAILS: "restore-e2e@e2e.test",
     RAZORPAY_KEY_ID: "rzp_test_e2e",
     RAZORPAY_KEY_SECRET: "e2e_razorpay_secret",
     MAIL_LOG: mailLog,

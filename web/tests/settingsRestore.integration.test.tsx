@@ -271,7 +271,7 @@ describe("Settings upgrade restore flow", () => {
     );
   });
 
-  it("persists Later dismissal and offers a clear way to reopen the prompt", async () => {
+  it("persists Later dismissal and keeps the dedicated manual review action available", async () => {
     mocks.plan = "pro";
     const queryClient = new QueryClient();
     const firstVisit = mountSettings(queryClient);
@@ -287,7 +287,9 @@ describe("Settings upgrade restore flow", () => {
       ).toBeNull(),
     );
     expect(
-      screen.getByRole("button", { name: "Review archived projects" }),
+      screen.getByRole("button", {
+        name: "Review archived projects and tasks",
+      }),
     ).toBeTruthy();
     expect(localStorage.getItem("worknest:restore-prompt:org-1")).toContain(
       "pro:",
@@ -300,10 +302,40 @@ describe("Settings upgrade restore flow", () => {
       screen.queryByRole("dialog", { name: "Review archived projects" }),
     ).toBeNull();
     fireEvent.click(
-      screen.getByRole("button", { name: "Review archived projects" }),
+      screen.getByRole("button", {
+        name: "Review archived projects and tasks",
+      }),
     );
     expect(
       await screen.findByRole("dialog", { name: "Review archived projects" }),
+    ).toBeTruthy();
+  });
+
+  it("shows the section for task-only candidates and hides it for manual archives", async () => {
+    mocks.plan = "pro";
+    mocks.listProjects.mockResolvedValue({
+      ...archivedResponse,
+      projects: [{ ...restoreCandidate, archivedReason: null }],
+    });
+    mocks.listPlanArchivedRestoreTasks.mockResolvedValue([
+      {
+        _id: "task-1",
+        title: "Forced task",
+        projectId: "active",
+        projectName: "Active",
+        projectKey: "ACT",
+        archivedAt: "2026-09-01T00:00:00.000Z",
+      },
+    ]);
+    mountSettings();
+    await waitForInitialSettings();
+    expect(
+      await screen.findByText("1 task can be reviewed for restoration."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: "Review archived projects and tasks",
+      }),
     ).toBeTruthy();
   });
 });

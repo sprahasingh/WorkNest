@@ -11,6 +11,7 @@ import {
   getProject,
   listPlanArchivedRestoreTasks,
   listProjects,
+  keepPlanArchived,
   updateProject,
   type CreateProjectInput,
   type ListProjectsParams,
@@ -161,6 +162,23 @@ export function useRestoreProject(orgId: string) {
   return useProjectStateMutation(orgId, (projectId) =>
     restoreProject(orgId, projectId),
   );
+}
+
+export function useKeepPlanArchived(orgId: string, kind: "project" | "task") {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (resourceId: string) =>
+      keepPlanArchived(orgId, kind, resourceId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: projectKeys.all(orgId) }),
+        queryClient.invalidateQueries({
+          queryKey: planRestoreTaskKeys.candidates(orgId),
+        }),
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.all(orgId) }),
+      ]);
+    },
+  });
 }
 
 export function useDeleteProjectPermanently(orgId: string) {

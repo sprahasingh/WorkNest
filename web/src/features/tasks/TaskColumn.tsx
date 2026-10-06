@@ -28,6 +28,7 @@ interface TaskColumnProps {
   onRestore: (task: Task) => void;
   onDelete: (task: Task) => void;
   onDeletePermanently: (task: Task) => void;
+  onKeepArchived: (task: Task) => void;
 }
 
 export function TaskColumn({
@@ -47,6 +48,7 @@ export function TaskColumn({
   onRestore,
   onDelete,
   onDeletePermanently,
+  onKeepArchived,
 }: TaskColumnProps) {
   const { data: organization } = useOrgDetails(orgId);
   const {
@@ -113,6 +115,7 @@ export function TaskColumn({
               onRestore={() => onRestore(task)}
               onDelete={() => onDelete(task)}
               onDeletePermanently={() => onDeletePermanently(task)}
+              onKeepArchived={() => onKeepArchived(task)}
             />
           ))}
 

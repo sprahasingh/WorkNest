@@ -19,6 +19,7 @@ import {
   deleteProjectPermanentlyController,
   restorePlanArchivedProjectsController,
   listPlanArchivedRestoreTasksController,
+  keepPlanArchivedResourceController,
 } from "./projects.controller.js";
 
 const router = Router({ mergeParams: true });
@@ -34,6 +35,12 @@ router.get(
   "/restore-plan-archived/tasks",
   requirePermission("project:read"),
   listPlanArchivedRestoreTasksController,
+);
+
+router.post(
+  "/keep-plan-archived/:kind/:resourceId",
+  requirePermission("project:write"),
+  keepPlanArchivedResourceController,
 );
 
 router.get(
