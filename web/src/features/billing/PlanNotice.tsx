@@ -76,8 +76,8 @@ export function PlanNotice() {
       >
         <div className="flex items-center gap-1">
           <p className="font-semibold">
-            Plan expired: {daysLeft} {daysLeft === 1 ? "day" : "days"} left in
-            grace. Usage is over Free limits.
+            Your plan expired: {daysLeft} {daysLeft === 1 ? "day" : "days"} left
+            in the grace period. Your workspace is over the Free plan limits.
           </p>
           <InfoButton
             open={restrictionInfoOpen}
@@ -95,14 +95,14 @@ export function PlanNotice() {
         >
           <p>Current usage: {parts.join("; ")}.</p>
           <p className="mt-1">
-            New projects, tasks, or invites that increase an over-limit total
-            are blocked. You can still edit, complete, archive, delete, and
-            renew. After grace ends, excess active projects and open tasks are
-            archived automatically; members are never removed. Nothing is
-            deleted.
+            New projects, tasks, and invites that would increase an over-limit
+            total are blocked. You can still edit, complete, archive, delete,
+            and renew. When the grace period ends, excess active projects and
+            open tasks are archived automatically. Members are never removed,
+            and no data is deleted.
           </p>
           <p className="mt-1">
-            Grace ends{" "}
+            The grace period ends{" "}
             {endsAt.toLocaleDateString(undefined, {
               day: "numeric",
               month: "long",
@@ -138,11 +138,12 @@ export function PlanNotice() {
             {[
               usage.projectCount > usage.projectLimit && "project",
               usage.projectsOverTaskLimit > 0 && "task",
-              usage.seatsUsed > usage.seatLimit && "seat",
+              usage.seatsUsed > usage.seatLimit && "member",
             ]
               .filter(Boolean)
+              .map((item) => `${item} limits`)
               .join(" and ")}{" "}
-            limit exceeded.
+            exceeded.
           </p>
           <InfoButton
             open={restrictionInfoOpen}
@@ -181,22 +182,23 @@ export function PlanNotice() {
             )}
           </ul>
           <p className="mt-2">
-            After grace, excess projects and open tasks are archived
-            automatically. If a work overage remains, archive or remove the
-            excess. An admin must remove extra members; members are never
-            removed automatically. Renewing also restores the higher limits.
+            When the grace period ends, excess projects and open tasks are
+            archived automatically. If project or task limits are still
+            exceeded, archive or remove enough work to meet them. An admin must
+            remove extra members; members are never removed automatically.
+            Renewing restores the higher plan limits.
           </p>
         </InfoPanel>
         <p className="mt-1">
           {usage.seatsUsed > usage.seatLimit
             ? "An admin must remove extra members or renew the plan. "
-            : "Archive excess work or renew the plan. "}
+            : "Archive or remove excess work, or renew the plan. "}
           {canChangePlan ? (
             <Link to={settingsPath} className="font-medium underline">
               View plans
             </Link>
           ) : (
-            "Ask an admin to view plans"
+            "Ask an admin to view plans."
           )}
         </p>
       </div>
@@ -231,17 +233,12 @@ export function PlanNotice() {
         className="flex items-start justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"
       >
         <p>
-          The grace period after your plan ended is over, so {summary} over the{" "}
-          {PLAN_NAMES[org.plan]} limits {archivedCount === 1 ? "was" : "were"}{" "}
-          archived. Nothing was deleted. After you{" "}
-          {canChangePlan ? (
-            <Link to={settingsPath} className="font-medium underline">
-              renew your plan
-            </Link>
-          ) : (
-            "renew the plan"
-          )}
-          , restore them from Archived.
+          The grace period after your plan ended has ended. {summary} that
+          exceeded the {PLAN_NAMES[org.plan]} plan limits{" "}
+          {archivedCount === 1 ? "was" : "were"} archived. No data was deleted.
+          After upgrading, use Review &amp; Restore to choose eligible projects
+          to restore. You can restore eligible tasks from the Archived list when
+          your plan has capacity.
         </p>
         <button
           type="button"

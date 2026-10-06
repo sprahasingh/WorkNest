@@ -213,14 +213,14 @@ export async function sendPlanRenewalEmail(
     : `Your ${planName} plan for ${organizationName} ends on ${endsOn}`;
   const text = [
     expired
-      ? `The ${planName} plan for ${organizationName} on WorkNest ended on ${endsOn}, so the workspace is back on Free.`
-      : `The ${planName} plan for ${organizationName} on WorkNest ends on ${endsOn}, after which the workspace goes back to Free.`,
+      ? `The ${planName} plan for ${organizationName} on WorkNest ended on ${endsOn}, so the workspace is back on the Free plan.`
+      : `The ${planName} plan for ${organizationName} on WorkNest ends on ${endsOn}. After that, the workspace will go back to the Free plan.`,
     "",
     stage === "archived"
-      ? `The ${GRACE_PERIOD_DAYS} day grace period is over: projects and tasks over the Free limits were archived. Nothing was deleted, and you can restore them after renewing.`
+      ? `The ${GRACE_PERIOD_DAYS}-day grace period has ended. Projects and tasks over the Free plan limits were archived. No data was deleted. After upgrading, use Review & Restore to choose eligible projects to restore. You can restore eligible tasks from the Archived list when your plan has capacity.`
       : expired
-        ? `You have ${GRACE_PERIOD_DAYS} days to renew or reduce usage. After that, projects and tasks over the Free limits are archived. Nothing is deleted.`
-        : "Renew before then to keep your limits and avoid any pause.",
+        ? `You have ${GRACE_PERIOD_DAYS} days to renew or reduce usage. After that, projects and tasks over the Free plan limits are archived. No data is deleted.`
+        : "Renew before then to keep your plan limits and avoid any interruption.",
     "",
     `Renew here: ${settingsUrl}`,
   ].join("\n");
