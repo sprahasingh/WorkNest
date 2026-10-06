@@ -25,6 +25,10 @@ test("core workspace pages fit common responsive viewports", async ({
   const projectLink = page.getByRole("link", { name: "Responsive board" });
   await expect(projectLink).toBeVisible();
   await projectLink.click();
+  await page.getByRole("button", { name: "New task" }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Responsive task");
+  await page.getByLabel("Priority", { exact: true }).selectOption("high");
+  await page.getByRole("button", { name: "Create task" }).click();
   const boardUrl = page.url();
 
   for (const viewport of VIEWPORTS) {
@@ -117,10 +121,55 @@ test("core workspace pages fit common responsive viewports", async ({
     await expect(
       page.getByRole("heading", { name: "Responsive board" }),
     ).toBeVisible();
-    await expect(page.getByLabel("Filter by priority")).toBeVisible();
     if (viewport.width === 320) {
+      const filtersButton = page.getByRole("button", { name: /^Filters/ });
+      await expect(filtersButton).toBeVisible();
+      await expect(page.getByLabel("My tasks")).toBeVisible();
+      await page.getByLabel("My tasks").click();
+      await expect(page).toHaveURL(/mine=true/);
+      await expect(page.getByLabel("My tasks")).toBeChecked();
+      await page.getByLabel("My tasks").click();
+      await expect(page).not.toHaveURL(/mine=true/);
+      await filtersButton.click();
+      const filterDialog = page.getByRole("dialog", { name: "Task filters" });
+      await filterDialog.getByLabel("Priority").selectOption("high");
+      await expect(
+        page.getByRole("button", { name: /Filters, 1 active/ }),
+      ).toBeVisible();
+      await expect(page).toHaveURL(/priority=high/);
+      await filterDialog.getByLabel("Assignee").selectOption({ index: 1 });
+      await expect(
+        page.getByRole("button", { name: /Filters, 2 active/ }),
+      ).toBeVisible();
+      await filterDialog.getByRole("button", { name: "Clear filters" }).click();
+      await expect(
+        page.getByRole("button", { name: "Filters", exact: true }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Done" }).click();
+      const mobileSort = page.getByLabel("Sort tasks").first();
+      await expect(
+        mobileSort.locator("option", { hasText: "Due Date: Latest First" }),
+      ).toHaveCount(1);
+      await mobileSort.selectOption("dueDate:desc");
+      await expect(page).toHaveURL(/sortBy=dueDate/);
+      const tabs = page.locator('[role="tablist"]');
+      await expect(tabs.getByRole("tab", { name: /Active/ })).toBeVisible();
+      await expect(
+        page
+          .locator('[role="tablist"]')
+          .getByRole("tab", { name: /Completed/ }),
+      ).toBeVisible();
+      await expect(
+        page.locator('[role="tablist"]').getByRole("tab", { name: /Archived/ }),
+      ).toBeVisible();
+      await expect(
+        page.locator('[role="tablist"]').getByRole("tab", { name: /Bin/ }),
+      ).toBeVisible();
+      await tabs.getByRole("tab", { name: /Completed/ }).click();
+      await expect(page).toHaveURL(/view=completed/);
+      await tabs.getByRole("tab", { name: /Active/ }).click();
       const columns = page.locator('[aria-describedby="task-columns-hint"]');
-      await expect(page.getByText("Swipe → to see In progress")).toBeVisible();
+      await expect(page.getByText("→ Swipe to see In progress")).toBeVisible();
       await page.getByRole("button", { name: "Next task column" }).click();
       await expect
         .poll(() => columns.evaluate((element) => element.scrollLeft))
@@ -130,7 +179,26 @@ test("core workspace pages fit common responsive viewports", async ({
       await expect
         .poll(() => columns.evaluate((element) => element.scrollLeft))
         .toBe(0);
-      await expect(page.getByText("Swipe → to see In progress")).toBeVisible();
+      await expect(page.getByText("→ Swipe to see In progress")).toBeVisible();
+      const columnBounds = await columns.boundingBox();
+      expect(columnBounds).toBeTruthy();
+      await page.mouse.move(
+        columnBounds!.x + columnBounds!.width / 2,
+        columnBounds!.y + columnBounds!.height / 2,
+      );
+      await page.mouse.wheel(500, 0);
+      await expect
+        .poll(() => columns.evaluate((element) => element.scrollLeft))
+        .toBeGreaterThan(0);
+      await expect(page.getByText("← Swipe to see To do")).toBeVisible();
+      await page.mouse.wheel(-500, 0);
+      await expect
+        .poll(() => columns.evaluate((element) => element.scrollLeft))
+        .toBe(0);
+      await expect(page.getByText("→ Swipe to see In progress")).toBeVisible();
+    } else if (viewport.width >= 768) {
+      await expect(page.getByLabel("Filter by priority")).toBeVisible();
+      await expect(page.getByLabel("Filter by assignee")).toBeVisible();
     }
     await expectNoPageOverflow(page, viewport.name);
   }
