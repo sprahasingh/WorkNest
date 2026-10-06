@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  canReopenRestorePrompt,
+  canReviewRestoreCandidates,
   persistHandledRestoreSignature,
   readHandledRestoreSignature,
   restorePromptSignature,
+  shouldRenderRestorePrompt,
   shouldShowRestorePrompt,
 } from "./planRestorePrompt";
 
@@ -104,19 +105,63 @@ describe("plan restore prompt eligibility", () => {
     );
   });
 
-  it("persists dismissal across reload and provides an explicit reopen path", () => {
+  it("keeps manual restoration available before and after Later and refresh", () => {
     const signature = restorePromptSignature("org-1", "pro", [
       forceArchivedProject,
     ]);
     expect(signature).not.toBeNull();
-    persistHandledRestoreSignature("org-1", signature!);
+    expect(canReviewRestoreCandidates(true, signature)).toBe(true);
+    expect(shouldShowRestorePrompt(true, signature, null)).toBe(true);
 
+    persistHandledRestoreSignature("org-1", signature!);
     const reloadedDismissal = readHandledRestoreSignature("org-1");
 
     expect(shouldShowRestorePrompt(true, signature, reloadedDismissal)).toBe(
       false,
     );
-    expect(canReopenRestorePrompt(signature, reloadedDismissal)).toBe(true);
-    expect(canReopenRestorePrompt(null, reloadedDismissal)).toBe(false);
+    expect(
+      shouldRenderRestorePrompt(true, signature, reloadedDismissal, false),
+    ).toBe(false);
+    expect(
+      shouldRenderRestorePrompt(true, signature, reloadedDismissal, true),
+    ).toBe(true);
+    expect(canReviewRestoreCandidates(true, signature)).toBe(true);
+    expect(canReviewRestoreCandidates(true, null)).toBe(false);
+    expect(canReviewRestoreCandidates(false, signature)).toBe(false);
+  });
+
+  it("shows the manual action when only force-archived tasks remain", () => {
+    const signature = restorePromptSignature(
+      "org-1",
+      "pro",
+      [],
+      [forceArchivedTask],
+    );
+
+    expect(signature).not.toBeNull();
+    expect(canReviewRestoreCandidates(true, signature)).toBe(true);
+  });
+
+  it("does not show the manual action for manually archived resources alone", () => {
+    const manualProject = {
+      ...forceArchivedProject,
+      archivedReason: null,
+    };
+    const signature = restorePromptSignature("org-1", "pro", [manualProject]);
+
+    expect(signature).toBeNull();
+    expect(canReviewRestoreCandidates(true, signature)).toBe(false);
+  });
+
+  it("keeps the manual action for capacity-blocked candidates and removes it after restoration", () => {
+    const blockedSignature = restorePromptSignature("org-1", "pro", [
+      forceArchivedProject,
+    ]);
+    expect(canReviewRestoreCandidates(true, blockedSignature)).toBe(true);
+
+    const restored = restorePromptSignature("org-1", "pro", [
+      { ...forceArchivedProject, archivedReason: null, archivedAt: null },
+    ]);
+    expect(canReviewRestoreCandidates(true, restored)).toBe(false);
   });
 });

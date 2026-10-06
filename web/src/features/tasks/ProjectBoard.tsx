@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useAccountPaused,
   useGrowthBlocked,
@@ -77,6 +77,12 @@ export function ProjectBoard() {
   const canUpdateOwnTask = useCan("task:update:own");
 
   const [drawerState, setDrawerState] = useState<DrawerState>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobileColumnState, setMobileColumnState] = useState<{
+    projectId: string | undefined;
+    boardView: TaskView;
+    status: TaskStatus;
+  } | null>(null);
   const [taskConfirm, setTaskConfirm] = useState<{
     task: Task;
     permanent: boolean;
@@ -104,6 +110,15 @@ export function ProjectBoard() {
   )
     ? (requestedView as TaskView)
     : "active";
+  const visibleMobileColumn =
+    mobileColumnState !== null &&
+    mobileColumnState.projectId === projectId &&
+    mobileColumnState.boardView === boardView
+      ? mobileColumnState.status
+      : "todo";
+  useEffect(() => {
+    taskColumnsRef.current?.scrollTo({ left: 0, behavior: "instant" });
+  }, [boardView, projectId]);
   const sortOptions = getLifecycleSortOptions(boardView);
   const requestedSort = `${searchParams.get("sortBy")}:${searchParams.get("sortOrder")}`;
   const selectedSort = sortOptions.some(
@@ -294,20 +309,21 @@ export function ProjectBoard() {
               {projectQuery.data?.name ?? "Loading…"}
             </h1>
           </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto">
+          <div className="flex w-full items-center gap-1.5 sm:w-auto sm:gap-2">
             <MuteToggle orgId={orgId} projectId={projectId} iconOnly />
             <Button
               variant="secondary"
               data-tour="tasks-updates"
-              className="h-10 flex-1 sm:flex-none"
+              className="min-w-0 flex-1 px-2 text-xs sm:flex-none sm:px-4 sm:text-sm"
               onClick={() => setParam("updates", "1")}
             >
-              Project updates
+              <span className="sm:hidden">Updates</span>
+              <span className="hidden sm:inline">Project updates</span>
             </Button>
             {canCreate && !isArchived && (
               <Button
                 data-tour="tasks-create"
-                className="h-10 flex-1 sm:flex-none"
+                className="min-w-0 flex-1 px-2 text-xs sm:flex-none sm:px-4 sm:text-sm"
                 onClick={() => setDrawerState({ mode: "create" })}
                 disabled={atTaskLimit || paused || growthBlocked}
                 title={
@@ -327,7 +343,7 @@ export function ProjectBoard() {
         </div>
 
         {stats && (
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm sm:mt-3 sm:gap-3">
             <span
               className={`rounded-full px-2.5 py-0.5 font-medium ${
                 atTaskLimit
@@ -339,28 +355,24 @@ export function ProjectBoard() {
                 ? `${stats.activeCount} active ${stats.activeCount === 1 ? "task" : "tasks"}`
                 : `${stats.activeCount} / ${stats.activeLimit} active tasks`}
             </span>
-            <span className="text-slate-500 dark:text-slate-400">
-              {stats.activeLimit === null
-                ? `No active task limit on the ${planName} plan`
-                : atTaskLimit
-                  ? `${planName} plan limit reached. Finish a task to add or reopen another`
-                  : `${planName} plan limit for this project`}
-              {atTaskLimit && role === "admin" && (
-                <>
-                  {", or "}
-                  <Link
-                    to={`/orgs/${orgId}/settings`}
-                    className="font-medium text-teal-700 hover:underline dark:text-teal-400"
-                  >
-                    upgrade your plan
-                  </Link>
-                  {" for more"}
-                </>
-              )}
-              .
-              {role === "member" &&
-                " Counts every active task here, including ones assigned to others."}
-            </span>
+            {atTaskLimit && (
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {`${planName} plan limit reached. Finish a task to add or reopen another`}
+                {role === "admin" && (
+                  <>
+                    {", or "}
+                    <Link
+                      to={`/orgs/${orgId}/settings`}
+                      className="font-medium text-teal-700 hover:underline dark:text-teal-400"
+                    >
+                      upgrade your plan
+                    </Link>
+                    {" for more"}
+                  </>
+                )}
+                .
+              </span>
+            )}
           </div>
         )}
 
@@ -404,67 +416,8 @@ export function ProjectBoard() {
         )}
 
         <div
-          data-tour="tasks-filters"
-          className="mt-4 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-3"
-        >
-          <select
-            aria-label="Filter by priority"
-            value={filters.priority ?? ""}
-            onChange={(event) =>
-              setParam("priority", event.target.value || null)
-            }
-            className={`${selectStyles} w-full sm:w-auto`}
-          >
-            <option value="">All priorities</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
-
-          <select
-            aria-label="Filter by assignee"
-            value={filters.assigneeId ?? ""}
-            onChange={(event) =>
-              setParam("assignee", event.target.value || null)
-            }
-            className={`${selectStyles} w-full sm:w-auto`}
-          >
-            <option value="">Everyone</option>
-            {members.map((member) => (
-              <option key={member._id} value={member.userId.id}>
-                {member.userId.name}
-              </option>
-            ))}
-          </select>
-
-          <label className="col-span-2 flex min-h-9 min-w-0 flex-col items-start gap-1.5 text-sm text-slate-600 dark:text-slate-300 sm:col-span-1 sm:flex-row sm:items-center sm:gap-2 lg:ml-auto lg:flex-nowrap lg:whitespace-nowrap">
-            <span className="shrink-0">Sort by</span>
-            <select
-              aria-label="Sort tasks"
-              value={selectedSort}
-              onChange={(event) => {
-                const [field, order] = event.target.value.split(":");
-                setSearchParams((prev) => {
-                  const next = new URLSearchParams(prev);
-                  next.set("sortBy", field);
-                  next.set("sortOrder", order);
-                  return next;
-                });
-              }}
-              className={`${selectStyles} w-full min-w-0 sm:w-auto sm:min-w-64`}
-            >
-              {sortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div
           data-tour="tasks-tabs"
-          className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3"
+          className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:mt-5"
         >
           <ViewTabs
             label="Task lists"
@@ -477,18 +430,179 @@ export function ProjectBoard() {
               count: viewCountsQuery.data?.[tab.value],
             }))}
           />
-          <label className="ml-auto flex min-h-9 items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={filters.mine ?? false}
-              onChange={(event) =>
-                setParam("mine", event.target.checked ? "true" : null)
-              }
-              className="accent-teal-600"
-            />
-            My tasks
-          </label>
         </div>
+
+        <div data-tour="tasks-filters" className="mt-3 sm:mt-4">
+          <div className="flex flex-wrap items-center gap-2 sm:hidden">
+            <Button
+              variant="secondary"
+              onClick={() => setFiltersOpen(true)}
+              className="shrink-0 px-3"
+              aria-label={`Filters${Number(Boolean(filters.priority)) + Number(Boolean(filters.assigneeId)) > 0 ? `, ${Number(Boolean(filters.priority)) + Number(Boolean(filters.assigneeId))} active` : ""}`}
+            >
+              Filters
+              {Number(Boolean(filters.priority)) +
+                Number(Boolean(filters.assigneeId)) >
+                0 && (
+                <span
+                  aria-hidden="true"
+                  className="flex size-5 items-center justify-center rounded-full bg-teal-100 text-xs text-teal-800 dark:bg-teal-900 dark:text-teal-200"
+                >
+                  {Number(Boolean(filters.priority)) +
+                    Number(Boolean(filters.assigneeId))}
+                </span>
+              )}
+            </Button>
+            <label className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-slate-600 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={filters.mine ?? false}
+                onChange={(event) =>
+                  setParam("mine", event.target.checked ? "true" : null)
+                }
+                className="size-4 accent-teal-600"
+              />
+              My tasks
+            </label>
+            <label className="ml-auto flex min-h-11 min-w-[8.5rem] flex-1 items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <span className="shrink-0">Sort</span>
+              <select
+                aria-label="Sort tasks"
+                value={selectedSort}
+                onChange={(event) => {
+                  const [field, order] = event.target.value.split(":");
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set("sortBy", field);
+                    next.set("sortOrder", order);
+                    return next;
+                  });
+                }}
+                className={`${selectStyles} min-w-0 flex-1 truncate px-2`}
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="hidden items-center gap-3 sm:flex sm:flex-wrap">
+            <select
+              aria-label="Filter by priority"
+              value={filters.priority ?? ""}
+              onChange={(event) =>
+                setParam("priority", event.target.value || null)
+              }
+              className={`${selectStyles} w-full sm:w-auto`}
+            >
+              <option value="">All priorities</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+
+            <select
+              aria-label="Filter by assignee"
+              value={filters.assigneeId ?? ""}
+              onChange={(event) =>
+                setParam("assignee", event.target.value || null)
+              }
+              className={`${selectStyles} w-full sm:w-auto`}
+            >
+              <option value="">Everyone</option>
+              {members.map((member) => (
+                <option key={member._id} value={member.userId.id}>
+                  {member.userId.name}
+                </option>
+              ))}
+            </select>
+
+            <label className="flex min-h-9 min-w-0 flex-col items-start gap-1.5 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:gap-2 lg:ml-auto lg:flex-nowrap lg:whitespace-nowrap">
+              <span className="shrink-0">Sort by</span>
+              <select
+                aria-label="Sort tasks"
+                value={selectedSort}
+                onChange={(event) => {
+                  const [field, order] = event.target.value.split(":");
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set("sortBy", field);
+                    next.set("sortOrder", order);
+                    return next;
+                  });
+                }}
+                className={`${selectStyles} w-full min-w-0 sm:w-auto sm:min-w-64`}
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <Modal
+          open={filtersOpen}
+          onClose={() => setFiltersOpen(false)}
+          title="Task filters"
+        >
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Priority
+              <select
+                aria-label="Filter by priority"
+                value={filters.priority ?? ""}
+                onChange={(event) =>
+                  setParam("priority", event.target.value || null)
+                }
+                className={`${selectStyles} mt-1.5 w-full`}
+              >
+                <option value="">All priorities</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+              Assignee
+              <select
+                aria-label="Filter by assignee"
+                value={filters.assigneeId ?? ""}
+                onChange={(event) =>
+                  setParam("assignee", event.target.value || null)
+                }
+                className={`${selectStyles} mt-1.5 w-full`}
+              >
+                <option value="">Everyone</option>
+                {members.map((member) => (
+                  <option key={member._id} value={member.userId.id}>
+                    {member.userId.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex justify-between gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setSearchParams((previous) => {
+                    const next = new URLSearchParams(previous);
+                    next.delete("priority");
+                    next.delete("assignee");
+                    return next;
+                  });
+                }}
+              >
+                Clear filters
+              </Button>
+              <Button onClick={() => setFiltersOpen(false)}>Done</Button>
+            </div>
+          </div>
+        </Modal>
 
         {boardView !== "active" && (
           <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
@@ -501,32 +615,21 @@ export function ProjectBoard() {
         )}
 
         {visibleStatuses.length > 1 && (
-          <div className="mt-4 flex items-center justify-between gap-3 md:hidden">
+          <div className="mt-3 flex items-center justify-between gap-3 md:hidden">
             <p
               id="task-columns-hint"
-              className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300"
+              className="flex min-w-0 items-center whitespace-nowrap text-xs text-slate-600 sm:text-sm dark:text-slate-300"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4 shrink-0"
-                aria-hidden="true"
-              >
-                <path d="M5 12h14" />
-                <path d="m13 6 6 6-6 6" />
-              </svg>
-              Swipe to see In progress
+              {visibleMobileColumn === "todo"
+                ? "→ Swipe to see In progress"
+                : "← Swipe to see To do"}
             </p>
             <div className="flex shrink-0 gap-1">
               <button
                 type="button"
                 aria-label="Previous task column"
                 onClick={() => scrollTaskColumns(-1)}
-                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-slate-800"
               >
                 <span aria-hidden="true">←</span>
               </button>
@@ -534,7 +637,7 @@ export function ProjectBoard() {
                 type="button"
                 aria-label="Next task column"
                 onClick={() => scrollTaskColumns(1)}
-                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-slate-800"
               >
                 <span aria-hidden="true">→</span>
               </button>
@@ -544,6 +647,20 @@ export function ProjectBoard() {
 
         <div
           ref={taskColumnsRef}
+          onScroll={(event) => {
+            const columns = event.currentTarget;
+            const nextColumn: TaskStatus =
+              columns.scrollLeft > columns.clientWidth / 2
+                ? "in_progress"
+                : "todo";
+            setMobileColumnState((current) =>
+              current?.projectId === projectId &&
+              current.boardView === boardView &&
+              current.status === nextColumn
+                ? current
+                : { projectId, boardView, status: nextColumn },
+            );
+          }}
           aria-describedby={
             visibleStatuses.length > 1 ? "task-columns-hint" : undefined
           }

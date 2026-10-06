@@ -46,11 +46,25 @@ export function shouldShowRestorePrompt(
   return canChangePlan && signature !== null && signature !== handledSignature;
 }
 
-export function canReopenRestorePrompt(
+export function shouldRenderRestorePrompt(
+  canChangePlan: boolean,
   signature: string | null,
   handledSignature: string | null,
+  manuallyRequested: boolean,
 ): boolean {
-  return signature !== null && signature === handledSignature;
+  return (
+    canChangePlan &&
+    signature !== null &&
+    (manuallyRequested ||
+      shouldShowRestorePrompt(canChangePlan, signature, handledSignature))
+  );
+}
+
+export function canReviewRestoreCandidates(
+  canChangePlan: boolean,
+  signature: string | null,
+): boolean {
+  return canChangePlan && signature !== null;
 }
 
 function restorePromptStorageKey(orgId: string) {
