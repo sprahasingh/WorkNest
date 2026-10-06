@@ -367,7 +367,7 @@ test("keyboard, retry, and lifecycle flows remain usable at phone widths", async
     name: "Lifecycle task actions",
   });
   await taskActions.evaluate((element) =>
-    element.scrollIntoView({ block: "center" }),
+    element.scrollIntoView({ block: "center", behavior: "instant" }),
   );
   await taskActions.click();
   await page.getByRole("menuitem", { name: "Move to bin" }).click();
@@ -381,7 +381,7 @@ test("keyboard, retry, and lifecycle flows remain usable at phone widths", async
     name: "Lifecycle check actions",
   });
   await projectActions.evaluate((element) =>
-    element.scrollIntoView({ block: "center" }),
+    element.scrollIntoView({ block: "center", behavior: "instant" }),
   );
   await projectActions.click();
   await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
