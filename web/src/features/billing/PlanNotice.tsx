@@ -236,9 +236,9 @@ export function PlanNotice() {
           The grace period after your plan ended has ended. {summary} that
           exceeded the {PLAN_NAMES[org.plan]} plan limits{" "}
           {archivedCount === 1 ? "was" : "were"} archived. No data was deleted.
-          After upgrading, use Review &amp; Restore to choose eligible projects
-          to restore. You can restore eligible tasks from the Archived list when
-          your plan has capacity.
+          After upgrading, use the Review archived projects prompt to choose
+          eligible projects to restore. You can restore eligible tasks from the
+          Archived list when your plan has capacity.
         </p>
         <button
           type="button"

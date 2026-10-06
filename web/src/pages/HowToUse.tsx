@@ -1,4 +1,10 @@
-import { PLAN_LIMITS, PLAN_NAMES, PLAN_ORDER } from "@/lib/plans";
+import {
+  PLAN_LIMITS,
+  PLAN_NAMES,
+  PLAN_ORDER,
+  PLAN_PRICE_PAISE,
+  formatRupees,
+} from "@/lib/plans";
 import { Link, useLocation } from "react-router";
 import { Card } from "@/components/ui/Card";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -31,6 +37,10 @@ function planLimitsText(): string {
   }).join(" ");
 }
 
+function planPricingText(): string {
+  return `Pro costs ${formatRupees(PLAN_PRICE_PAISE.pro.monthly)} per month or ${formatRupees(PLAN_PRICE_PAISE.pro.yearly)} per year. Premium costs ${formatRupees(PLAN_PRICE_PAISE.premium.monthly)} per month or ${formatRupees(PLAN_PRICE_PAISE.premium.yearly)} per year.`;
+}
+
 const STEPS: GuideStep[] = [
   {
     id: "account",
@@ -43,6 +53,7 @@ const STEPS: GuideStep[] = [
       "Can't find the email? Check your spam or junk folder, and Promotions in Gmail. You can ask for a new link after a minute, and a newer link replaces the older one. Links work for one hour.",
       "The same goes for password reset and email change links: check spam or junk first, then use the resend button.",
       "When you first enter an organization, a short tour explains the features available to your role. It is remembered for that organization and role on any device, and you can replay it from Show the tour at the bottom of the sidebar.",
+      "Choose an Explore action in the main tour to open a detailed tour of that page. Skip this page tour to continue the main tour, or use Back to main tour at any time. Skip entire tour is always available. Page tours show only features your role can use and adjust to your screen.",
     ],
     screens: placement("guide.account"),
   },
@@ -86,7 +97,11 @@ const STEPS: GuideStep[] = [
     id: "lifecycle",
     title: "Keep project lists current",
     description:
-      "A project moves to Completed when all its tasks are done. Archive a project to tuck it away, or move it to the Bin to remove it for now. Binned projects can be restored for 30 days. Completed, archived and binned projects don't use a project slot, so bringing one back can be blocked if your plan is full.",
+      "Project cards show priority and due date. Projects with tasks move to Completed when all their tasks are done. Use More on a project card to edit, archive, restore or move it to the Bin. The Active, Completed, Archived and Bin lists have sort options for dates and priority. Binned projects can be restored for 30 days, and restoring or reactivating work may need an available plan slot.",
+    tips: [
+      "Tasks have Active, Completed, Archived and Bin lists. Sort by created date, due date, priority, or the date relevant to that list, such as completed or archived.",
+      "Use More on a task card for the available edit, archive, unarchive, restore and delete actions. Archived tasks can be restored only when the project has capacity.",
+    ],
   },
   {
     id: "messages",
@@ -136,7 +151,13 @@ const STEPS: GuideStep[] = [
   {
     id: "plan",
     title: "Manage your plan and chat history",
-    description: `Open Settings to compare plans and check usage. ${planLimitsText()} Only admins can change plans. Pro and Premium are paid for by the month or the year and go back to Free when the time is up, the little i next to Plan explains how it works, and a downgrade is free once your usage fits the lower limits. Settings also lists every device signed in to your account, so you can sign one out or choose Log out everywhere else. On a phone, pulling down from the top of any page refreshes it. Admins also choose how long chat history is kept, from forever down to 90 days. The choice applies to the whole organization, and every member can see it in Settings and at the bottom of their chat list.`,
+    description: `Open Settings to compare plans and check usage. ${planLimitsText()} ${planPricingText()} Only admins can change plans. Paid plans run for one month or one year and do not renew automatically; an admin must renew them. A paid plan can't be downgraded before it ends. Afterward, a downgrade is available when usage fits the lower plan's limits.`,
+    tips: [
+      "When a paid plan ends, the workspace returns to Free with a 10-day grace period. While usage is over Free limits, actions that increase it are blocked. If usage is still over the limits when grace ends, excess active projects and open tasks are force-archived. People are never removed, and nothing is deleted.",
+      "After upgrading, an admin can use the Review archived projects prompt to choose eligible force-archived projects. Force-archived tasks remain in the task Archived list and can be restored there when the project has capacity. Manually archived projects and tasks are not included in this prompt.",
+      "Admins also choose how long chat history is kept, from forever down to 90 days. The choice applies to the whole organization, and every member can see it in Settings and at the bottom of their chat list.",
+      "Settings lists every device signed in to your account, so you can sign one out or choose Log out everywhere else. On a phone, pull down from the top of a page to refresh it.",
+    ],
     screens: placement("guide.plan"),
   },
 ];
@@ -148,7 +169,7 @@ const GOOD_TO_KNOW = [
   },
   {
     title: "Time zones",
-    text: "An admin sets the organization's time zone in Settings. It decides when due dates fall and when reminders go out. Meetings and messages show in your own time zone.",
+    text: "An admin sets the organization's time zone in Settings. It determines due dates, reminders and dashboard reporting. Meetings and messages show in your own time zone.",
   },
   {
     title: "Light and dark",

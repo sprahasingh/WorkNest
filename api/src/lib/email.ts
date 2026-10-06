@@ -217,7 +217,7 @@ export async function sendPlanRenewalEmail(
       : `The ${planName} plan for ${organizationName} on WorkNest ends on ${endsOn}. After that, the workspace will go back to the Free plan.`,
     "",
     stage === "archived"
-      ? `The ${GRACE_PERIOD_DAYS}-day grace period has ended. Projects and tasks over the Free plan limits were archived. No data was deleted. After upgrading, use Review & Restore to choose eligible projects to restore. You can restore eligible tasks from the Archived list when your plan has capacity.`
+      ? `The ${GRACE_PERIOD_DAYS}-day grace period has ended. Projects and tasks over the Free plan limits were archived. No data was deleted. After upgrading, use the Review archived projects prompt to choose eligible projects to restore. You can restore eligible tasks from the Archived list when your plan has capacity.`
       : expired
         ? `You have ${GRACE_PERIOD_DAYS} days to renew or reduce usage. After that, projects and tasks over the Free plan limits are archived. No data is deleted.`
         : "Renew before then to keep your plan limits and avoid any interruption.",
