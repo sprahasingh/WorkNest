@@ -6,7 +6,14 @@ WorkNest is a multi-tenant workspace for projects, tasks, chat and meetings. Tea
 
 **Built with:** React 19, TypeScript, Node.js, Express 5, MongoDB, Mongoose and Socket.IO.
 
-**Engineering focus:** centralized tenant isolation with fail-closed query scoping, server-side role and ownership checks, transactional limits under concurrency, refresh-token rotation, and audit records written with the changes they describe. Paid plans renew manually. After expiry, a 10-day grace period allows renewal or usage reduction before excess work is force-archived.
+**Engineering highlights**
+
+- **Fail-closed tenancy:** one central Mongoose plugin scopes org-owned data; org-owned queries without tenant context fail unless explicitly marked as cross-org.
+- **Server-side authorization:** RBAC and task ownership are enforced by the API.
+- **Concurrency-safe limits:** atomic updates and transactions protect seats, projects and plan limits.
+- **Session security:** refresh tokens rotate, and reuse detection revokes the token chain.
+- **Transactional audit:** records are written with the change, so rolled-back actions leave no entry.
+- **Plan lifecycle:** paid plans expire to Free, then follow a 10-day grace and safe archival process.
 
 Start with the [screenshots](#screenshots), then explore the [architecture](#architecture), [local setup](#local-setup), [testing](#testing) and [known limitations](#known-limitations).
 
@@ -45,7 +52,6 @@ Admins and managers get two views. Tasks shows open, completed, created and over
   </tr>
 </table>
 
-
 ### Projects and tasks
 
 Projects hold the work. Every task is a card on the project board, grouped by status, with its priority, due date and assignees.
@@ -62,7 +68,6 @@ Projects hold the work. Every task is a card on the project board, grouped by st
     </td>
   </tr>
 </table>
-
 
 ### Updates
 
@@ -81,7 +86,6 @@ Managers can ask for an update on one task or a whole project. Assignees answer 
   </tr>
 </table>
 
-
 ### Messages
 
 Private chats and groups that arrive live, with replies, reactions, @mentions, files and search. Only the people in a chat can read it.
@@ -99,7 +103,6 @@ Private chats and groups that arrive live, with replies, reactions, @mentions, f
   </tr>
 </table>
 
-
 ### Meetings
 
 Schedule with a join link and an agenda, repeat a meeting, and see the month at a glance. Invitees reply Accept, Maybe or Decline, or suggest another time.
@@ -116,7 +119,6 @@ Schedule with a join link and an agenda, repeat a meeting, and see the month at 
     </td>
   </tr>
 </table>
-
 
 ### Team and admin
 
@@ -144,7 +146,6 @@ Roles, invites, plans with their limits, and an audit log of every important cha
     </td>
   </tr>
 </table>
-
 
 ### On a phone
 
@@ -187,11 +188,15 @@ One Mongoose plugin scopes every query, write and aggregation to the current org
 
 ### Accounts
 
-Email must be verified before an account or its first organization is created. Sign-up asks for the password twice, every password box has a Show button, and the verification, password reset and email change links can each be sent again (after a minute, with a note to check spam).
+Email verification is required before an account or its first organization is created. Account protections include:
 
-The browser that signed up gets a secret that lets it sign itself in once the link has been opened on any device, so a sign-up started on one device and confirmed on another still ends signed in. The sign-up form suggests a fix when an email looks like a typo of a well-known provider ("gmial.com", "gmail.con"), passwords are refused with a plain reason when they are among the most common, a repeated or sequential pattern, or contain the person's own name or email (the form shows a strength bar and an (i) explaining why, and the server enforces it), and logging in with the right password before confirming the email says so and offers a new link, instead of "invalid password". Addresses listed in `EMAIL_VERIFICATION_BYPASS_EMAILS` skip both email verification and these password rules, for shared demo logins.
-
-Password reset requests are limited to one email a minute per account, and Settings lists every signed-in device with a way to sign each one out, or all of them. Email changes require the current password and confirmation at the new address. Short-lived JWT access tokens (15 minutes) and rotating refresh tokens are used; only hashes of refresh tokens are stored. Reusing an old refresh token signs out that whole chain of sessions. People can delete their own account; it's soft-deleted so the audit history still makes sense, and the email is freed up for a new sign-up.
+- Sign-up asks for the password twice. Password fields have a Show button, and verification, password-reset and email-change links can be resent after a minute, with a reminder to check spam.
+- The browser that started sign-up receives a secret that lets it sign in after the email link is opened on any device. This supports sign-up on one device and confirmation on another.
+- The form suggests corrections for likely provider typos such as `gmial.com` and `gmail.con`. Common passwords, repeated or sequential patterns, and passwords containing the person's name or email are refused with an explanation. A strength bar and info hint explain the rules, which the server enforces.
+- Logging in before email confirmation gives a specific message and offers a new link instead of reporting an invalid password. Addresses in `EMAIL_VERIFICATION_BYPASS_EMAILS` bypass verification and these password rules for shared demo logins.
+- Password reset email requests are limited to one per minute per account. Settings lists signed-in devices and can sign out one device or all devices.
+- Email changes require the current password and confirmation at the new address. Access JWTs last 15 minutes; refresh tokens rotate and only their hashes are stored. Reuse of an old refresh token signs out the entire session chain.
+- People can soft-delete their own account. The audit history remains, and the email becomes available for a new sign-up.
 
 ### Roles
 
@@ -211,15 +216,27 @@ Removing someone takes them out of that org only. Their account and other orgs s
 
 ### Projects
 
-Cards show active and total task counts, priority and due date. Projects with tasks appear under Completed when all their tasks are done. Lists include Active, Completed, Archived and Bin, with sorting by created date, due date, priority, and relevant lifecycle dates. Card actions are under More. Completed, archived and binned projects do not use an active project slot. Unarchiving or restoring a project with unfinished work, or reopening work in a completed project, uses a slot again. Projects in the Bin can be restored for 30 days before the project and its tasks are permanently deleted.
+Project cards show active and total task counts, priority and due date. Project lists and lifecycle behavior include:
+
+- Projects with tasks appear under Completed when all their tasks are done. Lists include Active, Completed, Archived and Bin, with sorting by created date, due date, priority and relevant lifecycle dates. Card actions are under More.
+- Completed, archived and binned projects do not use an active project slot. Unarchiving or restoring a project with unfinished work, or reopening work in a completed project, uses a slot again.
+- Projects in the Bin can be restored for 30 days. After that, the project and its tasks are permanently deleted.
 
 ### Tasks
 
-Boards with To do, In progress and Done columns, cursor pagination, sorting, and filters for priority, assignee and My tasks. Tasks can have several assignees, priorities and due dates. Status changes move tasks between Active and Completed; Archived and Bin have separate lists. More on a task card provides the available edit, archive, unarchive, restore and delete actions. Each plan limits active tasks per project. Done, archived and binned tasks do not use that allowance. Reopening or restoring an active task uses it again.
+Task boards have To do, In progress and Done columns, cursor pagination, sorting, and filters for priority, assignee and My tasks.
+
+- Tasks can have several assignees, a priority and a due date. Status changes move tasks between Active and Completed; Archived and Bin have separate lists.
+- More on a task card provides the available edit, archive, unarchive, restore and delete actions.
+- Each plan limits active tasks per project. Done, archived and binned tasks do not count toward that limit. Reopening or restoring an active task uses capacity again.
 
 ### Updates and questions
 
-Admins and managers can ask for an update on one task or on a whole project. Assignees can post updates or ask questions, and anyone in the conversation can reply to a specific message. A message goes to all assignees and the creator by default. @mention people to send it only to them, and then only they and the author can reply. People already in a thread hear about new replies, whoever asked a question can mark the reply that answered it, and whoever asked for an update can remind the people who haven't replied (once an hour). Opening the task or the project's updates marks notifications as read, and a notification opens right at its message.
+Admins and managers can request an update on a task or project. Assignees can post updates or ask questions, and conversation participants can reply to a specific message.
+
+- By default, a message goes to all assignees and the creator. An @mention sends it only to those people, and then only they and the author can reply.
+- Existing thread participants are notified about replies. The person who asked a question can mark its answer, and the person who requested an update can remind people who have not replied, once an hour.
+- Opening task or project updates marks notifications as read. A notification opens at the relevant message.
 
 ### Mute
 
@@ -231,13 +248,13 @@ Tasks by status and priority, top assignees, overdue tasks, and plan usage for a
 
 ### Messages
 
-Anyone in an org can message anyone else in it, one to one or in a group. A chat is only visible to the people in it, and that includes org admins. Messages arrive live over Socket.IO, with typing indicators, online dots, unread counts and "Seen" receipts. You can reply, react with an emoji, @mention people, edit your own message for 10 minutes after sending it, and delete it for everyone for 30 minutes after sending (everyone then sees a note that you deleted it).
+Anyone in an org can start one-to-one or group chats with other members. Chats are visible only to their participants, including when org admins are not in the conversation. Messages arrive over Socket.IO with typing indicators, online dots, unread counts and "Seen" receipts.
 
-Delete for me hides any single message from your view only, at any time. Press and hold a message (or right-click it) for its options. Group admins can rename the group and add or remove people, and anyone can leave. You can mute a chat (it stays quiet unless someone mentions you), search every chat you're in, and start a meeting from any chat. Press and hold a chat in the list (or right-click it) to mute it, mark it read or unread, see group details or delete it. Deleting a conversation clears it for you only, and a new message brings it back with just the new messages.
-
-The tab title and icon show your unread count, and a soft sound is available if you turn it on. On computers you can also turn on desktop notifications. They are left out on phones and tablets, where browsers only allow them through push notifications, which this project doesn't use.
-
-If the live connection drops, the app falls back to refreshing every few seconds.
+- Messages support replies, emoji reactions and @mentions. You can edit your own message for 10 minutes, or delete it for everyone for 30 minutes; other participants then see a deletion note. Delete for me hides an individual message from your view at any time.
+- Press and hold a message (or right-click it) to open its options. Group admins can rename a group and add or remove people; anyone can leave.
+- Chats can be muted (mentions still come through), searched, or used to start a meeting. Press and hold a chat (or right-click it) to mute, mark it read or unread, view group details, or delete it. Deleting a conversation clears it only for you; a new message brings it back with only the new messages.
+- The tab title and icon show the unread count. A soft sound is optional, and desktop notifications are available on computers. Notifications are not offered on phones or tablets because this project does not use push notifications.
+- If the live connection drops, the app falls back to refreshing every few seconds.
 
 ### Files in chat
 
@@ -249,9 +266,11 @@ Admins can choose how long messages are kept (forever by default, or 1 year, 6 m
 
 ### Meetings
 
-Schedule a meeting with a time, agenda, location, a join link (paste one, or create a free Jitsi room) and the people you want there. Only the organizer and the people invited can see it. Meetings can repeat daily, weekly or monthly, and can be linked to a project or a task (the task's Meetings tab shows them). Invitees reply Accept, Maybe or Decline, or suggest another time, which the organizer can accept or turn down. People are notified when a meeting is created, changed or cancelled, and get a reminder 15 minutes before it starts. Moving the time asks everyone to reply again.
+Meetings include a time, agenda, location and join link (paste one or create a free Jitsi room). Only the organizer and invitees can see a meeting.
 
-There's an upcoming and past list, a month calendar, a warning when you double-book yourself, "Meet now" for an instant call, and an "Add to calendar" download.
+- Meetings can repeat daily, weekly or monthly, and can link to a project or task. Linked meetings appear in the task's Meetings tab.
+- Invitees can Accept, Maybe, Decline or suggest another time for the organizer to accept or turn down. People are notified when a meeting is created, changed or cancelled, and get a reminder 15 minutes before it starts. Changing the time asks invitees to reply again.
+- The app has upcoming and past lists, a month calendar, a double-booking warning, "Meet now" for an instant call, and an "Add to calendar" download.
 
 ### When someone leaves
 
@@ -263,7 +282,11 @@ Every change to orgs, members, invites, projects, tasks and plans is written in 
 
 ### Around the app
 
-Light and dark themes, a role-aware main onboarding tour with detailed page tours, a "How to use" guide with screenshots and the full permission table, a landing page with a product tour, and a "Send feedback" form that emails the author. Page tours highlight relevant controls, adapt to the screen, and let people skip the page tour, return to the main tour or skip the whole tour. The main tour is replayable from "Show the tour" in the sidebar. The WorkNest logo leads to the landing page, which offers "Go to your workspace" to return to the organization you last used. Pages work on phones, where navigation uses a menu and Messages opens a chat after the conversation list.
+WorkNest includes light and dark themes, onboarding, in-product help and a landing page.
+
+- The role-aware main onboarding tour has detailed page tours. Page tours highlight relevant controls, adapt to the screen, and let people skip a page tour, return to the main tour or skip the whole tour. Replay the main tour from "Show the tour" in the sidebar.
+- The "How to use" guide includes screenshots and the full permission table. The landing page has a product tour and a "Go to your workspace" link to return to the last-used organization.
+- The "Send feedback" form emails the author. Pages work on phones, where navigation uses a menu and Messages opens a chat after the conversation list.
 
 ## Tech Stack
 
@@ -337,6 +360,13 @@ Seat and project limits are enforced with atomic MongoDB updates (`$expr` condit
 
 ## Plans
 
+**Plan lifecycle at a glance**
+
+- Pro and Premium are prepaid for one month or one year. Plans do not renew automatically.
+- When paid time ends, the organization returns to Free and enters a 10-day grace period.
+- If usage still exceeds Free limits after grace, excess projects and tasks are force-archived, not deleted.
+- After upgrading, eligible force-archived projects and tasks can be restored, subject to the new plan's capacity. Manually archived resources are excluded.
+
 | Plan    | Per month | Per year | Seats | Active projects | Active tasks per project |
 | ------- | --------- | -------- | ----- | --------------- | ------------------------ |
 | Free    | ₹0        | ₹0       | 5     | 3               | 10                       |
@@ -382,7 +412,9 @@ If the workspace is still over the Free limits when the 10 days are up, the extr
 
 If the workspace is over the limits and has no grace period left (seats, as above), it is paused: people can still look around and delete or archive projects and tasks (or remove members), and an admin can buy a plan, but nothing else can be changed until usage fits Free or a plan is bought. Workspaces that were on a paid plan before plans expired have no end date and are left alone. A workspace whose plan ended before the grace period existed has none left, so its extras are archived the first time it is checked.
 
-Admins are reminded to renew: a notification (and an email, when email delivery is set up) goes out 7 days before the plan ends and again 1 day before. Each one replaces the one before it, so there is only ever a single renewal notice per admin. When the plan ends, the notice explains the 10-day grace period and automatic archival. After grace enforcement, it explains that excess projects and tasks were archived and points admins to the Review archived projects prompt to choose eligible projects and force-archived tasks in active projects. Restoring a project restores its force-archived tasks automatically while task capacity allows; tasks that do not fit remain Archived. Manually archived resources are excluded.
+Admins receive a notification, and an email when delivery is configured, 7 days before the plan ends and again 1 day before. Each reminder replaces the previous one, so there is only one renewal notice per admin.
+
+When the plan ends, the notice explains the 10-day grace period and automatic archival. After grace enforcement, it says that excess projects and tasks were archived and points admins to the Review archived projects prompt. That prompt lets them choose eligible projects and force-archived tasks in active projects. Restoring a project restores its force-archived tasks automatically while task capacity allows; tasks that do not fit remain Archived. Manually archived resources are excluded.
 
 Buying or renewing a plan removes the reminder. A dismissed notice is not sent again for the same step. These are written by the same 30-minute sweep, so they can be up to half an hour late.
 
@@ -504,6 +536,8 @@ This creates two demo organizations. Every account uses the password `password12
 
 ## Testing
 
+### Test commands
+
 ```bash
 cd api
 npm test          # runs against an in-memory MongoDB replica set
@@ -523,28 +557,47 @@ npm ci && npx playwright install chromium
 npm test           # starts an in-memory MongoDB, the API and the web app, then drives a browser
 ```
 
+### E2E coverage
+
 The browser tests (`e2e/`) cover an upgrade through a stand-in for Razorpay's checkout window, sign-up on one device and confirming on another, the email typo hint, refusing common passwords, the "confirm your email" message at login and the signed-in devices list. They run in CI as their own job. Emails are caught in a file instead of being sent.
 
-The backend tests cover:
+### Backend coverage
+
+#### Tenancy, authorization and security
 
 - tenant isolation, including failing closed when there's no org context
 - the full permission table, and which tasks members can see and edit
-- seats and project slots under concurrent requests, and the last-admin rule under concurrent demotions
 - refresh token rotation and reuse detection
+
+#### Concurrency and plan limits
+
+- seats and project slots under concurrent requests, and the last-admin rule under concurrent demotions
+- plan limits, including active tasks per project and blocked downgrades
+- plan expiry: ended plans going back to Free (on a request and in the background), the 10-day grace period, blocking growth over Free limits, force-archiving the least recently active extras, restoring eligible projects and tasks within plan limits, the pause while a workspace is over its plan, and renewal reminders
+
+#### Authentication and accounts
+
+- the sign-up flows: pending sign-ups, cross-device sign-in, resend limits, common passwords, the password reset cooldown, signed-in devices and feedback screenshots
+
+#### Projects and collaboration
+
 - in-app invitations, declining, duplicate invites, and removing and re-inviting members
 - the project bin, restore, permanent delete and the 30-day cleanup
-- plan limits, including active tasks per project and blocked downgrades
 - dashboard numbers, including time zones
+- what happens to chats and meetings when someone leaves an organization
+
+#### Chat and meetings
+
 - direct and group chats staying private (even from admins), unread counts, replies, reactions, the 10 minute edit window and deleting
 - muting, @mentions and message search
 - private chat files: signed links, who can open them, and the server-side size check
 - chat retention and the cleanup of old messages
 - meeting visibility, RSVPs, rescheduling, cancelling and the reminder before a meeting starts
 - repeating meetings (replying to, editing and cancelling one date or all later ones), suggested times, and links to tasks and projects
-- what happens to chats and meetings when someone leaves an organization
+
+#### Billing
+
 - paying for a plan: orders, signature checks, the webhook, repeated confirmations, one organization confirming another's order, blocked unpaid upgrades, monthly and yearly prices, and renewals
-- plan expiry: ended plans going back to Free (on a request and in the background), the 10-day grace period, blocking growth over Free limits, force-archiving the least recently active extras, restoring eligible projects and tasks within plan limits, the pause while a workspace is over its plan, and renewal reminders
-- the sign-up flows: pending sign-ups, cross-device sign-in, resend limits, common passwords, the password reset cooldown, signed-in devices and feedback screenshots
 
 ## Project Structure
 
@@ -572,7 +625,7 @@ web/
 
 ## Known Limitations
 
-These are deliberate trade-offs for a project of this size, not bugs.
+These are the main trade-offs and scaling limitations in the current implementation.
 
 - **Single-instance Socket.IO:** online presence and live delivery rely on in-memory state in one server process. That's fine on a single instance. To scale out horizontally, I'd add Redis and the Socket.IO Redis adapter, and keep presence in Redis.
 - **Recurring meetings:** editing all upcoming dates of a repeating meeting across a daylight-saving change is a known edge case. The time shift is a fixed offset, with no special handling for the clock change, so a date after it can end up an hour off.

@@ -703,31 +703,6 @@ export function ProjectsPage() {
 
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
             <Button
-              type="submit"
-              disabled={
-                paused ||
-                isSubmitting ||
-                createProject.isPending ||
-                updateProject.isPending
-              }
-              loading={
-                isSubmitting ||
-                createProject.isPending ||
-                updateProject.isPending
-              }
-              className="w-full sm:w-auto"
-            >
-              {isSubmitting ||
-              createProject.isPending ||
-              updateProject.isPending
-                ? editingProject
-                  ? "Saving…"
-                  : "Creating…"
-                : editingProject
-                  ? "Save project"
-                  : "Create Project"}
-            </Button>
-            <Button
               type="button"
               variant="secondary"
               className="w-full sm:w-auto"
@@ -754,6 +729,31 @@ export function ProjectsPage() {
                 Clear form
               </Button>
             )}
+            <Button
+              type="submit"
+              disabled={
+                paused ||
+                isSubmitting ||
+                createProject.isPending ||
+                updateProject.isPending
+              }
+              loading={
+                isSubmitting ||
+                createProject.isPending ||
+                updateProject.isPending
+              }
+              className="w-full sm:w-auto"
+            >
+              {isSubmitting ||
+              createProject.isPending ||
+              updateProject.isPending
+                ? editingProject
+                  ? "Saving…"
+                  : "Creating…"
+                : editingProject
+                  ? "Save project"
+                  : "Create Project"}
+            </Button>
           </div>
         </form>
       </Modal>
