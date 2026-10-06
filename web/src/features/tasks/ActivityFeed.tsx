@@ -100,6 +100,7 @@ function participantsOf(thread: Thread): string[] {
       thread.root.authorId,
       ...(thread.root.mentionIds ?? []),
       ...(thread.root.askedIds ?? []),
+      ...(thread.root.sharedParticipantIds ?? []),
       ...thread.replies.flatMap((reply) => [
         reply.authorId,
         ...(reply.mentionIds ?? []),
@@ -169,7 +170,10 @@ export function ActivityFeed({
   const isInvolved =
     !!user &&
     (activities ?? []).some(
-      (a) => a.mentionIds?.includes(user.id) || a.askedIds?.includes(user.id),
+      (a) =>
+        a.mentionIds?.includes(user.id) ||
+        a.askedIds?.includes(user.id) ||
+        a.sharedParticipantIds?.includes(user.id),
     );
   const canPost = canLead || canContribute || isInvolved;
   const hasText = content.trim().length > 0;
@@ -471,6 +475,8 @@ export function ActivityFeed({
                       {entry.task.title}
                     </button>
                   </>
+                ) : entry.projectIds?.length ? (
+                  `across ${entry.projectNames?.length ?? entry.projectIds.length} active projects`
                 ) : (
                   "to the whole project"
                 ))}

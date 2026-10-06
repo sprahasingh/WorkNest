@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { validate } from "../../middleware/validate.js";
+import { createActivitySchema } from "../tasks/tasks.schemas.js";
+import { createWorkspaceProjectActivityController } from "../tasks/taskActivity.controller.js";
 import { requirePermission } from "../../auth/requirePermission.js";
 import {
   createProjectSchema,
@@ -23,6 +25,13 @@ import {
 } from "./projects.controller.js";
 
 const router = Router({ mergeParams: true });
+
+router.post(
+  "/request-across-active",
+  requirePermission("task:request-update"),
+  validate({ body: createActivitySchema }),
+  createWorkspaceProjectActivityController,
+);
 
 router.post(
   "/restore-plan-archived",

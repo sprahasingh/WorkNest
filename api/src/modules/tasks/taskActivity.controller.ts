@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import {
   createProjectActivity,
+  createWorkspaceProjectActivity,
   createTaskActivity,
   listProjectActivities,
   listTaskActivities,
@@ -53,6 +54,15 @@ export async function createProjectActivityController(
   const { projectId } = req.params;
   const input = req.validated!.body as CreateActivityInput;
   const result = await createProjectActivity(projectId as string, input);
+  res.status(201).json(result);
+}
+
+export async function createWorkspaceProjectActivityController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as CreateActivityInput;
+  const result = await createWorkspaceProjectActivity(input);
   res.status(201).json(result);
 }
 

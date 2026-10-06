@@ -42,6 +42,9 @@ export interface TaskActivity {
   _id: string;
   taskId: string | null;
   projectId: string;
+  projectIds?: string[];
+  projectNames?: string[];
+  sharedParticipantIds?: string[];
   authorId: string;
   type: ActivityType;
   content?: string;
@@ -262,6 +265,17 @@ export async function createActivity(
 ): Promise<CreateActivityResult> {
   const response = await apiClient.post<CreateActivityResult>(
     activityPath(orgId, scope),
+    input,
+  );
+  return response.data;
+}
+
+export async function createWorkspaceProjectActivity(
+  orgId: string,
+  input: CreateActivityInput,
+): Promise<CreateActivityResult> {
+  const response = await apiClient.post<CreateActivityResult>(
+    `/orgs/${orgId}/projects/request-across-active`,
     input,
   );
   return response.data;
