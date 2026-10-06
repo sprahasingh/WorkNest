@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
@@ -67,6 +68,9 @@ export function Button({
   const isDisabled = disabled || loading;
   const tooltipId = useId();
   const [showDisabledMessage, setShowDisabledMessage] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const wrapperRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
   const hideMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { ["aria-describedby"]: describedBy, ...buttonProps } = props;
   const disabledMessage =
@@ -78,6 +82,34 @@ export function Button({
     },
     [],
   );
+
+  useLayoutEffect(() => {
+    if (!isDisabled || !showDisabledMessage) return;
+    const placeTooltip = () => {
+      const anchor = wrapperRef.current?.getBoundingClientRect();
+      const tooltip = tooltipRef.current?.getBoundingClientRect();
+      if (!anchor || !tooltip) return;
+      const margin = 8;
+      const left = Math.min(
+        Math.max(margin, anchor.left + anchor.width / 2 - tooltip.width / 2),
+        window.innerWidth - tooltip.width - margin,
+      );
+      const below = anchor.bottom + margin;
+      const top =
+        below + tooltip.height <= window.innerHeight - margin
+          ? below
+          : Math.max(margin, anchor.top - tooltip.height - margin);
+      setTooltipPosition({ left, top });
+    };
+    const frame = requestAnimationFrame(placeTooltip);
+    window.addEventListener("resize", placeTooltip);
+    window.addEventListener("scroll", placeTooltip, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", placeTooltip);
+      window.removeEventListener("scroll", placeTooltip, true);
+    };
+  }, [isDisabled, showDisabledMessage, disabledMessage]);
 
   const showMessageAfterTap = () => {
     setShowDisabledMessage(true);
@@ -91,11 +123,11 @@ export function Button({
   if (isDisabled) {
     return (
       <span
+        ref={wrapperRef}
         className={cn(
           "relative inline-flex max-w-full cursor-not-allowed",
           className,
         )}
-        title={disabledMessage}
         onPointerEnter={(event) => {
           if (event.pointerType === "mouse") setShowDisabledMessage(true);
         }}
@@ -124,15 +156,24 @@ export function Button({
           {loading && <Spinner className="h-4 w-4" />}
           {children}
         </button>
-        {showDisabledMessage && (
-          <span
-            id={tooltipId}
-            role="tooltip"
-            className="absolute left-1/2 top-full z-50 mt-2 w-max max-w-[min(14rem,calc(100vw-2rem))] -translate-x-1/2 whitespace-normal break-words rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900"
-          >
-            {disabledMessage}
-          </span>
-        )}
+        {showDisabledMessage &&
+          createPortal(
+            <span
+              ref={tooltipRef}
+              id={tooltipId}
+              role="tooltip"
+              className="pointer-events-none fixed z-[1000] w-max max-w-[min(18rem,calc(100vw-1rem))] overflow-y-auto whitespace-normal break-words rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-slate-100 dark:text-slate-900"
+              style={{
+                top: tooltipPosition.top,
+                left: tooltipPosition.left,
+                maxHeight: "calc(100dvh - 1rem)",
+                visibility: tooltipPosition.top === 0 ? "hidden" : "visible",
+              }}
+            >
+              {disabledMessage}
+            </span>,
+            document.body,
+          )}
       </span>
     );
   }
