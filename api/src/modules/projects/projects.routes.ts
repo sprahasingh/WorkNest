@@ -28,7 +28,7 @@ const router = Router({ mergeParams: true });
 
 router.post(
   "/request-across-active",
-  requirePermission("task:request-update"),
+  requirePermission("task:comment"),
   validate({ body: createActivitySchema }),
   createWorkspaceProjectActivityController,
 );

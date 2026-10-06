@@ -271,6 +271,13 @@ export function ActivityFeed({
     }
   };
 
+  const clearMessage = () => {
+    setContent("");
+    setMentions(NO_MENTIONS);
+    setNotifyAllChoice(null);
+    setContentError(null);
+  };
+
   const sendReply = async () => {
     if (!replyTarget || !replyContent.trim()) return;
     setReplyError(null);
@@ -775,15 +782,16 @@ export function ActivityFeed({
               {audienceLine}
             </p>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
               variant="secondary"
               onClick={() => void post("question")}
               disabled={busy || !hasText}
               loading={pendingType === "question"}
+              className="w-full px-2 text-xs sm:text-sm"
             >
-              Ask question
+              Ask Question
             </Button>
             <Button
               type="button"
@@ -791,8 +799,9 @@ export function ActivityFeed({
               onClick={() => void post("update")}
               disabled={busy || !hasText}
               loading={pendingType === "update"}
+              className="w-full px-2 text-xs sm:text-sm"
             >
-              Post update
+              Post Update
             </Button>
             {canLead && (
               <Button
@@ -805,10 +814,25 @@ export function ActivityFeed({
                     : undefined
                 }
                 loading={pendingType === "update_request"}
+                className="w-full px-2 text-xs sm:text-sm"
               >
-                Request update
+                Request Update
               </Button>
             )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={clearMessage}
+              disabled={
+                busy || (!content && mentionCount === 0 && !contentError)
+              }
+              className={cn(
+                "w-full px-2 text-xs sm:text-sm",
+                !canLead && "col-start-2",
+              )}
+            >
+              Clear
+            </Button>
           </div>
         </div>
       ) : (
