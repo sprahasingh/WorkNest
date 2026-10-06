@@ -176,10 +176,14 @@ test("core workspace pages fit common responsive viewports", async ({
       const myTasks = page.getByLabel("My tasks");
       await expect(filtersButton).toBeVisible();
       await expect(sortControl).toBeVisible();
-      await expect(sortControl).toHaveValue("dueDate:asc");
+      // This project may already have a saved sort preference by the time
+      // this responsive check runs. The default itself is covered by the
+      // lifecycle sorting tests; here verify the option is available and
+      // exercise persistence below without assuming the current selection.
       await expect(
         sortControl.locator('option[value="dueDate:asc"]'),
       ).toHaveText("Due Date: Soonest First");
+      await expect(sortControl).toHaveValue(/.+/);
       await expect(myTasks).toBeVisible();
       const rowBoxes = await Promise.all([
         filtersButton.boundingBox(),
@@ -235,7 +239,13 @@ test("core workspace pages fit common responsive viewports", async ({
       ]);
       await sortControl.selectOption("createdAt:asc");
       await expect(sortControl).toHaveValue("createdAt:asc");
+      const savedSortResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === "PUT" &&
+          response.url().includes("/preferences/lifecycle-sort"),
+      );
       await sortControl.selectOption("dueDate:desc");
+      expect((await savedSortResponse).ok()).toBeTruthy();
       await expect(page).toHaveURL(/sortBy=dueDate/);
       await expect(page).toHaveURL(/sortOrder=desc/);
       // Sorting is persisted per project and lifecycle view. Revisit the
