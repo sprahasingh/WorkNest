@@ -31,6 +31,10 @@ import {
   getLifecycleSortOptions,
   type LifecycleSort,
 } from "@/lib/lifecycleSorting";
+import {
+  useLifecycleSortPreferences,
+  useSaveLifecycleSortPreference,
+} from "@/lib/lifecycleSortPreferences";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import { PLAN_LIMITS, PLAN_NAMES } from "@/lib/plans";
 import { dateInputValueInTimeZone, formatDateInTimeZone } from "@/lib/time";
@@ -130,7 +134,8 @@ export function ProjectsPage() {
   const [projectRequestPendingType, setProjectRequestPendingType] =
     useState<ActivityType | null>(null);
   const [view, setView] = useState<ProjectListView>("active");
-  const [sortBy, setSortBy] = useState<ProjectSort>("createdAt:desc");
+  const sortPreferencesQuery = useLifecycleSortPreferences(orgId, "projects");
+  const saveSortPreference = useSaveLifecycleSortPreference(orgId, "projects");
 
   const apiView = view === "completed" ? "active" : view;
   const { data, isPending, isError } = useProjects(orgId, { view: apiView });
@@ -152,8 +157,9 @@ export function ProjectsPage() {
           )
         : data?.projects;
   const sortOptions = getLifecycleSortOptions(view);
-  const selectedSort = sortOptions.some((option) => option.value === sortBy)
-    ? sortBy
+  const savedSort = sortPreferencesQuery.data?.[view];
+  const selectedSort = sortOptions.some((option) => option.value === savedSort)
+    ? (savedSort as ProjectSort)
     : defaultLifecycleSort(view);
   const sortedProjects = [...(projects ?? [])].sort((left, right) =>
     compareLifecycleItems(left, right, selectedSort),
@@ -480,7 +486,12 @@ export function ProjectsPage() {
             data-tour="projects-sort"
             aria-label="Sort projects"
             value={selectedSort}
-            onChange={(event) => setSortBy(event.target.value as ProjectSort)}
+            onChange={(event) =>
+              saveSortPreference.mutate({
+                view,
+                sort: event.target.value as ProjectSort,
+              })
+            }
             className="w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:w-auto sm:min-w-60"
           >
             {sortOptions.map((option) => (

@@ -555,7 +555,7 @@ describe("task pagination", () => {
       return titles;
     };
 
-    expect(await listTitles()).toEqual(["Later", "Soon", "Undated"]);
+    expect(await listTitles()).toEqual(["Soon", "Later", "Undated"]);
     expect(await listTitles("asc")).toEqual(["Soon", "Later", "Undated"]);
 
     const createdDateSort = await request(app)

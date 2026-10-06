@@ -52,8 +52,8 @@ const sortOptions: Record<
     { value: "priority:asc", label: "Priority: Low → High" },
   ],
   bin: [
-    { value: "deletedAt:desc", label: "Deleted: Newest First" },
-    { value: "deletedAt:asc", label: "Deleted: Oldest First" },
+    { value: "deletedAt:desc", label: "Deleted/Binned: Newest First" },
+    { value: "deletedAt:asc", label: "Deleted/Binned: Oldest First" },
     { value: "createdAt:desc", label: "Created: Newest First" },
     { value: "createdAt:asc", label: "Created: Oldest First" },
     { value: "dueDate:asc", label: "Due Date: Soonest First" },
@@ -68,7 +68,7 @@ export function getLifecycleSortOptions(view: LifecycleView) {
 }
 
 export function defaultLifecycleSort(view: LifecycleView): LifecycleSort {
-  if (view === "active") return "dueDate:desc";
+  if (view === "active") return "dueDate:asc";
   if (view === "completed") return "completedAt:desc";
   if (view === "archived") return "archivedAt:desc";
   return "deletedAt:desc";
@@ -90,8 +90,15 @@ export function compareLifecycleItems<T extends LifecycleSortable>(
     return direction === "desc" ? result : -result;
   }
 
-  const leftValue = left[field];
-  const rightValue = right[field];
+  const lifecycleFallback = (item: T) =>
+    field === "deletedAt"
+      ? (item.deletedAt ??
+        item.archivedAt ??
+        item.completedAt ??
+        item.createdAt)
+      : item[field];
+  const leftValue = lifecycleFallback(left);
+  const rightValue = lifecycleFallback(right);
   if (!leftValue || !rightValue) {
     if (!leftValue && !rightValue) return 0;
     return leftValue ? -1 : 1;

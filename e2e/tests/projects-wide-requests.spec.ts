@@ -79,16 +79,16 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
     await page.goto(`/orgs/${orgId}/projects`);
     const projectSort = page.getByRole("combobox", { name: "Sort projects" });
     await expect(projectSort).toBeVisible();
-    await expect(projectSort).toHaveValue("createdAt:desc");
-    await expect(
-      projectSort.locator('option[value="createdAt:desc"]'),
-    ).toHaveText("Created: Newest First");
+    await expect(projectSort).toHaveValue("dueDate:asc");
+    await expect(projectSort.locator('option[value="dueDate:asc"]')).toHaveText(
+      "Due Date: Soonest First",
+    );
     await page.goto(boardUrl);
     const sort = page.getByRole("combobox", {
       name: width < 640 ? "Sort by" : "Sort tasks",
     });
     await expect(sort).toBeVisible();
-    await expect(sort).toHaveValue("dueDate:desc");
+    await expect(sort).toHaveValue("dueDate:asc");
     const visibleSortWidth = await sort.evaluate((element) => {
       const select = element as HTMLSelectElement;
       const canvas = document.createElement("canvas");
@@ -101,7 +101,7 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
         clientWidth: select.clientWidth,
       };
     });
-    expect(visibleSortWidth.text).toBe("Due Date: Latest First");
+    expect(visibleSortWidth.text).toBe("Due Date: Soonest First");
     expect(visibleSortWidth.textWidth + 12).toBeLessThanOrEqual(
       visibleSortWidth.clientWidth,
     );
@@ -111,6 +111,65 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
       ),
     ).toBe(true);
   }
+
+  await page.goto(`/orgs/${orgId}/projects`);
+  const projectsSort = page.getByRole("combobox", { name: "Sort projects" });
+  await expect(projectsSort).toHaveValue("dueDate:asc");
+  const projectPreferenceSaved = page.waitForResponse(
+    (response) =>
+      response.url().includes("/preferences/lifecycle-sort") &&
+      response.request().method() === "PUT",
+  );
+  await projectsSort.selectOption("createdAt:asc");
+  await projectPreferenceSaved;
+  await page.reload();
+  await expect(projectsSort).toHaveValue("createdAt:asc");
+
+  const projectTabs = page.getByRole("tablist", { name: "Project lists" });
+  await projectTabs.getByRole("tab", { name: /Archived/ }).click();
+  await expect(projectsSort).toHaveValue("archivedAt:desc");
+  const archivedProjectPreferenceSaved = page.waitForResponse(
+    (response) =>
+      response.url().includes("/preferences/lifecycle-sort") &&
+      response.request().method() === "PUT",
+  );
+  await projectsSort.selectOption("createdAt:desc");
+  await archivedProjectPreferenceSaved;
+  await projectTabs.getByRole("tab", { name: /Active/ }).click();
+  await expect(projectsSort).toHaveValue("createdAt:asc");
+  await projectTabs.getByRole("tab", { name: /Archived/ }).click();
+  await expect(projectsSort).toHaveValue("createdAt:desc");
+
+  await page.goto(boardUrl);
+  const taskSort = page.getByRole("combobox", { name: "Sort tasks" });
+  await expect(taskSort).toHaveValue("dueDate:asc");
+  const activeTaskPreferenceSaved = page.waitForResponse(
+    (response) =>
+      response.url().includes("/preferences/lifecycle-sort") &&
+      response.request().method() === "PUT",
+  );
+  await taskSort.selectOption("createdAt:asc");
+  await activeTaskPreferenceSaved;
+  await page.goto(boardUrl);
+  await expect(taskSort).toHaveValue("createdAt:asc");
+  const taskTabs = page.getByRole("tablist", { name: "Task lists" });
+  await taskTabs.getByRole("tab", { name: /Archived/ }).click();
+  await expect(taskSort).toHaveValue("archivedAt:desc");
+  const archivedTaskPreferenceSaved = page.waitForResponse(
+    (response) =>
+      response.url().includes("/preferences/lifecycle-sort") &&
+      response.request().method() === "PUT",
+  );
+  await taskSort.selectOption("createdAt:desc");
+  await archivedTaskPreferenceSaved;
+  await taskTabs.getByRole("tab", { name: /Active/ }).click();
+  await expect(taskSort).toHaveValue("createdAt:asc");
+  await taskTabs.getByRole("tab", { name: /Archived/ }).click();
+  await expect(taskSort).toHaveValue("createdAt:desc");
+  await page.goto(`/orgs/${orgId}/projects/${completed}`);
+  await expect(page.getByRole("combobox", { name: "Sort tasks" })).toHaveValue(
+    "dueDate:asc",
+  );
 
   await page.setViewportSize({ width: 320, height: 850 });
   await page.goto(`/orgs/${orgId}/projects`);
@@ -132,7 +191,7 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
   await requestDialog
     .getByLabel("Message", { exact: true })
     .fill("Can you share a progress update?");
-  await requestDialog.getByRole("button", { name: "Ask question" }).click();
+  await requestDialog.getByRole("button", { name: "Ask Question" }).click();
   await expect(page.getByText("Question sent across 2 projects")).toBeVisible();
   const questionFeed = await api<{
     activities: Array<{

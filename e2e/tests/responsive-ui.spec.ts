@@ -176,10 +176,10 @@ test("core workspace pages fit common responsive viewports", async ({
       const myTasks = page.getByLabel("My tasks");
       await expect(filtersButton).toBeVisible();
       await expect(sortControl).toBeVisible();
-      await expect(sortControl).toHaveValue("dueDate:desc");
+      await expect(sortControl).toHaveValue("dueDate:asc");
       await expect(
-        sortControl.locator('option[value="dueDate:desc"]'),
-      ).toHaveText("Due Date: Latest First");
+        sortControl.locator('option[value="dueDate:asc"]'),
+      ).toHaveText("Due Date: Soonest First");
       await expect(myTasks).toBeVisible();
       const rowBoxes = await Promise.all([
         filtersButton.boundingBox(),
@@ -263,7 +263,7 @@ test("core workspace pages fit common responsive viewports", async ({
       await tabs.getByRole("tab", { name: /Bin/ }).click();
       await expect(
         sortControl.locator('option[value="deletedAt:desc"]'),
-      ).toHaveText("Deleted: Newest First");
+      ).toHaveText("Deleted/Binned: Newest First");
       await tabs.getByRole("tab", { name: /Active/ }).click();
       const columns = page.locator('[aria-describedby="task-columns-hint"]');
       await expect(page.getByText("→ Swipe to see In progress")).toBeVisible();
@@ -341,7 +341,7 @@ test("project actions and mobile task controls fit phone and desktop widths", as
     await expect(newTask).toBeVisible();
     if (width === 320) {
       await expect(filters).toBeVisible();
-      await expect(sort!).toHaveValue("dueDate:desc");
+      await expect(sort!).toHaveValue("dueDate:asc");
       await expect(myTasks).toBeVisible();
       const orderedControls = await Promise.all([
         filters.boundingBox(),

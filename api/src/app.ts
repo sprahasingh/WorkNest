@@ -36,6 +36,7 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 import { notificationsRouter } from "./modules/notifications/notifications.routes.js";
 import { chatRouter } from "./modules/chat/chat.routes.js";
 import { meetingsRouter } from "./modules/meetings/meetings.routes.js";
+import { preferencesRouter } from "./modules/preferences/preferences.routes.js";
 import { downloadChatFileController } from "./modules/chat/chatFiles.controller.js";
 
 export function createApp(): Express {
@@ -138,6 +139,7 @@ export function createApp(): Express {
   orgRouter.use("/notifications", notificationsRouter);
   orgRouter.use("/chat", chatLimiter, chatRouter);
   orgRouter.use("/meetings", meetingsRouter);
+  orgRouter.use("/preferences", preferencesRouter);
   orgRouter.use("/billing", billingRouter);
   app.use(
     "/api/orgs/:orgId",
