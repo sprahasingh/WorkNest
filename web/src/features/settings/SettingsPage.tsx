@@ -59,12 +59,12 @@ import { dashboardKeys } from "@/features/dashboard/queries";
 import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 import { RestoreProjectsPrompt } from "./RestoreProjectsPrompt";
 import {
-  canReopenRestorePrompt,
+  canReviewRestoreCandidates,
   eligibleRestoreCandidates,
   persistHandledRestoreSignature,
   readHandledRestoreSignature,
   restorePromptSignature as getRestorePromptSignature,
-  shouldShowRestorePrompt,
+  shouldRenderRestorePrompt,
 } from "@/lib/planRestorePrompt";
 import {
   PLAN_LIMITS,
@@ -883,19 +883,15 @@ export function SettingsPage() {
         forceArchivedTasks,
       )
     : null;
-  const restorePrompt = Boolean(
-    canChangePlan &&
-    restorePromptSignature &&
-    (restorePromptRequested ||
-      shouldShowRestorePrompt(
-        canChangePlan,
-        restorePromptSignature,
-        handledRestoreSignature,
-      )),
-  );
-  const canReopenRestore = canReopenRestorePrompt(
+  const restorePrompt = shouldRenderRestorePrompt(
+    canChangePlan,
     restorePromptSignature,
     handledRestoreSignature,
+    restorePromptRequested,
+  );
+  const canReopenRestore = canReviewRestoreCandidates(
+    canChangePlan,
+    restorePromptSignature,
   );
   const archivedByPlan = eligibleArchivedProjects;
   const closeRestorePrompt = () => {

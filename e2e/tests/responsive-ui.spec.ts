@@ -119,12 +119,18 @@ test("core workspace pages fit common responsive viewports", async ({
     ).toBeVisible();
     await expect(page.getByLabel("Filter by priority")).toBeVisible();
     if (viewport.width === 320) {
-      await expect(page.getByText("Swipe to see In progress")).toBeVisible();
       const columns = page.locator('[aria-describedby="task-columns-hint"]');
+      await expect(page.getByText("Swipe → to see In progress")).toBeVisible();
       await page.getByRole("button", { name: "Next task column" }).click();
       await expect
         .poll(() => columns.evaluate((element) => element.scrollLeft))
         .toBeGreaterThan(0);
+      await expect(page.getByText("← Swipe to see To do")).toBeVisible();
+      await page.getByRole("button", { name: "Previous task column" }).click();
+      await expect
+        .poll(() => columns.evaluate((element) => element.scrollLeft))
+        .toBe(0);
+      await expect(page.getByText("Swipe → to see In progress")).toBeVisible();
     }
     await expectNoPageOverflow(page, viewport.name);
   }

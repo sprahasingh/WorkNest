@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useAccountPaused,
   useGrowthBlocked,
@@ -77,6 +77,11 @@ export function ProjectBoard() {
   const canUpdateOwnTask = useCan("task:update:own");
 
   const [drawerState, setDrawerState] = useState<DrawerState>(null);
+  const [mobileColumnState, setMobileColumnState] = useState<{
+    projectId: string | undefined;
+    boardView: TaskView;
+    status: TaskStatus;
+  } | null>(null);
   const [taskConfirm, setTaskConfirm] = useState<{
     task: Task;
     permanent: boolean;
@@ -104,6 +109,15 @@ export function ProjectBoard() {
   )
     ? (requestedView as TaskView)
     : "active";
+  const visibleMobileColumn =
+    mobileColumnState !== null &&
+    mobileColumnState.projectId === projectId &&
+    mobileColumnState.boardView === boardView
+      ? mobileColumnState.status
+      : "todo";
+  useEffect(() => {
+    taskColumnsRef.current?.scrollTo({ left: 0, behavior: "instant" });
+  }, [boardView, projectId]);
   const sortOptions = getLifecycleSortOptions(boardView);
   const requestedSort = `${searchParams.get("sortBy")}:${searchParams.get("sortOrder")}`;
   const selectedSort = sortOptions.some(
@@ -504,22 +518,11 @@ export function ProjectBoard() {
           <div className="mt-4 flex items-center justify-between gap-3 md:hidden">
             <p
               id="task-columns-hint"
-              className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300"
+              className="flex min-w-0 items-center whitespace-nowrap text-xs text-slate-600 sm:text-sm dark:text-slate-300"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4 shrink-0"
-                aria-hidden="true"
-              >
-                <path d="M5 12h14" />
-                <path d="m13 6 6 6-6 6" />
-              </svg>
-              Swipe to see In progress
+              {visibleMobileColumn === "todo"
+                ? "Swipe → to see In progress"
+                : "← Swipe to see To do"}
             </p>
             <div className="flex shrink-0 gap-1">
               <button
@@ -544,6 +547,20 @@ export function ProjectBoard() {
 
         <div
           ref={taskColumnsRef}
+          onScroll={(event) => {
+            const columns = event.currentTarget;
+            const nextColumn: TaskStatus =
+              columns.scrollLeft > columns.clientWidth / 2
+                ? "in_progress"
+                : "todo";
+            setMobileColumnState((current) =>
+              current?.projectId === projectId &&
+              current.boardView === boardView &&
+              current.status === nextColumn
+                ? current
+                : { projectId, boardView, status: nextColumn },
+            );
+          }}
           aria-describedby={
             visibleStatuses.length > 1 ? "task-columns-hint" : undefined
           }
