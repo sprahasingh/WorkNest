@@ -252,6 +252,19 @@ describe("Projects-page update requests", () => {
       );
     }
 
+    const memberUpdate = await request(app)
+      .post(`${base}/projects/request-across-active`)
+      .set("Authorization", `Bearer ${member.accessToken}`)
+      .send({
+        type: "update",
+        content: "The shared work is progressing well.",
+        notifyAll: true,
+      })
+      .expect(201);
+    expect(memberUpdate.body.activity.projectIds.map(String).sort()).toEqual(
+      selectedIds.sort(),
+    );
+
     const question = await request(app)
       .post(`${base}/projects/request-across-active`)
       .set("Authorization", `Bearer ${admin.accessToken}`)

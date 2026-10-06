@@ -113,6 +113,7 @@ export function ProjectsPage() {
   const growthBlocked = useGrowthBlocked();
   const navigate = useNavigate();
   const canWrite = useCan("project:write");
+  const canComment = useCan("task:comment");
   const canRequestUpdates = useCan("task:request-update");
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -122,13 +123,12 @@ export function ProjectsPage() {
   );
   const [formError, setFormError] = useState<string | null>(null);
   const [projectRequestOpen, setProjectRequestOpen] = useState(false);
-  const [projectRequestType, setProjectRequestType] =
-    useState<ActivityType>("update_request");
   const [projectRequestText, setProjectRequestText] = useState("");
   const [projectRequestError, setProjectRequestError] = useState<string | null>(
     null,
   );
-  const [projectRequestPending, setProjectRequestPending] = useState(false);
+  const [projectRequestPendingType, setProjectRequestPendingType] =
+    useState<ActivityType | null>(null);
   const [view, setView] = useState<ProjectListView>("active");
   const [sortBy, setSortBy] = useState<ProjectSort>("createdAt:desc");
 
@@ -182,13 +182,13 @@ export function ProjectsPage() {
   const restoreProject = useRestoreProject(orgId);
   const deletePermanently = useDeleteProjectPermanently(orgId);
 
-  const sendProjectRequest = async () => {
+  const sendProjectRequest = async (type: ActivityType) => {
     if (!projectsWithOpenTasks.length || !projectRequestText.trim()) return;
-    setProjectRequestPending(true);
+    setProjectRequestPendingType(type);
     setProjectRequestError(null);
     try {
       const result = await createWorkspaceProjectActivity(orgId, {
-        type: projectRequestType,
+        type,
         content: projectRequestText.trim(),
         notifyAll: true,
       });
@@ -196,9 +196,9 @@ export function ProjectsPage() {
       setProjectRequestText("");
       toast.success(
         `${
-          projectRequestType === "question"
+          type === "question"
             ? "Question"
-            : projectRequestType === "update"
+            : type === "update"
               ? "Update"
               : "Update request"
         } sent across ${result.activity.projectIds?.length ?? projectsWithOpenTasks.length} projects to ${result.notifiedCount ?? 0} people`,
@@ -208,7 +208,7 @@ export function ProjectsPage() {
       setProjectRequestError(parsed.message);
       toast.error(parsed.message);
     } finally {
-      setProjectRequestPending(false);
+      setProjectRequestPendingType(null);
     }
   };
 
@@ -412,7 +412,7 @@ export function ProjectsPage() {
           </div>
           <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:gap-2">
             <MuteToggle orgId={orgId} allProjects iconOnly />
-            {canRequestUpdates && (
+            {canComment && (
               <Button
                 variant="secondary"
                 onClick={() => setProjectRequestOpen(true)}
@@ -718,7 +718,7 @@ export function ProjectsPage() {
       <Modal
         open={projectRequestOpen}
         onClose={() => {
-          if (!projectRequestPending) setProjectRequestOpen(false);
+          if (!projectRequestPendingType) setProjectRequestOpen(false);
         }}
         title="Update across active projects"
       >
@@ -728,6 +728,8 @@ export function ProjectsPage() {
             Your message reaches people assigned to open tasks across the{" "}
             {projectsWithOpenTasks.length} active project
             {projectsWithOpenTasks.length === 1 ? "" : "s"} with open tasks.
+            Replies appear in the Updates panel of each included project, where
+            the whole conversation is shared.
           </p>
           {projectRequestError && (
             <p
@@ -738,46 +740,76 @@ export function ProjectsPage() {
             </p>
           )}
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-            Message type
-            <select
-              value={projectRequestType}
-              onChange={(event) =>
-                setProjectRequestType(event.target.value as ActivityType)
-              }
-              className={inputStyles}
-            >
-              <option value="update_request">Ask for an update</option>
-              <option value="update">Share an update</option>
-              <option value="question">Ask a question</option>
-            </select>
-          </label>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
             Message
             <textarea
               rows={3}
               maxLength={2000}
               value={projectRequestText}
-              onChange={(event) => setProjectRequestText(event.target.value)}
+              onChange={(event) => {
+                setProjectRequestText(event.target.value);
+                setProjectRequestError(null);
+              }}
               className={inputStyles}
               placeholder="What would you like to know?"
             />
           </label>
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button
+              type="button"
               variant="secondary"
-              onClick={() => setProjectRequestOpen(false)}
-              disabled={projectRequestPending}
+              onClick={() => void sendProjectRequest("question")}
+              loading={projectRequestPendingType === "question"}
+              disabled={
+                !!projectRequestPendingType ||
+                !projectRequestText.trim() ||
+                !projectsWithOpenTasks.length
+              }
+              className="w-full px-2 text-xs sm:text-sm"
             >
-              Cancel
+              Ask Question
             </Button>
             <Button
-              onClick={() => void sendProjectRequest()}
-              loading={projectRequestPending}
+              type="button"
+              onClick={() => void sendProjectRequest("update")}
+              loading={projectRequestPendingType === "update"}
               disabled={
-                !projectRequestText.trim() || !projectsWithOpenTasks.length
+                !!projectRequestPendingType ||
+                !projectRequestText.trim() ||
+                !projectsWithOpenTasks.length
               }
+              className="w-full px-2 text-xs sm:text-sm"
             >
-              "Send across projects"
+              Post Update
+            </Button>
+            {canRequestUpdates ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void sendProjectRequest("update_request")}
+                loading={projectRequestPendingType === "update_request"}
+                disabled={
+                  !!projectRequestPendingType ||
+                  !projectRequestText.trim() ||
+                  !projectsWithOpenTasks.length
+                }
+                className="w-full px-2 text-xs sm:text-sm"
+              >
+                Request Update
+              </Button>
+            ) : (
+              <span aria-hidden="true" />
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setProjectRequestText("");
+                setProjectRequestError(null);
+              }}
+              disabled={!!projectRequestPendingType || !projectRequestText}
+              className="w-full px-2 text-xs sm:text-sm"
+            >
+              Clear
             </Button>
           </div>
         </div>

@@ -114,7 +114,10 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
 
   await page.setViewportSize({ width: 320, height: 850 });
   await page.goto(`/orgs/${orgId}/projects`);
-  const updateAction = page.getByRole("button", { name: "Update", exact: true });
+  const updateAction = page.getByRole("button", {
+    name: "Update",
+    exact: true,
+  });
   await expect(updateAction).toBeEnabled();
   await updateAction.click();
   const requestDialog = page.getByRole("dialog", {
@@ -123,13 +126,13 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
   await expect(requestDialog).toContainText(
     "2 active projects with open tasks",
   );
-  await requestDialog.getByLabel("Message type").selectOption("question");
+  await expect(requestDialog).toContainText(
+    "Replies appear in the Updates panel of each included project",
+  );
   await requestDialog
     .getByLabel("Message", { exact: true })
     .fill("Can you share a progress update?");
-  await requestDialog
-    .getByRole("button", { name: "Send across projects" })
-    .click();
+  await requestDialog.getByRole("button", { name: "Ask question" }).click();
   await expect(page.getByText("Question sent across 2 projects")).toBeVisible();
   const questionFeed = await api<{
     activities: Array<{
@@ -162,6 +165,25 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
     ]),
   );
 
+  await updateAction.click();
+  await requestDialog
+    .getByLabel("Message", { exact: true })
+    .fill("The shared work is progressing well.");
+  await requestDialog.getByRole("button", { name: "Post Update" }).click();
+  await expect(page.getByText("Update sent across 2 projects")).toBeVisible();
+  const updateFeed = await api<{
+    activities: Array<{ type: string; content: string; projectIds?: string[] }>;
+  }>(request, token, "get", `${base}/projects/${candidate}/activity`);
+  expect(updateFeed.activities).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        type: "update",
+        content: "The shared work is progressing well.",
+        projectIds: expect.arrayContaining([candidate, completed]),
+      }),
+    ]),
+  );
+
   let attemptedWorkspaceCalls = 0;
   await page.route("**/projects/request-across-active", async (route) => {
     const body = route.request().postDataJSON() as { type?: string };
@@ -179,13 +201,10 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
     await route.continue();
   });
   await updateAction.click();
-  await requestDialog.getByLabel("Message type").selectOption("update_request");
   await requestDialog
     .getByLabel("Message", { exact: true })
     .fill("Please post your update.");
-  await requestDialog
-    .getByRole("button", { name: "Send across projects" })
-    .click();
+  await requestDialog.getByRole("button", { name: "Request Update" }).click();
   await expect(requestDialog).toBeVisible();
   await expect(requestDialog.getByRole("alert")).toContainText(
     "Request service unavailable",
@@ -194,7 +213,7 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
     requestDialog.getByRole("textbox", { name: "Message" }),
   ).toHaveValue("Please post your update.");
   expect(attemptedWorkspaceCalls).toBe(1);
-  await requestDialog.getByRole("button", { name: "Cancel" }).click();
+  await requestDialog.getByRole("button", { name: "Close dialog" }).click();
 
   await api(request, token, "post", `${base}/projects/${candidate}/archive`);
   await api(
