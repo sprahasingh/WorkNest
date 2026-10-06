@@ -5,7 +5,8 @@ import { useMutes, useSetMute } from "./queries";
 
 interface MuteToggleProps {
   orgId: string;
-  projectId: string;
+  projectId?: string;
+  allProjects?: boolean;
   // Set to mute a single task instead of the whole project.
   taskId?: string;
   // Just the bell, in a square button, for toolbars that are short on room.
@@ -39,24 +40,41 @@ function BellIcon({ muted }: { muted: boolean }) {
 export function MuteToggle({
   orgId,
   projectId,
+  allProjects = false,
   taskId,
   iconOnly = false,
   className,
 }: MuteToggleProps) {
   const { data: mutes } = useMutes(orgId);
   const setMute = useSetMute(orgId);
-  const projectMuted = mutes?.projectIds.includes(projectId) ?? false;
+  const projectMuted = projectId
+    ? (mutes?.projectIds.includes(projectId) ?? false)
+    : false;
   const taskMuted = taskId ? (mutes?.taskIds.includes(taskId) ?? false) : false;
+  const workspaceMuted = mutes?.allProjects ?? false;
+  const allMuted = allProjects && workspaceMuted;
   // A task in a muted project is muted with it; unmute the project instead.
-  const inheritsMute = !!taskId && projectMuted;
-  const muted = taskId ? taskMuted || projectMuted : projectMuted;
-  const what = taskId ? "task" : "project";
+  const inheritsMute =
+    (!allProjects && workspaceMuted) || (!!taskId && projectMuted);
+  const muted =
+    allMuted ||
+    workspaceMuted ||
+    (taskId ? taskMuted || projectMuted : projectMuted);
+  const what = allProjects
+    ? "all project notifications"
+    : taskId
+      ? "task"
+      : "project";
 
   const toggle = () => {
     const next = !muted;
     setMute.mutate(
       {
-        target: taskId ? { taskId } : { projectId },
+        target: allProjects
+          ? { allProjects: true }
+          : taskId
+            ? { taskId }
+            : { projectId: projectId! },
         muted: next,
       },
       {
@@ -73,15 +91,23 @@ export function MuteToggle({
   };
 
   const label = inheritsMute
-    ? "Muted with the project"
+    ? workspaceMuted
+      ? "Muted across all projects"
+      : "Muted with the project"
     : muted
       ? "Muted"
       : "Mute";
   const hint = inheritsMute
-    ? "The whole project is muted. Unmute it from the project page."
+    ? workspaceMuted
+      ? "All projects are muted. Unmute them from the Projects page."
+      : "The whole project is muted. Unmute it from the project page."
     : muted
-      ? `Unmute this ${what}`
-      : `Mute general activity from this ${what}. You'll still get @mentions, replies to you and update requests sent to you.`;
+      ? allProjects
+        ? "Unmute all project notifications"
+        : `Unmute this ${what}`
+      : allProjects
+        ? "Mute general activity from all projects. You'll still get @mentions, replies to you and update requests sent to you."
+        : `Mute general activity from this ${what}. You'll still get @mentions, replies to you and update requests sent to you.`;
 
   return (
     <button
@@ -89,12 +115,20 @@ export function MuteToggle({
       onClick={toggle}
       disabled={!mutes || inheritsMute || setMute.isPending}
       aria-pressed={muted}
-      aria-label={iconOnly ? `${label}. ${hint}` : undefined}
+      aria-label={
+        iconOnly
+          ? allProjects
+            ? muted
+              ? "Unmute all project notifications"
+              : "Mute all project notifications"
+            : `${label}. ${hint}`
+          : undefined
+      }
       title={hint}
       className={cn(
         "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 disabled:cursor-default",
         iconOnly
-          ? "h-10 w-10 shrink-0 rounded-lg border"
+          ? "h-11 w-11 shrink-0 rounded-lg border"
           : "gap-1.5 rounded-lg px-2.5 py-1.5 text-xs",
         muted
           ? cn(

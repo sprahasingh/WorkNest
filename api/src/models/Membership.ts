@@ -35,6 +35,8 @@ const membershipSchema = new Schema(
       default: [],
       select: false,
     },
+    // Personal preference to mute general activity from every project.
+    mutedAllProjects: { type: Boolean, default: false, select: false },
   },
   { timestamps: true },
 );

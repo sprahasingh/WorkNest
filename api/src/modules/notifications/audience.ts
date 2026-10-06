@@ -47,6 +47,7 @@ export async function mutedAmong(
   const muted = await Membership.find({
     userId: { $in: userIds },
     $or: [
+      { mutedAllProjects: true },
       { mutedProjectIds: projectId },
       ...(taskId ? [{ mutedTaskIds: taskId }] : []),
     ],

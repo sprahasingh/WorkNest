@@ -113,6 +113,7 @@ export function notificationLink(
 export interface Mutes {
   projectIds: string[];
   taskIds: string[];
+  allProjects: boolean;
 }
 
 export async function getMutes(orgId: string): Promise<Mutes> {
@@ -122,7 +123,8 @@ export async function getMutes(orgId: string): Promise<Mutes> {
   return response.data;
 }
 
-export type MuteTarget = { projectId: string } | { taskId: string };
+export type MuteTarget =
+  { projectId: string } | { taskId: string } | { allProjects: true };
 
 export async function setMute(
   orgId: string,
