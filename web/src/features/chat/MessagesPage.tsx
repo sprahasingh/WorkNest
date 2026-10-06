@@ -138,6 +138,7 @@ export function MessagesPage() {
       style={{ height: `${Math.max(visibleHeight - 64, 320)}px` }}
     >
       <aside
+        data-tour="messages-content"
         className={cn(
           "w-full shrink-0 border-r border-slate-200 md:block md:w-80 lg:w-96 dark:border-slate-800",
           conversationId ? "hidden" : "block",

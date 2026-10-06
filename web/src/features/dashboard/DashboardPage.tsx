@@ -270,7 +270,9 @@ export function DashboardPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <ViewSwitch value={view} onChange={setView} />
+            <div data-tour="dashboard-view">
+              <ViewSwitch value={view} onChange={setView} />
+            </div>
             {isUpdating && (
               <span
                 role="status"
@@ -280,6 +282,7 @@ export function DashboardPage() {
               </span>
             )}
             <select
+              data-tour="dashboard-range"
               value={
                 customDraft || typeof days === "object"
                   ? "custom"
@@ -400,12 +403,14 @@ export function DashboardPage() {
                 />
               </div>
 
-              <StatusHistoryCard
-                rows={statusHistoryRows}
-                granularity={data.trend.granularity}
-                period={period}
-                isDark={isDark}
-              />
+              <div data-tour="dashboard-chart">
+                <StatusHistoryCard
+                  rows={statusHistoryRows}
+                  granularity={data.trend.granularity}
+                  period={period}
+                  isDark={isDark}
+                />
+              </div>
 
               {/* Pairs sit side by side only when each chart gets enough room,
               judged by the space the dashboard actually has (the sidebar
@@ -416,35 +421,41 @@ export function DashboardPage() {
                   period={period}
                   isDark={isDark}
                 />
-                <OpenByPriorityCard
-                  counts={data.openByPriority}
-                  dueSoon={data.dueSoonCount}
+                <div data-tour="dashboard-priority">
+                  <OpenByPriorityCard
+                    counts={data.openByPriority}
+                    dueSoon={data.dueSoonCount}
+                    isDark={isDark}
+                  />
+                </div>
+              </div>
+
+              <div data-tour="dashboard-flow">
+                <CreatedVsCompletedCard
+                  title={flowTitle(data.trend)}
+                  period={period}
+                  rows={flowRows}
+                  created={{ total: data.trend.total, change }}
+                  completed={{
+                    total: data.completed.total,
+                    change: completedChange,
+                  }}
+                  averageText={
+                    data.trend.total + data.completed.total > 0
+                      ? `Avg ${formatAverage(createdAverage)} created and ${formatAverage(completedAverage)} completed ${per}`
+                      : null
+                  }
                   isDark={isDark}
                 />
               </div>
 
-              <CreatedVsCompletedCard
-                title={flowTitle(data.trend)}
-                period={period}
-                rows={flowRows}
-                created={{ total: data.trend.total, change }}
-                completed={{
-                  total: data.completed.total,
-                  change: completedChange,
-                }}
-                averageText={
-                  data.trend.total + data.completed.total > 0
-                    ? `Avg ${formatAverage(createdAverage)} created and ${formatAverage(completedAverage)} completed ${per}`
-                    : null
-                }
-                isDark={isDark}
-              />
-
-              <WorkloadCard
-                workload={data.workload}
-                unassigned={data.unassignedOpenCount}
-                isDark={isDark}
-              />
+              <div data-tour="dashboard-workload">
+                <WorkloadCard
+                  workload={data.workload}
+                  unassigned={data.unassignedOpenCount}
+                  isDark={isDark}
+                />
+              </div>
             </>
           ) : (
             <ProjectsOverview

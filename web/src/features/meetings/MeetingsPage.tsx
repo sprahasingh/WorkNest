@@ -174,7 +174,7 @@ export function MeetingsPage() {
             Only you and the people invited can see a meeting.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div data-tour="meetings-actions" className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => setMeetNowOpen(true)}>
             <svg
               viewBox="0 0 24 24"
@@ -284,16 +284,18 @@ export function MeetingsPage() {
       )}
 
       <div className="mt-6">
-        <ViewTabs<Tab>
-          label="Meeting views"
-          value={tab}
-          onChange={setTab}
-          tabs={[
-            { value: "upcoming", label: "Upcoming" },
-            { value: "past", label: "Past" },
-            { value: "calendar", label: "Calendar" },
-          ]}
-        />
+        <div data-tour="meetings-tabs">
+          <ViewTabs<Tab>
+            label="Meeting views"
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { value: "upcoming", label: "Upcoming" },
+              { value: "past", label: "Past" },
+              { value: "calendar", label: "Calendar" },
+            ]}
+          />
+        </div>
       </div>
 
       {tab !== "calendar" && pending > 0 && (
@@ -306,7 +308,7 @@ export function MeetingsPage() {
         </p>
       )}
 
-      <div className="mt-4">
+      <div data-tour="meetings-content" className="mt-4">
         {tab === "calendar" ? (
           <div className="space-y-6">
             <MonthCalendar
