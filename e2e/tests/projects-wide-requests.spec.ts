@@ -114,13 +114,11 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
 
   await page.setViewportSize({ width: 320, height: 850 });
   await page.goto(`/orgs/${orgId}/projects`);
-  const updateAction = page.getByRole("button", {
-    name: "Request updates across projects",
-  });
+  const updateAction = page.getByRole("button", { name: "Update", exact: true });
   await expect(updateAction).toBeEnabled();
   await updateAction.click();
   const requestDialog = page.getByRole("dialog", {
-    name: "Ask across active projects",
+    name: "Update across active projects",
   });
   await expect(requestDialog).toContainText(
     "2 active projects with open tasks",
@@ -216,6 +214,6 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
   await page.reload();
   await expect(updateAction).toBeDisabled();
   await expect(
-    page.getByRole("dialog", { name: "Ask across active projects" }),
+    page.getByRole("dialog", { name: "Update across active projects" }),
   ).toHaveCount(0);
 });
