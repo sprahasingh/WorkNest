@@ -49,6 +49,11 @@ const MOUNTS: Record<string, { prefix: string; file: string; router: string }> =
       router: "meetingsRouter",
     },
     billing: { prefix: "/billing", file: "billing", router: "router" },
+    preferences: {
+      prefix: "/preferences",
+      file: "preferences",
+      router: "router",
+    },
   };
 
 function discoverRoutes(): [Method, string][] {
