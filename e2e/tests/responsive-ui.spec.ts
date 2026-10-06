@@ -289,20 +289,30 @@ test("keyboard, retry, and lifecycle flows remain usable at phone widths", async
   await page.getByRole("button", { name: "New task" }).click();
   await page.getByLabel("Title", { exact: true }).fill("Lifecycle task");
   await page.getByRole("button", { name: "Create task" }).click();
+<<<<<<< Updated upstream
   await page
     .getByRole("button", { name: "Lifecycle task actions" })
     .click();
   await page.getByRole("button", { name: "Move to bin" }).click();
+=======
+  await page.locator('summary[aria-label="Lifecycle task actions"]').click();
+  await page.getByRole("menuitem", { name: "Move to bin" }).click();
+>>>>>>> Stashed changes
   await expect(
     page.getByRole("dialog", { name: "Move task to bin?" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("link", { name: /Projects/ }).click();
+<<<<<<< Updated upstream
   await page
     .getByRole("button", { name: "Lifecycle check actions" })
     .click();
   await page.getByRole("button", { name: "Archive", exact: true }).click();
+=======
+  await page.locator('summary[aria-label="Lifecycle check actions"]').click();
+  await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
+>>>>>>> Stashed changes
   await expect(
     page.getByRole("dialog", { name: "Archive project?" }),
   ).toBeVisible();
