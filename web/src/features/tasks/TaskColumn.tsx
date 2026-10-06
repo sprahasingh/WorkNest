@@ -21,6 +21,13 @@ interface TaskColumnProps {
   canChangeStatus: (task: Task) => boolean;
   onStatusChange: (task: Task, newStatus: TaskStatus) => void;
   onTaskClick: (task: Task) => void;
+  canEdit: (task: Task) => boolean;
+  canManage: boolean;
+  onArchive: (task: Task) => void;
+  onUnarchive: (task: Task) => void;
+  onRestore: (task: Task) => void;
+  onDelete: (task: Task) => void;
+  onDeletePermanently: (task: Task) => void;
 }
 
 export function TaskColumn({
@@ -33,6 +40,13 @@ export function TaskColumn({
   canChangeStatus,
   onStatusChange,
   onTaskClick,
+  canEdit,
+  canManage,
+  onArchive,
+  onUnarchive,
+  onRestore,
+  onDelete,
+  onDeletePermanently,
 }: TaskColumnProps) {
   const { data: organization } = useOrgDetails(orgId);
   const {
@@ -86,6 +100,14 @@ export function TaskColumn({
               canChangeStatus={view === "active" && canChangeStatus(task)}
               onStatusChange={onStatusChange}
               onClick={() => onTaskClick(task)}
+              view={view}
+              canEdit={canEdit(task)}
+              canManage={canManage}
+              onArchive={() => onArchive(task)}
+              onUnarchive={() => onUnarchive(task)}
+              onRestore={() => onRestore(task)}
+              onDelete={() => onDelete(task)}
+              onDeletePermanently={() => onDeletePermanently(task)}
             />
           ))}
 

@@ -26,6 +26,11 @@ import {
   useTaskStats,
   useTaskViewCounts,
   useUpdateTaskStatus,
+  useArchiveTask,
+  useUnarchiveTask,
+  useRestoreTask,
+  useDeleteTask,
+  useDeleteTaskPermanently,
   type TaskFilters,
 } from "./queries";
 import { canChangeTaskStatus } from "./ownership";
@@ -67,8 +72,14 @@ export function ProjectBoard() {
   const canCreate = useCan("task:create");
   const canLead = useCan("task:request-update");
   const canManageProject = useCan("project:write");
+  const canManageTasks = useCan("task:delete");
+  const canUpdateOwnTask = useCan("task:update:own");
 
   const [drawerState, setDrawerState] = useState<DrawerState>(null);
+  const [taskConfirm, setTaskConfirm] = useState<{
+    task: Task;
+    permanent: boolean;
+  } | null>(null);
 
   // Notifications link here with ?task=<id> (open that task's updates) or
   // ?updates=1 (open the project-wide updates panel).
@@ -127,6 +138,14 @@ export function ProjectBoard() {
   );
   const linkedTaskQuery = useTask(orgId, linkedTaskId);
   const updateStatus = useUpdateTaskStatus(orgId, projectId ?? "", filters);
+  const archiveTask = useArchiveTask(orgId, projectId ?? "");
+  const unarchiveTask = useUnarchiveTask(orgId, projectId ?? "");
+  const restoreTask = useRestoreTask(orgId, projectId ?? "");
+  const deleteTask = useDeleteTask(orgId, projectId ?? "");
+  const deleteTaskPermanently = useDeleteTaskPermanently(
+    orgId,
+    projectId ?? "",
+  );
   useMarkReadWhenViewed(
     orgId,
     updatesOpen && projectId ? { kind: "project", projectId } : null,
@@ -483,6 +502,37 @@ export function ProjectBoard() {
               }
               onStatusChange={handleStatusChange}
               onTaskClick={openTaskFromBoard}
+              canEdit={(task) =>
+                task.status !== "done" &&
+                !task.archivedAt &&
+                !task.deletedAt &&
+                (canUpdateAny ||
+                  (canUpdateOwnTask &&
+                    (task.assigneeIds ?? []).includes(currentUserId)))
+              }
+              canManage={canManageTasks}
+              onArchive={(task) =>
+                archiveTask.mutate(task._id, {
+                  onSuccess: () => toast.success("Task archived"),
+                  onError: (error) => toast.error(parseApiError(error).message),
+                })
+              }
+              onUnarchive={(task) =>
+                unarchiveTask.mutate(task._id, {
+                  onSuccess: () => toast.success("Task unarchived"),
+                  onError: (error) => toast.error(parseApiError(error).message),
+                })
+              }
+              onRestore={(task) =>
+                restoreTask.mutate(task._id, {
+                  onSuccess: () => toast.success("Task restored"),
+                  onError: (error) => toast.error(parseApiError(error).message),
+                })
+              }
+              onDelete={(task) => setTaskConfirm({ task, permanent: false })}
+              onDeletePermanently={(task) =>
+                setTaskConfirm({ task, permanent: true })
+              }
             />
           ))}
         </div>
@@ -499,6 +549,50 @@ export function ProjectBoard() {
         initialTab={openDrawer?.mode === "edit" ? openDrawer.tab : undefined}
         focusActivityId={linkedTaskId ? linkedMessageId : null}
       />
+
+      <Modal
+        open={taskConfirm !== null}
+        onClose={() => setTaskConfirm(null)}
+        title={
+          taskConfirm?.permanent
+            ? "Delete task permanently?"
+            : "Move task to bin?"
+        }
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          {taskConfirm?.permanent
+            ? `“${taskConfirm.task.title}” and its updates will be deleted permanently. This cannot be undone.`
+            : `“${taskConfirm?.task.title}” will move to the bin and can be restored for 30 days.`}
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setTaskConfirm(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            loading={deleteTask.isPending || deleteTaskPermanently.isPending}
+            onClick={() => {
+              if (!taskConfirm) return;
+              const mutation = taskConfirm.permanent
+                ? deleteTaskPermanently
+                : deleteTask;
+              mutation.mutate(taskConfirm.task._id, {
+                onSuccess: () => {
+                  toast.success(
+                    taskConfirm.permanent
+                      ? "Task deleted permanently"
+                      : "Task moved to the bin",
+                  );
+                  setTaskConfirm(null);
+                },
+                onError: (error) => toast.error(parseApiError(error).message),
+              });
+            }}
+          >
+            {taskConfirm?.permanent ? "Delete permanently" : "Move to bin"}
+          </Button>
+        </div>
+      </Modal>
 
       <Modal
         open={updatesOpen}
