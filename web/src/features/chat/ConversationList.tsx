@@ -326,6 +326,7 @@ export function ConversationList({
                   type="button"
                   aria-label={`More options for ${title}`}
                   aria-haspopup="menu"
+                  aria-expanded={menu?.conversation.id === conversation.id}
                   onClick={(event) => {
                     const box = event.currentTarget.getBoundingClientRect();
                     setMenu({

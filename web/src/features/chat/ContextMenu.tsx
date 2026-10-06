@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 
 export interface MenuItem<Action extends string = string> {
   action: Action;
@@ -31,20 +32,29 @@ export function ContextMenu<Action extends string>({
   onClose,
 }: ContextMenuProps<Action>) {
   const firstRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement>(null);
+  const menuRef = useRef<HTMLElement>(null);
+  const closeReasonRef = useRef<string | null>(null);
+  const isOpen = anchor !== null;
+  useContextualOverlay(isOpen, triggerRef, menuRef, (reason) => {
+    closeReasonRef.current = reason;
+    onClose();
+  });
 
   useEffect(() => {
-    if (!anchor) return;
+    if (!isOpen) return;
     const previous = document.activeElement as HTMLElement | null;
+    closeReasonRef.current = null;
     firstRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("keydown", onKey);
-      if (previous && document.contains(previous)) previous.focus();
+      if (
+        closeReasonRef.current !== "scroll" &&
+        previous &&
+        document.contains(previous)
+      )
+        previous.focus();
     };
-  }, [anchor, onClose]);
+  }, [isOpen]);
 
   if (!anchor) return null;
 
@@ -90,12 +100,10 @@ export function ContextMenu<Action extends string>({
           "absolute inset-0",
           anchor.touch && "bg-slate-900/30 backdrop-blur-[1px]",
         )}
-        // Closing on the press itself, not the click, means lifting the finger
-        // that opened the menu (a long press) can't close it straight away.
-        onPointerDown={onClose}
       />
       {anchor.touch ? (
         <div
+          ref={menuRef as React.RefObject<HTMLDivElement>}
           role="menu"
           aria-label={`Options for ${title}`}
           className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-2xl animate-[sheet-up_200ms_ease-out] motion-reduce:animate-none dark:border-slate-700 dark:bg-slate-800"
@@ -108,6 +116,7 @@ export function ContextMenu<Action extends string>({
         </div>
       ) : (
         <ul
+          ref={menuRef as React.RefObject<HTMLUListElement>}
           role="menu"
           aria-label={`Options for ${title}`}
           style={{ left, top, width: MENU_WIDTH }}

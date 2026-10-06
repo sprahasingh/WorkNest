@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 
 // A small "i" button that shows or hides an explanation, so long help text
 // stays out of the way until someone wants it. Pair it with InfoPanel; the
@@ -61,10 +62,19 @@ export function InfoPanel({
   children: ReactNode;
   className?: string;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    triggerRef.current = document.querySelector(
+      `[aria-controls="${CSS.escape(id)}"]`,
+    );
+  }, [id, open]);
+  useContextualOverlay(open, triggerRef, panelRef, onClose);
   if (!open) return null;
   return (
     <div
       id={id}
+      ref={panelRef}
       role="note"
       className={cn(
         "relative mt-2 rounded-lg bg-slate-50 py-2 pl-3 pr-9 text-xs leading-relaxed text-slate-600 ring-1 ring-slate-200 ring-inset animate-[fade-in_150ms_ease-out] motion-reduce:animate-none dark:bg-slate-800/70 dark:text-slate-300 dark:ring-slate-700",

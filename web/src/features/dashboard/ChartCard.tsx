@@ -10,6 +10,7 @@ import { ResponsiveContainer } from "recharts";
 import { useTheme } from "@/theme/theme-context";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
+import { useDismissOnScroll } from "@/hooks/useContextualOverlay";
 
 // Two taps or clicks this close together (ms) count as a double tap.
 const DOUBLE_TAP_MS = 350;
@@ -48,6 +49,7 @@ function useDoubleTapDetails() {
     pointerId: number;
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  useDismissOnScroll(showDetails, () => setShowDetails(false));
 
   // A tap anywhere else hides them again.
   useEffect(() => {
