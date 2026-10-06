@@ -13,16 +13,24 @@ import type { SetMuteInput } from "./notifications.schemas.js";
 export async function getMyMutes() {
   const context = getTenantContext()!;
   const membership = await Membership.findOne({ userId: context.userId })
-    .select("+mutedProjectIds +mutedTaskIds")
+    .select("+mutedProjectIds +mutedTaskIds +mutedAllProjects")
     .lean();
   return {
     projectIds: (membership?.mutedProjectIds ?? []).map(String),
     taskIds: (membership?.mutedTaskIds ?? []).map(String),
+    allProjects: membership?.mutedAllProjects ?? false,
   };
 }
 
 export async function setMute(input: SetMuteInput) {
   const context = getTenantContext()!;
+  if (input.allProjects) {
+    await Membership.updateOne(
+      { userId: context.userId },
+      { $set: { mutedAllProjects: input.muted } },
+    );
+    return getMyMutes();
+  }
   let field: "mutedProjectIds" | "mutedTaskIds";
   let id: mongoose.Types.ObjectId;
   if (input.taskId) {

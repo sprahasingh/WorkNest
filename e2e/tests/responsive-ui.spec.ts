@@ -34,6 +34,30 @@ test("core workspace pages fit common responsive viewports", async ({
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
 
+    await page.goto(`/orgs/${orgId}/projects`);
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    const allProjectsMute = page.getByRole("button", {
+      name: /Mute all project notifications|Unmute all project notifications/,
+    });
+    const newProject = page.getByRole("button", { name: "New project" });
+    await expect(allProjectsMute).toBeVisible();
+    await expect(newProject).toBeVisible();
+    await expect(newProject).toHaveClass(/bg-teal-600|bg-teal-500/);
+    const projectActions = await Promise.all([
+      allProjectsMute.boundingBox(),
+      newProject.boundingBox(),
+    ]);
+    expect(projectActions[0]).toBeTruthy();
+    expect(projectActions[1]).toBeTruthy();
+    expect(projectActions[0]!.x + projectActions[0]!.width).toBeLessThanOrEqual(
+      projectActions[1]!.x,
+    );
+    for (const box of projectActions) {
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+    }
+    await expectNoPageOverflow(page, viewport.name);
+
     await page.goto(`/orgs/${orgId}/members`);
     await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
     await expect(
@@ -79,6 +103,10 @@ test("core workspace pages fit common responsive viewports", async ({
       .toBeLessThanOrEqual(380);
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
+    await page.setViewportSize(viewport);
+    expect(await page.evaluate(() => window.innerHeight), viewport.name).toBe(
+      viewport.height,
+    );
     await expectNoPageOverflow(page, viewport.name);
 
     await page.goto(`/orgs/${orgId}/messages`);
@@ -121,14 +149,48 @@ test("core workspace pages fit common responsive viewports", async ({
     await expect(
       page.getByRole("heading", { name: "Responsive board" }),
     ).toBeVisible();
+    const projectMute = page.getByRole("button", {
+      name: /Mute general activity from this project|Unmute this project/,
+    });
+    const projectUpdates = page.getByRole("button", {
+      name: viewport.width < 640 ? "Updates" : "Project updates",
+    });
+    const newTask = page.getByRole("button", { name: "New task" });
+    await expect(projectMute).toBeVisible();
+    await expect(projectUpdates).toBeVisible();
+    await expect(newTask).toBeVisible();
+    const projectPageActions = await Promise.all([
+      projectMute.boundingBox(),
+      projectUpdates.boundingBox(),
+      newTask.boundingBox(),
+    ]);
+    for (let index = 0; index < projectPageActions.length; index += 1) {
+      const box = projectPageActions[index];
+      expect(box, `${viewport.name} project action ${index}`).toBeTruthy();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+    }
     if (viewport.width === 320) {
       const filtersButton = page.getByRole("button", { name: /^Filters/ });
+      const sortButton = page.getByRole("button", { name: "Sort" });
+      const myTasks = page.getByLabel("My tasks");
       await expect(filtersButton).toBeVisible();
-      await expect(page.getByLabel("My tasks")).toBeVisible();
-      await page.getByLabel("My tasks").click();
+      await expect(sortButton).toBeVisible();
+      await expect(myTasks).toBeVisible();
+      const rowBoxes = await Promise.all([
+        filtersButton.boundingBox(),
+        sortButton.boundingBox(),
+        myTasks.locator("..").boundingBox(),
+      ]);
+      expect(rowBoxes[0]!.x).toBeLessThan(rowBoxes[1]!.x);
+      expect(rowBoxes[1]!.x).toBeLessThan(rowBoxes[2]!.x);
+      for (const box of rowBoxes)
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(await page.locator("body").innerText()).not.toMatch(/\bD\.\.\./);
+      await myTasks.click();
       await expect(page).toHaveURL(/mine=true/);
-      await expect(page.getByLabel("My tasks")).toBeChecked();
-      await page.getByLabel("My tasks").click();
+      await expect(myTasks).toBeChecked();
+      await myTasks.click();
       await expect(page).not.toHaveURL(/mine=true/);
       await filtersButton.click();
       const filterDialog = page.getByRole("dialog", { name: "Task filters" });
@@ -146,12 +208,24 @@ test("core workspace pages fit common responsive viewports", async ({
         page.getByRole("button", { name: "Filters", exact: true }),
       ).toBeVisible();
       await page.getByRole("button", { name: "Done" }).click();
-      const mobileSort = page.getByLabel("Sort tasks").first();
-      await expect(
-        mobileSort.locator("option", { hasText: "Due Date: Latest First" }),
-      ).toHaveCount(1);
-      await mobileSort.selectOption("dueDate:desc");
+      await expect(sortButton).toHaveText("Sort");
+      await sortButton.click();
+      const sortMenu = page.getByRole("menu");
+      await expect(sortMenu.getByText("Due Date: Soonest First")).toBeVisible();
+      await expect(sortMenu.getByText("Due Date: Latest First")).toBeVisible();
+      await expect(sortMenu.getByText("Created: Newest First")).toBeVisible();
+      await expect(sortMenu.getByText("Created: Oldest First")).toBeVisible();
+      await expect(sortMenu.getByText("Priority: High → Low")).toBeVisible();
+      await expect(sortMenu.getByText("Priority: Low → High")).toBeVisible();
+      const selectedSort = sortMenu.locator('[aria-current="true"]');
+      await expect(selectedSort).toHaveCount(1);
+      const sortItemBox = await selectedSort.boundingBox();
+      expect(sortItemBox!.height).toBeGreaterThanOrEqual(44);
+      await sortMenu
+        .getByRole("menuitem", { name: /Due Date: Latest First/ })
+        .click();
       await expect(page).toHaveURL(/sortBy=dueDate/);
+      await expect(page).toHaveURL(/sortOrder=desc/);
       const tabs = page.locator('[role="tablist"]');
       await expect(tabs.getByRole("tab", { name: /Active/ })).toBeVisible();
       await expect(
@@ -180,6 +254,9 @@ test("core workspace pages fit common responsive viewports", async ({
         .poll(() => columns.evaluate((element) => element.scrollLeft))
         .toBe(0);
       await expect(page.getByText("→ Swipe to see In progress")).toBeVisible();
+      // Let the smooth scroll animation finish before starting a separate
+      // wheel gesture, so its remaining animation doesn't consume the input.
+      await page.waitForTimeout(300);
       const columnBounds = await columns.boundingBox();
       expect(columnBounds).toBeTruthy();
       await page.mouse.move(
@@ -199,8 +276,113 @@ test("core workspace pages fit common responsive viewports", async ({
     } else if (viewport.width >= 768) {
       await expect(page.getByLabel("Filter by priority")).toBeVisible();
       await expect(page.getByLabel("Filter by assignee")).toBeVisible();
+      await expect(page.getByLabel("Sort tasks").last()).toBeVisible();
     }
     await expectNoPageOverflow(page, viewport.name);
+  }
+});
+
+test("project actions and mobile task controls fit phone and desktop widths", async ({
+  page,
+}) => {
+  await signUpAndConfirm(page, uniqueEmail("project-actions-responsive"));
+  const orgId = page.url().match(/\/orgs\/([^/]+)/)?.[1];
+  expect(orgId).toBeTruthy();
+  await page.goto(`/orgs/${orgId}/projects`);
+  await page.getByRole("button", { name: "New project" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Action layout");
+  await page.getByLabel("Key", { exact: true }).fill("ACT");
+  await page.getByRole("button", { name: "Create project" }).click();
+  await page.getByRole("link", { name: "Action layout" }).click();
+  await page.getByRole("button", { name: "New task" }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Responsive controls");
+  await page.getByRole("button", { name: "Create task" }).click();
+  const boardUrl = page.url();
+
+  for (const width of [320, 1280]) {
+    await page.setViewportSize({ width, height: width === 320 ? 568 : 800 });
+    await page.goto(`/orgs/${orgId}/projects`);
+    const bell = page.getByRole("button", {
+      name: /Mute all project notifications|Unmute all project notifications/,
+    });
+    const createProject = page.getByRole("button", { name: "New project" });
+    await expect(bell).toBeVisible();
+    await expect(createProject).toBeVisible();
+    await expect(createProject).toHaveClass(/bg-teal-600|bg-teal-500/);
+    const projectBoxes = await Promise.all([
+      bell.boundingBox(),
+      createProject.boundingBox(),
+    ]);
+    expect(projectBoxes[0]!.height).toBeGreaterThanOrEqual(44);
+    expect(projectBoxes[1]!.height).toBeGreaterThanOrEqual(44);
+    expect(projectBoxes[0]!.x + projectBoxes[0]!.width).toBeLessThanOrEqual(
+      projectBoxes[1]!.x,
+    );
+    await expectNoPageOverflow(page, `${width}px Projects`);
+
+    await page.goto(boardUrl);
+    const filters = page.getByRole("button", { name: /^Filters/ });
+    const sort =
+      width === 320 ? page.getByRole("button", { name: "Sort" }) : null;
+    const myTasks = page.getByLabel("My tasks");
+    const projectBell = page.getByRole("button", {
+      name: /Mute general activity from this project|Unmute this project/,
+    });
+    const projectUpdates = page.getByRole("button", {
+      name: width === 320 ? "Updates" : "Project updates",
+    });
+    const newTask = page.getByRole("button", { name: "New task" });
+    await expect(projectBell).toBeVisible();
+    await expect(projectUpdates).toBeVisible();
+    await expect(newTask).toBeVisible();
+    if (width === 320) {
+      await expect(filters).toBeVisible();
+      await expect(sort!).toHaveText("Sort");
+      await expect(myTasks).toBeVisible();
+      const orderedControls = await Promise.all([
+        filters.boundingBox(),
+        sort!.boundingBox(),
+        myTasks.locator("..").boundingBox(),
+      ]);
+      expect(orderedControls[0]!.x).toBeLessThan(orderedControls[1]!.x);
+      expect(orderedControls[1]!.x).toBeLessThan(orderedControls[2]!.x);
+      for (const box of orderedControls) {
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      }
+      await sort!.click();
+      const menu = page.getByRole("menu");
+      for (const option of [
+        "Created: Newest First",
+        "Created: Oldest First",
+        "Due Date: Soonest First",
+        "Due Date: Latest First",
+        "Priority: High → Low",
+        "Priority: Low → High",
+      ]) {
+        await expect(menu.getByText(option)).toBeVisible();
+      }
+      await expect(menu.locator('[aria-current="true"]')).toHaveCount(1);
+      await menu
+        .getByRole("menuitem", { name: /Priority: High → Low/ })
+        .click();
+      await expect(page).toHaveURL(/sortBy=priority/);
+      await expect(page.locator("body")).not.toContainText(/\bD\.\.\./);
+
+      await myTasks.click();
+      await expect(page).toHaveURL(/mine=true/);
+      await expect(myTasks).toBeChecked();
+      await myTasks.click();
+      await expect(page).not.toHaveURL(/mine=true/);
+      await filters.click();
+      const filterDialog = page.getByRole("dialog", { name: "Task filters" });
+      await filterDialog.getByLabel("Priority").selectOption("high");
+      await expect(
+        page.getByRole("button", { name: /Filters, 1 active/ }),
+      ).toBeVisible();
+      await filterDialog.getByRole("button", { name: "Clear filters" }).click();
+      await filterDialog.getByRole("button", { name: "Done" }).click();
+    }
+    await expectNoPageOverflow(page, `${width}px Project Tasks`);
   }
 });
 

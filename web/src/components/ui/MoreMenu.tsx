@@ -6,9 +6,15 @@ interface MoreMenuProps {
   label: string;
   children: React.ReactNode;
   className?: string;
+  triggerText?: string;
 }
 
-export function MoreMenu({ label, children, className }: MoreMenuProps) {
+export function MoreMenu({
+  label,
+  children,
+  className,
+  triggerText,
+}: MoreMenuProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -18,22 +24,29 @@ export function MoreMenu({ label, children, className }: MoreMenuProps) {
       <button
         type="button"
         ref={triggerRef}
-        aria-label={`${label} actions`}
+        aria-label={triggerText ?? `${label} actions`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-500 dark:text-slate-300 dark:hover:bg-slate-700 [&::-webkit-details-marker]:hidden"
+        className={cn(
+          "flex h-11 cursor-pointer list-none items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-500 [&::-webkit-details-marker]:hidden",
+          triggerText
+            ? "min-w-11 border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            : "w-11 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700",
+        )}
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          className="h-5 w-5"
-          aria-hidden="true"
-        >
-          <circle cx="5" cy="12" r="1.7" />
-          <circle cx="12" cy="12" r="1.7" />
-          <circle cx="19" cy="12" r="1.7" />
-        </svg>
+        {triggerText ?? (
+          <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="h-5 w-5"
+            aria-hidden="true"
+          >
+            <circle cx="5" cy="12" r="1.7" />
+            <circle cx="12" cy="12" r="1.7" />
+            <circle cx="19" cy="12" r="1.7" />
+          </svg>
+        )}
       </button>
       {open && (
         <div

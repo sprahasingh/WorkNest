@@ -16,6 +16,7 @@ import { Modal } from "@/components/Modal";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
+import { MuteToggle } from "@/features/notifications/MuteToggle";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import { ViewTabs } from "@/components/ui/ViewTabs";
@@ -358,24 +359,28 @@ export function ProjectsPage() {
               </p>
             )}
           </div>
-          {canWrite && (
-            <Button
-              data-tour="projects-create"
-              onClick={openCreateModal}
-              disabled={paused || growthBlocked || atProjectLimit}
-              title={
-                paused
-                  ? PAUSED_HINT
-                  : growthBlocked
-                    ? GROWTH_BLOCKED_HINT
-                    : atProjectLimit
-                      ? `All ${org?.projectLimit} project slots on the ${PLAN_NAMES[org!.plan]} plan are in use. Archive or delete a project, or upgrade.`
-                      : undefined
-              }
-            >
-              New project
-            </Button>
-          )}
+          <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:gap-2">
+            <MuteToggle orgId={orgId} allProjects iconOnly />
+            {canWrite && (
+              <Button
+                data-tour="projects-create"
+                onClick={openCreateModal}
+                disabled={paused || growthBlocked || atProjectLimit}
+                title={
+                  paused
+                    ? PAUSED_HINT
+                    : growthBlocked
+                      ? GROWTH_BLOCKED_HINT
+                      : atProjectLimit
+                        ? `All ${org?.projectLimit} project slots on the ${PLAN_NAMES[org!.plan]} plan are in use. Archive or delete a project, or upgrade.`
+                        : undefined
+                }
+                className="min-w-0 flex-1 px-2 text-xs sm:flex-none sm:px-4 sm:text-sm"
+              >
+                New project
+              </Button>
+            )}
+          </div>
         </div>
 
         <div data-tour="projects-tabs">

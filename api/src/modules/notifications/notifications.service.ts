@@ -28,7 +28,7 @@ async function ensureMyDueNotifications(): Promise<void> {
   const now = new Date();
   const [membership, organization] = await Promise.all([
     Membership.findOne({ userId })
-      .select("role +mutedProjectIds +mutedTaskIds")
+      .select("role +mutedProjectIds +mutedTaskIds +mutedAllProjects")
       .lean(),
     Organization.findById(tenantId).select("timeZone").lean(),
   ]);
@@ -48,6 +48,7 @@ async function ensureMyDueNotifications(): Promise<void> {
     (membership?.mutedProjectIds ?? []).map(String),
   );
   const mutedTasks = new Set((membership?.mutedTaskIds ?? []).map(String));
+  const mutedAllProjects = membership?.mutedAllProjects ?? false;
   const allTasks = await Task.find({
     projectId: { $in: activeProjectIds },
     status: { $in: ["todo", "in_progress"] },
@@ -62,7 +63,8 @@ async function ensureMyDueNotifications(): Promise<void> {
   const tasks = allTasks.filter(
     (task) =>
       task.assigneeIds.some((assigneeId) => assigneeId.equals(userId)) ||
-      (!mutedProjects.has(String(task.projectId)) &&
+      (!mutedAllProjects &&
+        !mutedProjects.has(String(task.projectId)) &&
         !mutedTasks.has(String(task._id))),
   );
 
@@ -224,7 +226,9 @@ async function ensureMyDueNotifications(): Promise<void> {
       .sort({ dueDate: 1 })
       .select("_id name dueDate reminderCycle")
       .lean()
-  ).filter((project) => !mutedProjects.has(String(project._id)));
+  ).filter(
+    (project) => !mutedAllProjects && !mutedProjects.has(String(project._id)),
+  );
 
   const dueTodayProjectEventKeys = projects.flatMap((project) => {
     const dueDate = project.dueDate!;

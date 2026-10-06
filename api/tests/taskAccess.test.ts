@@ -1264,7 +1264,11 @@ describe("who hears about updates, and reply threads", () => {
     const mutes = await request(app)
       .get(`/api/orgs/${admin.orgId}/notifications/mutes`)
       .set("Authorization", `Bearer ${leo.accessToken}`);
-    expect(mutes.body).toEqual({ projectIds: [projectId], taskIds: [] });
+    expect(mutes.body).toEqual({
+      projectIds: [projectId],
+      taskIds: [],
+      allProjects: false,
+    });
     // Other people can't see who muted what.
     const members = await request(app)
       .get(`/api/orgs/${admin.orgId}/members`)
@@ -1291,6 +1295,168 @@ describe("who hears about updates, and reply threads", () => {
       .set("Authorization", `Bearer ${admin.accessToken}`)
       .send({ type: "update_request" });
     expect(asked.body.notifiedNames).toContain("User mute-leo@example.com");
+  });
+
+  it("mutes general activity from every project for only the current user", async () => {
+    const admin = await registerOrg(
+      "mute-all-admin@example.com",
+      "Mute All Org",
+    );
+    const mia = await addMember(
+      admin.orgId,
+      admin.accessToken,
+      "mute-all-mia@example.com",
+    );
+    const projectDueDate = new Date(Date.now() + 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const projectResult = await request(app)
+      .post(`/api/orgs/${admin.orgId}/projects`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ name: "Project MAL", key: "MAL", dueDate: projectDueDate });
+    const projectId = projectResult.body.project._id as string;
+    const taskDueDate = new Date(
+      Date.now() + 12 * 60 * 60 * 1000,
+    ).toISOString();
+    const taskResult = await createTask(
+      admin.orgId,
+      projectId,
+      admin.accessToken,
+      {
+        title: "Workspace mute",
+        assigneeIds: [mia.userId],
+        dueDate: taskDueDate,
+      },
+    );
+    const taskId = taskResult.body.task._id as string;
+    const mutesUrl = `/api/orgs/${admin.orgId}/notifications/mutes`;
+    const muted = await request(app)
+      .put(mutesUrl)
+      .set("Authorization", `Bearer ${mia.accessToken}`)
+      .send({ allProjects: true, muted: true });
+    expect(muted.status).toBe(200);
+    expect(muted.body.allProjects).toBe(true);
+    const persistedMute = await request(app)
+      .get(mutesUrl)
+      .set("Authorization", `Bearer ${mia.accessToken}`);
+    expect(persistedMute.body.allProjects).toBe(true);
+    const otherUser = await request(app)
+      .get(mutesUrl)
+      .set("Authorization", `Bearer ${admin.accessToken}`);
+    expect(otherUser.body.allProjects).toBe(false);
+
+    const post = (body: object) =>
+      request(app)
+        .post(`/api/orgs/${admin.orgId}/projects/${projectId}/activity`)
+        .set("Authorization", `Bearer ${admin.accessToken}`)
+        .send(body);
+    const general = await post({ type: "update", content: "General update" });
+    expect(general.body.notifiedCount).toBe(0);
+    const taskGeneral = await request(app)
+      .post(`/api/orgs/${admin.orgId}/tasks/${taskId}/activity`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ type: "update", content: "Task progress" });
+    expect(taskGeneral.body.notifiedCount).toBe(0);
+    const unreadDuringMute = await request(app)
+      .get(`/api/orgs/${admin.orgId}/notifications`)
+      .set("Authorization", `Bearer ${mia.accessToken}`);
+    expect(
+      unreadDuringMute.body.notifications.some(
+        (item: { projectId: string; type: string }) =>
+          item.projectId === projectId && item.type === "project_due_soon",
+      ),
+    ).toBe(false);
+    expect(
+      unreadDuringMute.body.notifications.some(
+        (item: { taskId: string; type: string }) =>
+          item.taskId === taskId && item.type === "task_due_soon",
+      ),
+    ).toBe(true);
+    const direct = await post({
+      type: "update",
+      content: "Mia, please check",
+      mentionMemberIds: [mia.userId],
+    });
+    expect(direct.body.notifiedNames).toContain(
+      "User mute-all-mia@example.com",
+    );
+
+    const requestUpdate = await post({ type: "update_request" });
+    expect(requestUpdate.body.notifiedNames).toContain(
+      "User mute-all-mia@example.com",
+    );
+    const miaPost = (body: object) =>
+      request(app)
+        .post(`/api/orgs/${admin.orgId}/projects/${projectId}/activity`)
+        .set("Authorization", `Bearer ${mia.accessToken}`)
+        .send(body);
+    const question = await miaPost({
+      type: "question",
+      content: "Can we confirm the next step?",
+      mentionMemberIds: [admin.userId],
+      notifyAll: false,
+    });
+    const directedReply = await post({
+      type: "reply",
+      content: "Yes, proceed with the plan.",
+      replyToId: question.body.activity._id,
+    });
+    expect(directedReply.body.notifiedNames).toContain(
+      "User mute-all-mia@example.com",
+    );
+
+    // Global mute wins while set; removing it exposes the narrower project
+    // and task preferences. A task mute never suppresses project-wide posts.
+    await request(app)
+      .put(mutesUrl)
+      .set("Authorization", `Bearer ${mia.accessToken}`)
+      .send({ projectId, muted: true });
+    await request(app)
+      .put(mutesUrl)
+      .set("Authorization", `Bearer ${mia.accessToken}`)
+      .send({ taskId, muted: true });
+
+    const unmuted = await request(app)
+      .put(mutesUrl)
+      .set("Authorization", `Bearer ${mia.accessToken}`)
+      .send({ allProjects: true, muted: false });
+    expect(unmuted.body.allProjects).toBe(false);
+    expect(unmuted.body.projectIds).toContain(projectId);
+    expect(unmuted.body.taskIds).toContain(taskId);
+    const stillProjectMuted = await post({
+      type: "update",
+      content: "Project remains muted",
+    });
+    expect(stillProjectMuted.body.notifiedCount).toBe(0);
+    const taskRemainsMuted = await request(app)
+      .post(`/api/orgs/${admin.orgId}/tasks/${taskId}/activity`)
+      .set("Authorization", `Bearer ${admin.accessToken}`)
+      .send({ type: "update", content: "Task remains muted" });
+    expect(taskRemainsMuted.body.notifiedCount).toBe(0);
+    await request(app)
+      .put(mutesUrl)
+      .set("Authorization", `Bearer ${mia.accessToken}`)
+      .send({ projectId, muted: false });
+    expect(
+      (await post({ type: "update", content: "Project is unmuted" })).body
+        .notifiedNames,
+    ).toContain("User mute-all-mia@example.com");
+    await request(app)
+      .put(mutesUrl)
+      .set("Authorization", `Bearer ${mia.accessToken}`)
+      .send({ taskId, muted: false });
+    expect(
+      (
+        await request(app)
+          .post(`/api/orgs/${admin.orgId}/tasks/${taskId}/activity`)
+          .set("Authorization", `Bearer ${admin.accessToken}`)
+          .send({ type: "update", content: "Task is unmuted" })
+      ).body.notifiedNames,
+    ).toContain("User mute-all-mia@example.com");
+    const persisted = await request(app)
+      .get(mutesUrl)
+      .set("Authorization", `Bearer ${mia.accessToken}`);
+    expect(persisted.body.allProjects).toBe(false);
   });
 
   it("shows an old thread in the project feed when someone replies to it", async () => {

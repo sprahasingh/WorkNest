@@ -156,7 +156,12 @@ export function useSetMute(orgId: string) {
       const toggle = (ids: string[], id: string) =>
         muted ? [...new Set([...ids, id])] : ids.filter((x) => x !== id);
       queryClient.setQueryData<Mutes>(key, (current) => {
-        const base = current ?? { projectIds: [], taskIds: [] };
+        const base = current ?? {
+          projectIds: [],
+          taskIds: [],
+          allProjects: false,
+        };
+        if ("allProjects" in target) return { ...base, allProjects: muted };
         return "projectId" in target
           ? { ...base, projectIds: toggle(base.projectIds, target.projectId) }
           : { ...base, taskIds: toggle(base.taskIds, target.taskId) };

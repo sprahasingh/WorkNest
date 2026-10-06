@@ -34,11 +34,19 @@ export const setMuteSchema = z
   .object({
     projectId: z.string().regex(objectIdRegex).optional(),
     taskId: z.string().regex(objectIdRegex).optional(),
+    allProjects: z.literal(true).optional(),
     muted: z.boolean(),
   })
   .strict()
-  .refine((input) => !!input.projectId !== !!input.taskId, {
-    message: "Choose a project or a task to mute",
-  });
+  .refine(
+    (input) =>
+      Number(!!input.projectId) +
+        Number(!!input.taskId) +
+        Number(!!input.allProjects) ===
+      1,
+    {
+      message: "Choose all projects, a project or a task to mute",
+    },
+  );
 
 export type SetMuteInput = z.infer<typeof setMuteSchema>;
