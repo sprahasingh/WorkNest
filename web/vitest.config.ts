@@ -5,7 +5,7 @@ export default {
     },
   },
   test: {
-    include: ["tests/**/*.test.{ts,tsx}"],
+    include: ["tests/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
     environment: "jsdom",
     environmentOptions: { jsdom: { url: "http://localhost/" } },
   },

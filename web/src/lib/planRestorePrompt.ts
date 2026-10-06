@@ -22,7 +22,12 @@ export function restorePromptSignature(
   planExpiresAt: string | null,
   projects: RestoreCandidate[],
   tasks: RestoreTaskCandidate[] = [],
+  restoreEligible = true,
 ): string | null {
+  // Only grace enforcement creates resources eligible for the post-upgrade
+  // review. Archived records can also be old, manually archived or stale
+  // cached query data, so their presence alone is never sufficient.
+  if (!restoreEligible) return null;
   const eligible = eligibleRestoreCandidates(projects);
   if (plan === "free" || (eligible.length === 0 && tasks.length === 0))
     return null;

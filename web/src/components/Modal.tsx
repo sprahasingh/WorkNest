@@ -25,12 +25,10 @@ export function Modal({
   size = "md",
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const [visibleHeight, setVisibleHeight] = useState(
-    () => window.visualViewport?.height ?? window.innerHeight,
-  );
-  const [viewportTop, setViewportTop] = useState(
-    () => window.visualViewport?.offsetTop ?? 0,
-  );
+  const [viewport, setViewport] = useState(() => ({
+    height: window.visualViewport?.height ?? window.innerHeight,
+    top: window.visualViewport?.offsetTop ?? 0,
+  }));
   const modalId = useId();
   // Closing on the backdrop only counts when the press began there too.
   // Dragging to select text inside a form and letting go outside the dialog
@@ -44,10 +42,18 @@ export function Modal({
   });
 
   useEffect(() => {
+    if (!open) return;
     const viewport = window.visualViewport;
     const update = () => {
-      setVisibleHeight(viewport?.height ?? window.innerHeight);
-      setViewportTop(viewport?.offsetTop ?? 0);
+      const next = {
+        height: viewport?.height ?? window.innerHeight,
+        top: viewport?.offsetTop ?? 0,
+      };
+      setViewport((current) =>
+        current.height === next.height && current.top === next.top
+          ? current
+          : next,
+      );
     };
     window.addEventListener("resize", update);
     viewport?.addEventListener("resize", update);
@@ -57,7 +63,7 @@ export function Modal({
       viewport?.removeEventListener("resize", update);
       viewport?.removeEventListener("scroll", update);
     };
-  }, []);
+  }, [open]);
 
   // Focus moves into the dialog, Tab stays inside it, and focus goes back to
   // what opened it when it closes.
@@ -121,8 +127,8 @@ export function Modal({
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-3 py-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-4 sm:py-3"
       style={{
-        top: viewportTop,
-        height: visibleHeight,
+        top: viewport.top,
+        height: viewport.height,
         bottom: "auto",
       }}
       onMouseDown={(event) => {
@@ -141,7 +147,7 @@ export function Modal({
       <div
         ref={dialogRef}
         style={{
-          maxHeight: `min(90dvh, ${Math.max(visibleHeight - 24, 160)}px)`,
+          maxHeight: `min(90dvh, ${Math.max(viewport.height - 24, 160)}px)`,
         }}
         tabIndex={-1}
         role="dialog"

@@ -124,6 +124,7 @@ const baseOrg: Organization = {
   plan: "free",
   planExpiresAt: null,
   planExpiredAt: null,
+  graceEnforcedAt: null,
   planExpiredFrom: null,
   graceEnforcedAt: null,
   graceArchived: null,
@@ -139,7 +140,12 @@ const baseOrg: Organization = {
 };
 
 function makeOrg(): Organization {
-  return { ...baseOrg, plan: mocks.plan };
+  return {
+    ...baseOrg,
+    plan: mocks.plan,
+    planExpiredAt: mocks.plan === "free" ? null : "2026-01-01T00:00:00.000Z",
+    graceEnforcedAt: mocks.plan === "free" ? null : "2026-02-01T00:00:00.000Z",
+  };
 }
 
 function mountSettings(queryClient = new QueryClient()) {
@@ -191,6 +197,21 @@ afterEach(() => {
 });
 
 describe("Settings upgrade restore flow", () => {
+  it("does not show a prompt for existing archived resources on a normal Settings visit", async () => {
+    mocks.plan = "pro";
+    mocks.getOrg.mockResolvedValue({
+      ...baseOrg,
+      plan: "pro",
+      planExpiredAt: null,
+      graceEnforcedAt: null,
+    });
+    mountSettings();
+    await waitForInitialSettings();
+    expect(
+      screen.queryByRole("dialog", { name: "Review archived projects" }),
+    ).toBeNull();
+  });
+
   it("rechecks eligible projects after successful checkout and shows the prompt after plan refresh", async () => {
     mocks.paymentsEnabled = true;
     const { queryClient } = mountSettings();

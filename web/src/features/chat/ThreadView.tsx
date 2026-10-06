@@ -184,8 +184,10 @@ export function ThreadView({
     const near =
       element.scrollHeight - element.scrollTop - element.clientHeight <
       STICK_THRESHOLD_PX;
-    stickRef.current = near;
-    setAtBottom(near);
+    if (stickRef.current !== near) {
+      stickRef.current = near;
+      setAtBottom(near);
+    }
     if (near) setUnseen(0);
   };
 

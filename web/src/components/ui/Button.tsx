@@ -72,6 +72,7 @@ export function Button({
   const wrapperRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const hideMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const repositionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { ["aria-describedby"]: describedBy, ...buttonProps } = props;
   const disabledMessage =
     disabledReason ?? title ?? "This action is unavailable right now.";
@@ -79,6 +80,7 @@ export function Button({
   useEffect(
     () => () => {
       if (hideMessageTimer.current) clearTimeout(hideMessageTimer.current);
+      if (repositionTimer.current) clearTimeout(repositionTimer.current);
     },
     [],
   );
@@ -101,13 +103,27 @@ export function Button({
           : Math.max(margin, anchor.top - tooltip.height - margin);
       setTooltipPosition({ left, top });
     };
-    const frame = requestAnimationFrame(placeTooltip);
-    window.addEventListener("resize", placeTooltip);
-    window.addEventListener("scroll", placeTooltip, true);
+    const showTooltip = () => {
+      if (repositionTimer.current) clearTimeout(repositionTimer.current);
+      placeTooltip();
+      if (tooltipRef.current) tooltipRef.current.style.visibility = "visible";
+    };
+    const onScroll = () => {
+      // The tooltip is fixed to the viewport. Hide it while the anchor moves,
+      // then measure once scrolling settles instead of forcing layout on each
+      // captured scroll event.
+      if (tooltipRef.current) tooltipRef.current.style.visibility = "hidden";
+      if (repositionTimer.current) clearTimeout(repositionTimer.current);
+      repositionTimer.current = setTimeout(showTooltip, 120);
+    };
+    const frame = requestAnimationFrame(showTooltip);
+    window.addEventListener("resize", showTooltip);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener("resize", placeTooltip);
-      window.removeEventListener("scroll", placeTooltip, true);
+      if (repositionTimer.current) clearTimeout(repositionTimer.current);
+      window.removeEventListener("resize", showTooltip);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [isDisabled, showDisabledMessage, disabledMessage]);
 

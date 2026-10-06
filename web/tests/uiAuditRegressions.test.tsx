@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "../src/components/ui/Button";
 import { Modal } from "../src/components/Modal";
@@ -19,6 +25,44 @@ describe("frontend audit regressions", () => {
     expect(screen.getByRole("button", { name: "Save" }).className).toContain(
       "min-h-11",
     );
+  });
+
+  it("waits until scrolling settles before measuring a disabled-button tooltip", () => {
+    vi.useFakeTimers();
+    const measure = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({
+        x: 20,
+        y: 20,
+        width: 100,
+        height: 40,
+        top: 20,
+        right: 120,
+        bottom: 60,
+        left: 20,
+        toJSON: () => ({}),
+      } as DOMRect);
+    const { container } = render(
+      <Button disabled disabledReason="Plan limit reached">
+        Create
+      </Button>,
+    );
+    fireEvent.pointerEnter(container.firstElementChild!, {
+      pointerType: "mouse",
+    });
+
+    act(() => vi.advanceTimersByTime(20));
+    const measuredOnOpen = measure.mock.calls.length;
+    expect(measuredOnOpen).toBeGreaterThan(0);
+
+    fireEvent.scroll(window);
+    fireEvent.scroll(window);
+    fireEvent.scroll(window);
+    expect(measure).toHaveBeenCalledTimes(measuredOnOpen);
+
+    act(() => vi.advanceTimersByTime(120));
+    expect(measure).toHaveBeenCalledTimes(measuredOnOpen + 2);
+    vi.useRealTimers();
   });
 
   it("resizes a long dialog to the visible viewport", () => {
