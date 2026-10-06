@@ -443,7 +443,7 @@ export function ProjectBoard() {
             <Button
               variant="secondary"
               onClick={() => setFiltersOpen(true)}
-              className="shrink-0 px-3"
+              className="shrink-0 px-2 text-xs"
               aria-label={`Filters${Number(Boolean(filters.priority)) + Number(Boolean(filters.assigneeId)) > 0 ? `, ${Number(Boolean(filters.priority)) + Number(Boolean(filters.assigneeId))} active` : ""}`}
             >
               Filters
@@ -459,8 +459,7 @@ export function ProjectBoard() {
                 </span>
               )}
             </Button>
-            <label className="flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              <span className="shrink-0">Sort by</span>
+            <label className="relative flex min-h-11 min-w-0 flex-1 items-center rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <select
                 aria-label="Sort by"
                 value={selectedSort}
@@ -473,7 +472,7 @@ export function ProjectBoard() {
                     return next;
                   });
                 }}
-                className="min-w-0 flex-1 appearance-none truncate bg-transparent pr-4 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
+                className="w-full min-w-0 appearance-none truncate bg-transparent pr-6 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
               >
                 {sortOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -484,7 +483,7 @@ export function ProjectBoard() {
               <svg
                 viewBox="0 0 20 20"
                 aria-hidden="true"
-                className="pointer-events-none -ml-5 size-4 shrink-0"
+                className="pointer-events-none absolute right-2 size-4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
