@@ -56,7 +56,7 @@ function reminderMessage(
     return `Your ${planName} plan ended on ${endsOn}, so the workspace is back on the Free plan. You have ${GRACE_PERIOD_DAYS} days to renew or reduce usage. After that, projects and tasks over the Free plan limits are archived. No data is deleted.`;
   }
   if (stage === "archived") {
-    return `The ${GRACE_PERIOD_DAYS}-day grace period after your ${planName} plan ended has ended. Projects and tasks over the Free plan limits were archived. Nothing was deleted. After upgrading, use Review & Restore to choose eligible projects to restore. You can restore eligible tasks from the Archived list when your plan has capacity.`;
+    return `The ${GRACE_PERIOD_DAYS}-day grace period after your ${planName} plan ended has ended. Projects and tasks over the Free plan limits were archived; nothing was deleted. After upgrading, use Review & Restore to choose eligible projects to restore. You can restore eligible tasks from the Archived list when your plan has capacity.`;
   }
   return stage === "1d"
     ? `Your ${planName} plan ends tomorrow, on ${endsOn}. Renew to keep your limits.`
