@@ -14,6 +14,7 @@ import { HeroPreview } from "@/components/marketing/HeroPreview";
 import { ScreenCarousel } from "@/components/marketing/ScreenCarousel";
 import { PhoneStrip } from "@/components/marketing/PhoneStrip";
 import { placement, type Screen } from "@/assets/screens";
+import { PLAN_PRICE_PAISE, formatRupees } from "@/lib/plans";
 
 interface Feature {
   title: string;
@@ -38,20 +39,25 @@ const FEATURES: Feature[] = [
   {
     title: "Roles that are enforced",
     description:
-      "Admins, managers and members each have clear permissions, and the server checks them on every action. Hiding a button is never the only protection.",
+      "Admins, managers and members each have clear permissions, and the server checks every action. Onboarding explains the features available to each role.",
     icon: ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z", "m9 12 2 2 4-4"],
   },
   {
     title: "Task boards",
     description:
-      "Move work through To do, In progress and Done. Set priorities and due dates, and assign more than one person to a task.",
+      "Move work through To do, In progress and Done. Set priorities and due dates, assign teammates, and sort or filter tasks.",
     icon: ["M3 3h7v18H3z", "M14 3h7v10h-7z", "M14 17h7v4h-7z"],
   },
   {
     title: "Project lifecycle",
     description:
-      "Finish a project, archive it, or move it to the Bin. Anything in the Bin can be restored for 30 days.",
+      "Project cards show priority and due date, and can be sorted. Projects with tasks move to Completed when all are done. Archive a project or move it to the Bin for 30-day recovery.",
     icon: ["M21 8v13H3V8", "M1 3h22v5H1z", "M10 12h4"],
+  },
+  {
+    title: "Plans and renewal",
+    description: `Compare Free, Pro and Premium limits in Settings. Pro costs ${formatRupees(PLAN_PRICE_PAISE.pro.monthly)}/month or ${formatRupees(PLAN_PRICE_PAISE.pro.yearly)}/year; Premium costs ${formatRupees(PLAN_PRICE_PAISE.premium.monthly)}/month or ${formatRupees(PLAN_PRICE_PAISE.premium.yearly)}/year. Paid plans require manual renewal. If usage remains above Free limits after the 10-day grace period, excess active projects and open tasks are force-archived. After upgrading, admins can review eligible projects under the new plan limits. Settings also includes the organization time zone and chat-history retention.`,
+    icon: ["M3 5h18", "M3 10h18", "M5 15h4", "M5 19h8"],
   },
   {
     title: "Updates and questions",
@@ -79,7 +85,7 @@ const FEATURES: Feature[] = [
   {
     title: "Dashboard and audit log",
     description:
-      "See overdue work, activity and plan usage at a glance, and check who changed what and when.",
+      "See overdue work, activity and plan usage at a glance. Admins and managers can review reports, and admins can check who changed what and when.",
     icon: ["M3 3v18h18", "M7 14l4-4 3 3 5-6"],
   },
   {
@@ -118,7 +124,8 @@ const TOUR: TourTab[] = [
     heading: "Keep the work moving",
     points: [
       "Cards for every task, with priority, due date and assignees",
-      "Filter by priority or person, or switch to just your own tasks",
+      "Filter and sort tasks, or switch to just your own work",
+      "Use More for available edit, archive, restore and delete actions",
       "Ask for updates on a task or a whole project",
     ],
   },
@@ -152,7 +159,7 @@ const TOUR: TourTab[] = [
     points: [
       "Admin, manager and member roles with clear limits",
       "Invite by email, change roles or remove people",
-      "An audit log of every important change",
+      "Organization time zone, plan settings and an audit log",
     ],
   },
 ];
@@ -164,7 +171,7 @@ const STEPS = [
   },
   {
     title: "Invite your team",
-    text: "Send invite links and choose each person's role. They join with one click.",
+    text: "Invite people by email, choose their role, and let them accept the invitation to join your workspace.",
   },
   {
     title: "Plan, talk and meet",
