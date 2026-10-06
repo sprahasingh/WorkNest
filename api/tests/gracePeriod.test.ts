@@ -66,6 +66,113 @@ const expireAgo = (orgId: string, days: number) =>
   );
 
 describe("grace period after a plan expires", () => {
+  it("discovers durable force-archive candidates after upgrade clears expiry markers and removes restored candidates", async () => {
+    const { orgId, admin } = await proOrg("restore-candidates-persist.test");
+    const forcedProjectId = await project(orgId, admin.token, "RCP");
+    const manualProjectId = await project(orgId, admin.token, "RCM");
+    const activeProjectId = await project(orgId, admin.token, "RCA");
+    const forcedProjectTaskId = await task(
+      orgId,
+      admin.token,
+      forcedProjectId,
+      1,
+    );
+    const activeForcedTaskId = await task(
+      orgId,
+      admin.token,
+      activeProjectId,
+      2,
+    );
+    const activeManualTaskId = await task(
+      orgId,
+      admin.token,
+      activeProjectId,
+      3,
+    );
+    await Project.updateOne(
+      { _id: forcedProjectId },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    await Project.updateOne(
+      { _id: manualProjectId },
+      { archivedAt: new Date(), archivedReason: null },
+    ).setOptions({ skipTenant: true });
+    await Task.updateOne(
+      { _id: forcedProjectTaskId },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    await Task.updateOne(
+      { _id: activeForcedTaskId },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    await Task.updateOne(
+      { _id: activeManualTaskId },
+      { archivedAt: new Date(), archivedReason: null },
+    ).setOptions({ skipTenant: true });
+
+    // Model a successful upgrade: paid plan restored, temporary expiry and
+    // grace markers cleared, while resource-level archive reasons persist.
+    await Organization.updateOne(
+      { _id: orgId },
+      {
+        plan: "pro",
+        planExpiresAt: null,
+        planExpiredAt: null,
+        planExpiredFrom: null,
+        graceEnforcedAt: null,
+        graceEnforcingAt: null,
+        graceArchived: null,
+      },
+    );
+
+    const archivedResponse = await request(app)
+      .get(`/api/orgs/${orgId}/projects?view=archived`)
+      .set(auth(admin.token));
+    expect(archivedResponse.status).toBe(200);
+    expect(
+      archivedResponse.body.projects.find(
+        (candidate: { _id: string }) => candidate._id === forcedProjectId,
+      )?.archivedReason,
+    ).toBe("plan_limit");
+
+    const taskCandidatesBefore = await request(app)
+      .get(`/api/orgs/${orgId}/projects/restore-plan-archived/tasks`)
+      .set(auth(admin.token));
+    expect(taskCandidatesBefore.status).toBe(200);
+    expect(
+      taskCandidatesBefore.body.tasks.map((item: { _id: string }) => item._id),
+    ).toEqual([activeForcedTaskId]);
+
+    const restoreResponse = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [forcedProjectId], taskIds: [activeForcedTaskId] });
+    expect(restoreResponse.status).toBe(200);
+    expect(restoreResponse.body.projects).toHaveLength(1);
+    expect(restoreResponse.body.tasks).toHaveLength(2);
+
+    const archivedAfter = await request(app)
+      .get(`/api/orgs/${orgId}/projects?view=archived`)
+      .set(auth(admin.token));
+    expect(
+      archivedAfter.body.projects.some(
+        (candidate: { _id: string; archivedReason?: string | null }) =>
+          candidate._id === forcedProjectId &&
+          candidate.archivedReason === "plan_limit",
+      ),
+    ).toBe(false);
+    const taskCandidatesAfter = await request(app)
+      .get(`/api/orgs/${orgId}/projects/restore-plan-archived/tasks`)
+      .set(auth(admin.token));
+    expect(taskCandidatesAfter.body.tasks).toHaveLength(0);
+
+    const manualState = await Task.findById(activeManualTaskId)
+      .setOptions({ skipTenant: true })
+      .lean();
+    expect(manualState?.archivedAt).not.toBeNull();
+    expect(manualState?.archivedReason).toBeNull();
+  });
+
   it("restores only selected plan-archived projects within upgraded capacity", async () => {
     const { orgId, admin } = await proOrg("restore-selection.test");
     const firstId = await project(orgId, admin.token, "RST");
@@ -196,6 +303,65 @@ describe("grace period after a plan expires", () => {
       }).setOptions({ skipTenant: true }),
     ).toBe(1);
   });
+  it("restores a project while keeping all its force-archived tasks recoverable when task capacity is full", async () => {
+    const { orgId, admin } = await proOrg("restore-project-no-task-room.test");
+    const projectId = await project(orgId, admin.token, "RPN");
+    const now = new Date();
+    const tasks = Array.from({ length: 51 }, (_, index) => ({
+      _id: new mongoose.Types.ObjectId(),
+      tenantId: new mongoose.Types.ObjectId(orgId),
+      projectId: new mongoose.Types.ObjectId(projectId),
+      title: `No room task ${index}`,
+      status: "todo",
+      priority: "medium",
+      assigneeIds: [],
+      dueDate: null,
+      completedAt: null,
+      archivedAt: index === 50 ? now : null,
+      archivedReason: index === 50 ? "plan_limit" : null,
+      deletedAt: null,
+      createdBy: new mongoose.Types.ObjectId(admin.id),
+      createdAt: now,
+      updatedAt: now,
+    }));
+    await Task.collection.insertMany(tasks);
+    await Project.updateOne(
+      { _id: projectId },
+      { archivedAt: now, archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+
+    const projectRestore = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [projectId], taskIds: [] });
+    expect(projectRestore.status).toBe(200);
+    expect(projectRestore.body.projects).toHaveLength(1);
+    expect(projectRestore.body.tasks).toHaveLength(0);
+    expect(projectRestore.body.skipped).toEqual({ projects: 0, tasks: 1 });
+
+    const taskCandidates = await request(app)
+      .get(`/api/orgs/${orgId}/projects/restore-plan-archived/tasks`)
+      .set(auth(admin.token));
+    expect(
+      taskCandidates.body.tasks.map((item: { _id: string }) => item._id),
+    ).toEqual([String(tasks[50]._id)]);
+
+    await Task.updateOne(
+      { _id: tasks[0]._id },
+      { archivedAt: now, archivedReason: null },
+    ).setOptions({ skipTenant: true });
+    const taskRestore = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [], taskIds: [String(tasks[50]._id)] });
+    expect(taskRestore.status).toBe(200);
+    expect(taskRestore.body.tasks).toHaveLength(1);
+    const noTasksRemain = await request(app)
+      .get(`/api/orgs/${orgId}/projects/restore-plan-archived/tasks`)
+      .set(auth(admin.token));
+    expect(noTasksRemain.body.tasks).toHaveLength(0);
+  });
+
   it("offers force-archived tasks from active projects and restores only within capacity", async () => {
     const { orgId, admin } = await proOrg("restore-active-task-capacity.test");
     const projectId = await project(orgId, admin.token, "RAC");
@@ -261,6 +427,35 @@ describe("grace period after a plan expires", () => {
         deletedAt: null,
       }).setOptions({ skipTenant: true }),
     ).toBe(2);
+
+    const remainingCandidates = await request(app)
+      .get(`/api/orgs/${orgId}/projects/restore-plan-archived/tasks`)
+      .set(auth(admin.token));
+    expect(
+      remainingCandidates.body.tasks.map((item: { _id: string }) => item._id),
+    ).toEqual([String(tasks[50]._id)]);
+
+    // Free one task slot after the first restore and retry the persisted
+    // candidate. Manually archived work remains outside the recovery flow.
+    await Task.updateOne(
+      { _id: tasks[0]._id },
+      { archivedAt: now, archivedReason: null },
+    ).setOptions({ skipTenant: true });
+    const laterRestore = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [], taskIds: [String(tasks[50]._id)] });
+    expect(laterRestore.status).toBe(200);
+    expect(laterRestore.body.tasks).toHaveLength(1);
+    const finalCandidates = await request(app)
+      .get(`/api/orgs/${orgId}/projects/restore-plan-archived/tasks`)
+      .set(auth(admin.token));
+    expect(finalCandidates.body.tasks).toHaveLength(0);
+    const manualTask = await Task.findById(tasks[51]._id)
+      .setOptions({ skipTenant: true })
+      .lean();
+    expect(manualTask?.archivedAt).not.toBeNull();
+    expect(manualTask?.archivedReason).toBeNull();
   });
   it("reports projects and associated tasks skipped at the project limit", async () => {
     const { orgId, admin } = await proOrg("restore-project-limit-skip.test");
@@ -290,7 +485,92 @@ describe("grace period after a plan expires", () => {
     expect(response.body.projects).toHaveLength(0);
     expect(response.body.tasks).toHaveLength(0);
     expect(response.body.skipped).toEqual({ projects: 1, tasks: 1 });
+
+    const stillEligible = await request(app)
+      .get(`/api/orgs/${orgId}/projects?view=archived`)
+      .set(auth(admin.token));
+    expect(
+      stillEligible.body.projects.some(
+        (candidate: { _id: string; archivedReason?: string | null }) =>
+          candidate._id === candidateId &&
+          candidate.archivedReason === "plan_limit",
+      ),
+    ).toBe(true);
+
+    // Capacity becoming available later lets the same resource be restored.
+    await Organization.updateOne({ _id: orgId }, { projectCount: 24 });
+    const laterRestore = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [candidateId], taskIds: [] });
+    expect(laterRestore.status).toBe(200);
+    expect(laterRestore.body.projects).toHaveLength(1);
+    expect(laterRestore.body.tasks).toHaveLength(1);
+
+    const noLongerEligible = await request(app)
+      .get(`/api/orgs/${orgId}/projects?view=archived`)
+      .set(auth(admin.token));
+    expect(
+      noLongerEligible.body.projects.some(
+        (candidate: { _id: string; archivedReason?: string | null }) =>
+          candidate._id === candidateId &&
+          candidate.archivedReason === "plan_limit",
+      ),
+    ).toBe(false);
   });
+
+  it("restores projects that fit and keeps the remaining projects for a later plan", async () => {
+    const { orgId, admin } = await proOrg(
+      "restore-partial-project-capacity.test",
+    );
+    const firstId = await project(orgId, admin.token, "RPC");
+    const secondId = await project(orgId, admin.token, "RPD");
+    await Project.updateMany(
+      { _id: { $in: [firstId, secondId] } },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    await Organization.updateOne({ _id: orgId }, { projectCount: 24 });
+
+    const partial = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [firstId, secondId], taskIds: [] });
+    expect(partial.status).toBe(200);
+    expect(partial.body.projects).toHaveLength(1);
+    expect(partial.body.skipped.projects).toBe(1);
+
+    const archived = await request(app)
+      .get(`/api/orgs/${orgId}/projects?view=archived`)
+      .set(auth(admin.token));
+    const remaining = archived.body.projects.find(
+      (candidate: { _id: string }) => candidate._id === secondId,
+    );
+    expect(remaining?.archivedReason).toBe("plan_limit");
+
+    // A later upgrade with more project capacity keeps the same candidate
+    // recoverable and allows it to be restored.
+    await Organization.updateOne(
+      { _id: orgId },
+      { plan: "premium", seatLimit: 100, projectLimit: 50, projectCount: 49 },
+    );
+    const afterUpgrade = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [secondId], taskIds: [] });
+    expect(afterUpgrade.status).toBe(200);
+    expect(afterUpgrade.body.projects).toHaveLength(1);
+
+    const noCandidates = await request(app)
+      .get(`/api/orgs/${orgId}/projects?view=archived`)
+      .set(auth(admin.token));
+    expect(
+      noCandidates.body.projects.filter(
+        (candidate: { archivedReason?: string | null }) =>
+          candidate.archivedReason === "plan_limit",
+      ),
+    ).toHaveLength(0);
+  });
+
   it("keeps everything for 10 days, and the account stays usable", async () => {
     const { orgId, admin } = await proOrg("grace1.test");
     const ids: string[] = [];

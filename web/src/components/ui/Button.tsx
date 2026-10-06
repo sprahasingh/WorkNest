@@ -72,7 +72,9 @@ export function Button({
   const wrapperRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLSpanElement>(null);
   const hideMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const repositionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const interactionId = useRef(0);
+  const pointerDownInteraction = useRef<number | null>(null);
+  const suppressHoverUntilLeave = useRef(false);
   const { ["aria-describedby"]: describedBy, ...buttonProps } = props;
   const disabledMessage =
     disabledReason ?? title ?? "This action is unavailable right now.";
@@ -80,14 +82,15 @@ export function Button({
   useEffect(
     () => () => {
       if (hideMessageTimer.current) clearTimeout(hideMessageTimer.current);
-      if (repositionTimer.current) clearTimeout(repositionTimer.current);
     },
     [],
   );
 
   useLayoutEffect(() => {
     if (!isDisabled || !showDisabledMessage) return;
+    const openingId = interactionId.current;
     const placeTooltip = () => {
+      if (openingId !== interactionId.current) return;
       const anchor = wrapperRef.current?.getBoundingClientRect();
       const tooltip = tooltipRef.current?.getBoundingClientRect();
       if (!anchor || !tooltip) return;
@@ -104,30 +107,31 @@ export function Button({
       setTooltipPosition({ left, top });
     };
     const showTooltip = () => {
-      if (repositionTimer.current) clearTimeout(repositionTimer.current);
+      if (openingId !== interactionId.current) return;
       placeTooltip();
       if (tooltipRef.current) tooltipRef.current.style.visibility = "visible";
     };
     const onScroll = () => {
-      // The tooltip is fixed to the viewport. Hide it while the anchor moves,
-      // then measure once scrolling settles instead of forcing layout on each
-      // captured scroll event.
-      if (tooltipRef.current) tooltipRef.current.style.visibility = "hidden";
-      if (repositionTimer.current) clearTimeout(repositionTimer.current);
-      repositionTimer.current = setTimeout(showTooltip, 120);
+      // Scrolling cancels this opening. Invalidate its animation-frame and any
+      // delayed work before hiding, so an old callback cannot reopen it.
+      interactionId.current += 1;
+      suppressHoverUntilLeave.current = true;
+      if (hideMessageTimer.current) clearTimeout(hideMessageTimer.current);
+      setShowDisabledMessage(false);
     };
     const frame = requestAnimationFrame(showTooltip);
     window.addEventListener("resize", showTooltip);
     window.addEventListener("scroll", onScroll, true);
     return () => {
       cancelAnimationFrame(frame);
-      if (repositionTimer.current) clearTimeout(repositionTimer.current);
       window.removeEventListener("resize", showTooltip);
       window.removeEventListener("scroll", onScroll, true);
     };
   }, [isDisabled, showDisabledMessage, disabledMessage]);
 
   const showMessageAfterTap = () => {
+    interactionId.current += 1;
+    pointerDownInteraction.current = null;
     setShowDisabledMessage(true);
     if (hideMessageTimer.current) clearTimeout(hideMessageTimer.current);
     hideMessageTimer.current = setTimeout(
@@ -144,13 +148,37 @@ export function Button({
           "relative inline-flex max-w-full cursor-not-allowed",
           className,
         )}
+        onPointerDown={() => {
+          pointerDownInteraction.current = interactionId.current;
+        }}
         onPointerEnter={(event) => {
-          if (event.pointerType === "mouse") setShowDisabledMessage(true);
+          if (
+            event.pointerType === "mouse" &&
+            !suppressHoverUntilLeave.current
+          ) {
+            interactionId.current += 1;
+            setShowDisabledMessage(true);
+          }
         }}
         onPointerLeave={(event) => {
-          if (event.pointerType === "mouse") setShowDisabledMessage(false);
+          if (event.pointerType === "mouse") {
+            suppressHoverUntilLeave.current = false;
+            setShowDisabledMessage(false);
+          }
         }}
-        onClick={showMessageAfterTap}
+        onClick={() => {
+          // Browsers can dispatch a click after a touch gesture that actually
+          // scrolled. Ignore that synthetic click if scrolling invalidated the
+          // pointer interaction that began it.
+          if (
+            pointerDownInteraction.current !== null &&
+            pointerDownInteraction.current !== interactionId.current
+          ) {
+            pointerDownInteraction.current = null;
+            return;
+          }
+          showMessageAfterTap();
+        }}
       >
         <button
           disabled
