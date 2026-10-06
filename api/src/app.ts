@@ -52,6 +52,9 @@ export function createApp(): Express {
       credentials: true,
     }),
   );
+  // Register request logging before the webhook so Razorpay deliveries appear
+  // in the service logs as well as the regular API traffic.
+  app.use(pinoHttp({ logger }));
   // Razorpay signs the exact bytes it sends, so its webhook needs the raw body.
   app.post(
     "/api/billing/webhook",
@@ -62,7 +65,6 @@ export function createApp(): Express {
   app.use("/api/feedback", express.json({ limit: "3mb" }));
   app.use(express.json({ limit: "100kb" }));
   app.use(cookieParser());
-  app.use(pinoHttp({ logger }));
 
   const healthLimiter = rateLimit({
     windowMs: 60 * 1000,
