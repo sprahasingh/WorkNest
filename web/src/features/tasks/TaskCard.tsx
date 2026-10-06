@@ -1,6 +1,8 @@
 import type { Member } from "@/features/members/api";
 import type { Task, TaskStatus } from "./api";
 import { formatDateInTimeZone, formatDateTimeInTimeZone } from "@/lib/time";
+import { MoreMenu, MoreMenuItem } from "@/components/ui/MoreMenu";
+import type { TaskView } from "./api";
 
 const PRIORITY_STYLES: Record<Task["priority"], string> = {
   low: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
@@ -36,6 +38,14 @@ interface TaskCardProps {
   canChangeStatus: boolean;
   onStatusChange: (task: Task, newStatus: TaskStatus) => void;
   onClick: () => void;
+  view: TaskView;
+  canEdit: boolean;
+  canManage: boolean;
+  onArchive: () => void;
+  onUnarchive: () => void;
+  onRestore: () => void;
+  onDelete: () => void;
+  onDeletePermanently: () => void;
 }
 
 export function TaskCard({
@@ -45,6 +55,14 @@ export function TaskCard({
   canChangeStatus,
   onStatusChange,
   onClick,
+  view,
+  canEdit,
+  canManage,
+  onArchive,
+  onUnarchive,
+  onRestore,
+  onDelete,
+  onDeletePermanently,
 }: TaskCardProps) {
   const assignees = members.filter((m) =>
     task.assigneeIds?.includes(m.userId.id),
@@ -76,6 +94,37 @@ export function TaskCard({
                 +{assignees.length - 3}
               </span>
             )}
+          </div>
+        )}
+        {(canEdit || canManage) && (
+          <div onClick={(event) => event.stopPropagation()}>
+            <MoreMenu label={task.title}>
+              {canEdit && view !== "bin" && (
+                <MoreMenuItem onClick={onClick}>Edit</MoreMenuItem>
+              )}
+              {view === "active" && canManage && (
+                <MoreMenuItem onClick={onArchive}>Archive</MoreMenuItem>
+              )}
+              {view === "completed" && canManage && (
+                <MoreMenuItem onClick={onArchive}>Archive</MoreMenuItem>
+              )}
+              {view === "archived" && canManage && (
+                <MoreMenuItem onClick={onUnarchive}>Unarchive</MoreMenuItem>
+              )}
+              {view === "bin" && canManage && (
+                <MoreMenuItem onClick={onRestore}>Restore</MoreMenuItem>
+              )}
+              {view === "bin" && canManage && (
+                <MoreMenuItem tone="danger" onClick={onDeletePermanently}>
+                  Delete permanently
+                </MoreMenuItem>
+              )}
+              {view !== "bin" && canManage && (
+                <MoreMenuItem tone="danger" onClick={onDelete}>
+                  Move to bin
+                </MoreMenuItem>
+              )}
+            </MoreMenu>
           </div>
         )}
       </div>

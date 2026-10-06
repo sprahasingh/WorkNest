@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import { ViewTabs } from "@/components/ui/ViewTabs";
+import { MoreMenu, MoreMenuItem } from "@/components/ui/MoreMenu";
 import {
   compareLifecycleItems,
   defaultLifecycleSort,
@@ -556,58 +557,61 @@ export function ProjectsPage() {
                     }
                   />
                   {canWrite && (
-                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-sm dark:border-slate-700/60">
-                      {view !== "bin" && (
-                        <ActionButton onClick={() => openEditModal(project)}>
-                          Edit
-                        </ActionButton>
-                      )}
-                      {(view === "active" || view === "completed") && (
-                        <ActionButton
-                          onClick={() =>
-                            setConfirmTarget({ project, action: "archive" })
-                          }
-                        >
-                          Archive
-                        </ActionButton>
-                      )}
-                      {view === "archived" && (
-                        <ActionButton
-                          tone="primary"
-                          onClick={() => void unarchive(project)}
-                          disabled={unarchiveProject.isPending}
-                        >
-                          Unarchive
-                        </ActionButton>
-                      )}
-                      {view === "bin" ? (
-                        <>
-                          <ActionButton
-                            tone="primary"
-                            onClick={() => void restore(project)}
-                            disabled={restoreProject.isPending}
-                          >
-                            Restore
-                          </ActionButton>
-                          <ActionButton
-                            tone="danger"
+                    <div className="mt-3 flex justify-end border-t border-slate-100 pt-3 dark:border-slate-700/60">
+                      <MoreMenu label={project.name}>
+                        {view !== "bin" && (
+                          <MoreMenuItem onClick={() => openEditModal(project)}>
+                            Edit
+                          </MoreMenuItem>
+                        )}
+                        {(view === "active" || view === "completed") && (
+                          <MoreMenuItem
                             onClick={() =>
-                              setConfirmTarget({ project, action: "permanent" })
+                              setConfirmTarget({ project, action: "archive" })
                             }
                           >
-                            Delete permanently
-                          </ActionButton>
-                        </>
-                      ) : (
-                        <ActionButton
-                          tone="danger"
-                          onClick={() =>
-                            setConfirmTarget({ project, action: "bin" })
-                          }
-                        >
-                          Delete
-                        </ActionButton>
-                      )}
+                            Archive
+                          </MoreMenuItem>
+                        )}
+                        {view === "archived" && (
+                          <MoreMenuItem
+                            onClick={() => void unarchive(project)}
+                            disabled={unarchiveProject.isPending}
+                          >
+                            Unarchive
+                          </MoreMenuItem>
+                        )}
+                        {view === "bin" ? (
+                          <>
+                            <MoreMenuItem
+                              onClick={() => void restore(project)}
+                              disabled={restoreProject.isPending}
+                            >
+                              Restore
+                            </MoreMenuItem>
+                            <MoreMenuItem
+                              tone="danger"
+                              onClick={() =>
+                                setConfirmTarget({
+                                  project,
+                                  action: "permanent",
+                                })
+                              }
+                            >
+                              Delete permanently
+                            </MoreMenuItem>
+                          </>
+                        ) : (
+                          <MoreMenuItem
+                            tone="danger"
+                            onClick={() =>
+                              setConfirmTarget({ project, action: "bin" })
+                            }
+                          >
+                            Delete
+                          </MoreMenuItem>
+                        )}
+                      </MoreMenu>
                     </div>
                   )}
                 </Card>
@@ -862,23 +866,3 @@ const CONFIRM_COPY: Record<
       `"${name}" and all of its tasks and updates will be deleted right away. This can't be undone.`,
   },
 };
-
-function ActionButton({
-  tone = "neutral",
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  tone?: "neutral" | "primary" | "danger";
-}) {
-  return (
-    <button
-      type="button"
-      {...props}
-      className={cn(
-        "font-medium hover:underline disabled:opacity-50",
-        tone === "neutral" && "text-slate-500 dark:text-slate-400",
-        tone === "primary" && "text-teal-700 dark:text-teal-400",
-        tone === "danger" && "text-red-600 dark:text-red-400",
-      )}
-    />
-  );
-}
