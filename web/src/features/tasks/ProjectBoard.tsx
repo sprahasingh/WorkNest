@@ -439,7 +439,7 @@ export function ProjectBoard() {
         </div>
 
         <div data-tour="tasks-filters" className="mt-3 sm:mt-4">
-          <div className="flex flex-wrap items-center gap-2 sm:hidden">
+          <div className="flex flex-nowrap items-center gap-1.5 sm:hidden">
             <Button
               variant="secondary"
               onClick={() => setFiltersOpen(true)}
@@ -459,8 +459,8 @@ export function ProjectBoard() {
                 </span>
               )}
             </Button>
-            <label className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              <span>Sort by</span>
+            <label className="flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <span className="shrink-0">Sort by</span>
               <select
                 aria-label="Sort by"
                 value={selectedSort}
@@ -473,7 +473,7 @@ export function ProjectBoard() {
                     return next;
                   });
                 }}
-                className="w-44 min-w-0 appearance-none bg-transparent pr-5 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
+                className="min-w-0 flex-1 appearance-none truncate bg-transparent pr-4 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
               >
                 {sortOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -492,7 +492,7 @@ export function ProjectBoard() {
                 <path d="m5 7.5 5 5 5-5" />
               </svg>
             </label>
-            <label className="ml-auto flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-slate-600 dark:text-slate-300">
+            <label className="flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-1 text-xs text-slate-600 dark:text-slate-300 sm:ml-auto sm:gap-2 sm:px-2 sm:text-sm">
               <input
                 type="checkbox"
                 checked={filters.mine ?? false}

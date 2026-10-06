@@ -195,7 +195,13 @@ export function ProjectsPage() {
       setProjectRequestOpen(false);
       setProjectRequestText("");
       toast.success(
-        `${projectRequestType === "question" ? "Question" : "Update request"} sent across ${result.activity.projectIds?.length ?? projectsWithOpenTasks.length} projects to ${result.notifiedCount ?? 0} people`,
+        `${
+          projectRequestType === "question"
+            ? "Question"
+            : projectRequestType === "update"
+              ? "Update"
+              : "Update request"
+        } sent across ${result.activity.projectIds?.length ?? projectsWithOpenTasks.length} projects to ${result.notifiedCount ?? 0} people`,
       );
     } catch (error) {
       const parsed = parseApiError(error);
@@ -406,6 +412,17 @@ export function ProjectsPage() {
           </div>
           <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:gap-2">
             <MuteToggle orgId={orgId} allProjects iconOnly />
+            {canRequestUpdates && (
+              <Button
+                variant="secondary"
+                onClick={() => setProjectRequestOpen(true)}
+                disabled={!projectsWithOpenTasks.length}
+                title="Post an update, ask a question, or request updates from people on open tasks across active projects"
+                className="min-w-0 flex-1 px-2 text-xs sm:flex-none sm:px-4 sm:text-sm"
+              >
+                Update
+              </Button>
+            )}
             {canWrite && (
               <Button
                 data-tour="projects-create"
@@ -473,18 +490,6 @@ export function ProjectsPage() {
             ))}
           </select>
         </label>
-
-        {view === "active" && canRequestUpdates && (
-          <div className="mt-3">
-            <Button
-              variant="secondary"
-              onClick={() => setProjectRequestOpen(true)}
-              disabled={!projectsWithOpenTasks.length}
-            >
-              Request updates across projects
-            </Button>
-          </div>
-        )}
 
         <div data-tour="projects-first-card" className="mt-6">
           {isPending && (
@@ -715,12 +720,13 @@ export function ProjectsPage() {
         onClose={() => {
           if (!projectRequestPending) setProjectRequestOpen(false);
         }}
-        title="Ask across active projects"
+        title="Update across active projects"
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            This sends your message to people assigned to open tasks in each of
-            the {projectsWithOpenTasks.length} active project
+            Share a project update, ask a question, or request a status update.
+            Your message reaches people assigned to open tasks across the{" "}
+            {projectsWithOpenTasks.length} active project
             {projectsWithOpenTasks.length === 1 ? "" : "s"} with open tasks.
           </p>
           {projectRequestError && (
@@ -740,7 +746,8 @@ export function ProjectsPage() {
               }
               className={inputStyles}
             >
-              <option value="update_request">Request an update</option>
+              <option value="update_request">Ask for an update</option>
+              <option value="update">Share an update</option>
               <option value="question">Ask a question</option>
             </select>
           </label>
