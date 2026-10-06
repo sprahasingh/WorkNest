@@ -65,7 +65,8 @@ test("creates a project with a key that has a number in it, and a task in it", a
   await expect(page.getByText("Launch Plan")).toBeVisible();
   await expect(page.getByText("WEB2").first()).toBeVisible();
 
-  await page.getByText("Launch Plan").first().click();
+  // Clicking a non-link part of the project card opens the project too.
+  await page.getByText("WEB2").first().click();
   await page
     .getByRole("button", { name: /new task/i })
     .first()

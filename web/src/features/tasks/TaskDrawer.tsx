@@ -171,6 +171,13 @@ export function TaskDrawer({
   }, [confirmingDelete]);
   const showRequestUpdate =
     isEditing && !isCompleted && !isArchived && !isBinned && canLead;
+  const lifecycleActionCount = [
+    canReopen,
+    showArchive,
+    showUnarchive,
+    showRestore,
+    showRequestUpdate,
+  ].filter(Boolean).length;
 
   const {
     register,
@@ -711,19 +718,7 @@ export function TaskDrawer({
                 <div
                   className={cn(
                     "order-2 grid gap-2 sm:order-1 sm:flex sm:gap-3",
-                    showRequestUpdate ||
-                      canReopen ||
-                      showArchive ||
-                      showUnarchive ||
-                      showRestore
-                      ? showUnarchive &&
-                        !canReopen &&
-                        !showArchive &&
-                        !showRestore &&
-                        !showRequestUpdate
-                        ? "grid-cols-1"
-                        : "grid-cols-2"
-                      : "grid-cols-1",
+                    lifecycleActionCount > 1 ? "grid-cols-2" : "grid-cols-1",
                   )}
                 >
                   {canReopen && (

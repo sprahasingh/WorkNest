@@ -469,7 +469,27 @@ export function ProjectsPage() {
           {!isPending && !isError && sortedProjects.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {sortedProjects.map((project) => (
-                <Card key={project._id} className="flex flex-col p-4">
+                <Card
+                  key={project._id}
+                  className={cn(
+                    "flex flex-col p-4",
+                    view !== "bin" && "cursor-pointer",
+                  )}
+                  onClick={(event) => {
+                    const target = event.target;
+                    if (
+                      target instanceof Element &&
+                      target.closest(
+                        "a, button, summary, input, select, textarea",
+                      )
+                    ) {
+                      return;
+                    }
+                    if (view !== "bin") {
+                      navigate(`/orgs/${orgId}/projects/${project._id}`);
+                    }
+                  }}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       {view === "bin" ? (
@@ -507,43 +527,81 @@ export function ProjectsPage() {
                         {project.priority}
                       </span>
                     </div>
-                    {view === "bin" && project.purgeAt ? (
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
-                          daysUntil(project.purgeAt) <= 3
-                            ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-                        )}
-                        title={`Deleted for good on ${new Date(project.purgeAt).toLocaleDateString()}`}
-                      >
-                        {daysUntil(project.purgeAt) === 0
-                          ? "Deletes today"
-                          : `Deletes in ${daysUntil(project.purgeAt)} ${daysUntil(project.purgeAt) === 1 ? "day" : "days"}`}
-                      </span>
-                    ) : (
-                      <Link
-                        to={`/orgs/${orgId}/projects/${project._id}`}
-                        aria-label={`Open ${project.name}`}
-                        title="Open project"
-                        className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-teal-700 dark:hover:bg-teal-950/40 dark:hover:text-teal-400"
-                      >
-                        Open
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="h-3.5 w-3.5"
-                          aria-hidden="true"
+                    <div className="flex shrink-0 items-start gap-1">
+                      {view === "bin" && project.purgeAt && (
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-xs font-medium",
+                            daysUntil(project.purgeAt) <= 3
+                              ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+                          )}
+                          title={`Deleted for good on ${new Date(project.purgeAt).toLocaleDateString()}`}
                         >
-                          <line x1="5" y1="12" x2="19" y2="12" />
-                          <polyline points="12 5 19 12 12 19" />
-                        </svg>
-                      </Link>
-                    )}
+                          {daysUntil(project.purgeAt) === 0
+                            ? "Deletes today"
+                            : `Deletes in ${daysUntil(project.purgeAt)} ${daysUntil(project.purgeAt) === 1 ? "day" : "days"}`}
+                        </span>
+                      )}
+                      {canWrite && (
+                        <MoreMenu label={project.name}>
+                          {view !== "bin" && (
+                            <MoreMenuItem
+                              onClick={() => openEditModal(project)}
+                            >
+                              Edit
+                            </MoreMenuItem>
+                          )}
+                          {(view === "active" || view === "completed") && (
+                            <MoreMenuItem
+                              onClick={() =>
+                                setConfirmTarget({ project, action: "archive" })
+                              }
+                            >
+                              Archive
+                            </MoreMenuItem>
+                          )}
+                          {view === "archived" && (
+                            <MoreMenuItem
+                              onClick={() => void unarchive(project)}
+                              disabled={unarchiveProject.isPending}
+                            >
+                              Unarchive
+                            </MoreMenuItem>
+                          )}
+                          {view === "bin" ? (
+                            <>
+                              <MoreMenuItem
+                                onClick={() => void restore(project)}
+                                disabled={restoreProject.isPending}
+                              >
+                                Restore
+                              </MoreMenuItem>
+                              <MoreMenuItem
+                                tone="danger"
+                                onClick={() =>
+                                  setConfirmTarget({
+                                    project,
+                                    action: "permanent",
+                                  })
+                                }
+                              >
+                                Delete permanently
+                              </MoreMenuItem>
+                            </>
+                          ) : (
+                            <MoreMenuItem
+                              tone="danger"
+                              onClick={() =>
+                                setConfirmTarget({ project, action: "bin" })
+                              }
+                            >
+                              Delete
+                            </MoreMenuItem>
+                          )}
+                        </MoreMenu>
+                      )}
+                    </div>
                   </div>
                   {project.description && (
                     <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
@@ -559,72 +617,16 @@ export function ProjectsPage() {
                       )}
                     </p>
                   )}
-                  <TaskCounts
-                    project={project}
-                    limit={
-                      view === "active" || view === "completed"
-                        ? activeTaskLimit
-                        : null
-                    }
-                  />
-                  {canWrite && (
-                    <div className="mt-3 flex justify-end border-t border-slate-100 pt-3 dark:border-slate-700/60">
-                      <MoreMenu label={project.name}>
-                        {view !== "bin" && (
-                          <MoreMenuItem onClick={() => openEditModal(project)}>
-                            Edit
-                          </MoreMenuItem>
-                        )}
-                        {(view === "active" || view === "completed") && (
-                          <MoreMenuItem
-                            onClick={() =>
-                              setConfirmTarget({ project, action: "archive" })
-                            }
-                          >
-                            Archive
-                          </MoreMenuItem>
-                        )}
-                        {view === "archived" && (
-                          <MoreMenuItem
-                            onClick={() => void unarchive(project)}
-                            disabled={unarchiveProject.isPending}
-                          >
-                            Unarchive
-                          </MoreMenuItem>
-                        )}
-                        {view === "bin" ? (
-                          <>
-                            <MoreMenuItem
-                              onClick={() => void restore(project)}
-                              disabled={restoreProject.isPending}
-                            >
-                              Restore
-                            </MoreMenuItem>
-                            <MoreMenuItem
-                              tone="danger"
-                              onClick={() =>
-                                setConfirmTarget({
-                                  project,
-                                  action: "permanent",
-                                })
-                              }
-                            >
-                              Delete permanently
-                            </MoreMenuItem>
-                          </>
-                        ) : (
-                          <MoreMenuItem
-                            tone="danger"
-                            onClick={() =>
-                              setConfirmTarget({ project, action: "bin" })
-                            }
-                          >
-                            Delete
-                          </MoreMenuItem>
-                        )}
-                      </MoreMenu>
-                    </div>
-                  )}
+                  <div>
+                    <TaskCounts
+                      project={project}
+                      limit={
+                        view === "active" || view === "completed"
+                          ? activeTaskLimit
+                          : null
+                      }
+                    />
+                  </div>
                 </Card>
               ))}
             </div>
