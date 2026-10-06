@@ -866,12 +866,18 @@ export function SettingsPage() {
   );
   const forceArchivedTasks = archivedTasksQuery.data ?? [];
   const restorePlanOrg = restoreCheckOrgQuery.data ?? org;
+  const restoreEligible = Boolean(
+    restorePlanOrg?.planExpiredAt &&
+    restorePlanOrg.graceEnforcedAt &&
+    restorePlanOrg.plan !== "free",
+  );
   const restorePromptSignature = restorePlanOrg
     ? getRestorePromptSignature(
         `${orgId}:${restorePlanOrg.plan}`,
         restorePlanOrg.planExpiresAt,
         eligibleArchivedProjects,
         forceArchivedTasks,
+        restoreEligible,
       )
     : null;
   const restorePrompt = shouldShowRestorePrompt(
