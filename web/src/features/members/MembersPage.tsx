@@ -284,7 +284,7 @@ export function MembersPage() {
         <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <Button
             type="button"
-            variant="ghost"
+            variant="secondary"
             onClick={() => setRemoveTarget(null)}
             className="w-full sm:w-auto"
           >

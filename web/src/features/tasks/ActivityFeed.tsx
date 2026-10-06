@@ -613,7 +613,7 @@ export function ActivityFeed({
           <div className="flex gap-2">
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               onClick={() => setReplyTarget(null)}
               className="px-3 py-1.5 text-xs"
             >

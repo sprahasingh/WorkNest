@@ -701,28 +701,34 @@ export function ProjectsPage() {
             </select>
           </Field>
 
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={closeCreateModal}
+              disabled={
+                isSubmitting ||
+                createProject.isPending ||
+                updateProject.isPending
+              }
+            >
+              Cancel
+            </Button>
             {!editingProject && (
               <Button
                 type="button"
                 variant="ghost"
-                className="w-full sm:mr-auto sm:w-auto"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   reset(EMPTY_PROJECT_FORM);
                   setFormError(null);
                 }}
+                disabled={isSubmitting || createProject.isPending}
               >
                 Clear form
               </Button>
             )}
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full sm:w-auto"
-              onClick={closeCreateModal}
-            >
-              Cancel
-            </Button>
             <Button
               type="submit"
               disabled={
@@ -746,7 +752,7 @@ export function ProjectsPage() {
                   : "Creating…"
                 : editingProject
                   ? "Save project"
-                  : "Create project"}
+                  : "Create Project"}
             </Button>
           </div>
         </form>
@@ -767,7 +773,7 @@ export function ProjectsPage() {
         <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <Button
             type="button"
-            variant="ghost"
+            variant="secondary"
             onClick={() => setConfirmTarget(null)}
             className="w-full sm:w-auto"
           >
