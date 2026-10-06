@@ -1,5 +1,4 @@
 import { PASSWORD_TOO_LONG, passwordFitsLimit } from "@/lib/passwordPolicy";
-import { apiClient } from "@/api/client";
 import { useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCooldown } from "@/hooks/useCooldown";
@@ -19,6 +18,7 @@ import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
 import {
   useOrgDetails,
+  useOrgPlanRestoreCheck,
   useUpdateOrg,
   useChangePlan,
 } from "@/features/org/queries";
@@ -48,10 +48,20 @@ import { TestPaymentBox } from "@/features/billing/TestPaymentBox";
 import { TestPlanDatesBox } from "@/features/billing/TestPlanDatesBox";
 import { copyTestCard } from "@/features/billing/testDetails";
 import { orgKeys } from "@/features/org/queries";
-import { projectKeys } from "@/features/projects/queries";
+import {
+  projectKeys,
+  refreshRestoreCandidates,
+  usePlanArchivedRestoreTasks,
+  useProjects,
+} from "@/features/projects/queries";
 import { dashboardKeys } from "@/features/dashboard/queries";
 import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
-import { restorePlanArchivedProjects } from "@/features/projects/api";
+import { RestoreProjectsPrompt } from "./RestoreProjectsPrompt";
+import {
+  eligibleRestoreCandidates,
+  restorePromptSignature as getRestorePromptSignature,
+  shouldShowRestorePrompt,
+} from "@/lib/planRestorePrompt";
 import {
   PLAN_LIMITS,
   PLAN_NAMES,
@@ -785,6 +795,25 @@ export function SettingsPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const { data: org, isPending, isError } = useOrgDetails(orgId);
+  const restoreCheckOrgQuery = useOrgPlanRestoreCheck(orgId, canChangePlan);
+  const restoreCheckedPlan = restoreCheckOrgQuery.data?.plan;
+  const restoreCheckedExpiry = restoreCheckOrgQuery.data?.planExpiresAt;
+  const archivedProjectsQuery = useProjects(
+    orgId,
+    { view: "archived" },
+    canChangePlan,
+  );
+  const archivedTasksQuery = usePlanArchivedRestoreTasks(orgId, canChangePlan);
+  useEffect(() => {
+    if (!canChangePlan || !restoreCheckedPlan) return;
+    void refreshRestoreCandidates(queryClient, orgId);
+  }, [
+    canChangePlan,
+    orgId,
+    queryClient,
+    restoreCheckedPlan,
+    restoreCheckedExpiry,
+  ]);
 
   // A link from Messages lands on the chat history card.
   const { hash } = useLocation();
@@ -806,11 +835,13 @@ export function SettingsPage() {
   const [switchNotice, setSwitchNotice] = useState<Plan | null>(null);
   const [planInfoOpen, setPlanInfoOpen] = useState(false);
   const [payingFor, setPayingFor] = useState<Plan | null>(null);
-  const [restorePrompt, setRestorePrompt] = useState(false);
-  const [archivedByPlan, setArchivedByPlan] = useState<
-    Array<{ _id: string; name: string; key: string }>
-  >([]);
-  const [restoreSelected, setRestoreSelected] = useState<string[]>([]);
+  const [handledRestoreSignature, setHandledRestoreSignature] = useState(() => {
+    try {
+      return window.localStorage.getItem(`worknest:restore-prompt:${orgId}`);
+    } catch {
+      return null;
+    }
+  });
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const billing = useQuery({
     ...billingQuery(orgId),
@@ -818,6 +849,37 @@ export function SettingsPage() {
   });
   const paymentsOn = billing.data?.enabled === true;
   const testMode = billing.data?.keyId?.startsWith("rzp_test_") === true;
+  const eligibleArchivedProjects = eligibleRestoreCandidates(
+    archivedProjectsQuery.data?.projects ?? [],
+  );
+  const forceArchivedTasks = archivedTasksQuery.data ?? [];
+  const restorePlanOrg = restoreCheckOrgQuery.data ?? org;
+  const restorePromptSignature = restorePlanOrg
+    ? getRestorePromptSignature(
+        `${orgId}:${restorePlanOrg.plan}`,
+        restorePlanOrg.planExpiresAt,
+        eligibleArchivedProjects,
+        forceArchivedTasks,
+      )
+    : null;
+  const restorePrompt = shouldShowRestorePrompt(
+    canChangePlan,
+    restorePromptSignature ?? null,
+    handledRestoreSignature,
+  );
+  const archivedByPlan = eligibleArchivedProjects;
+  const closeRestorePrompt = () => {
+    if (!restorePromptSignature) return;
+    try {
+      window.localStorage.setItem(
+        `worknest:restore-prompt:${orgId}`,
+        restorePromptSignature,
+      );
+    } catch {
+      // Keep the choice for this visit if browser storage is unavailable.
+    }
+    setHandledRestoreSignature(restorePromptSignature);
+  };
 
   const {
     control,
@@ -970,27 +1032,6 @@ export function SettingsPage() {
         }
         if (result.status === "paid") {
           toast.success(`Payment received. You're now on the ${name} plan`);
-          try {
-            const archived = await apiClient.get<{
-              projects: Array<{
-                _id: string;
-                name: string;
-                key: string;
-                archivedReason?: string;
-              }>;
-            }>(`/orgs/${orgId}/projects`, { params: { view: "archived" } });
-            const eligible = archived.data.projects.filter(
-              (project) => project.archivedReason === "plan_limit",
-            );
-            if (eligible.length) {
-              setArchivedByPlan(eligible);
-              setRestoreSelected(eligible.map((project) => project._id));
-              setRestorePrompt(true);
-            }
-          } catch {
-            // Payment succeeded; the prompt can be reached after navigating
-            // back to settings if loading the archive list briefly fails.
-          }
           void queryClient.invalidateQueries({
             queryKey: orgKeys.detail(orgId),
           });
@@ -1000,6 +1041,7 @@ export function SettingsPage() {
           void queryClient.invalidateQueries({
             queryKey: projectKeys.all(orgId),
           });
+          void refreshRestoreCandidates(queryClient, orgId);
           void queryClient.invalidateQueries({
             queryKey: billingQuery(orgId).queryKey,
           });
@@ -1016,6 +1058,7 @@ export function SettingsPage() {
     try {
       await changePlan.mutateAsync(newPlan);
       toast.success(`You're now on the ${name} plan`);
+      void refreshRestoreCandidates(queryClient, orgId);
     } catch (error) {
       const parsed = parseApiError(error);
 
@@ -1543,91 +1586,13 @@ export function SettingsPage() {
         </Card>
 
         {restorePrompt && (
-          <Modal
-            open
-            onClose={() => setRestorePrompt(false)}
-            title="Review archived projects"
-          >
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Your upgrade is complete. Choose force-archived projects to
-              restore. Associated force-archived tasks return with each project
-              when they fit your plan.
-            </p>
-            <label className="mt-4 flex items-center gap-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                checked={restoreSelected.length === archivedByPlan.length}
-                onChange={(event) =>
-                  setRestoreSelected(
-                    event.target.checked
-                      ? archivedByPlan.map((p) => p._id)
-                      : [],
-                  )
-                }
-              />
-              Restore all eligible projects
-            </label>
-            <div className="mt-3 max-h-64 space-y-2 overflow-auto">
-              {archivedByPlan.map((project) => (
-                <label
-                  key={project._id}
-                  className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700"
-                >
-                  <input
-                    type="checkbox"
-                    checked={restoreSelected.includes(project._id)}
-                    onChange={(event) =>
-                      setRestoreSelected((selected) =>
-                        event.target.checked
-                          ? [...selected, project._id]
-                          : selected.filter((id) => id !== project._id),
-                      )
-                    }
-                  />
-                  <span>
-                    {project.name}{" "}
-                    <span className="text-slate-500">({project.key})</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => setRestorePrompt(false)}
-              >
-                Later
-              </Button>
-              <Button
-                onClick={async () => {
-                  try {
-                    const restored = await restorePlanArchivedProjects(
-                      orgId,
-                      restoreSelected,
-                    );
-                    toast.success(
-                      `${restored.length} project${restored.length === 1 ? "" : "s"} restored`,
-                    );
-                    setRestorePrompt(false);
-                    void queryClient.invalidateQueries({
-                      queryKey: projectKeys.all(orgId),
-                    });
-                    void queryClient.invalidateQueries({
-                      queryKey: dashboardKeys.all(orgId),
-                    });
-                    void queryClient.invalidateQueries({
-                      queryKey: orgKeys.detail(orgId),
-                    });
-                  } catch (error) {
-                    toast.error(parseApiError(error).message);
-                  }
-                }}
-                disabled={!restoreSelected.length}
-              >
-                Restore selected
-              </Button>
-            </div>
-          </Modal>
+          <RestoreProjectsPrompt
+            key={restorePromptSignature}
+            orgId={orgId}
+            projects={archivedByPlan}
+            tasks={forceArchivedTasks}
+            onClose={closeRestorePrompt}
+          />
         )}
 
         {org && switchNotice && (

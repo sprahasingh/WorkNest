@@ -487,6 +487,13 @@ export function ProjectsPage() {
                       <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
                         {project.key}
                       </p>
+                      {view === "archived" && (
+                        <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          {project.archivedReason === "plan_limit"
+                            ? "Force-archived"
+                            : "Manually archived"}
+                        </span>
+                      )}
                       <span
                         className={cn(
                           "mt-2 inline-flex self-start rounded-full px-2 py-0.5 text-xs font-medium capitalize",

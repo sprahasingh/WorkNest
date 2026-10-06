@@ -1,5 +1,7 @@
 import { apiClient } from "@/api/client";
 
+export const PLAN_RESTORE_BATCH_SIZE = 500;
+
 export interface Project {
   _id: string;
   tenantId: string;
@@ -11,6 +13,7 @@ export interface Project {
   dueDateIsDateOnly?: boolean;
   reminderCycle?: number;
   archivedAt: string | null;
+  archivedReason?: "plan_limit" | null;
   completedAt?: string | null;
   // Set while the project is in the bin.
   deletedAt?: string | null;
@@ -29,6 +32,21 @@ export interface ProjectSummary extends Project {
   taskCount: number;
   // When a project in the bin will be deleted for good.
   purgeAt: string | null;
+}
+
+export interface PlanArchivedTaskCandidate {
+  _id: string;
+  title: string;
+  projectId: string;
+  projectName: string;
+  projectKey: string;
+  archivedAt: string;
+}
+
+export interface PlanArchivedRestoreResult {
+  projects: Project[];
+  tasks: { _id: string }[];
+  skipped: { projects: number; tasks: number };
 }
 
 export type ProjectPriority = "low" | "medium" | "high";
@@ -129,12 +147,22 @@ export async function unarchiveProject(
 export async function restorePlanArchivedProjects(
   orgId: string,
   projectIds: string[],
-): Promise<Project[]> {
-  const response = await apiClient.post<{ projects: Project[] }>(
+  taskIds: string[] = [],
+): Promise<PlanArchivedRestoreResult> {
+  const response = await apiClient.post<PlanArchivedRestoreResult>(
     `/orgs/${orgId}/projects/restore-plan-archived`,
-    { projectIds },
+    { projectIds, taskIds },
   );
-  return response.data.projects;
+  return response.data;
+}
+
+export async function listPlanArchivedRestoreTasks(
+  orgId: string,
+): Promise<PlanArchivedTaskCandidate[]> {
+  const response = await apiClient.get<{ tasks: PlanArchivedTaskCandidate[] }>(
+    `/orgs/${orgId}/projects/restore-plan-archived/tasks`,
+  );
+  return response.data.tasks;
 }
 
 // Moves the project to the bin, where it can be restored for 30 days.

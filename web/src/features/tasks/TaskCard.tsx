@@ -135,6 +135,13 @@ export function TaskCard({
         >
           {task.priority}
         </span>
+        {view === "archived" && (
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+            {task.archivedReason === "plan_limit"
+              ? "Force-archived"
+              : "Manually archived"}
+          </span>
+        )}
         {task.dueDate && (
           <span
             className={`text-xs ${overdue ? "font-medium text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}

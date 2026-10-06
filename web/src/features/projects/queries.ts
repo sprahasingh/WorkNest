@@ -9,6 +9,7 @@ import {
   restoreProject,
   unarchiveProject,
   getProject,
+  listPlanArchivedRestoreTasks,
   listProjects,
   updateProject,
   type CreateProjectInput,
@@ -25,10 +26,42 @@ export const projectKeys = {
     [...projectKeys.all(orgId), "detail", projectId] as const,
 };
 
-export function useProjects(orgId: string, params: ListProjectsParams = {}) {
+export const planRestoreTaskKeys = {
+  candidates: (orgId: string) =>
+    [...projectKeys.all(orgId), "plan-restore-task-candidates"] as const,
+};
+
+export function refreshRestoreCandidates(
+  queryClient: Pick<ReturnType<typeof useQueryClient>, "invalidateQueries">,
+  orgId: string,
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: projectKeys.list(orgId, { view: "archived" }),
+    }),
+    queryClient.invalidateQueries({
+      queryKey: planRestoreTaskKeys.candidates(orgId),
+    }),
+  ]);
+}
+
+export function usePlanArchivedRestoreTasks(orgId: string, enabled = true) {
+  return useQuery({
+    queryKey: planRestoreTaskKeys.candidates(orgId),
+    queryFn: () => listPlanArchivedRestoreTasks(orgId),
+    enabled,
+  });
+}
+
+export function useProjects(
+  orgId: string,
+  params: ListProjectsParams = {},
+  enabled = true,
+) {
   return useQuery({
     queryKey: projectKeys.list(orgId, params),
     queryFn: () => listProjects(orgId, params),
+    enabled,
   });
 }
 

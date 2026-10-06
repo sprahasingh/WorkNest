@@ -10,6 +10,7 @@ import {
   restoreProject,
   deleteProjectPermanently,
   restorePlanArchivedProjects,
+  listPlanArchivedRestoreTasks,
 } from "./projects.service.js";
 import type {
   CreateProjectInput,
@@ -21,9 +22,23 @@ export async function restorePlanArchivedProjectsController(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const input = req.validated!.body as { projectIds: string[] };
-  const projects = await restorePlanArchivedProjects(input.projectIds);
-  res.status(200).json({ projects });
+  const input = req.validated!.body as {
+    projectIds: string[];
+    taskIds?: string[];
+  };
+  const result = await restorePlanArchivedProjects(
+    input.projectIds,
+    input.taskIds ?? [],
+  );
+  res.status(200).json(result);
+}
+
+export async function listPlanArchivedRestoreTasksController(
+  _req: Request,
+  res: Response,
+): Promise<void> {
+  const tasks = await listPlanArchivedRestoreTasks();
+  res.status(200).json({ tasks });
 }
 
 export async function createProjectController(

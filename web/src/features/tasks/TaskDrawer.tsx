@@ -34,6 +34,7 @@ import {
   useUpdateTask,
 } from "./queries";
 import { useMarkReadWhenViewed } from "@/features/notifications/queries";
+import { taskViewAfterUnarchive } from "@/lib/planRestorePrompt";
 import { useOrgDetails } from "@/features/org/queries";
 import {
   dateInputValueInTimeZone,
@@ -323,7 +324,13 @@ export function TaskDrawer({
         toast.success("Task archived");
       } else if (action === "unarchive") {
         await unarchiveTaskMutation.mutateAsync(task._id);
-        setTaskView(task.status === "done" ? "completed" : "active");
+        setSearchParams((previous) => {
+          const next = new URLSearchParams(previous);
+          const view = taskViewAfterUnarchive(task.status);
+          if (view === "completed") next.set("view", view);
+          else next.delete("view");
+          return next;
+        });
         toast.success("Task unarchived");
       } else {
         await restoreTaskMutation.mutateAsync(task._id);

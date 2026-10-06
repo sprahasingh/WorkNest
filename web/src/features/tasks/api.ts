@@ -22,6 +22,7 @@ export interface Task {
   reminderCycle?: number;
   completedAt?: string | null;
   archivedAt?: string | null;
+  archivedReason?: "plan_limit" | null;
   deletedAt?: string | null;
   deletedBy?: string | null;
   purgeAt?: string | null;

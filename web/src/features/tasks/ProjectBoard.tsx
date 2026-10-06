@@ -42,6 +42,7 @@ import {
   type LifecycleSort,
 } from "@/lib/lifecycleSorting";
 import type { Task, TaskStatus, TaskPriority, TaskView } from "./api";
+import { taskViewAfterUnarchive } from "@/lib/planRestorePrompt";
 
 const ACTIVE_STATUSES: TaskStatus[] = ["todo", "in_progress"];
 const TASK_VIEWS: { value: TaskView; label: string }[] = [
@@ -527,7 +528,11 @@ export function ProjectBoard() {
               }
               onUnarchive={(task) =>
                 unarchiveTask.mutate(task._id, {
-                  onSuccess: () => toast.success("Task unarchived"),
+                  onSuccess: () => {
+                    const view = taskViewAfterUnarchive(task.status);
+                    setParam("view", view === "active" ? null : view);
+                    toast.success("Task unarchived");
+                  },
                   onError: (error) => toast.error(parseApiError(error).message),
                 })
               }

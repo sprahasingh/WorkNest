@@ -237,8 +237,10 @@ export function PlanNotice() {
           exceeded the {PLAN_NAMES[org.plan]} plan limits{" "}
           {archivedCount === 1 ? "was" : "were"} archived. No data was deleted.
           After upgrading, use the Review archived projects prompt to choose
-          eligible projects to restore. You can restore eligible tasks from the
-          Archived list when your plan has capacity.
+          force-archived projects and tasks in active projects to restore. Tasks
+          in a restored project return automatically while the plan has task
+          capacity; any that do not fit remain Archived. Manually archived tasks
+          are not included.
         </p>
         <button
           type="button"
