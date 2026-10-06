@@ -117,7 +117,7 @@ export function LeaveOrganizationCard({
         <div className="mt-4 flex justify-end gap-3">
           <Button
             type="button"
-            variant="ghost"
+            variant="secondary"
             onClick={() => setConfirmOpen(false)}
           >
             Cancel

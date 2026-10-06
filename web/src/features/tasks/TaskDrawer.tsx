@@ -478,29 +478,6 @@ export function TaskDrawer({
           >
             <ErrorBanner message={formError} />
 
-            {!isEditing && (
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    reset({
-                      title: "",
-                      description: "",
-                      priority: "medium",
-                      assigneeIds: canAssign ? [] : [userId],
-                      dueDate: "",
-                      status: "todo",
-                    });
-                    setFormError(null);
-                  }}
-                >
-                  Clear form
-                </Button>
-              </div>
-            )}
-
             {task && (
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 <span className="font-medium text-slate-700 dark:text-slate-300">
@@ -676,7 +653,7 @@ export function TaskDrawer({
                   <div className="flex shrink-0 gap-2">
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="secondary"
                       size="sm"
                       onClick={() => setConfirmingDelete(false)}
                     >
@@ -791,17 +768,39 @@ export function TaskDrawer({
                       ? "Saving…"
                       : isEditing
                         ? "Save changes"
-                        : "Create task"}
+                        : "Create Task"}
                   </Button>
                 )}
                 <Button
                   type="button"
-                  variant={canEdit ? "ghost" : "secondary"}
+                  variant="secondary"
                   onClick={onClose}
-                  className="order-3 w-full whitespace-nowrap border border-slate-300 dark:border-slate-600 sm:order-3 sm:w-auto sm:border-0"
+                  disabled={isSubmitting || createTask.isPending}
+                  className="order-3 w-full whitespace-nowrap sm:order-3 sm:w-auto"
                 >
                   {canEdit ? "Cancel" : "Close"}
                 </Button>
+                {!isEditing && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      reset({
+                        title: "",
+                        description: "",
+                        priority: "medium",
+                        assigneeIds: canAssign ? [] : [userId],
+                        dueDate: "",
+                        status: "todo",
+                      });
+                      setFormError(null);
+                    }}
+                    disabled={isSubmitting || createTask.isPending}
+                    className="order-4 w-full whitespace-nowrap sm:order-4 sm:w-auto"
+                  >
+                    Clear form
+                  </Button>
+                )}
               </div>
             </div>
 

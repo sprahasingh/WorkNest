@@ -635,7 +635,7 @@ export function ProjectBoard() {
             : `“${taskConfirm?.task.title}” will move to the bin and can be restored for 30 days.`}
         </p>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setTaskConfirm(null)}>
+          <Button variant="secondary" onClick={() => setTaskConfirm(null)}>
             Cancel
           </Button>
           <Button

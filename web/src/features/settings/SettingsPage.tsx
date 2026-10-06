@@ -1325,7 +1325,7 @@ export function SettingsPage() {
           <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               onClick={() => {
                 if (!updateOrg.isPending) setTimeZoneChoice(null);
               }}
@@ -1373,7 +1373,7 @@ export function SettingsPage() {
           </p>
           <div className="mt-4 flex justify-end gap-3">
             <Button
-              variant="ghost"
+              variant="secondary"
               onClick={() => setRetentionConfirmation(null)}
               disabled={updateOrg.isPending}
             >
