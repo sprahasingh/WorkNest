@@ -48,6 +48,22 @@ updates:
           - minor
           - patch
 
+  - package-ecosystem: npm
+    directory: /tools/screenshots
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "09:30"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    groups:
+      screenshots-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: docker
     directory: /api
     schedule:
