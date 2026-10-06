@@ -1,4 +1,5 @@
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 import { lockScroll } from "@/lib/scrollLock";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
@@ -47,27 +48,8 @@ function WorkspaceSwitcher() {
   const { memberships, logout, isLoggingOut } = useAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleClickOutside(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    window.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [open]);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useContextualOverlay(open, containerRef, menuRef, () => setOpen(false));
 
   const otherMemberships = (memberships ?? []).filter(
     (membership) => membership.tenantId.id !== orgId,
@@ -81,6 +63,7 @@ function WorkspaceSwitcher() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
         aria-expanded={open}
         title={orgName}
         className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -108,7 +91,11 @@ function WorkspaceSwitcher() {
       </button>
 
       {open && (
-        <div className="absolute left-2 right-2 top-full z-20 mt-1 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+        <div
+          ref={menuRef}
+          role="menu"
+          className="absolute left-2 right-2 top-full z-20 mt-1 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+        >
           {otherMemberships.length > 0 && (
             <>
               <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -118,6 +105,7 @@ function WorkspaceSwitcher() {
                 <Link
                   key={membership._id}
                   to={`/orgs/${membership.tenantId.id}/dashboard`}
+                  role="menuitem"
                   onClick={() => setOpen(false)}
                   className="block min-h-11 truncate px-3 py-3 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
@@ -133,6 +121,7 @@ function WorkspaceSwitcher() {
 
           <Link
             to="/orgs"
+            role="menuitem"
             onClick={() => setOpen(false)}
             className="block min-h-11 px-3 py-3 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
           >
@@ -143,6 +132,7 @@ function WorkspaceSwitcher() {
 
           <button
             type="button"
+            role="menuitem"
             onClick={() => void logout()}
             disabled={isLoggingOut}
             className="flex min-h-11 w-full items-center gap-2 px-3 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700"

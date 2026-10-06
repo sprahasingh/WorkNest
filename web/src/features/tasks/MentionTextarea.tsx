@@ -3,6 +3,7 @@ import type { ChangeEvent, KeyboardEvent } from "react";
 import type { Member } from "@/features/members/api";
 import { inputStyles } from "@/components/ui/Field";
 import { cn } from "@/lib/cn";
+import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 
 export type MentionRole = "admin" | "manager" | "member" | "assignee";
 
@@ -59,6 +60,7 @@ export function MentionTextarea({
   allowRoleMentions = true,
 }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState<{
     start: number;
     end: number;
@@ -90,6 +92,12 @@ export function MentionTextarea({
       })),
   ];
   const optionsId = `${id}-mention-options`;
+  useContextualOverlay(
+    query !== null && suggestions.length > 0,
+    textareaRef,
+    listRef,
+    () => setQuery(null),
+  );
 
   const syncMentionsWithText = (nextValue: string) => {
     onMentionsChange({
@@ -189,6 +197,7 @@ export function MentionTextarea({
       />
       {query && suggestions.length > 0 && (
         <div
+          ref={listRef}
           id={optionsId}
           role="listbox"
           aria-label="Mention a person or group"

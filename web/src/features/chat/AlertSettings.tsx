@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
+import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 import {
   desktopAlertsAvailable,
   playChime,
@@ -55,25 +56,12 @@ export function AlertSettings() {
   const [prefs, setPrefs] = useState<ChatAlertPrefs>(readAlertPrefs);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   // Where the panel starts on a phone, just under the bell.
   const [panelTop, setPanelTop] = useState(0);
   const available = desktopAlertsAvailable();
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useContextualOverlay(open, buttonRef, panelRef, () => setOpen(false));
 
   const update = (next: ChatAlertPrefs) => {
     setPrefs(next);
@@ -131,6 +119,7 @@ export function AlertSettings() {
       </button>
       {open && (
         <div
+          ref={panelRef}
           role="dialog"
           aria-label="Message alerts"
           // On a phone the panel is pinned to the screen with a margin on

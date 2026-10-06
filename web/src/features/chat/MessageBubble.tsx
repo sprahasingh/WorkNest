@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
+import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 import { EDIT_WINDOW_MS, REACTION_EMOJIS, type ChatMessage } from "./api";
 import {
   canViewInBrowser,
@@ -249,6 +250,11 @@ export function MessageBubble({
   wasLongPress,
 }: MessageBubbleProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerTriggerRef = useRef<HTMLButtonElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  useContextualOverlay(pickerOpen, pickerTriggerRef, pickerRef, () =>
+    setPickerOpen(false),
+  );
   const [draft, setDraft] = useState(message.text);
   const deleted = message.deletedAt !== null;
   const pending = status !== undefined;
@@ -294,6 +300,7 @@ export function MessageBubble({
             )}
           >
             <button
+              ref={pickerTriggerRef}
               type="button"
               aria-label="Add reaction"
               aria-expanded={pickerOpen}
@@ -346,6 +353,7 @@ export function MessageBubble({
 
         {pickerOpen && showActions && (
           <div
+            ref={pickerRef}
             role="menu"
             aria-label="Choose a reaction"
             className={cn(

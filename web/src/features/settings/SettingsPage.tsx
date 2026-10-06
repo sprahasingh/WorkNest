@@ -14,6 +14,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { getCountryForTimezone } from "countries-and-timezones";
 import { useOrg } from "@/hooks/useOrg";
+import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
 import {
@@ -140,6 +141,7 @@ function TimeZoneSelect({
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const selectedTimeZone = field.value ?? "UTC";
@@ -168,6 +170,10 @@ function TimeZoneSelect({
     setIsOpen(false);
     setSearch("");
   };
+  useContextualOverlay(isOpen, triggerRef, popoverRef, (reason) => {
+    closeDropdown();
+    if (reason === "escape") triggerRef.current?.focus();
+  });
 
   const handleOptionKeyDown = (
     event: React.KeyboardEvent<HTMLButtonElement>,
@@ -264,7 +270,10 @@ function TimeZoneSelect({
       </button>
 
       {isOpen && (
-        <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+        <div
+          ref={popoverRef}
+          className="absolute z-20 mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 shadow-lg dark:border-slate-600 dark:bg-slate-800"
+        >
           <input
             type="search"
             autoFocus

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useTheme, type ThemePreference } from "@/theme/theme-context";
 import { cn } from "@/lib/cn";
+import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 
 function SunIcon({ className }: { className?: string }) {
   return (
@@ -78,19 +79,8 @@ export function ThemeToggle({
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleClickOutside(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useContextualOverlay(open, containerRef, menuRef, () => setOpen(false));
 
   const ActiveIcon = resolvedTheme === "dark" ? MoonIcon : SunIcon;
 
@@ -100,6 +90,7 @@ export function ThemeToggle({
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-label="Change theme"
+        aria-haspopup="menu"
         aria-expanded={open}
         className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
       >
@@ -108,6 +99,8 @@ export function ThemeToggle({
 
       {open && (
         <div
+          ref={menuRef}
+          role="menu"
           className={cn(
             "absolute right-0 z-30 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800",
             menuPlacement === "up" ? "bottom-full mb-1" : "top-full mt-1",
@@ -117,6 +110,7 @@ export function ThemeToggle({
             <button
               key={option.value}
               type="button"
+              role="menuitem"
               onClick={() => {
                 setTheme(option.value);
                 setOpen(false);

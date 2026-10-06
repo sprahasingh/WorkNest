@@ -19,6 +19,7 @@ import {
 } from "./api";
 import { COMMON_EMOJIS, formatBytes } from "./chatUtils";
 import { registerSignOutHook } from "@/lib/signOutHooks";
+import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 
 // Unsent text survives switching to another conversation and back.
 const drafts = new Map<string, string>();
@@ -78,6 +79,12 @@ export function Composer({
   const [menuClosedFor, setMenuClosedFor] = useState<string | null>(null);
   const [mentioned, setMentioned] = useState<Map<string, string>>(new Map());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionPanelRef = useRef<HTMLUListElement>(null);
+  const emojiTriggerRef = useRef<HTMLButtonElement>(null);
+  const emojiPanelRef = useRef<HTMLDivElement>(null);
+  useContextualOverlay(emojiOpen, emojiTriggerRef, emojiPanelRef, () =>
+    setEmojiOpen(false),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadsRef = useRef<Upload[]>([]);
   const addFilesRef = useRef<(files: File[]) => void>(() => undefined);
@@ -128,6 +135,14 @@ export function Composer({
       .filter((member) => member.name.toLowerCase().includes(query))
       .slice(0, 6);
   }, [mentionMatch, mentionable, menuClosedFor]);
+  useContextualOverlay(
+    suggestions.length > 0,
+    textareaRef,
+    mentionPanelRef,
+    () => {
+      if (mentionMatch) setMenuClosedFor(`${mentionMatch.start}`);
+    },
+  );
   const activeSuggestion = Math.min(
     highlight,
     Math.max(0, suggestions.length - 1),
@@ -427,6 +442,7 @@ export function Composer({
 
       {suggestions.length > 0 && (
         <ul
+          ref={mentionPanelRef}
           id="mention-list"
           role="listbox"
           aria-label="People to mention"
@@ -457,6 +473,8 @@ export function Composer({
 
       {emojiOpen && (
         <div
+          ref={emojiPanelRef}
+          id={`composer-emoji-${conversationId}`}
           role="menu"
           aria-label="Insert emoji"
           // Keeps the textarea focused so the phone keyboard stays put.
@@ -512,8 +530,11 @@ export function Composer({
           </>
         )}
         <button
+          ref={emojiTriggerRef}
           type="button"
           aria-label="Insert emoji"
+          aria-haspopup="menu"
+          aria-controls={`composer-emoji-${conversationId}`}
           aria-expanded={emojiOpen}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => setEmojiOpen((open) => !open)}
@@ -549,6 +570,7 @@ export function Composer({
             setText(event.target.value);
             setCaret(event.target.selectionStart);
             setHighlight(0);
+            setMenuClosedFor(null);
             drafts.set(conversationId, event.target.value);
             if (event.target.value) onTyping();
           }}
