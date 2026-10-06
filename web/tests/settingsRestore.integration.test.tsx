@@ -199,6 +199,10 @@ afterEach(() => {
 describe("Settings upgrade restore flow", () => {
   it("does not show a prompt for existing archived resources on a normal Settings visit", async () => {
     mocks.plan = "pro";
+    mocks.listProjects.mockResolvedValue({
+      ...archivedResponse,
+      projects: [{ ...restoreCandidate, archivedReason: null }],
+    });
     mocks.getOrg.mockResolvedValue({
       ...baseOrg,
       plan: "pro",
@@ -267,7 +271,7 @@ describe("Settings upgrade restore flow", () => {
     );
   });
 
-  it("persists Later dismissal and keeps the prompt closed on a later Settings visit", async () => {
+  it("persists Later dismissal and offers a clear way to reopen the prompt", async () => {
     mocks.plan = "pro";
     const queryClient = new QueryClient();
     const firstVisit = mountSettings(queryClient);
@@ -282,6 +286,9 @@ describe("Settings upgrade restore flow", () => {
         screen.queryByRole("dialog", { name: "Review archived projects" }),
       ).toBeNull(),
     );
+    expect(
+      screen.getByRole("button", { name: "Review archived projects" }),
+    ).toBeTruthy();
     expect(localStorage.getItem("worknest:restore-prompt:org-1")).toContain(
       "pro:",
     );
@@ -292,5 +299,11 @@ describe("Settings upgrade restore flow", () => {
     expect(
       screen.queryByRole("dialog", { name: "Review archived projects" }),
     ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review archived projects" }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Review archived projects" }),
+    ).toBeTruthy();
   });
 });

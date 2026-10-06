@@ -419,7 +419,7 @@ describe("Settings restore prompt", () => {
 });
 
 describe("post-upgrade restore prompt", () => {
-  it("offers only force-archived projects and tracks plan cycle changes", () => {
+  it("offers only force-archived projects and tracks candidate and plan changes", () => {
     const projects = [
       {
         _id: "forced",
@@ -432,19 +432,21 @@ describe("post-upgrade restore prompt", () => {
     expect(
       eligibleRestoreCandidates(projects).map((project) => project._id),
     ).toEqual(["forced"]);
-    expect(
-      restorePromptSignature("pro", "2026-10-01", projects),
-    ).not.toBeNull();
-    expect(restorePromptSignature("free", null, projects)).toBeNull();
-    expect(restorePromptSignature("pro", "2026-10-01", projects)).not.toBe(
-      restorePromptSignature("pro", "2026-11-01", projects),
+    expect(restorePromptSignature("org-1", "pro", projects)).not.toBeNull();
+    expect(restorePromptSignature("org-1", "free", projects)).toBeNull();
+    // Expiry timestamps are not part of eligibility and are cleared at upgrade.
+    expect(restorePromptSignature("org-1", "pro", projects)).toBe(
+      restorePromptSignature("org-1", "pro", projects),
     );
-    const afterCheckout = restorePromptSignature("pro", "2026-10-01", projects);
+    const afterCheckout = restorePromptSignature("org-1", "pro", projects);
     expect(shouldShowRestorePrompt(true, afterCheckout, null)).toBe(true);
     expect(shouldShowRestorePrompt(true, afterCheckout, afterCheckout)).toBe(
       false,
     );
     expect(shouldShowRestorePrompt(false, afterCheckout, null)).toBe(false);
+    expect(restorePromptSignature("org-1", "premium", projects)).not.toBe(
+      afterCheckout,
+    );
   });
 });
 

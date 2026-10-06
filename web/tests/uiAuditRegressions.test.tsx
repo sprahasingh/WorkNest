@@ -27,7 +27,7 @@ describe("frontend audit regressions", () => {
     );
   });
 
-  it("waits until scrolling settles before measuring a disabled-button tooltip", () => {
+  it("cancels a disabled-button explanation for the full scroll interaction", () => {
     vi.useFakeTimers();
     const measure = vi
       .spyOn(HTMLElement.prototype, "getBoundingClientRect")
@@ -47,22 +47,76 @@ describe("frontend audit regressions", () => {
         Create
       </Button>,
     );
-    fireEvent.pointerEnter(container.firstElementChild!, {
-      pointerType: "mouse",
-    });
-
+    const wrapper = container.firstElementChild!;
+    fireEvent.click(wrapper);
     act(() => vi.advanceTimersByTime(20));
+    expect(screen.getByRole("tooltip").textContent).toBe("Plan limit reached");
     const measuredOnOpen = measure.mock.calls.length;
     expect(measuredOnOpen).toBeGreaterThan(0);
 
     fireEvent.scroll(window);
     fireEvent.scroll(window);
     fireEvent.scroll(window);
+    expect(screen.queryByRole("tooltip")).toBeNull();
     expect(measure).toHaveBeenCalledTimes(measuredOnOpen);
 
-    act(() => vi.advanceTimersByTime(120));
-    expect(measure).toHaveBeenCalledTimes(measuredOnOpen + 2);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(measure).toHaveBeenCalledTimes(measuredOnOpen);
+
+    fireEvent.click(wrapper);
+    act(() => vi.advanceTimersByTime(20));
+    expect(screen.getByRole("tooltip").textContent).toBe("Plan limit reached");
     vi.useRealTimers();
+  });
+
+  it("ignores a touch click synthesized after scrolling, then accepts a new tap", () => {
+    vi.useFakeTimers();
+    const { container } = render(
+      <Button disabled disabledReason="Plan limit reached">
+        Create
+      </Button>,
+    );
+    const wrapper = container.firstElementChild!;
+    fireEvent.click(wrapper);
+    act(() => vi.advanceTimersByTime(20));
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+
+    fireEvent.pointerDown(wrapper, { pointerType: "touch" });
+    fireEvent.scroll(window);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.pointerUp(wrapper, { pointerType: "touch" });
+    fireEvent.click(wrapper);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.pointerDown(wrapper, { pointerType: "touch" });
+    fireEvent.pointerUp(wrapper, { pointerType: "touch" });
+    fireEvent.click(wrapper);
+    act(() => vi.advanceTimersByTime(20));
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+    vi.useRealTimers();
+  });
+
+  it("does not let a queued positioning frame reopen a scrolled-away explanation", () => {
+    let queuedFrame: FrameRequestCallback | undefined;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      queuedFrame = callback;
+      return 1;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(
+      () => undefined,
+    );
+    const { container } = render(
+      <Button disabled disabledReason="Plan limit reached">
+        Create
+      </Button>,
+    );
+    const wrapper = container.firstElementChild!;
+    fireEvent.click(wrapper);
+    expect(queuedFrame).toBeDefined();
+    fireEvent.scroll(window);
+    act(() => queuedFrame?.(0));
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   it("resizes a long dialog to the visible viewport", () => {

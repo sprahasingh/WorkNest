@@ -58,7 +58,10 @@ import { dashboardKeys } from "@/features/dashboard/queries";
 import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 import { RestoreProjectsPrompt } from "./RestoreProjectsPrompt";
 import {
+  canReopenRestorePrompt,
   eligibleRestoreCandidates,
+  persistHandledRestoreSignature,
+  readHandledRestoreSignature,
   restorePromptSignature as getRestorePromptSignature,
   shouldShowRestorePrompt,
 } from "@/lib/planRestorePrompt";
@@ -847,13 +850,10 @@ export function SettingsPage() {
   const [switchNotice, setSwitchNotice] = useState<Plan | null>(null);
   const [planInfoOpen, setPlanInfoOpen] = useState(false);
   const [payingFor, setPayingFor] = useState<Plan | null>(null);
-  const [handledRestoreSignature, setHandledRestoreSignature] = useState(() => {
-    try {
-      return window.localStorage.getItem(`worknest:restore-prompt:${orgId}`);
-    } catch {
-      return null;
-    }
-  });
+  const [handledRestoreSignature, setHandledRestoreSignature] = useState(() =>
+    readHandledRestoreSignature(orgId),
+  );
+  const [restorePromptRequested, setRestorePromptRequested] = useState(false);
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const billing = useQuery({
     ...billingQuery(orgId),
@@ -866,36 +866,33 @@ export function SettingsPage() {
   );
   const forceArchivedTasks = archivedTasksQuery.data ?? [];
   const restorePlanOrg = restoreCheckOrgQuery.data ?? org;
-  const restoreEligible = Boolean(
-    restorePlanOrg?.planExpiredAt &&
-    restorePlanOrg.graceEnforcedAt &&
-    restorePlanOrg.plan !== "free",
-  );
   const restorePromptSignature = restorePlanOrg
     ? getRestorePromptSignature(
-        `${orgId}:${restorePlanOrg.plan}`,
-        restorePlanOrg.planExpiresAt,
+        orgId,
+        restorePlanOrg.plan,
         eligibleArchivedProjects,
         forceArchivedTasks,
-        restoreEligible,
       )
     : null;
-  const restorePrompt = shouldShowRestorePrompt(
-    canChangePlan,
-    restorePromptSignature ?? null,
+  const restorePrompt = Boolean(
+    canChangePlan &&
+    restorePromptSignature &&
+    (restorePromptRequested ||
+      shouldShowRestorePrompt(
+        canChangePlan,
+        restorePromptSignature,
+        handledRestoreSignature,
+      )),
+  );
+  const canReopenRestore = canReopenRestorePrompt(
+    restorePromptSignature,
     handledRestoreSignature,
   );
   const archivedByPlan = eligibleArchivedProjects;
   const closeRestorePrompt = () => {
+    setRestorePromptRequested(false);
     if (!restorePromptSignature) return;
-    try {
-      window.localStorage.setItem(
-        `worknest:restore-prompt:${orgId}`,
-        restorePromptSignature,
-      );
-    } catch {
-      // Keep the choice for this visit if browser storage is unavailable.
-    }
+    persistHandledRestoreSignature(orgId, restorePromptSignature);
     setHandledRestoreSignature(restorePromptSignature);
   };
 
@@ -1586,6 +1583,17 @@ export function SettingsPage() {
               );
             })}
           </ul>
+
+          {canChangePlan && canReopenRestore && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-4 w-full"
+              onClick={() => setRestorePromptRequested(true)}
+            >
+              Review archived projects
+            </Button>
+          )}
 
           {testMode && canChangePlan && <TestPaymentBox />}
 

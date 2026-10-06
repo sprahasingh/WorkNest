@@ -18,20 +18,18 @@ export function eligibleRestoreCandidates<T extends RestoreCandidate>(
 }
 
 export function restorePromptSignature(
+  orgId: string,
   plan: string,
-  planExpiresAt: string | null,
   projects: RestoreCandidate[],
   tasks: RestoreTaskCandidate[] = [],
-  restoreEligible = true,
 ): string | null {
-  // Only grace enforcement creates resources eligible for the post-upgrade
-  // review. Archived records can also be old, manually archived or stale
-  // cached query data, so their presence alone is never sufficient.
-  if (!restoreEligible) return null;
+  // Only grace enforcement sets archivedReason to plan_limit. The expiry and
+  // enforcement timestamps are cleared when a paid plan is purchased, so the
+  // force-archived candidates themselves must drive post-upgrade eligibility.
   const eligible = eligibleRestoreCandidates(projects);
   if (plan === "free" || (eligible.length === 0 && tasks.length === 0))
     return null;
-  return `${plan}:${planExpiresAt ?? "no-expiry"}:${eligible
+  return `${orgId}:${plan}:${eligible
     .map((project) => `${project._id}:${project.archivedAt ?? ""}`)
     .sort()
     .join(",")}:tasks:${tasks
@@ -46,6 +44,36 @@ export function shouldShowRestorePrompt(
   handledSignature: string | null,
 ): boolean {
   return canChangePlan && signature !== null && signature !== handledSignature;
+}
+
+export function canReopenRestorePrompt(
+  signature: string | null,
+  handledSignature: string | null,
+): boolean {
+  return signature !== null && signature === handledSignature;
+}
+
+function restorePromptStorageKey(orgId: string) {
+  return `worknest:restore-prompt:${orgId}`;
+}
+
+export function readHandledRestoreSignature(orgId: string): string | null {
+  try {
+    return window.localStorage.getItem(restorePromptStorageKey(orgId));
+  } catch {
+    return null;
+  }
+}
+
+export function persistHandledRestoreSignature(
+  orgId: string,
+  signature: string,
+): void {
+  try {
+    window.localStorage.setItem(restorePromptStorageKey(orgId), signature);
+  } catch {
+    // State still suppresses the prompt for the current visit if storage fails.
+  }
 }
 
 export function taskViewAfterUnarchive(
