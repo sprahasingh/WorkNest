@@ -49,6 +49,7 @@ export function RestoreProjectsPrompt({
       projects: [] as Project[],
       tasks: [] as { _id: string }[],
     };
+    const skipped = { projects: 0, tasks: 0 };
     let shouldClose = true;
     const batchCount = Math.max(
       Math.ceil(selectedIds.length / PLAN_RESTORE_BATCH_SIZE),
@@ -69,18 +70,42 @@ export function RestoreProjectsPrompt({
         );
         restored.projects.push(...result.projects);
         restored.tasks.push(...result.tasks);
+        skipped.projects += result.skipped.projects;
+        skipped.tasks += result.skipped.tasks;
       }
-      toast.success(
-        `${restored.projects.length} project${restored.projects.length === 1 ? "" : "s"} and ${restored.tasks.length} task${restored.tasks.length === 1 ? "" : "s"} restored`,
-      );
+      if (skipped.projects || skipped.tasks) {
+        shouldClose = false;
+        const restoredCount = restored.projects.length + restored.tasks.length;
+        toast.warning(
+          restoredCount
+            ? `${restored.projects.length} project${restored.projects.length === 1 ? "" : "s"} and ${restored.tasks.length} task${restored.tasks.length === 1 ? "" : "s"} restored`
+            : "No selected resources fit the available plan capacity",
+          {
+            description: `${skipped.projects} project${skipped.projects === 1 ? "" : "s"} and ${skipped.tasks} task${skipped.tasks === 1 ? "" : "s"} remain archived because of plan capacity. Free capacity and try again, or choose Later to dismiss this prompt.`,
+          },
+        );
+      } else {
+        toast.success(
+          `${restored.projects.length} project${restored.projects.length === 1 ? "" : "s"} and ${restored.tasks.length} task${restored.tasks.length === 1 ? "" : "s"} restored`,
+        );
+      }
     } catch (error) {
-      shouldClose = restored.projects.length + restored.tasks.length > 0;
+      shouldClose =
+        restored.projects.length + restored.tasks.length > 0 &&
+        skipped.projects + skipped.tasks === 0;
       const message = parseApiError(error).message;
+      const partialResult =
+        restored.projects.length +
+        restored.tasks.length +
+        skipped.projects +
+        skipped.tasks;
+      const description = partialResult
+        ? skipped.projects || skipped.tasks
+          ? `${restored.projects.length} project${restored.projects.length === 1 ? "" : "s"} and ${restored.tasks.length} task${restored.tasks.length === 1 ? "" : "s"} restored; ${skipped.projects} project${skipped.projects === 1 ? "" : "s"} and ${skipped.tasks} task${skipped.tasks === 1 ? "" : "s"} remain archived because of plan capacity. Remaining batches stopped.`
+          : `${restored.projects.length} project${restored.projects.length === 1 ? "" : "s"} and ${restored.tasks.length} task${restored.tasks.length === 1 ? "" : "s"} restored before the remaining batches stopped.`
+        : undefined;
       toast.error(message, {
-        description:
-          restored.projects.length || restored.tasks.length
-            ? `${restored.projects.length} project${restored.projects.length === 1 ? "" : "s"} and ${restored.tasks.length} task${restored.tasks.length === 1 ? "" : "s"} restored before the remaining batches stopped.`
-            : undefined,
+        description,
       });
     } finally {
       void refreshRestoreCandidates(queryClient, orgId);

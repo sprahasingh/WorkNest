@@ -178,6 +178,7 @@ describe("grace period after a plan expires", () => {
       .send({ projectIds: [projectId] });
 
     expect(response.status).toBe(200);
+    expect(response.body.skipped).toEqual({ projects: 0, tasks: 1 });
     expect(
       await Task.countDocuments({
         projectId,
@@ -243,6 +244,7 @@ describe("grace period after a plan expires", () => {
     expect(response.status).toBe(200);
     expect(response.body.projects).toHaveLength(0);
     expect(response.body.tasks).toHaveLength(1);
+    expect(response.body.skipped).toEqual({ projects: 0, tasks: 1 });
     expect(String(response.body.tasks[0]._id)).toBe(String(tasks[49]._id));
     expect(
       await Task.countDocuments({
@@ -259,6 +261,35 @@ describe("grace period after a plan expires", () => {
         deletedAt: null,
       }).setOptions({ skipTenant: true }),
     ).toBe(2);
+  });
+  it("reports projects and associated tasks skipped at the project limit", async () => {
+    const { orgId, admin } = await proOrg("restore-project-limit-skip.test");
+    const candidateId = await project(orgId, admin.token, "RPS");
+    const forcedTaskId = await task(orgId, admin.token, candidateId, 1);
+    const manualTaskId = await task(orgId, admin.token, candidateId, 2);
+    await Task.updateOne(
+      { _id: forcedTaskId },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    await Task.updateOne(
+      { _id: manualTaskId },
+      { archivedAt: new Date(), archivedReason: null },
+    ).setOptions({ skipTenant: true });
+    await Project.updateOne(
+      { _id: candidateId },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    await Organization.updateOne({ _id: orgId }, { projectCount: 25 });
+
+    const response = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [candidateId], taskIds: [] });
+
+    expect(response.status).toBe(200);
+    expect(response.body.projects).toHaveLength(0);
+    expect(response.body.tasks).toHaveLength(0);
+    expect(response.body.skipped).toEqual({ projects: 1, tasks: 1 });
   });
   it("keeps everything for 10 days, and the account stays usable", async () => {
     const { orgId, admin } = await proOrg("grace1.test");

@@ -46,6 +46,7 @@ export interface PlanArchivedTaskCandidate {
 export interface PlanArchivedRestoreResult {
   projects: Project[];
   tasks: { _id: string }[];
+  skipped: { projects: number; tasks: number };
 }
 
 export type ProjectPriority = "low" | "medium" | "high";

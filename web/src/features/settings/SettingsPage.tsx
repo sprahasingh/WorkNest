@@ -1587,6 +1587,7 @@ export function SettingsPage() {
 
         {restorePrompt && (
           <RestoreProjectsPrompt
+            key={restorePromptSignature}
             orgId={orgId}
             projects={archivedByPlan}
             tasks={forceArchivedTasks}

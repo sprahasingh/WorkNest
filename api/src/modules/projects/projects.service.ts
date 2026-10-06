@@ -443,17 +443,20 @@ export async function unarchiveProject(projectId: string) {
   }
 }
 
-// Restores only projects archived by grace enforcement, in caller-selected
-// order, stopping when the upgraded plan has no remaining project capacity.
+// Restores only force-archived resources, in caller-selected order, while
+// reporting resources left archived by project or task capacity.
 export async function restorePlanArchivedProjects(
   projectIds: string[],
   taskIds: string[] = [],
 ) {
   const tenantId = requireTenantId();
+  const uniqueProjectIds = [...new Set(projectIds)];
+  const uniqueTaskIds = [...new Set(taskIds)];
   const dbSession = await mongoose.startSession();
   try {
     const restored: unknown[] = [];
     const restoredTasks: unknown[] = [];
+    const skipped = { projects: 0, tasks: 0 };
     await dbSession.withTransaction(async () => {
       const org = await Organization.findById(tenantId)
         .select("plan projectCount")
@@ -464,19 +467,29 @@ export async function restorePlanArchivedProjects(
       const limits = PLAN_LIMITS[org.plan as Plan];
       const room = Math.max(0, limits.projectLimit - org.projectCount);
       const candidates = await Project.find({
-        _id: { $in: projectIds },
+        _id: { $in: uniqueProjectIds },
         archivedAt: { $ne: null },
         archivedReason: "plan_limit",
         deletedAt: null,
       }).session(dbSession);
       const ordered = new Map(candidates.map((p) => [String(p._id), p]));
-      const selected = projectIds
+      const selected = uniqueProjectIds
         .map((id) => ordered.get(id))
         .filter(Boolean) as typeof candidates;
       const taskLimit = limits.activeTaskLimit;
       let restoredCount = 0;
       for (const p of selected) {
-        if (restoredCount >= room) break;
+        if (restoredCount >= room) {
+          skipped.projects += 1;
+          skipped.tasks += await Task.countDocuments({
+            projectId: p._id,
+            status: { $ne: "done" },
+            archivedAt: { $ne: null },
+            archivedReason: "plan_limit",
+            deletedAt: null,
+          }).session(dbSession);
+          continue;
+        }
         if (taskLimit !== null) {
           const count = await Task.countDocuments({
             projectId: p._id,
@@ -484,7 +497,17 @@ export async function restorePlanArchivedProjects(
             archivedAt: null,
             deletedAt: null,
           }).session(dbSession);
-          if (count > taskLimit) continue;
+          if (count > taskLimit) {
+            skipped.projects += 1;
+            skipped.tasks += await Task.countDocuments({
+              projectId: p._id,
+              status: { $ne: "done" },
+              archivedAt: { $ne: null },
+              archivedReason: "plan_limit",
+              deletedAt: null,
+            }).session(dbSession);
+            continue;
+          }
         }
         const activeTaskCount = await Task.countDocuments({
           projectId: p._id,
@@ -516,6 +539,7 @@ export async function restorePlanArchivedProjects(
           { new: true, session: dbSession },
         );
         if (!updated) continue;
+        skipped.tasks += archivedTasks.length - tasksToRestore.length;
         for (const task of tasksToRestore) {
           const restoredTask = await Task.findOneAndUpdate(
             {
@@ -557,7 +581,7 @@ export async function restorePlanArchivedProjects(
         restoredCount += 1;
       }
 
-      if (taskIds.length > 0) {
+      if (uniqueTaskIds.length > 0) {
         const liveProjects = await Project.find({
           archivedAt: null,
           deletedAt: null,
@@ -567,7 +591,7 @@ export async function restorePlanArchivedProjects(
           .lean();
         const liveProjectIds = liveProjects.map((project) => project._id);
         const eligibleTasks = await Task.find({
-          _id: { $in: taskIds },
+          _id: { $in: uniqueTaskIds },
           projectId: { $in: liveProjectIds },
           status: { $ne: "done" },
           archivedAt: { $ne: null },
@@ -579,7 +603,7 @@ export async function restorePlanArchivedProjects(
         );
         const activeCounts = new Map<string, number>();
         const liveProjectSet = new Set(liveProjectIds.map(String));
-        for (const id of taskIds) {
+        for (const id of uniqueTaskIds) {
           const task = tasksById.get(id);
           if (!task) continue;
           const projectId = String(task.projectId);
@@ -593,7 +617,10 @@ export async function restorePlanArchivedProjects(
               deletedAt: null,
             }).session(dbSession);
           }
-          if (taskLimit !== null && activeCount >= taskLimit) continue;
+          if (taskLimit !== null && activeCount >= taskLimit) {
+            skipped.tasks += 1;
+            continue;
+          }
           const updatedTask = await Task.findOneAndUpdate(
             {
               _id: task._id,
@@ -625,7 +652,7 @@ export async function restorePlanArchivedProjects(
         }
       }
     });
-    return { projects: restored, tasks: restoredTasks };
+    return { projects: restored, tasks: restoredTasks, skipped };
   } finally {
     await dbSession.endSession();
   }
