@@ -19,7 +19,6 @@ import {
 import { parseApiError } from "@/lib/apiError";
 import { NotFound } from "@/pages/NotFound";
 import { Button } from "@/components/ui/Button";
-import { MoreMenu, MoreMenuItem } from "@/components/ui/MoreMenu";
 import { Modal } from "@/components/Modal";
 import { ViewTabs } from "@/components/ui/ViewTabs";
 import { TaskColumn } from "./TaskColumn";
@@ -460,39 +459,40 @@ export function ProjectBoard() {
                 </span>
               )}
             </Button>
-            <MoreMenu label="Sort" triggerText="Sort" className="shrink-0">
-              <span
-                role="presentation"
-                className="block px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400"
+            <label className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <span>Sort by</span>
+              <select
+                aria-label="Sort by"
+                value={selectedSort}
+                onChange={(event) => {
+                  const [field, order] = event.target.value.split(":");
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set("sortBy", field);
+                    next.set("sortOrder", order);
+                    return next;
+                  });
+                }}
+                className="w-44 min-w-0 appearance-none bg-transparent pr-5 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
               >
-                Sort by
-              </span>
-              {sortOptions.map((option) => (
-                <MoreMenuItem
-                  key={option.value}
-                  aria-current={
-                    option.value === selectedSort ? "true" : undefined
-                  }
-                  onClick={() => {
-                    const [field, order] = option.value.split(":");
-                    setSearchParams((prev) => {
-                      const next = new URLSearchParams(prev);
-                      next.set("sortBy", field);
-                      next.set("sortOrder", order);
-                      return next;
-                    });
-                  }}
-                >
-                  <span className="flex items-center justify-between gap-4">
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
                     {option.label}
-                    <span aria-hidden="true">
-                      {option.value === selectedSort ? "✓" : ""}
-                    </span>
-                  </span>
-                </MoreMenuItem>
-              ))}
-            </MoreMenu>
-            <label className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-slate-600 dark:text-slate-300">
+                  </option>
+                ))}
+              </select>
+              <svg
+                viewBox="0 0 20 20"
+                aria-hidden="true"
+                className="pointer-events-none -ml-5 size-4 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
+                <path d="m5 7.5 5 5 5-5" />
+              </svg>
+            </label>
+            <label className="ml-auto flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-slate-600 dark:text-slate-300">
               <input
                 type="checkbox"
                 checked={filters.mine ?? false}

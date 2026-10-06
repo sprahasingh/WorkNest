@@ -171,10 +171,13 @@ test("restoration section, both entry points, archived actions, and responsive l
   await purchasePlan(page, request, token, orgId!, "Pro");
   const restoreSection = page
     .getByRole("heading", { name: "Archived after plan changes" })
-    .locator("..");
+    .locator("../..");
   await expect(restoreSection).toBeVisible();
   await expect(restoreSection).toContainText(
     "1 project and 42 tasks can be reviewed for restoration.",
+  );
+  await expect(restoreSection).toContainText(
+    "Review items archived when your plan changed.",
   );
   const testDates = page.getByRole("region", { name: "Test plan dates" });
   expect((await restoreSection.boundingBox())!.y).toBeGreaterThan(
@@ -208,7 +211,25 @@ test("restoration section, both entry points, archived actions, and responsive l
     normalizedMarkup(automaticMarkup),
   );
   await overflow(page, "Settings manual restoration dialog at 320px");
+  await manualDialog.getByRole("button", { name: "Later" }).click();
+  await expect(manualDialog).toBeHidden();
+  const restoreInfoButton = restoreSection.getByRole("button", {
+    name: "About items archived after plan changes",
+  });
+  await restoreInfoButton.click();
+  const restoreInfoPanel = restoreSection.getByRole("note");
+  await expect(restoreInfoPanel).toContainText(
+    "Items over your previous plan limits were archived automatically.",
+  );
+  await expect(restoreInfoPanel).toContainText(
+    "Eligible projects and tasks can be restored if your current plan has room.",
+  );
   await page.keyboard.press("Escape");
+  await expect(restoreInfoPanel).toBeHidden();
+  await restoreInfoButton.click();
+  await expect(restoreInfoPanel).toBeVisible();
+  await page.evaluate(() => window.scrollBy(0, 80));
+  await expect(restoreInfoPanel).toBeHidden();
 
   // Project archived card: indicator, menu action, confirmation and durable conversion.
   await page.goto(`/orgs/${orgId}/projects`);

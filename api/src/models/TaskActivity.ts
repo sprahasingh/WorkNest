@@ -10,6 +10,10 @@ const taskActivitySchema = new Schema(
       immutable: true,
     },
     projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true },
+    // A workspace request is one thread visible from each qualifying project.
+    projectIds: [{ type: Schema.Types.ObjectId, ref: "Project" }],
+    projectNames: [{ type: String }],
+    sharedParticipantIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
     // null for project-wide activity, e.g. an update request sent to every
     // assignee in the project.
     taskId: { type: Schema.Types.ObjectId, ref: "Task", default: null },

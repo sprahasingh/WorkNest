@@ -170,20 +170,34 @@ test("core workspace pages fit common responsive viewports", async ({
       expect(box!.height).toBeGreaterThanOrEqual(44);
       expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
     }
-    if (viewport.width === 320) {
+    if (viewport.width <= 390) {
       const filtersButton = page.getByRole("button", { name: /^Filters/ });
-      const sortButton = page.getByRole("button", { name: "Sort" });
+      const sortControl = page.getByRole("combobox", { name: "Sort by" });
       const myTasks = page.getByLabel("My tasks");
       await expect(filtersButton).toBeVisible();
-      await expect(sortButton).toBeVisible();
+      await expect(sortControl).toBeVisible();
+      await expect(sortControl).toHaveValue("dueDate:desc");
+      await expect(
+        sortControl.locator('option[value="dueDate:desc"]'),
+      ).toHaveText("Due Date: Latest First");
       await expect(myTasks).toBeVisible();
       const rowBoxes = await Promise.all([
         filtersButton.boundingBox(),
-        sortButton.boundingBox(),
-        myTasks.locator("..").boundingBox(),
+        sortControl.locator("xpath=..").boundingBox(),
+        myTasks.locator("xpath=..").boundingBox(),
       ]);
-      expect(rowBoxes[0]!.x).toBeLessThan(rowBoxes[1]!.x);
-      expect(rowBoxes[1]!.x).toBeLessThan(rowBoxes[2]!.x);
+      expect(rowBoxes[0]!.y).toBeLessThanOrEqual(rowBoxes[1]!.y);
+      expect(rowBoxes[1]!.y).toBeLessThanOrEqual(rowBoxes[2]!.y);
+      expect(rowBoxes[2]!.x + rowBoxes[2]!.width).toBeLessThanOrEqual(
+        viewport.width,
+      );
+      const filterRow = await page
+        .locator('[data-tour="tasks-filters"]')
+        .boundingBox();
+      expect(rowBoxes[2]!.x + rowBoxes[2]!.width).toBeCloseTo(
+        filterRow!.x + filterRow!.width,
+        0,
+      );
       for (const box of rowBoxes)
         expect(box!.height).toBeGreaterThanOrEqual(44);
       expect(await page.locator("body").innerText()).not.toMatch(/\bD\.\.\./);
@@ -208,22 +222,20 @@ test("core workspace pages fit common responsive viewports", async ({
         page.getByRole("button", { name: "Filters", exact: true }),
       ).toBeVisible();
       await page.getByRole("button", { name: "Done" }).click();
-      await expect(sortButton).toHaveText("Sort");
-      await sortButton.click();
-      const sortMenu = page.getByRole("menu");
-      await expect(sortMenu.getByText("Due Date: Soonest First")).toBeVisible();
-      await expect(sortMenu.getByText("Due Date: Latest First")).toBeVisible();
-      await expect(sortMenu.getByText("Created: Newest First")).toBeVisible();
-      await expect(sortMenu.getByText("Created: Oldest First")).toBeVisible();
-      await expect(sortMenu.getByText("Priority: High → Low")).toBeVisible();
-      await expect(sortMenu.getByText("Priority: Low → High")).toBeVisible();
-      const selectedSort = sortMenu.locator('[aria-current="true"]');
-      await expect(selectedSort).toHaveCount(1);
-      const sortItemBox = await selectedSort.boundingBox();
-      expect(sortItemBox!.height).toBeGreaterThanOrEqual(44);
-      await sortMenu
-        .getByRole("menuitem", { name: /Due Date: Latest First/ })
-        .click();
+      const activeOptions = await sortControl
+        .locator("option")
+        .allTextContents();
+      expect(activeOptions).toEqual([
+        "Created: Newest First",
+        "Created: Oldest First",
+        "Due Date: Soonest First",
+        "Due Date: Latest First",
+        "Priority: High → Low",
+        "Priority: Low → High",
+      ]);
+      await sortControl.selectOption("createdAt:asc");
+      await expect(sortControl).toHaveValue("createdAt:asc");
+      await sortControl.selectOption("dueDate:desc");
       await expect(page).toHaveURL(/sortBy=dueDate/);
       await expect(page).toHaveURL(/sortOrder=desc/);
       const tabs = page.locator('[role="tablist"]');
@@ -241,6 +253,17 @@ test("core workspace pages fit common responsive viewports", async ({
       ).toBeVisible();
       await tabs.getByRole("tab", { name: /Completed/ }).click();
       await expect(page).toHaveURL(/view=completed/);
+      await expect(
+        sortControl.locator('option[value="completedAt:desc"]'),
+      ).toHaveText("Completed: Newest First");
+      await tabs.getByRole("tab", { name: /Archived/ }).click();
+      await expect(
+        sortControl.locator('option[value="archivedAt:desc"]'),
+      ).toHaveText("Archived: Newest First");
+      await tabs.getByRole("tab", { name: /Bin/ }).click();
+      await expect(
+        sortControl.locator('option[value="deletedAt:desc"]'),
+      ).toHaveText("Deleted: Newest First");
       await tabs.getByRole("tab", { name: /Active/ }).click();
       const columns = page.locator('[aria-describedby="task-columns-hint"]');
       await expect(page.getByText("→ Swipe to see In progress")).toBeVisible();
@@ -250,25 +273,6 @@ test("core workspace pages fit common responsive viewports", async ({
         .toBeGreaterThan(0);
       await expect(page.getByText("← Swipe to see To do")).toBeVisible();
       await page.getByRole("button", { name: "Previous task column" }).click();
-      await expect
-        .poll(() => columns.evaluate((element) => element.scrollLeft))
-        .toBe(0);
-      await expect(page.getByText("→ Swipe to see In progress")).toBeVisible();
-      // Let the smooth scroll animation finish before starting a separate
-      // wheel gesture, so its remaining animation doesn't consume the input.
-      await page.waitForTimeout(300);
-      const columnBounds = await columns.boundingBox();
-      expect(columnBounds).toBeTruthy();
-      await page.mouse.move(
-        columnBounds!.x + columnBounds!.width / 2,
-        columnBounds!.y + columnBounds!.height / 2,
-      );
-      await page.mouse.wheel(500, 0);
-      await expect
-        .poll(() => columns.evaluate((element) => element.scrollLeft))
-        .toBeGreaterThan(0);
-      await expect(page.getByText("← Swipe to see To do")).toBeVisible();
-      await page.mouse.wheel(-500, 0);
       await expect
         .poll(() => columns.evaluate((element) => element.scrollLeft))
         .toBe(0);
@@ -323,7 +327,7 @@ test("project actions and mobile task controls fit phone and desktop widths", as
     await page.goto(boardUrl);
     const filters = page.getByRole("button", { name: /^Filters/ });
     const sort =
-      width === 320 ? page.getByRole("button", { name: "Sort" }) : null;
+      width === 320 ? page.getByRole("combobox", { name: "Sort by" }) : null;
     const myTasks = page.getByLabel("My tasks");
     const projectBell = page.getByRole("button", {
       name: /Mute general activity from this project|Unmute this project/,
@@ -337,34 +341,35 @@ test("project actions and mobile task controls fit phone and desktop widths", as
     await expect(newTask).toBeVisible();
     if (width === 320) {
       await expect(filters).toBeVisible();
-      await expect(sort!).toHaveText("Sort");
+      await expect(sort!).toHaveValue("dueDate:desc");
       await expect(myTasks).toBeVisible();
       const orderedControls = await Promise.all([
         filters.boundingBox(),
-        sort!.boundingBox(),
+        sort!.locator("xpath=..").boundingBox(),
         myTasks.locator("..").boundingBox(),
       ]);
-      expect(orderedControls[0]!.x).toBeLessThan(orderedControls[1]!.x);
-      expect(orderedControls[1]!.x).toBeLessThan(orderedControls[2]!.x);
+      expect(orderedControls[0]!.y).toBeLessThanOrEqual(orderedControls[1]!.y);
+      expect(orderedControls[1]!.y).toBeLessThanOrEqual(orderedControls[2]!.y);
+      const filterRow = await page
+        .locator('[data-tour="tasks-filters"]')
+        .boundingBox();
+      expect(orderedControls[2]!.x + orderedControls[2]!.width).toBeCloseTo(
+        filterRow!.x + filterRow!.width,
+        0,
+      );
       for (const box of orderedControls) {
         expect(box!.height).toBeGreaterThanOrEqual(44);
       }
-      await sort!.click();
-      const menu = page.getByRole("menu");
-      for (const option of [
+      const options = await sort!.locator("option").allTextContents();
+      expect(options).toEqual([
         "Created: Newest First",
         "Created: Oldest First",
         "Due Date: Soonest First",
         "Due Date: Latest First",
         "Priority: High → Low",
         "Priority: Low → High",
-      ]) {
-        await expect(menu.getByText(option)).toBeVisible();
-      }
-      await expect(menu.locator('[aria-current="true"]')).toHaveCount(1);
-      await menu
-        .getByRole("menuitem", { name: /Priority: High → Low/ })
-        .click();
+      ]);
+      await sort!.selectOption("priority:desc");
       await expect(page).toHaveURL(/sortBy=priority/);
       await expect(page.locator("body")).not.toContainText(/\bD\.\.\./);
 

@@ -19,6 +19,10 @@ import { Button } from "@/components/ui/Button";
 import { MuteToggle } from "@/features/notifications/MuteToggle";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
+import {
+  createWorkspaceProjectActivity,
+  type ActivityType,
+} from "@/features/tasks/api";
 import { ViewTabs } from "@/components/ui/ViewTabs";
 import { MoreMenu, MoreMenuItem } from "@/components/ui/MoreMenu";
 import {
@@ -109,6 +113,7 @@ export function ProjectsPage() {
   const growthBlocked = useGrowthBlocked();
   const navigate = useNavigate();
   const canWrite = useCan("project:write");
+  const canRequestUpdates = useCan("task:request-update");
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -116,6 +121,14 @@ export function ProjectsPage() {
     null,
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [projectRequestOpen, setProjectRequestOpen] = useState(false);
+  const [projectRequestType, setProjectRequestType] =
+    useState<ActivityType>("update_request");
+  const [projectRequestText, setProjectRequestText] = useState("");
+  const [projectRequestError, setProjectRequestError] = useState<string | null>(
+    null,
+  );
+  const [projectRequestPending, setProjectRequestPending] = useState(false);
   const [view, setView] = useState<ProjectListView>("active");
   const [sortBy, setSortBy] = useState<ProjectSort>("createdAt:desc");
 
@@ -153,6 +166,9 @@ export function ProjectsPage() {
     ? completedProjects.length
     : undefined;
   const retentionDays = data?.binRetentionDays ?? 30;
+  const projectsWithOpenTasks = (activeList.data?.projects ?? []).filter(
+    (project) => project.activeTaskCount > 0,
+  );
 
   const org = useOrgDetails(orgId).data;
   const activeTaskLimit = org ? PLAN_LIMITS[org.plan].activeTaskLimit : null;
@@ -165,6 +181,30 @@ export function ProjectsPage() {
   const keepPlanArchived = useKeepPlanArchived(orgId, "project");
   const restoreProject = useRestoreProject(orgId);
   const deletePermanently = useDeleteProjectPermanently(orgId);
+
+  const sendProjectRequest = async () => {
+    if (!projectsWithOpenTasks.length || !projectRequestText.trim()) return;
+    setProjectRequestPending(true);
+    setProjectRequestError(null);
+    try {
+      const result = await createWorkspaceProjectActivity(orgId, {
+        type: projectRequestType,
+        content: projectRequestText.trim(),
+        notifyAll: true,
+      });
+      setProjectRequestOpen(false);
+      setProjectRequestText("");
+      toast.success(
+        `${projectRequestType === "question" ? "Question" : "Update request"} sent across ${result.activity.projectIds?.length ?? projectsWithOpenTasks.length} projects to ${result.notifiedCount ?? 0} people`,
+      );
+    } catch (error) {
+      const parsed = parseApiError(error);
+      setProjectRequestError(parsed.message);
+      toast.error(parsed.message);
+    } finally {
+      setProjectRequestPending(false);
+    }
+  };
 
   const {
     register,
@@ -434,6 +474,18 @@ export function ProjectsPage() {
           </select>
         </label>
 
+        {view === "active" && canRequestUpdates && (
+          <div className="mt-3">
+            <Button
+              variant="secondary"
+              onClick={() => setProjectRequestOpen(true)}
+              disabled={!projectsWithOpenTasks.length}
+            >
+              Request updates across projects
+            </Button>
+          </div>
+        )}
+
         <div data-tour="projects-first-card" className="mt-6">
           {isPending && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -657,6 +709,72 @@ export function ProjectsPage() {
           )}
         </div>
       </div>
+
+      <Modal
+        open={projectRequestOpen}
+        onClose={() => {
+          if (!projectRequestPending) setProjectRequestOpen(false);
+        }}
+        title="Ask across active projects"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            This sends your message to people assigned to open tasks in each of
+            the {projectsWithOpenTasks.length} active project
+            {projectsWithOpenTasks.length === 1 ? "" : "s"} with open tasks.
+          </p>
+          {projectRequestError && (
+            <p
+              role="alert"
+              className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+            >
+              {projectRequestError}
+            </p>
+          )}
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Message type
+            <select
+              value={projectRequestType}
+              onChange={(event) =>
+                setProjectRequestType(event.target.value as ActivityType)
+              }
+              className={inputStyles}
+            >
+              <option value="update_request">Request an update</option>
+              <option value="question">Ask a question</option>
+            </select>
+          </label>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Message
+            <textarea
+              rows={3}
+              maxLength={2000}
+              value={projectRequestText}
+              onChange={(event) => setProjectRequestText(event.target.value)}
+              className={inputStyles}
+              placeholder="What would you like to know?"
+            />
+          </label>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setProjectRequestOpen(false)}
+              disabled={projectRequestPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void sendProjectRequest()}
+              loading={projectRequestPending}
+              disabled={
+                !projectRequestText.trim() || !projectsWithOpenTasks.length
+              }
+            >
+              "Send across projects"
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={isCreateOpen}

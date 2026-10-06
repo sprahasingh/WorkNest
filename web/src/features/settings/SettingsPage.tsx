@@ -863,6 +863,8 @@ export function SettingsPage() {
     readHandledRestoreSignature(orgId),
   );
   const [restorePromptRequested, setRestorePromptRequested] = useState(false);
+  const [restoreInfoOpen, setRestoreInfoOpen] = useState(false);
+  const restoreInfoId = useId();
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const billing = useQuery({
     ...billingQuery(orgId),
@@ -1607,14 +1609,29 @@ export function SettingsPage() {
 
         {canReopenRestore && (
           <Card>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
-              Archived after plan changes
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
+                Archived after plan changes
+              </h2>
+              <InfoButton
+                open={restoreInfoOpen}
+                onToggle={() => setRestoreInfoOpen((open) => !open)}
+                label="About items archived after plan changes"
+                controls={restoreInfoId}
+              />
+            </div>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-              Some projects or tasks were archived because the organization
-              exceeded its previous plan limits. Eligible items can be reviewed
-              for restoration now.
+              Review items archived when your plan changed.
             </p>
+            <InfoPanel
+              id={restoreInfoId}
+              open={restoreInfoOpen}
+              onClose={() => setRestoreInfoOpen(false)}
+            >
+              Items over your previous plan limits were archived automatically.
+              Eligible projects and tasks can be restored if your current plan
+              has room.
+            </InfoPanel>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
               {formatRestoreCandidateCount(
                 archivedByPlan.length,

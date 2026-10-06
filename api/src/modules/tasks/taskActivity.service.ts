@@ -215,6 +215,9 @@ async function recordActivity(options: {
   replyToId?: Id | null;
   askedIds?: Id[];
   notifyAll?: boolean;
+  projectIds?: Id[];
+  projectNames?: string[];
+  sharedParticipantIds?: Id[];
 }) {
   const context = getTenantContext()!;
   const tenantId = requireTenantId();
@@ -235,6 +238,13 @@ async function recordActivity(options: {
         [
           {
             projectId: options.projectId,
+            ...(options.projectIds ? { projectIds: options.projectIds } : {}),
+            ...(options.projectNames
+              ? { projectNames: options.projectNames }
+              : {}),
+            ...(options.sharedParticipantIds
+              ? { sharedParticipantIds: options.sharedParticipantIds }
+              : {}),
             taskId: options.taskId,
             authorId: context.userId,
             type: options.input.type,
@@ -325,7 +335,12 @@ function isDirected(root: {
 // Everyone taking part in a thread: who started it, who it was sent to or
 // asked, and whoever has replied or been mentioned in a reply since.
 function threadParticipants(
-  root: { authorId: Id; mentionIds?: Id[] | null; askedIds?: Id[] | null },
+  root: {
+    authorId: Id;
+    mentionIds?: Id[] | null;
+    askedIds?: Id[] | null;
+    sharedParticipantIds?: Id[] | null;
+  },
   replies: Array<{ authorId: Id; mentionIds?: Id[] | null }>,
 ): Set<string> {
   return new Set(
@@ -333,6 +348,7 @@ function threadParticipants(
       root.authorId,
       ...(root.mentionIds ?? []),
       ...(root.askedIds ?? []),
+      ...(root.sharedParticipantIds ?? []),
       ...replies.flatMap((reply) => [
         reply.authorId,
         ...(reply.mentionIds ?? []),
@@ -392,7 +408,13 @@ async function loadThread(
     : target;
   if (!root) throw notFound;
   if ("taskId" in scope && !sameId(root.taskId, scope.taskId)) throw notFound;
-  if ("projectId" in scope && !sameId(root.projectId, scope.projectId)) {
+  if (
+    "projectId" in scope &&
+    !sameId(root.projectId, scope.projectId) &&
+    !(root.projectIds ?? []).some((id) =>
+      sameId(id, new mongoose.Types.ObjectId(scope.projectId)),
+    )
+  ) {
     throw notFound;
   }
   return { target, root };
@@ -409,7 +431,10 @@ async function threadPlace(root: ActivityDoc, missingMessage: string) {
   }
   const project = await Project.findById(root.projectId);
   if (!project) throw notFound;
-  return { task: null, project, where: `in "${project.name}"` };
+  const where = root.projectIds?.length
+    ? `across ${root.projectNames?.length ?? root.projectIds.length} active projects`
+    : `in "${project.name}"`;
+  return { task: null, project, where };
 }
 
 // A reply to a specific message. It tells the person being answered, whoever
@@ -446,6 +471,7 @@ async function createReply(
     canReply =
       isLead() ||
       participants.has(me) ||
+      (root.sharedParticipantIds ?? []).some((id) => sameId(id, meId)) ||
       !!(await Task.exists({ projectId: project!._id, assigneeIds: meId })) ||
       !!(await TaskActivity.exists({
         projectId: project!._id,
@@ -869,6 +895,90 @@ export async function createProjectActivity(
   });
 }
 
+// One persisted thread and one notification per person for the Projects page
+// action. The shared thread is visible in each qualifying project feed.
+export async function createWorkspaceProjectActivity(
+  input: CreateActivityInput,
+) {
+  if (input.type === "reply") {
+    throw new AppError(
+      400,
+      "INVALID_ACTIVITY",
+      "Replies need an existing thread",
+    );
+  }
+  assertCanPostLeadActivity(input.type);
+  const projects = await Project.find({ archivedAt: null, deletedAt: null })
+    .select("_id name createdBy")
+    .sort({ _id: 1 })
+    .lean();
+  const ids = projects.map((project) => project._id);
+  const openTasks = ids.length
+    ? await Task.find({
+        projectId: { $in: ids },
+        status: { $ne: "done" },
+        archivedAt: null,
+        deletedAt: null,
+      })
+        .select("projectId assigneeIds")
+        .lean()
+    : [];
+  const participatingIds = new Set(
+    openTasks.map((task) => String(task.projectId)),
+  );
+  const targets = projects.filter((project) =>
+    participatingIds.has(String(project._id)),
+  );
+  if (!targets.length) {
+    throw new AppError(400, "NO_PROJECTS", "No active project has open tasks");
+  }
+  const targetIdSet = new Set(targets.map((project) => String(project._id)));
+  const workers = openTasks
+    .filter((task) => targetIdSet.has(String(task.projectId)))
+    .flatMap((task) => task.assigneeIds ?? []);
+  const workerIds = [
+    ...new Map(workers.map((id) => [String(id), id])).values(),
+  ];
+  const mentionIds = await getMentionRecipients(input, workerIds, null);
+  const creatorIds: Id[] = [];
+  for (const project of targets) {
+    creatorIds.push(...(await creatorIfInvolved(project.createdBy, null)));
+  }
+  const uniqueCreators = [
+    ...new Map(creatorIds.map((id) => [String(id), id])).values(),
+  ];
+  const projectNames = targets.map((project) => project.name);
+  const context = getTenantContext()!;
+  const plan = planNewMessage({
+    input,
+    authorId: context.userId,
+    workers: workerIds,
+    creators: uniqueCreators,
+    mentionIds,
+    authorName: await getAuthorName(context.userId),
+    place: `across ${targets.length} active projects`,
+    noWorkersMessage:
+      "No open task in these projects has an assignee to ask for an update",
+  });
+  return recordActivity({
+    projectId: targets[0]!._id,
+    taskId: null,
+    input,
+    mentionIds,
+    ...plan,
+    projectIds: targets.map((project) => project._id),
+    projectNames,
+    sharedParticipantIds: [
+      ...new Map(
+        [
+          ...plan.notify.flatMap((group) => group.recipients),
+          ...plan.askedIds,
+        ].map((id) => [String(id), id]),
+      ).values(),
+    ],
+  });
+}
+
 // Everything said in a project: project-wide posts plus every task's
 // updates, each labelled with its task. Members only get task activity for
 // tasks they're allowed to see.
@@ -887,13 +997,21 @@ export async function listProjectActivities(projectId: string) {
   const taskTitles = new Map(tasks.map((t) => [String(t._id), t.title]));
 
   const visible = {
-    projectId,
-    $or: [{ taskId: null }, { taskId: { $in: [...taskTitles.keys()] } }],
+    $and: [
+      { $or: [{ projectId }, { projectIds: projectId }] },
+      { $or: [{ taskId: null }, { taskId: { $in: [...taskTitles.keys()] } }] },
+    ],
   };
   const latest = await TaskActivity.find(visible)
     .sort({ _id: -1 })
     .limit(PROJECT_FEED_LIMIT)
     .lean();
+  const sharedRoots = latest
+    .filter((activity) => activity.projectIds?.length)
+    .map((activity) => activity._id);
+  const sharedReplies = sharedRoots.length
+    ? await TaskActivity.find({ parentId: { $in: sharedRoots } }).lean()
+    : [];
 
   // A recent reply whose thread started before the cutoff brings its whole
   // thread along, so it's never shown without the message it answers.
@@ -921,7 +1039,7 @@ export async function listProjectActivities(projectId: string) {
         }).lean()
       : [];
   const activities = withoutOthersDirectedThreads(
-    [...latest, ...earlier],
+    [...latest, ...earlier, ...sharedReplies],
     context.userId,
   ).sort((a, b) => String(a._id).localeCompare(String(b._id)));
 
