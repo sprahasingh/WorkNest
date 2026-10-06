@@ -348,8 +348,8 @@ function MeetingForm({
               aria-pressed={active}
               className={
                 active
-                  ? "rounded-full bg-teal-600 px-3 py-1 text-xs font-medium text-white"
-                  : "rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                  ? "min-h-11 rounded-full bg-teal-600 px-3 py-2 text-sm font-medium text-white"
+                  : "min-h-11 rounded-full border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
               }
             >
               {duration.label}
@@ -394,8 +394,8 @@ function MeetingForm({
           </Field>
           {repeat !== "none" && (
             <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-700 dark:text-slate-200">
-                <label className="flex items-center gap-2">
+              <div className="grid gap-3 text-sm text-slate-700 dark:text-slate-200">
+                <label className="flex min-h-11 flex-wrap items-center gap-2">
                   <input
                     type="radio"
                     name="repeat-end"
@@ -414,11 +414,11 @@ function MeetingForm({
                       setRepeatCount(Number(event.target.value))
                     }
                     aria-label="Number of meetings"
-                    className="w-16 rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-800"
+                    className="min-h-11 w-16 rounded-lg border border-slate-300 px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
                   />
                   meetings
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex min-h-11 flex-wrap items-center gap-2">
                   <input
                     type="radio"
                     name="repeat-end"
@@ -433,7 +433,7 @@ function MeetingForm({
                     onFocus={() => setEndMode("until")}
                     onChange={(event) => setRepeatUntil(event.target.value)}
                     aria-label="Last date"
-                    className="rounded-lg border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-800"
+                    className="min-h-11 rounded-lg border border-slate-300 px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
                   />
                 </label>
               </div>

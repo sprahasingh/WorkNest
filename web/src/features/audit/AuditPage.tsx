@@ -4,12 +4,13 @@ import { useMembers } from "@/features/members/queries";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, type AuditAction } from "./api";
+import { AUDIT_ACTION_LABELS, AUDIT_ENTITY_LABELS } from "./labels";
 import { useAuditLog, type AuditFilters } from "./queries";
 import { describeAuditEntry } from "./format";
 import { useOrgDetails } from "@/features/org/queries";
 
 const selectStyles =
-  "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
+  "min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
 
 export function AuditPage() {
   const { orgId } = useOrg();
@@ -62,6 +63,7 @@ export function AuditPage() {
 
         <div data-tour="audit-content" className="mt-4 flex flex-wrap gap-3">
           <select
+            aria-label="Filter audit log by action"
             value={filters.action ?? ""}
             onChange={(event) =>
               setFilter("action", event.target.value || null)
@@ -71,12 +73,13 @@ export function AuditPage() {
             <option value="">All actions</option>
             {AUDIT_ACTIONS.map((action) => (
               <option key={action} value={action}>
-                {action}
+                {AUDIT_ACTION_LABELS[action]}
               </option>
             ))}
           </select>
 
           <select
+            aria-label="Filter audit log by item type"
             value={filters.entityType ?? ""}
             onChange={(event) =>
               setFilter("entityType", event.target.value || null)
@@ -86,12 +89,13 @@ export function AuditPage() {
             <option value="">All types</option>
             {AUDIT_ENTITY_TYPES.map((type) => (
               <option key={type} value={type}>
-                {type}
+                {AUDIT_ENTITY_LABELS[type] ?? type}
               </option>
             ))}
           </select>
 
           <select
+            aria-label="Filter audit log by person"
             value={filters.actorId ?? ""}
             onChange={(event) =>
               setFilter("actorId", event.target.value || null)

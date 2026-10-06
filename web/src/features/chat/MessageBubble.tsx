@@ -258,7 +258,7 @@ export function MessageBubble({
   const showActions = !deleted && !pending && !editing;
 
   const toolbarButton =
-    "flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100";
+    "flex h-11 w-11 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100";
 
   const copy = () => {
     void navigator.clipboard
@@ -362,7 +362,7 @@ export function MessageBubble({
                   setPickerOpen(false);
                   onReact(emoji);
                 }}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-xl hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-xl hover:bg-slate-100 dark:hover:bg-slate-700"
               >
                 {emoji}
               </button>

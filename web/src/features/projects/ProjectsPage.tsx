@@ -764,11 +764,12 @@ export function ProjectsPage() {
               retentionDays,
             )}
         </p>
-        <div className="mt-4 flex justify-end gap-3">
+        <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <Button
             type="button"
             variant="ghost"
             onClick={() => setConfirmTarget(null)}
+            className="w-full sm:w-auto"
           >
             Cancel
           </Button>
@@ -777,6 +778,7 @@ export function ProjectsPage() {
             variant={confirmTarget?.action === "archive" ? "primary" : "danger"}
             onClick={() => void handleConfirm()}
             loading={isConfirming}
+            className="w-full sm:w-auto"
           >
             {confirmTarget ? CONFIRM_COPY[confirmTarget.action].button : ""}
           </Button>

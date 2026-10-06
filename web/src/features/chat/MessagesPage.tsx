@@ -135,7 +135,7 @@ export function MessagesPage() {
   return (
     <div
       className="flex bg-white dark:bg-slate-900"
-      style={{ height: `${Math.max(visibleHeight - 64, 320)}px` }}
+      style={{ height: `${Math.max(visibleHeight - 64, 0)}px`, minHeight: 0 }}
     >
       <aside
         data-tour="messages-content"

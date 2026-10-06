@@ -339,6 +339,20 @@ export function MeetingsPage() {
                 </div>
                 {range.isPending ? (
                   <p className="text-sm text-slate-500">Loading…</p>
+                ) : range.isError ? (
+                  <div
+                    role="alert"
+                    className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                  >
+                    <p>Couldn&apos;t load meetings for this month.</p>
+                    <button
+                      type="button"
+                      className="mt-2 font-semibold underline"
+                      onClick={() => void range.refetch()}
+                    >
+                      Try again
+                    </button>
+                  </div>
                 ) : dayMeetings.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700">
                     Nothing scheduled.
