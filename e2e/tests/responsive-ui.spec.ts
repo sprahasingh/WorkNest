@@ -238,6 +238,10 @@ test("core workspace pages fit common responsive viewports", async ({
       await sortControl.selectOption("dueDate:desc");
       await expect(page).toHaveURL(/sortBy=dueDate/);
       await expect(page).toHaveURL(/sortOrder=desc/);
+      // Sorting is persisted per project and lifecycle view. Revisit the
+      // board without URL sort parameters to verify the saved selection wins.
+      await page.goto(boardUrl.split("?")[0]);
+      await expect(sortControl).toHaveValue("dueDate:desc");
       const tabs = page.locator('[role="tablist"]');
       await expect(tabs.getByRole("tab", { name: /Active/ })).toBeVisible();
       await expect(
