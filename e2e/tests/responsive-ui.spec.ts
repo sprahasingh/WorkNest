@@ -289,7 +289,9 @@ test("keyboard, retry, and lifecycle flows remain usable at phone widths", async
   await page.getByRole("button", { name: "New task" }).click();
   await page.getByLabel("Title", { exact: true }).fill("Lifecycle task");
   await page.getByRole("button", { name: "Create task" }).click();
-  await page.locator('summary[aria-label="Lifecycle task actions"]').click();
+  await page
+    .getByRole("button", { name: "Lifecycle task actions" })
+    .click();
   await page.getByRole("button", { name: "Move to bin" }).click();
   await expect(
     page.getByRole("dialog", { name: "Move task to bin?" }),
@@ -297,7 +299,9 @@ test("keyboard, retry, and lifecycle flows remain usable at phone widths", async
   await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("link", { name: /Projects/ }).click();
-  await page.locator('summary[aria-label="Lifecycle check actions"]').click();
+  await page
+    .getByRole("button", { name: "Lifecycle check actions" })
+    .click();
   await page.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "Archive project?" }),
