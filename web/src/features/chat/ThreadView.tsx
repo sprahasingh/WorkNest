@@ -971,7 +971,7 @@ export function ThreadView({
                       },
                     );
                   }}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-xl hover:bg-slate-100 dark:hover:bg-slate-700"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-xl hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
                   {emoji}
                 </button>

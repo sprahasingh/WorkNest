@@ -301,7 +301,7 @@ export function Composer({
   }
 
   const iconButton =
-    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200";
+    "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200";
 
   return (
     <div className="relative border-t border-slate-200 bg-white px-3 pb-3 pt-2 dark:border-slate-800 dark:bg-slate-900">
@@ -461,7 +461,7 @@ export function Composer({
           aria-label="Insert emoji"
           // Keeps the textarea focused so the phone keyboard stays put.
           onMouseDown={(event) => event.preventDefault()}
-          className="absolute bottom-full left-3 z-20 mb-2 grid w-64 grid-cols-8 gap-0.5 rounded-xl border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-600 dark:bg-slate-800"
+          className="absolute bottom-full left-3 z-20 mb-2 grid w-72 grid-cols-6 gap-px rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-600 dark:bg-slate-800"
         >
           {COMMON_EMOJIS.map((emoji) => (
             <button
@@ -469,7 +469,7 @@ export function Composer({
               type="button"
               role="menuitem"
               onClick={() => insertEmoji(emoji)}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-lg hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               {emoji}
             </button>
@@ -562,7 +562,7 @@ export function Composer({
           }
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          className="max-h-40 min-h-10 flex-1 resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+          className="max-h-40 min-h-11 flex-1 resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
         />
 
         <button
@@ -570,7 +570,7 @@ export function Composer({
           onClick={submit}
           disabled={!canSend}
           aria-label="Send message"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white hover:bg-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-teal-500 dark:hover:bg-teal-400"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white hover:bg-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-teal-500 dark:hover:bg-teal-400"
         >
           <svg
             viewBox="0 0 24 24"

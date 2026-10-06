@@ -116,12 +116,12 @@ function PanelBody({ onClose }: { onClose: () => void }) {
         aria-modal="true"
         aria-labelledby="notifications-title"
         className={cn(
-          "absolute inset-y-0 flex flex-col bg-white shadow-2xl motion-reduce:animate-none dark:bg-slate-900",
+          "fixed inset-y-0 flex flex-col bg-white shadow-2xl motion-reduce:animate-none dark:bg-slate-900",
           // Phones: a drawer from the right, under the bell, leaving a strip
           // of the page visible so it reads as sliding over it.
           "right-0 w-[calc(100%-3rem)] max-w-sm rounded-l-2xl border-l border-slate-200 animate-[panel-in-right_260ms_cubic-bezier(0.32,0.72,0,1)] dark:border-slate-800",
           // Desktop: a card dropping down from the bell at the top right.
-          "md:inset-y-auto md:right-3 md:top-[4.25rem] md:max-h-[min(70vh,560px)] md:w-[380px] md:max-w-none md:origin-top-right md:rounded-xl md:border md:shadow-xl md:animate-[popover-in_140ms_ease-out]",
+          "min-[720px]:inset-y-auto min-[720px]:right-3 min-[720px]:top-[4.25rem] min-[720px]:max-h-[min(70vh,560px)] min-[720px]:w-[min(380px,calc(100vw-2rem))] min-[720px]:max-w-none min-[720px]:origin-top-right min-[720px]:rounded-xl min-[720px]:border min-[720px]:shadow-xl min-[720px]:animate-[popover-in_140ms_ease-out]",
         )}
       >
         <header className="border-b border-slate-200 px-4 pb-3 pt-4 dark:border-slate-800">
@@ -363,7 +363,7 @@ function PanelBody({ onClose }: { onClose: () => void }) {
                           onClick={() => dismiss.mutate([notification._id])}
                           aria-label={`Dismiss: ${notification.message}`}
                           title={reminder ? "Dismiss reminder" : "Dismiss"}
-                          className="mt-2 rounded-lg p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                         >
                           <CloseIcon />
                         </button>

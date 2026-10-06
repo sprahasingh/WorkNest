@@ -53,7 +53,7 @@ const TASK_VIEWS: { value: TaskView; label: string }[] = [
 ];
 
 const selectStyles =
-  "rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
+  "min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100";
 
 type DrawerState =
   | { mode: "create" }
@@ -491,7 +491,7 @@ export function ProjectBoard() {
           </p>
         )}
 
-        <div className="mt-4 flex flex-col gap-4 pb-4 md:flex-row md:overflow-x-auto">
+        <div className="mt-4 flex snap-x snap-mandatory flex-row gap-3 overflow-x-auto overscroll-x-contain pb-4">
           {visibleStatuses.map((status) => (
             <TaskColumn
               key={status ?? boardView}

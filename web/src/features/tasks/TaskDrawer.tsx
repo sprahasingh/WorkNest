@@ -680,7 +680,7 @@ export function TaskDrawer({
                       size="sm"
                       onClick={() => setConfirmingDelete(false)}
                     >
-                      Keep task
+                      Cancel
                     </Button>
                     <Button
                       type="button"
@@ -823,7 +823,7 @@ export function TaskDrawer({
                         variant="secondary"
                         onClick={() => setConfirmingDelete(false)}
                       >
-                        Keep task
+                        Cancel
                       </Button>
                       <Button
                         type="button"

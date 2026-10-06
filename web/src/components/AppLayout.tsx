@@ -119,7 +119,7 @@ function WorkspaceSwitcher() {
                   key={membership._id}
                   to={`/orgs/${membership.tenantId.id}/dashboard`}
                   onClick={() => setOpen(false)}
-                  className="block truncate px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
+                  className="block min-h-11 truncate px-3 py-3 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   {membership.tenantId.name}
                   <span className="ml-1.5 text-xs text-slate-500 dark:text-slate-400">
@@ -134,7 +134,7 @@ function WorkspaceSwitcher() {
           <Link
             to="/orgs"
             onClick={() => setOpen(false)}
-            className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="block min-h-11 px-3 py-3 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             All organizations
           </Link>
@@ -145,7 +145,7 @@ function WorkspaceSwitcher() {
             type="button"
             onClick={() => void logout()}
             disabled={isLoggingOut}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="flex min-h-11 w-full items-center gap-2 px-3 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             {isLoggingOut && (
               <svg
@@ -214,7 +214,7 @@ function NotificationButton({
       aria-expanded={open}
       aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
       className={cn(
-        "relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200",
+        "relative flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200",
         open &&
           "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
       )}
@@ -293,7 +293,7 @@ function SidebarContent({
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
-                "flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex min-h-11 items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 isActive
                   ? "bg-teal-600 text-white"
                   : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",

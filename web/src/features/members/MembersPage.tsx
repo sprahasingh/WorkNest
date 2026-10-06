@@ -97,11 +97,12 @@ export function MembersPage() {
   const roleSelect = (member: Member) =>
     canManage ? (
       <select
+        aria-label={`Role for ${member.userId.name}`}
         value={member.role}
         onChange={(event) =>
           handleRoleChange(member, event.target.value as Role)
         }
-        className="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+        className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
       >
         {ROLE_OPTIONS.map((role) => (
           <option key={role} value={role}>
@@ -144,7 +145,7 @@ export function MembersPage() {
             {/* Mobile: stacked cards */}
             <div
               data-tour="members-content"
-              className="mt-6 space-y-3 sm:hidden"
+              className="mt-6 space-y-3 lg:hidden"
             >
               {members.map((member) => {
                 const isSelf = member.userId.id === user?.id;
@@ -170,8 +171,8 @@ export function MembersPage() {
                           onClick={() => openRemove({ member, isSelf })}
                           className={
                             isSelf
-                              ? "shrink-0 text-sm font-medium text-slate-600 hover:underline dark:text-slate-300"
-                              : "shrink-0 text-sm font-medium text-red-600 hover:underline dark:text-red-400"
+                              ? "-mx-2 inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-slate-600 hover:underline dark:text-slate-300"
+                              : "-mx-2 inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-red-600 hover:underline dark:text-red-400"
                           }
                         >
                           {isSelf ? "Leave" : "Remove"}
@@ -192,7 +193,7 @@ export function MembersPage() {
             {/* Desktop: table */}
             <div
               data-tour="members-content"
-              className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:block"
+              className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 lg:block"
             >
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
@@ -235,8 +236,8 @@ export function MembersPage() {
                               onClick={() => openRemove({ member, isSelf })}
                               className={
                                 isSelf
-                                  ? "text-sm font-medium text-slate-600 hover:underline dark:text-slate-300"
-                                  : "text-sm font-medium text-red-600 hover:underline dark:text-red-400"
+                                  ? "-mx-2 inline-flex min-h-11 items-center px-2 text-sm font-medium text-slate-600 hover:underline dark:text-slate-300"
+                                  : "-mx-2 inline-flex min-h-11 items-center px-2 text-sm font-medium text-red-600 hover:underline dark:text-red-400"
                               }
                             >
                               {isSelf ? "Leave" : "Remove"}
@@ -280,11 +281,12 @@ export function MembersPage() {
             onChange={setMeetingChoice}
           />
         )}
-        <div className="mt-4 flex justify-end gap-3">
+        <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <Button
             type="button"
             variant="ghost"
             onClick={() => setRemoveTarget(null)}
+            className="w-full sm:w-auto"
           >
             Cancel
           </Button>
@@ -293,6 +295,7 @@ export function MembersPage() {
             variant="danger"
             onClick={() => void handleRemoveConfirm()}
             loading={removeMemberMutation.isPending}
+            className="w-full sm:w-auto"
             disabled={!isMeetingChoiceReady(meetingChoice)}
           >
             {removeTarget?.isSelf ? "Leave" : "Remove"}

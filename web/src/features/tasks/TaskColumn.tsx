@@ -66,7 +66,7 @@ export function TaskColumn({
       data-tour={
         view === "active" && status === "todo" ? "tasks-first-card" : undefined
       }
-      className="flex w-full shrink-0 flex-col rounded-xl bg-slate-50 p-3 dark:bg-slate-900 md:w-72"
+      className="flex w-[86vw] max-w-sm shrink-0 snap-start flex-col rounded-xl bg-slate-50 p-3 dark:bg-slate-900 md:w-72 md:max-w-none"
     >
       <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
         {status

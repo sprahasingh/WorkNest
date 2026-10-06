@@ -203,7 +203,7 @@ function TimeZoneSelect({
           closeDropdown();
           triggerRef.current?.focus();
         }}
-        className="block w-full px-3 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none dark:text-slate-200 dark:hover:bg-slate-700 dark:focus:bg-slate-700"
+        className="block min-h-11 w-full px-3 py-3 text-left text-sm text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none dark:text-slate-200 dark:hover:bg-slate-700 dark:focus:bg-slate-700"
       >
         {timeZoneAreaLabel(timeZone)}
       </button>
@@ -232,6 +232,7 @@ function TimeZoneSelect({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-controls="timeZone-options"
+        aria-label={`Time zone: ${timeZoneAreaLabel(selectedTimeZone)}`}
         onClick={() => {
           if (isOpen) {
             closeDropdown();
@@ -243,6 +244,9 @@ function TimeZoneSelect({
           if (event.key === "ArrowDown") {
             event.preventDefault();
             setIsOpen(true);
+          } else if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setIsOpen((open) => !open);
           }
         }}
         className={cn(
@@ -261,6 +265,9 @@ function TimeZoneSelect({
           <input
             type="search"
             autoFocus
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="timeZone-options"
             aria-label="Search time zones"
             placeholder="Search time zones"
             value={search}
@@ -272,6 +279,11 @@ function TimeZoneSelect({
               } else if (event.key === "ArrowDown") {
                 event.preventDefault();
                 optionRefs.current[0]?.focus();
+              } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                optionRefs.current[
+                  Math.max(0, visibleOptionValues.length - 1)
+                ]?.focus();
               }
             }}
             className={cn(inputStyles, "mt-0")}

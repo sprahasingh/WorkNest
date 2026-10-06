@@ -110,7 +110,7 @@ export function AlertSettings() {
         aria-expanded={open}
         aria-label="Message alerts"
         className={cn(
-          "flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-slate-800",
+          "flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-400 dark:hover:bg-slate-800",
           ((available && prefs.desktop) || prefs.sound) &&
             "text-teal-700 dark:text-teal-400",
         )}

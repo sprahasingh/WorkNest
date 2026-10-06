@@ -25,8 +25,8 @@ const VARIANT_STYLES: Record<ButtonVariant, string> = {
 };
 
 const SIZE_STYLES: Record<ButtonSize, string> = {
-  sm: "px-3 py-1.5 text-sm",
-  md: "px-4 py-2 text-sm",
+  sm: "min-h-11 min-w-11 px-3 py-2 text-sm",
+  md: "min-h-11 min-w-11 px-4 py-2 text-sm",
 };
 
 function Spinner({ className }: { className?: string }) {

@@ -101,7 +101,7 @@ export function ThemeToggle({
         onClick={() => setOpen((value) => !value)}
         aria-label="Change theme"
         aria-expanded={open}
-        className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+        className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
       >
         <ActiveIcon className="h-5 w-5" />
       </button>

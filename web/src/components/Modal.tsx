@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { lockScroll } from "@/lib/scrollLock";
@@ -25,6 +25,12 @@ export function Modal({
   size = "md",
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const [visibleHeight, setVisibleHeight] = useState(
+    () => window.visualViewport?.height ?? window.innerHeight,
+  );
+  const [viewportTop, setViewportTop] = useState(
+    () => window.visualViewport?.offsetTop ?? 0,
+  );
   const modalId = useId();
   // Closing on the backdrop only counts when the press began there too.
   // Dragging to select text inside a form and letting go outside the dialog
@@ -36,6 +42,22 @@ export function Modal({
   useEffect(() => {
     onCloseRef.current = onClose;
   });
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const update = () => {
+      setVisibleHeight(viewport?.height ?? window.innerHeight);
+      setViewportTop(viewport?.offsetTop ?? 0);
+    };
+    window.addEventListener("resize", update);
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+    };
+  }, []);
 
   // Focus moves into the dialog, Tab stays inside it, and focus goes back to
   // what opened it when it closes.
@@ -97,7 +119,12 @@ export function Modal({
   // pushed out of place and left a strip of the page sharp at the edge.
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-3 py-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-4 sm:py-3"
+      style={{
+        top: viewportTop,
+        height: visibleHeight,
+        bottom: "auto",
+      }}
       onMouseDown={(event) => {
         pressStartedOnBackdrop.current = event.target === event.currentTarget;
       }}
@@ -113,13 +140,16 @@ export function Modal({
     >
       <div
         ref={dialogRef}
+        style={{
+          maxHeight: `min(90dvh, ${Math.max(visibleHeight - 24, 160)}px)`,
+        }}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${modalId}-title`}
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          "flex max-h-[90dvh] min-h-0 w-full flex-col rounded-2xl bg-white p-4 shadow-xl outline-none sm:p-6 dark:bg-slate-800",
+          "flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] min-h-0 w-full flex-col rounded-2xl bg-white p-4 shadow-xl outline-none sm:max-h-[90dvh] sm:p-6 dark:bg-slate-800",
           size === "lg" ? "sm:max-w-2xl" : "sm:max-w-md",
         )}
       >
@@ -134,7 +164,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="-mr-2 -mt-1 rounded-lg p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+            className="-mr-2 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
           >
             <svg
               viewBox="0 0 24 24"
