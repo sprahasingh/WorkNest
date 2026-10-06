@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   useAccountPaused,
   useGrowthBlocked,
@@ -81,6 +81,15 @@ export function ProjectBoard() {
     task: Task;
     permanent: boolean;
   } | null>(null);
+  const taskColumnsRef = useRef<HTMLDivElement>(null);
+  const scrollTaskColumns = (direction: 1 | -1) => {
+    const columns = taskColumnsRef.current;
+    if (!columns) return;
+    columns.scrollBy({
+      left: direction * columns.clientWidth * 0.85,
+      behavior: "smooth",
+    });
+  };
 
   // Notifications link here with ?task=<id> (open that task's updates) or
   // ?updates=1 (open the project-wide updates panel).
@@ -491,7 +500,55 @@ export function ProjectBoard() {
           </p>
         )}
 
-        <div className="mt-4 flex snap-x snap-mandatory flex-row gap-3 overflow-x-auto overscroll-x-contain pb-4">
+        {visibleStatuses.length > 1 && (
+          <div className="mt-4 flex items-center justify-between gap-3 md:hidden">
+            <p
+              id="task-columns-hint"
+              className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4 shrink-0"
+                aria-hidden="true"
+              >
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+              Swipe to see In progress
+            </p>
+            <div className="flex shrink-0 gap-1">
+              <button
+                type="button"
+                aria-label="Previous task column"
+                onClick={() => scrollTaskColumns(-1)}
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <span aria-hidden="true">←</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Next task column"
+                onClick={() => scrollTaskColumns(1)}
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div
+          ref={taskColumnsRef}
+          aria-describedby={
+            visibleStatuses.length > 1 ? "task-columns-hint" : undefined
+          }
+          className="mt-4 flex snap-x snap-mandatory flex-row gap-3 overflow-x-auto overscroll-x-contain pb-4"
+        >
           {visibleStatuses.map((status) => (
             <TaskColumn
               key={status ?? boardView}
