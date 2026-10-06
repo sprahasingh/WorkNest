@@ -255,11 +255,32 @@ test("core workspace pages fit common responsive viewports", async ({
       await page.waitForTimeout(300);
       const columnBounds = await columns.boundingBox();
       expect(columnBounds).toBeTruthy();
+      await columns.evaluate((element) => {
+        element.addEventListener("wheel", () => {
+          element.setAttribute("data-wheel-seen", "true");
+        });
+      });
       await page.mouse.move(
         columnBounds!.x + columnBounds!.width / 2,
         columnBounds!.y + columnBounds!.height / 2,
       );
       await page.mouse.wheel(500, 0);
+      console.log(
+        "task column wheel diagnostics",
+        await columns.evaluate((element) => ({
+          wheelSeen: element.getAttribute("data-wheel-seen"),
+          scrollLeft: element.scrollLeft,
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+          bounds: element.getBoundingClientRect().toJSON(),
+          hitTarget: document.elementFromPoint(
+            element.getBoundingClientRect().x +
+              element.getBoundingClientRect().width / 2,
+            element.getBoundingClientRect().y +
+              element.getBoundingClientRect().height / 2,
+          )?.tagName,
+        })),
+      );
       await expect
         .poll(() => columns.evaluate((element) => element.scrollLeft))
         .toBeGreaterThan(0);
