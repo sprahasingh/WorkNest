@@ -360,6 +360,7 @@ export function ProjectsPage() {
           </div>
           {canWrite && (
             <Button
+              data-tour="projects-create"
               onClick={openCreateModal}
               disabled={paused || growthBlocked || atProjectLimit}
               title={
@@ -377,21 +378,23 @@ export function ProjectsPage() {
           )}
         </div>
 
-        <ViewTabs
-          label="Project lists"
-          className="mt-5"
-          value={view}
-          onChange={setView}
-          tabs={VIEWS.map((tab) => ({
-            ...tab,
-            count:
-              tab.value === "active"
-                ? activeProjectCount
-                : tab.value === "completed"
-                  ? completedProjectCount
-                  : counts?.[tab.value],
-          }))}
-        />
+        <div data-tour="projects-tabs">
+          <ViewTabs
+            label="Project lists"
+            className="mt-5"
+            value={view}
+            onChange={setView}
+            tabs={VIEWS.map((tab) => ({
+              ...tab,
+              count:
+                tab.value === "active"
+                  ? activeProjectCount
+                  : tab.value === "completed"
+                    ? completedProjectCount
+                    : counts?.[tab.value],
+            }))}
+          />
+        </div>
 
         {view === "bin" && (
           <p className="mt-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
@@ -407,6 +410,7 @@ export function ProjectsPage() {
         <label className="mt-4 flex min-w-0 flex-col items-start gap-1.5 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:items-center sm:gap-2">
           <span className="shrink-0">Sort projects</span>
           <select
+            data-tour="projects-sort"
             aria-label="Sort projects"
             value={selectedSort}
             onChange={(event) => setSortBy(event.target.value as ProjectSort)}
@@ -420,7 +424,7 @@ export function ProjectsPage() {
           </select>
         </label>
 
-        <div className="mt-6">
+        <div data-tour="projects-first-card" className="mt-6">
           {isPending && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {[0, 1, 2, 3].map((i) => (

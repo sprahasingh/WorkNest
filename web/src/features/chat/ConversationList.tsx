@@ -148,7 +148,7 @@ export function ConversationList({
         </h1>
         <div className="flex items-center gap-1">
           <AlertSettings />
-          <Button size="sm" onClick={onNew}>
+          <Button data-tour="messages-new" size="sm" onClick={onNew}>
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -171,6 +171,7 @@ export function ConversationList({
           Search conversations
         </label>
         <input
+          data-tour="messages-search"
           id="conversation-search"
           type="search"
           value={search}

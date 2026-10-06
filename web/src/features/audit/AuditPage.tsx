@@ -60,7 +60,7 @@ export function AuditPage() {
           Audit log
         </h1>
 
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div data-tour="audit-content" className="mt-4 flex flex-wrap gap-3">
           <select
             value={filters.action ?? ""}
             onChange={(event) =>
@@ -107,7 +107,7 @@ export function AuditPage() {
           </select>
         </div>
 
-        <div className="mt-6 space-y-2">
+        <div data-tour="audit-entries" className="mt-6 space-y-2">
           {isPending &&
             [0, 1, 2].map((i) => (
               <div

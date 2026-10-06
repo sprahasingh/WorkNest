@@ -62,7 +62,12 @@ export function TaskColumn({
   const total = data?.pages[0]?.total ?? tasks.length;
 
   return (
-    <div className="flex w-full shrink-0 flex-col rounded-xl bg-slate-50 p-3 dark:bg-slate-900 md:w-72">
+    <div
+      data-tour={
+        view === "active" && status === "todo" ? "tasks-first-card" : undefined
+      }
+      className="flex w-full shrink-0 flex-col rounded-xl bg-slate-50 p-3 dark:bg-slate-900 md:w-72"
+    >
       <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
         {status
           ? COLUMN_LABELS[status]

@@ -1111,7 +1111,7 @@ export function SettingsPage() {
 
         <PersonalInformationCard />
 
-        <Card>
+        <Card data-tour="settings-organization">
           <h2 className="font-medium text-slate-800 dark:text-slate-100">
             Organization settings
           </h2>
@@ -1334,7 +1334,7 @@ export function SettingsPage() {
           </div>
         </Modal>
 
-        <Card id="plan" className="scroll-mt-24">
+        <Card id="plan" data-tour="settings-content" className="scroll-mt-24">
           <div className="flex items-center justify-between">
             <h2 className="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-100">
               Plan

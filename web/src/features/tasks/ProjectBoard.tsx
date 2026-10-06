@@ -288,6 +288,7 @@ export function ProjectBoard() {
             <MuteToggle orgId={orgId} projectId={projectId} iconOnly />
             <Button
               variant="secondary"
+              data-tour="tasks-updates"
               className="h-10 flex-1 sm:flex-none"
               onClick={() => setParam("updates", "1")}
             >
@@ -295,6 +296,7 @@ export function ProjectBoard() {
             </Button>
             {canCreate && !isArchived && (
               <Button
+                data-tour="tasks-create"
                 className="h-10 flex-1 sm:flex-none"
                 onClick={() => setDrawerState({ mode: "create" })}
                 disabled={atTaskLimit || paused || growthBlocked}
@@ -391,7 +393,10 @@ export function ProjectBoard() {
           </div>
         )}
 
-        <div className="mt-4 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-3">
+        <div
+          data-tour="tasks-filters"
+          className="mt-4 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-3"
+        >
           <select
             aria-label="Filter by priority"
             value={filters.priority ?? ""}
@@ -447,7 +452,10 @@ export function ProjectBoard() {
           </label>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div
+          data-tour="tasks-tabs"
+          className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3"
+        >
           <ViewTabs
             label="Task lists"
             value={boardView}

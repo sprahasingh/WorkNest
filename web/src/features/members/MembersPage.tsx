@@ -142,7 +142,10 @@ export function MembersPage() {
         {!isPending && !isError && members && (
           <>
             {/* Mobile: stacked cards */}
-            <div className="mt-6 space-y-3 sm:hidden">
+            <div
+              data-tour="members-content"
+              className="mt-6 space-y-3 sm:hidden"
+            >
               {members.map((member) => {
                 const isSelf = member.userId.id === user?.id;
                 return (
@@ -187,7 +190,10 @@ export function MembersPage() {
             </div>
 
             {/* Desktop: table */}
-            <div className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:block">
+            <div
+              data-tour="members-content"
+              className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:block"
+            >
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   <tr>
@@ -247,7 +253,9 @@ export function MembersPage() {
         )}
 
         <div className="mt-10">
-          <InvitesPanel />
+          <div data-tour="members-invites">
+            <InvitesPanel />
+          </div>
         </div>
       </div>
 
