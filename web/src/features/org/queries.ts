@@ -15,6 +15,15 @@ export function useOrgDetails(orgId: string) {
   });
 }
 
+export function useOrgPlanRestoreCheck(orgId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...orgKeys.detail(orgId), "restore-check"],
+    queryFn: () => getOrg(orgId),
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
+  });
+}
+
 export function useUpdateOrg(orgId: string) {
   const queryClient = useQueryClient();
 

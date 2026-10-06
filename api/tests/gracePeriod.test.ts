@@ -100,6 +100,166 @@ describe("grace period after a plan expires", () => {
       states.find((p) => String(p._id) === manualId)?.archivedAt,
     ).not.toBeNull();
   });
+  it("restores force-archived tasks with selected projects but leaves manual archives", async () => {
+    const { orgId, admin } = await proOrg("restore-tasks.test");
+    const projectId = await project(orgId, admin.token, "RTS");
+    const forceArchived = await task(orgId, admin.token, projectId, 1);
+    const manualArchived = await task(orgId, admin.token, projectId, 2);
+    await Task.updateOne(
+      { _id: forceArchived },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    await Task.updateOne(
+      { _id: manualArchived },
+      { archivedAt: new Date(), archivedReason: null },
+    ).setOptions({ skipTenant: true });
+    const beforeRestore = await Task.findById(forceArchived)
+      .setOptions({ skipTenant: true })
+      .lean();
+    await Project.updateOne(
+      { _id: projectId },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+
+    const response = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [projectId] });
+
+    expect(response.status).toBe(200);
+    const states = await Task.find({
+      _id: { $in: [forceArchived, manualArchived] },
+    })
+      .setOptions({ skipTenant: true })
+      .lean();
+    expect(
+      states.find((item) => String(item._id) === forceArchived)?.archivedAt,
+    ).toBeNull();
+    expect(
+      states.find((item) => String(item._id) === forceArchived)?.archivedReason,
+    ).toBeNull();
+    expect(
+      states.find((item) => String(item._id) === forceArchived)?.updatedAt,
+    ).toEqual(beforeRestore?.updatedAt);
+    expect(
+      states.find((item) => String(item._id) === manualArchived)?.archivedAt,
+    ).not.toBeNull();
+  });
+  it("restores only force-archived tasks that fit the upgraded task limit", async () => {
+    const { orgId, admin } = await proOrg("restore-task-capacity.test");
+    const projectId = await project(orgId, admin.token, "RTC");
+    const now = new Date();
+    const tasks = Array.from({ length: 51 }, (_, index) => ({
+      _id: new mongoose.Types.ObjectId(),
+      tenantId: new mongoose.Types.ObjectId(orgId),
+      projectId: new mongoose.Types.ObjectId(projectId),
+      title: `Capacity task ${index}`,
+      status: "todo",
+      priority: "medium",
+      assigneeIds: [],
+      dueDate: null,
+      completedAt: null,
+      archivedAt: index >= 49 ? now : null,
+      archivedReason: index >= 49 ? "plan_limit" : null,
+      deletedAt: null,
+      createdBy: new mongoose.Types.ObjectId(admin.id),
+      createdAt: now,
+      updatedAt: now,
+    }));
+    await Task.collection.insertMany(tasks);
+    await Project.updateOne(
+      { _id: projectId },
+      { archivedAt: now, archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+
+    const response = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({ projectIds: [projectId] });
+
+    expect(response.status).toBe(200);
+    expect(
+      await Task.countDocuments({
+        projectId,
+        status: { $ne: "done" },
+        archivedAt: null,
+        deletedAt: null,
+      }).setOptions({ skipTenant: true }),
+    ).toBe(50);
+    expect(
+      await Task.countDocuments({
+        projectId,
+        archivedAt: { $ne: null },
+        archivedReason: "plan_limit",
+        deletedAt: null,
+      }).setOptions({ skipTenant: true }),
+    ).toBe(1);
+  });
+  it("offers force-archived tasks from active projects and restores only within capacity", async () => {
+    const { orgId, admin } = await proOrg("restore-active-task-capacity.test");
+    const projectId = await project(orgId, admin.token, "RAC");
+    const now = new Date();
+    const tasks = Array.from({ length: 52 }, (_, index) => ({
+      _id: new mongoose.Types.ObjectId(),
+      tenantId: new mongoose.Types.ObjectId(orgId),
+      projectId: new mongoose.Types.ObjectId(projectId),
+      title: `Active project task ${index}`,
+      status: "todo",
+      priority: "medium",
+      assigneeIds: [],
+      dueDate: null,
+      completedAt: null,
+      archivedAt: index >= 49 ? now : null,
+      archivedReason: index === 51 ? null : index >= 49 ? "plan_limit" : null,
+      deletedAt: null,
+      createdBy: new mongoose.Types.ObjectId(admin.id),
+      createdAt: now,
+      updatedAt: now,
+    }));
+    await Task.collection.insertMany(tasks);
+    const candidateResponse = await request(app)
+      .get(`/api/orgs/${orgId}/projects/restore-plan-archived/tasks`)
+      .set(auth(admin.token));
+    expect(candidateResponse.status).toBe(200);
+    expect(
+      candidateResponse.body.tasks.map((item: { _id: string }) => item._id),
+    ).toEqual(
+      expect.arrayContaining([String(tasks[49]._id), String(tasks[50]._id)]),
+    );
+    expect(candidateResponse.body.tasks).toHaveLength(2);
+
+    const response = await request(app)
+      .post(`/api/orgs/${orgId}/projects/restore-plan-archived`)
+      .set(auth(admin.token))
+      .send({
+        projectIds: [],
+        taskIds: [
+          String(tasks[49]._id),
+          String(tasks[51]._id),
+          String(tasks[50]._id),
+        ],
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.projects).toHaveLength(0);
+    expect(response.body.tasks).toHaveLength(1);
+    expect(String(response.body.tasks[0]._id)).toBe(String(tasks[49]._id));
+    expect(
+      await Task.countDocuments({
+        projectId,
+        status: { $ne: "done" },
+        archivedAt: null,
+        deletedAt: null,
+      }).setOptions({ skipTenant: true }),
+    ).toBe(50);
+    expect(
+      await Task.countDocuments({
+        projectId,
+        archivedAt: { $ne: null },
+        deletedAt: null,
+      }).setOptions({ skipTenant: true }),
+    ).toBe(2);
+  });
   it("keeps everything for 10 days, and the account stays usable", async () => {
     const { orgId, admin } = await proOrg("grace1.test");
     const ids: string[] = [];

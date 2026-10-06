@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import type { Role } from "@/api/auth";
+import { roleVisibleSteps } from "@/lib/planRestorePrompt";
 
 interface Step {
   title: string;
@@ -99,7 +100,6 @@ const pageTours: Record<string, PageStep[]> = {
       title: "Add a task",
       description:
         "Create work in this project, then add details, priority, a due date, and assignees.",
-      roles: ["admin", "manager"],
     },
     {
       target: "tasks-tabs",
@@ -216,7 +216,7 @@ function stepsFor(role: Role, orgId: string, orgName: string): Step[] {
   const path = (page: string) => `/orgs/${orgId}/${page}`;
   const welcome: Step = {
     title: `Welcome to ${orgName}`,
-    description: `You’re joining as an ${roleName[role]}. This quick tour covers what you can do in this organization and where to find it. You can replay it any time from the sidebar.`,
+    description: `You’re joining as ${role === "admin" ? "an" : "a"} ${roleName[role]}. This quick tour covers what you can do in this organization and where to find it. You can replay it any time from the sidebar.`,
   };
   const shared: Record<string, Step> = {
     messages: {
@@ -328,9 +328,10 @@ export function OnboardingTour({
         ? "tasks"
         : null;
   const pageIndex = activePageKey ? (pageIndexes[activePageKey] ?? 0) : 0;
-  const availablePageSteps = (
-    activePageKey ? (pageTours[activePageKey] ?? []) : []
-  ).filter((item) => !item.roles || item.roles.includes(role));
+  const availablePageSteps = roleVisibleSteps(
+    activePageKey ? (pageTours[activePageKey] ?? []) : [],
+    role,
+  );
   const pageStep = availablePageSteps[pageIndex];
 
   const positionCard = () => {

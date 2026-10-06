@@ -138,7 +138,7 @@ const STEPS: GuideStep[] = [
     id: "dashboard",
     title: "Check the dashboard",
     description:
-      "Admins and managers get two views, switched at the top. Tasks shows open, completed, created and overdue tasks, with charts for status, priority, workload and how open work has moved. Projects shows each project's stage, progress and where the open work is. Pick a period from the last 7 to 90 days, all time, or a custom range with your own start and end dates, and the charts follow it in your organization's time zone. Scroll down on the Tasks view for workload per person and plan usage. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
+      "Admins and managers get two views, switched at the top. Tasks shows open, completed, created and overdue tasks, with charts for status, priority, workload and how open work has moved. Projects shows each project's stage, progress and where the open work is. Pick a period from the last 7 to 90 days, all time, or a custom range with your own start and end dates. Charts use the viewer's browser time zone. Scroll down on the Tasks view for workload per person and plan usage. Chart numbers show on double-click or double-tap, so a stray tap doesn't pop them up.",
     screens: placement("guide.dashboard"),
   },
   {
@@ -154,7 +154,7 @@ const STEPS: GuideStep[] = [
     description: `Open Settings to compare plans and check usage. ${planLimitsText()} ${planPricingText()} Only admins can change plans. Paid plans run for one month or one year and do not renew automatically; an admin must renew them. A paid plan can't be downgraded before it ends. Afterward, a downgrade is available when usage fits the lower plan's limits.`,
     tips: [
       "When a paid plan ends, the workspace returns to Free with a 10-day grace period. While usage is over Free limits, actions that increase it are blocked. If usage is still over the limits when grace ends, excess active projects and open tasks are force-archived. People are never removed, and nothing is deleted.",
-      "After upgrading, an admin can use the Review archived projects prompt to choose eligible force-archived projects. Force-archived tasks remain in the task Archived list and can be restored there when the project has capacity. Manually archived projects and tasks are not included in this prompt.",
+      "After upgrading, an admin can use the Review archived projects prompt to choose force-archived projects and tasks in active projects. Tasks in a restored project return automatically when the plan has capacity; tasks that still exceed the per-project limit remain Archived. Manually archived projects and tasks are not included.",
       "Admins also choose how long chat history is kept, from forever down to 90 days. The choice applies to the whole organization, and every member can see it in Settings and at the bottom of their chat list.",
       "Settings lists every device signed in to your account, so you can sign one out or choose Log out everywhere else. On a phone, pull down from the top of a page to refresh it.",
     ],
@@ -169,7 +169,7 @@ const GOOD_TO_KNOW = [
   },
   {
     title: "Time zones",
-    text: "An admin sets the organization's time zone in Settings. It determines due dates, reminders and dashboard reporting. Meetings and messages show in your own time zone.",
+    text: "An admin sets the organization's time zone in Settings. It determines due dates and reminders. Dashboard charts use the viewer's browser time zone, while meetings and messages show in your own time zone.",
   },
   {
     title: "Light and dark",

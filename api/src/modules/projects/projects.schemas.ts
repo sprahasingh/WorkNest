@@ -47,6 +47,10 @@ export const listProjectsQuerySchema = z
 export const restorePlanArchivedSchema = z
   .object({
     projectIds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).max(500),
+    taskIds: z
+      .array(z.string().regex(/^[a-f\d]{24}$/i))
+      .max(500)
+      .default([]),
   })
   .strict();
 
