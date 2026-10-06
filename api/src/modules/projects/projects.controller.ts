@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { AppError } from "../../lib/errors.js";
 import {
   createProject,
   listProjects,
@@ -11,6 +12,7 @@ import {
   deleteProjectPermanently,
   restorePlanArchivedProjects,
   listPlanArchivedRestoreTasks,
+  keepPlanArchivedResource,
 } from "./projects.service.js";
 import type {
   CreateProjectInput,
@@ -39,6 +41,25 @@ export async function listPlanArchivedRestoreTasksController(
 ): Promise<void> {
   const tasks = await listPlanArchivedRestoreTasks();
   res.status(200).json({ tasks });
+}
+
+export async function keepPlanArchivedResourceController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const kind = req.params.kind as "project" | "task";
+  if (kind !== "project" && kind !== "task") {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Resource type must be project or task",
+    );
+  }
+  const resource = await keepPlanArchivedResource(
+    kind,
+    req.params.resourceId as string,
+  );
+  res.status(200).json({ resource });
 }
 
 export async function createProjectController(

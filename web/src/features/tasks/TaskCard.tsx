@@ -46,6 +46,7 @@ interface TaskCardProps {
   onRestore: () => void;
   onDelete: () => void;
   onDeletePermanently: () => void;
+  onKeepArchived: () => void;
 }
 
 export function TaskCard({
@@ -63,6 +64,7 @@ export function TaskCard({
   onRestore,
   onDelete,
   onDeletePermanently,
+  onKeepArchived,
 }: TaskCardProps) {
   const assignees = members.filter((m) =>
     task.assigneeIds?.includes(m.userId.id),
@@ -111,6 +113,13 @@ export function TaskCard({
               {view === "archived" && canManage && (
                 <MoreMenuItem onClick={onUnarchive}>Unarchive</MoreMenuItem>
               )}
+              {view === "archived" &&
+                canManage &&
+                task.archivedReason === "plan_limit" && (
+                  <MoreMenuItem onClick={onKeepArchived}>
+                    Keep archived
+                  </MoreMenuItem>
+                )}
               {view === "bin" && canManage && (
                 <MoreMenuItem onClick={onRestore}>Restore</MoreMenuItem>
               )}
@@ -138,7 +147,7 @@ export function TaskCard({
         {view === "archived" && (
           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
             {task.archivedReason === "plan_limit"
-              ? "Force-archived"
+              ? "Archived by plan limit"
               : "Manually archived"}
           </span>
         )}

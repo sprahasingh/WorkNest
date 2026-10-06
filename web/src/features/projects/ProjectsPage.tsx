@@ -40,6 +40,7 @@ import {
   useProjects,
   useRestoreProject,
   useUnarchiveProject,
+  useKeepPlanArchived,
   useUpdateProject,
 } from "./queries";
 
@@ -76,7 +77,7 @@ const EMPTY_PROJECT_FORM: CreateProjectFormValues = {
   dueDate: "",
 };
 
-type ConfirmAction = "archive" | "bin" | "permanent";
+type ConfirmAction = "archive" | "bin" | "permanent" | "keepArchived";
 
 interface ConfirmTarget {
   project: Project;
@@ -161,6 +162,7 @@ export function ProjectsPage() {
   const archiveProject = useArchiveProject(orgId);
   const deleteProject = useDeleteProject(orgId);
   const unarchiveProject = useUnarchiveProject(orgId);
+  const keepPlanArchived = useKeepPlanArchived(orgId, "project");
   const restoreProject = useRestoreProject(orgId);
   const deletePermanently = useDeleteProjectPermanently(orgId);
 
@@ -320,6 +322,9 @@ export function ProjectsPage() {
           description: `It's deleted for good after ${retentionDays} days.`,
           action: { label: "Undo", onClick: () => void restore(project) },
         });
+      } else if (action === "keepArchived") {
+        await keepPlanArchived.mutateAsync(project._id);
+        toast.success(`"${project.name}" will stay archived`);
       } else {
         await deletePermanently.mutateAsync(project._id);
         toast.success(`Deleted "${project.name}" permanently`);
@@ -515,7 +520,7 @@ export function ProjectsPage() {
                       {view === "archived" && (
                         <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                           {project.archivedReason === "plan_limit"
-                            ? "Force-archived"
+                            ? "Archived by plan limit"
                             : "Manually archived"}
                         </span>
                       )}
@@ -567,12 +572,26 @@ export function ProjectsPage() {
                             </MoreMenuItem>
                           )}
                           {view === "archived" && (
-                            <MoreMenuItem
-                              onClick={() => void unarchive(project)}
-                              disabled={unarchiveProject.isPending}
-                            >
-                              Unarchive
-                            </MoreMenuItem>
+                            <>
+                              <MoreMenuItem
+                                onClick={() => void unarchive(project)}
+                                disabled={unarchiveProject.isPending}
+                              >
+                                Unarchive
+                              </MoreMenuItem>
+                              {project.archivedReason === "plan_limit" && (
+                                <MoreMenuItem
+                                  onClick={() =>
+                                    setConfirmTarget({
+                                      project,
+                                      action: "keepArchived",
+                                    })
+                                  }
+                                >
+                                  Keep archived
+                                </MoreMenuItem>
+                              )}
+                            </>
                           )}
                           {view === "bin" ? (
                             <>
@@ -766,14 +785,22 @@ export function ProjectsPage() {
       <Modal
         open={confirmTarget !== null}
         onClose={() => setConfirmTarget(null)}
-        title={confirmTarget ? CONFIRM_COPY[confirmTarget.action].title : ""}
+        title={
+          confirmTarget
+            ? confirmTarget.action === "keepArchived"
+              ? "Keep this project archived?"
+              : CONFIRM_COPY[confirmTarget.action].title
+            : ""
+        }
       >
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {confirmTarget &&
-            CONFIRM_COPY[confirmTarget.action].body(
-              confirmTarget.project.name,
-              retentionDays,
-            )}
+            (confirmTarget.action === "keepArchived"
+              ? `This will keep ${confirmTarget.project.name} archived and remove it and its plan-archived tasks from the list of items that can be restored after a plan change.`
+              : CONFIRM_COPY[confirmTarget.action].body(
+                  confirmTarget.project.name,
+                  retentionDays,
+                ))}
         </p>
         <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
           <Button
@@ -786,12 +813,21 @@ export function ProjectsPage() {
           </Button>
           <Button
             type="button"
-            variant={confirmTarget?.action === "archive" ? "primary" : "danger"}
+            variant={
+              confirmTarget?.action === "archive" ||
+              confirmTarget?.action === "keepArchived"
+                ? "primary"
+                : "danger"
+            }
             onClick={() => void handleConfirm()}
             loading={isConfirming}
             className="w-full sm:w-auto"
           >
-            {confirmTarget ? CONFIRM_COPY[confirmTarget.action].button : ""}
+            {confirmTarget
+              ? confirmTarget.action === "keepArchived"
+                ? "Keep archived"
+                : CONFIRM_COPY[confirmTarget.action].button
+              : ""}
           </Button>
         </div>
       </Modal>
@@ -890,5 +926,11 @@ const CONFIRM_COPY: Record<
     button: "Delete permanently",
     body: (name) =>
       `"${name}" and all of its tasks and updates will be deleted right away. This can't be undone.`,
+  },
+  keepArchived: {
+    title: "Keep this project archived?",
+    button: "Keep archived",
+    body: (name) =>
+      `This will keep ${name} archived and remove it and its plan-archived tasks from the list of items that can be restored after a plan change.`,
   },
 };

@@ -66,6 +66,108 @@ const expireAgo = (orgId: string, days: number) =>
   );
 
 describe("grace period after a plan expires", () => {
+  it("keeps force-archived projects and tasks as ordinary archives, including child candidates", async () => {
+    const { orgId, admin } = await proOrg("keep-plan-archived.test");
+    const projectId = await project(orgId, admin.token, "KPA");
+    const childId = await task(orgId, admin.token, projectId, 1);
+    const activeProjectId = await project(orgId, admin.token, "KTA");
+    const independentTaskId = await task(
+      orgId,
+      admin.token,
+      activeProjectId,
+      2,
+    );
+    await Project.updateOne(
+      { _id: projectId },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    await Task.updateOne(
+      { _id: childId },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+    await Task.updateOne(
+      { _id: independentTaskId },
+      { archivedAt: new Date(), archivedReason: "plan_limit" },
+    ).setOptions({ skipTenant: true });
+
+    const projectResult = await request(app)
+      .post(
+        `/api/orgs/${orgId}/projects/keep-plan-archived/project/${projectId}`,
+      )
+      .set(auth(admin.token));
+    expect(projectResult.status).toBe(200);
+    const keptProject = await Project.findById(projectId)
+      .setOptions({ skipTenant: true })
+      .lean();
+    const keptChild = await Task.findById(childId)
+      .setOptions({ skipTenant: true })
+      .lean();
+    expect(keptProject?.archivedAt).not.toBeNull();
+    expect(keptProject?.archivedReason).toBeNull();
+    expect(keptChild?.archivedAt).not.toBeNull();
+    expect(keptChild?.archivedReason).toBeNull();
+    const projectCandidates = await request(app)
+      .get(`/api/orgs/${orgId}/projects?view=archived`)
+      .set(auth(admin.token));
+    expect(
+      projectCandidates.body.projects.find(
+        (row: { _id: string }) => row._id === projectId,
+      )?.archivedReason,
+    ).toBeNull();
+
+    const taskResult = await request(app)
+      .post(
+        `/api/orgs/${orgId}/projects/keep-plan-archived/task/${independentTaskId}`,
+      )
+      .set(auth(admin.token));
+    expect(taskResult.status).toBe(200);
+    const keptTask = await Task.findById(independentTaskId)
+      .setOptions({ skipTenant: true })
+      .lean();
+    expect(keptTask?.archivedAt).not.toBeNull();
+    expect(keptTask?.archivedReason).toBeNull();
+    const candidates = await request(app)
+      .get(`/api/orgs/${orgId}/projects/restore-plan-archived/tasks`)
+      .set(auth(admin.token));
+    expect(candidates.body.tasks).toHaveLength(0);
+  });
+
+  it("rejects Keep archived for users without project lifecycle permission", async () => {
+    const { orgId, admin, addMember } = await setupOrg(
+      app,
+      "keep-plan-archived-permission.test",
+    );
+    const projectId = await project(orgId, admin.token, "KPP");
+    await Organization.updateOne(
+      { _id: orgId },
+      { plan: "pro", seatLimit: 30, projectLimit: 25 },
+    );
+    const member = await addMember("sam");
+    const response = await request(app)
+      .post(
+        `/api/orgs/${orgId}/projects/keep-plan-archived/project/${projectId}`,
+      )
+      .set(auth(member.token));
+    expect(response.status).toBe(403);
+  });
+
+  it("returns a conflict when Keep archived targets a stale or ordinary archive", async () => {
+    const { orgId, admin } = await proOrg("keep-plan-archived-stale.test");
+    const projectId = await project(orgId, admin.token, "KPS");
+    const archived = await request(app)
+      .post(`/api/orgs/${orgId}/projects/${projectId}/archive`)
+      .set(auth(admin.token));
+    expect(archived.status).toBe(200);
+
+    const response = await request(app)
+      .post(
+        `/api/orgs/${orgId}/projects/keep-plan-archived/project/${projectId}`,
+      )
+      .set(auth(admin.token));
+    expect(response.status).toBe(409);
+    expect(response.body.error.code).toBe("RESTORE_CANDIDATE_CHANGED");
+  });
+
   it("discovers durable force-archive candidates after upgrade clears expiry markers and removes restored candidates", async () => {
     const { orgId, admin } = await proOrg("restore-candidates-persist.test");
     const forcedProjectId = await project(orgId, admin.token, "RCP");

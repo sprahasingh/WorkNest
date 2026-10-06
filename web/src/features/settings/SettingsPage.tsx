@@ -1589,17 +1589,6 @@ export function SettingsPage() {
             })}
           </ul>
 
-          {canChangePlan && canReopenRestore && (
-            <Button
-              type="button"
-              variant="secondary"
-              className="mt-4 w-full"
-              onClick={() => setRestorePromptRequested(true)}
-            >
-              Review archived projects
-            </Button>
-          )}
-
           {testMode && canChangePlan && <TestPaymentBox />}
 
           {canChangePlan && billing.data?.testControls && (
@@ -1615,6 +1604,33 @@ export function SettingsPage() {
             </p>
           )}
         </Card>
+
+        {canReopenRestore && (
+          <Card>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
+              Archived after plan changes
+            </h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              Some projects or tasks were archived because the organization
+              exceeded its previous plan limits. Eligible items can be reviewed
+              for restoration now.
+            </p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              {formatRestoreCandidateCount(
+                archivedByPlan.length,
+                forceArchivedTasks.length,
+              )}
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-4 w-full sm:w-auto"
+              onClick={() => setRestorePromptRequested(true)}
+            >
+              Review archived projects and tasks
+            </Button>
+          </Card>
+        )}
 
         {restorePrompt && (
           <RestoreProjectsPrompt
@@ -1746,4 +1762,12 @@ export function SettingsPage() {
       </div>
     </div>
   );
+}
+
+function formatRestoreCandidateCount(projects: number, tasks: number): string {
+  const parts: string[] = [];
+  if (projects > 0)
+    parts.push(`${projects} project${projects === 1 ? "" : "s"}`);
+  if (tasks > 0) parts.push(`${tasks} task${tasks === 1 ? "" : "s"}`);
+  return `${parts.join(" and ")} can be reviewed for restoration.`;
 }

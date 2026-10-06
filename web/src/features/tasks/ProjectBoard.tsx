@@ -11,7 +11,11 @@ import { useOrg } from "@/hooks/useOrg";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
 import { useMembers } from "@/features/members/queries";
-import { useProject, useUnarchiveProject } from "@/features/projects/queries";
+import {
+  useProject,
+  useUnarchiveProject,
+  useKeepPlanArchived,
+} from "@/features/projects/queries";
 import { parseApiError } from "@/lib/apiError";
 import { NotFound } from "@/pages/NotFound";
 import { Button } from "@/components/ui/Button";
@@ -88,6 +92,7 @@ export function ProjectBoard() {
     task: Task;
     permanent: boolean;
   } | null>(null);
+  const [keepArchivedTask, setKeepArchivedTask] = useState<Task | null>(null);
   const taskColumnsRef = useRef<HTMLDivElement>(null);
   const scrollTaskColumns = (direction: 1 | -1) => {
     const columns = taskColumnsRef.current;
@@ -167,6 +172,7 @@ export function ProjectBoard() {
   const archiveTask = useArchiveTask(orgId, projectId ?? "");
   const unarchiveTask = useUnarchiveTask(orgId, projectId ?? "");
   const restoreTask = useRestoreTask(orgId, projectId ?? "");
+  const keepPlanArchivedTask = useKeepPlanArchived(orgId, "task");
   const deleteTask = useDeleteTask(orgId, projectId ?? "");
   const deleteTaskPermanently = useDeleteTaskPermanently(
     orgId,
@@ -730,6 +736,7 @@ export function ProjectBoard() {
               onDeletePermanently={(task) =>
                 setTaskConfirm({ task, permanent: true })
               }
+              onKeepArchived={setKeepArchivedTask}
             />
           ))}
         </div>
@@ -787,6 +794,40 @@ export function ProjectBoard() {
             }}
           >
             {taskConfirm?.permanent ? "Delete permanently" : "Move to bin"}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={keepArchivedTask !== null}
+        onClose={() => setKeepArchivedTask(null)}
+        title="Keep this task archived?"
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          This will keep {keepArchivedTask?.title ?? "this task"} archived and
+          remove it from the list of items that can be restored after a plan
+          change.
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setKeepArchivedTask(null)}>
+            Cancel
+          </Button>
+          <Button
+            loading={keepPlanArchivedTask.isPending}
+            onClick={() => {
+              if (!keepArchivedTask) return;
+              keepPlanArchivedTask.mutate(keepArchivedTask._id, {
+                onSuccess: () => {
+                  toast.success(
+                    `"${keepArchivedTask.title}" will stay archived`,
+                  );
+                  setKeepArchivedTask(null);
+                },
+                onError: (error) => toast.error(parseApiError(error).message),
+              });
+            }}
+          >
+            Keep archived
           </Button>
         </div>
       </Modal>
