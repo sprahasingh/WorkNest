@@ -176,10 +176,14 @@ test("core workspace pages fit common responsive viewports", async ({
       const myTasks = page.getByLabel("My tasks");
       await expect(filtersButton).toBeVisible();
       await expect(sortControl).toBeVisible();
-      await expect(sortControl).toHaveValue("dueDate:desc");
+      // This project may already have a saved sort preference by the time
+      // this responsive check runs. The default itself is covered by the
+      // lifecycle sorting tests; here verify the option is available and
+      // exercise persistence below without assuming the current selection.
       await expect(
-        sortControl.locator('option[value="dueDate:desc"]'),
-      ).toHaveText("Due Date: Latest First");
+        sortControl.locator('option[value="dueDate:asc"]'),
+      ).toHaveText("Due Date: Soonest First");
+      await expect(sortControl).toHaveValue(/.+/);
       await expect(myTasks).toBeVisible();
       const rowBoxes = await Promise.all([
         filtersButton.boundingBox(),
@@ -235,9 +239,19 @@ test("core workspace pages fit common responsive viewports", async ({
       ]);
       await sortControl.selectOption("createdAt:asc");
       await expect(sortControl).toHaveValue("createdAt:asc");
+      const savedSortResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === "PUT" &&
+          response.url().includes("/preferences/lifecycle-sort"),
+      );
       await sortControl.selectOption("dueDate:desc");
+      expect((await savedSortResponse).ok()).toBeTruthy();
       await expect(page).toHaveURL(/sortBy=dueDate/);
       await expect(page).toHaveURL(/sortOrder=desc/);
+      // Sorting is persisted per project and lifecycle view. Revisit the
+      // board without URL sort parameters to verify the saved selection wins.
+      await page.goto(boardUrl.split("?")[0]);
+      await expect(sortControl).toHaveValue("dueDate:desc");
       const tabs = page.locator('[role="tablist"]');
       await expect(tabs.getByRole("tab", { name: /Active/ })).toBeVisible();
       await expect(
@@ -263,7 +277,7 @@ test("core workspace pages fit common responsive viewports", async ({
       await tabs.getByRole("tab", { name: /Bin/ }).click();
       await expect(
         sortControl.locator('option[value="deletedAt:desc"]'),
-      ).toHaveText("Deleted: Newest First");
+      ).toHaveText("Deleted/Binned: Newest First");
       await tabs.getByRole("tab", { name: /Active/ }).click();
       const columns = page.locator('[aria-describedby="task-columns-hint"]');
       await expect(page.getByText("→ Swipe to see In progress")).toBeVisible();
@@ -341,7 +355,7 @@ test("project actions and mobile task controls fit phone and desktop widths", as
     await expect(newTask).toBeVisible();
     if (width === 320) {
       await expect(filters).toBeVisible();
-      await expect(sort!).toHaveValue("dueDate:desc");
+      await expect(sort!).toHaveValue("dueDate:asc");
       await expect(myTasks).toBeVisible();
       const orderedControls = await Promise.all([
         filters.boundingBox(),

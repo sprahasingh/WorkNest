@@ -419,12 +419,15 @@ export async function listTasks(projectId: string, query: ListTasksQuery) {
           ? "archivedAt"
           : "deletedAt");
   const priorityRanks = { high: 0, medium: 1, low: 2 } as const;
+  const sortOrder =
+    query.sortOrder ??
+    (query.sortBy === undefined && view === "active" ? "asc" : "desc");
   const sortDirection =
     sortBy === "priority"
-      ? query.sortOrder === "asc"
+      ? sortOrder === "asc"
         ? -1
         : 1
-      : query.sortOrder === "asc"
+      : sortOrder === "asc"
         ? 1
         : -1;
   const cursorMatch: Record<string, unknown> | null = query.cursor

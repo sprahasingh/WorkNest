@@ -45,6 +45,10 @@ import {
   getLifecycleSortOptions,
   type LifecycleSort,
 } from "@/lib/lifecycleSorting";
+import {
+  useLifecycleSortPreferences,
+  useSaveLifecycleSortPreference,
+} from "@/lib/lifecycleSortPreferences";
 import type { Task, TaskStatus, TaskPriority, TaskView } from "./api";
 import { taskViewAfterUnarchive } from "@/lib/planRestorePrompt";
 
@@ -115,6 +119,15 @@ export function ProjectBoard() {
   )
     ? (requestedView as TaskView)
     : "active";
+  const sortPreferencesQuery = useLifecycleSortPreferences(
+    orgId,
+    projectId ?? "",
+    !!projectId,
+  );
+  const saveSortPreference = useSaveLifecycleSortPreference(
+    orgId,
+    projectId ?? "",
+  );
   const visibleMobileColumn =
     mobileColumnState !== null &&
     mobileColumnState.projectId === projectId &&
@@ -126,11 +139,14 @@ export function ProjectBoard() {
   }, [boardView, projectId]);
   const sortOptions = getLifecycleSortOptions(boardView);
   const requestedSort = `${searchParams.get("sortBy")}:${searchParams.get("sortOrder")}`;
+  const savedSort = sortPreferencesQuery.data?.[boardView];
   const selectedSort = sortOptions.some(
     (option) => option.value === requestedSort,
   )
     ? (requestedSort as LifecycleSort)
-    : defaultLifecycleSort(boardView);
+    : sortOptions.some((option) => option.value === savedSort)
+      ? (savedSort as LifecycleSort)
+      : defaultLifecycleSort(boardView);
   const [sortBy, sortOrder] = selectedSort.split(":") as [
     NonNullable<TaskFilters["sortBy"]>,
     "asc" | "desc",
@@ -198,13 +214,43 @@ export function ProjectBoard() {
     });
   };
 
+  const setBoardView = async (nextView: TaskView) => {
+    const preferences =
+      sortPreferencesQuery.data ?? (await sortPreferencesQuery.refetch()).data;
+    const nextOptions = getLifecycleSortOptions(nextView);
+    const savedSort = preferences?.[nextView];
+    const nextSort = nextOptions.some((option) => option.value === savedSort)
+      ? (savedSort as LifecycleSort)
+      : defaultLifecycleSort(nextView);
+    const [field, order] = nextSort.split(":") as [string, "asc" | "desc"];
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (nextView === "active") next.delete("view");
+      else next.set("view", nextView);
+      next.set("sortBy", field);
+      next.set("sortOrder", order);
+      return next;
+    });
+  };
+
+  const setSelectedSort = (sort: LifecycleSort) => {
+    const [field, order] = sort.split(":") as [string, "asc" | "desc"];
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set("sortBy", field);
+      next.set("sortOrder", order);
+      return next;
+    });
+    saveSortPreference.mutate({ view: boardView, sort });
+  };
+
   const handleStatusChange = (task: Task, newStatus: TaskStatus) => {
     updateStatus.mutate(
       { task, newStatus },
       {
         onSuccess: () => {
           if (newStatus === "done") {
-            setParam("view", "completed");
+            void setBoardView("completed");
             toast.success("Task marked complete", {
               description:
                 "Finished tasks move to Completed. Archive them to hide them from everyday work.",
@@ -428,9 +474,7 @@ export function ProjectBoard() {
           <ViewTabs
             label="Task lists"
             value={boardView}
-            onChange={(value) =>
-              setParam("view", value === "active" ? null : value)
-            }
+            onChange={(value) => void setBoardView(value)}
             tabs={TASK_VIEWS.map((tab) => ({
               ...tab,
               count: viewCountsQuery.data?.[tab.value],
@@ -463,15 +507,9 @@ export function ProjectBoard() {
               <select
                 aria-label="Sort by"
                 value={selectedSort}
-                onChange={(event) => {
-                  const [field, order] = event.target.value.split(":");
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.set("sortBy", field);
-                    next.set("sortOrder", order);
-                    return next;
-                  });
-                }}
+                onChange={(event) =>
+                  setSelectedSort(event.target.value as LifecycleSort)
+                }
                 className="w-full min-w-0 appearance-none truncate bg-transparent pr-6 text-sm text-slate-800 focus:outline-none dark:text-slate-100"
               >
                 {sortOptions.map((option) => (
@@ -491,7 +529,7 @@ export function ProjectBoard() {
                 <path d="m5 7.5 5 5 5-5" />
               </svg>
             </label>
-            <label className="flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-1 text-xs text-slate-600 dark:text-slate-300 sm:ml-auto sm:gap-2 sm:px-2 sm:text-sm">
+            <label className="flex min-h-11 shrink-0 items-center gap-0.5 rounded-lg px-0 text-xs text-slate-600 dark:text-slate-300 sm:ml-auto sm:gap-2 sm:px-2 sm:text-sm">
               <input
                 type="checkbox"
                 checked={filters.mine ?? false}
@@ -539,15 +577,9 @@ export function ProjectBoard() {
               <select
                 aria-label="Sort tasks"
                 value={selectedSort}
-                onChange={(event) => {
-                  const [field, order] = event.target.value.split(":");
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.set("sortBy", field);
-                    next.set("sortOrder", order);
-                    return next;
-                  });
-                }}
+                onChange={(event) =>
+                  setSelectedSort(event.target.value as LifecycleSort)
+                }
                 className={`${selectStyles} w-full min-w-0 sm:w-auto sm:min-w-64`}
               >
                 {sortOptions.map((option) => (
@@ -719,7 +751,7 @@ export function ProjectBoard() {
                 unarchiveTask.mutate(task._id, {
                   onSuccess: () => {
                     const view = taskViewAfterUnarchive(task.status);
-                    setParam("view", view === "active" ? null : view);
+                    void setBoardView(view);
                     toast.success("Task unarchived");
                   },
                   onError: (error) => toast.error(parseApiError(error).message),
