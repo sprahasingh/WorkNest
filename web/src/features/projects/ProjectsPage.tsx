@@ -383,7 +383,7 @@ export function ProjectsPage() {
                 variant="secondary"
                 onClick={() => setProjectRequestOpen(true)}
                 disabled={!projectsWithOpenTasks.length}
-                title="Post an update, ask a question, or request updates from people on open tasks across active projects"
+                title="Share updates across active projects"
                 className="min-w-0 flex-1 px-2 text-xs sm:flex-none sm:px-4 sm:text-sm"
               >
                 Update
@@ -718,7 +718,7 @@ export function ProjectsPage() {
         >
           <ErrorBanner message={formError} />
 
-          <Field label="Name" htmlFor="name" error={errors.name?.message}>
+          <Field label="Title" htmlFor="name" error={errors.name?.message}>
             <input
               id="name"
               type="text"
@@ -752,6 +752,18 @@ export function ProjectsPage() {
             />
           </Field>
 
+          <Field label="Priority" htmlFor="projectPriority">
+            <select
+              id="projectPriority"
+              {...register("priority")}
+              className={inputStyles}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </Field>
+
           <Field label="Due date" htmlFor="projectDueDate">
             <input
               id="projectDueDate"
@@ -759,18 +771,6 @@ export function ProjectsPage() {
               {...register("dueDate")}
               className={inputStyles}
             />
-          </Field>
-
-          <Field label="Priority" htmlFor="projectPriority">
-            <select
-              id="projectPriority"
-              {...register("priority")}
-              className={inputStyles}
-            >
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
           </Field>
 
           <div className="flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">

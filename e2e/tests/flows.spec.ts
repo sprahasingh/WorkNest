@@ -59,7 +59,7 @@ test("creates a project with a key that has a number in it, and a task in it", a
     .getByRole("button", { name: /new project/i })
     .first()
     .click();
-  await page.getByLabel("Name").fill("Launch Plan");
+  await page.getByLabel("Title").fill("Launch Plan");
   await page.getByLabel("Key").fill("web2");
   await page.getByRole("button", { name: /create project/i }).click();
   await expect(page.getByText("Launch Plan")).toBeVisible();

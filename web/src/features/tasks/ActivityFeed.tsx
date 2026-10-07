@@ -172,7 +172,7 @@ export function ActivityFeed({
   const [content, setContent] = useState("");
   const [messageType, setMessageType] = useState<
     Exclude<ActivityType, "reply">
-  >(canLead ? "update" : "question");
+  >(canLead ? "update_request" : "question");
   const submitLabel =
     messageType === "question"
       ? "Ask Question"
@@ -193,6 +193,8 @@ export function ActivityFeed({
   const listRef = useRef<HTMLOListElement>(null);
   const focusedRef = useRef<string | null>(null);
   const checkboxId = useId();
+  const audienceInfoId = useId();
+  const [audienceInfoOpen, setAudienceInfoOpen] = useState(false);
   const scopeInfoId = useId();
   const [scopeInfoOpen, setScopeInfoOpen] = useState(false);
 
@@ -288,7 +290,11 @@ export function ActivityFeed({
     try {
       const input: CreateActivityInput = {
         type,
-        content: content.trim() || undefined,
+        content:
+          content.trim() ||
+          (type === "update_request"
+            ? "Please share updates on your work."
+            : undefined),
         mentionMemberIds: mentions.memberIds,
         mentionRoles: mentions.roles,
         notifyAll,
@@ -742,7 +748,7 @@ export function ActivityFeed({
         <div className="flex items-start gap-1 text-sm text-slate-600 dark:text-slate-300">
           <p className="min-w-0 flex-1">
             {isWorkspace
-              ? "Updates and conversations across active projects."
+              ? "Active project updates"
               : isProject
                 ? "Updates from this project and its tasks."
                 : "Updates and questions about this task."}
@@ -761,7 +767,7 @@ export function ActivityFeed({
         >
           <p>
             {isWorkspace
-              ? "This feed shows shared questions, updates and requests sent across active projects, including their replies. New messages reach people assigned to open tasks in those projects."
+              ? "Share updates, ask questions or request updates across active projects. Requests go to people assigned to open tasks."
               : isProject
                 ? canLead
                   ? "Everything shared in this project, from every task. Notify everyone working on the project, or @mention people to notify only them. Replies stay with each conversation."
@@ -864,9 +870,11 @@ export function ActivityFeed({
             id={`activity-${scope.kind}-${scope.id}`}
             rows={3}
             placeholder={
-              canLead
-                ? "Share an update or ask a question… Use @ to send it to someone"
-                : "Share your progress, or ask a question… Use @ to send it to someone"
+              messageType === "update_request"
+                ? "Optional note; leave blank for a general update request"
+                : canLead
+                  ? "Share an update or ask a question… Use @ to send it to someone"
+                  : "Share your progress, or ask a question… Use @ to send it to someone"
             }
             value={content}
             onChange={(value) => {
@@ -883,7 +891,7 @@ export function ActivityFeed({
               {contentError}
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <label
               htmlFor={checkboxId}
               className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200"
@@ -897,9 +905,20 @@ export function ActivityFeed({
               />
               All assignees
             </label>
-            <p className="min-w-0 flex-1 text-xs text-slate-500 dark:text-slate-400">
+            <InfoButton
+              open={audienceInfoOpen}
+              onToggle={() => setAudienceInfoOpen((open) => !open)}
+              label="About message recipients"
+              controls={audienceInfoId}
+            />
+            <InfoPanel
+              id={audienceInfoId}
+              open={audienceInfoOpen}
+              onClose={() => setAudienceInfoOpen(false)}
+              className="basis-full"
+            >
               {audienceLine}
-            </p>
+            </InfoPanel>
           </div>
           <div className="space-y-3">
             <label
@@ -935,7 +954,7 @@ export function ActivityFeed({
                 }
                 disabled={
                   busy ||
-                  !hasText ||
+                  (!hasText && messageType !== "update_request") ||
                   (messageType === "update_request" && requestNeedsSomeone)
                 }
                 title={
