@@ -173,6 +173,12 @@ export function ActivityFeed({
   const [messageType, setMessageType] = useState<
     Exclude<ActivityType, "reply">
   >(canLead ? "update" : "question");
+  const submitLabel =
+    messageType === "question"
+      ? "Ask Question"
+      : messageType === "update"
+        ? "Post Update"
+        : "Request Update";
   const [mentions, setMentions] = useState<ActivityMentions>(NO_MENTIONS);
   // null follows the default: everyone, unless someone is @mentioned.
   const [notifyAllChoice, setNotifyAllChoice] = useState<boolean | null>(null);
@@ -895,31 +901,42 @@ export function ActivityFeed({
               {audienceLine}
             </p>
           </div>
-          <div className="space-y-1">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1">
-              <label
-                htmlFor={`activity-type-${scope.kind}-${scope.id}`}
-                className="block min-w-0 text-xs font-medium text-slate-600 dark:text-slate-300"
+          <div className="space-y-3">
+            <label
+              htmlFor={`activity-type-${scope.kind}-${scope.id}`}
+              className="block text-xs font-medium text-slate-600 dark:text-slate-300"
+            >
+              <span className="mb-1 block">Message type</span>
+              <select
+                id={`activity-type-${scope.kind}-${scope.id}`}
+                value={messageType}
+                onChange={(event) =>
+                  setMessageType(
+                    event.target.value as Exclude<ActivityType, "reply">,
+                  )
+                }
+                disabled={busy}
+                className="h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               >
-                <span className="mb-1 block">Message type</span>
-                <select
-                  id={`activity-type-${scope.kind}-${scope.id}`}
-                  value={messageType}
-                  onChange={(event) =>
-                    setMessageType(
-                      event.target.value as Exclude<ActivityType, "reply">,
-                    )
-                  }
-                  disabled={busy}
-                  className="h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  <option value="question">Ask Question</option>
-                  <option value="update">Post Update</option>
-                  {canLead && (
-                    <option value="update_request">Request Update</option>
-                  )}
-                </select>
-              </label>
+                <option value="question">Ask Question</option>
+                <option value="update">Post Update</option>
+                {canLead && (
+                  <option value="update_request">Request Update</option>
+                )}
+              </select>
+            </label>
+            <div className="flex items-center justify-between gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={clearMessage}
+                disabled={
+                  busy || (!content && mentionCount === 0 && !contentError)
+                }
+                className="px-2 text-slate-500 dark:text-slate-400"
+              >
+                Clear
+              </Button>
               <Button
                 type="button"
                 onClick={() =>
@@ -938,26 +955,10 @@ export function ActivityFeed({
                     : undefined
                 }
                 loading={pendingType === messageType}
-                className="h-11 min-w-[7.75rem] whitespace-nowrap px-3 text-xs sm:text-sm"
+                className="min-w-[9rem] whitespace-nowrap px-3 text-xs sm:text-sm"
               >
-                {messageType === "question"
-                  ? "Ask Question"
-                  : messageType === "update"
-                    ? "Post Update"
-                    : "Request Update"}
+                {submitLabel}
               </Button>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={clearMessage}
-                disabled={
-                  busy || (!content && mentionCount === 0 && !contentError)
-                }
-                className="min-h-8 rounded px-2 text-xs font-medium text-slate-500 hover:text-slate-800 disabled:cursor-default disabled:text-slate-300 dark:text-slate-400 dark:hover:text-slate-200 dark:disabled:text-slate-600"
-              >
-                Clear
-              </button>
             </div>
           </div>
         </div>
