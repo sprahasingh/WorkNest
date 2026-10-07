@@ -287,7 +287,6 @@ export function ProjectBoard() {
   };
 
   const closeUpdates = () => {
-    setUpdatesInfoOpen(false);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.delete("updates");
@@ -299,7 +298,6 @@ export function ProjectBoard() {
   // From the project feed: close the updates panel and open that task's
   // updates, the same way a notification link does.
   const openTaskUpdates = (taskId: string) => {
-    setUpdatesInfoOpen(false);
     setDrawerState(null);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
