@@ -773,11 +773,36 @@ export function ProjectsPage() {
             </select>
           </Field>
 
-          <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-700">
+          <div className="flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
+            <Button
+              type="submit"
+              disabled={
+                paused ||
+                isSubmitting ||
+                createProject.isPending ||
+                updateProject.isPending
+              }
+              loading={
+                isSubmitting ||
+                createProject.isPending ||
+                updateProject.isPending
+              }
+              className="w-full"
+            >
+              {isSubmitting ||
+              createProject.isPending ||
+              updateProject.isPending
+                ? editingProject
+                  ? "Saving…"
+                  : "Creating…"
+                : editingProject
+                  ? "Save project"
+                  : "Create Project"}
+            </Button>
             <Button
               type="button"
               variant="ghost"
-              className="px-2 text-slate-500 dark:text-slate-400"
+              className="w-full border-0 bg-transparent px-2 text-slate-500 shadow-none hover:bg-transparent dark:text-slate-400 dark:hover:bg-transparent"
               onClick={() => {
                 if (editingProject) closeCreateModal();
                 else {
@@ -792,30 +817,6 @@ export function ProjectsPage() {
               }
             >
               {editingProject ? "Cancel" : "Clear"}
-            </Button>
-            <Button
-              type="submit"
-              disabled={
-                paused ||
-                isSubmitting ||
-                createProject.isPending ||
-                updateProject.isPending
-              }
-              loading={
-                isSubmitting ||
-                createProject.isPending ||
-                updateProject.isPending
-              }
-            >
-              {isSubmitting ||
-              createProject.isPending ||
-              updateProject.isPending
-                ? editingProject
-                  ? "Saving…"
-                  : "Creating…"
-                : editingProject
-                  ? "Save project"
-                  : "Create Project"}
             </Button>
           </div>
         </form>
