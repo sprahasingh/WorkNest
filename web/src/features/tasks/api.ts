@@ -281,6 +281,15 @@ export async function createWorkspaceProjectActivity(
   return response.data;
 }
 
+export async function listWorkspaceProjectActivities(
+  orgId: string,
+): Promise<TaskActivity[]> {
+  const response = await apiClient.get<{ activities: TaskActivity[] }>(
+    `/orgs/${orgId}/projects/activity/across-active`,
+  );
+  return response.data.activities;
+}
+
 export async function markAnswer(
   orgId: string,
   scope: ActivityScope,

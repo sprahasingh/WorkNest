@@ -191,6 +191,7 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
   await requestDialog
     .getByLabel("Message", { exact: true })
     .fill("Can you share a progress update?");
+  await requestDialog.getByLabel("Message type").selectOption("question");
   await requestDialog.getByRole("button", { name: "Ask Question" }).click();
   await expect(page.getByText("Question sent across 2 projects")).toBeVisible();
   const questionFeed = await api<{
@@ -224,10 +225,10 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
     ]),
   );
 
-  await updateAction.click();
   await requestDialog
     .getByLabel("Message", { exact: true })
     .fill("The shared work is progressing well.");
+  await requestDialog.getByLabel("Message type").selectOption("update");
   await requestDialog.getByRole("button", { name: "Post Update" }).click();
   await expect(page.getByText("Update sent across 2 projects")).toBeVisible();
   const updateFeed = await api<{
@@ -259,15 +260,17 @@ test("project-wide request targets, results, and mobile sort stay clear", async 
     }
     await route.continue();
   });
-  await updateAction.click();
   await requestDialog
     .getByLabel("Message", { exact: true })
     .fill("Please post your update.");
+  await requestDialog.getByLabel("Message type").selectOption("update_request");
   await requestDialog.getByRole("button", { name: "Request Update" }).click();
+  const confirmation = page.getByRole("dialog", {
+    name: "Send update request?",
+  });
+  await confirmation.getByRole("button", { name: "Send request" }).click();
   await expect(requestDialog).toBeVisible();
-  await expect(requestDialog.getByRole("alert")).toContainText(
-    "Request service unavailable",
-  );
+  await expect(page.getByText("Request service unavailable")).toBeVisible();
   await expect(
     requestDialog.getByRole("textbox", { name: "Message" }),
   ).toHaveValue("Please post your update.");

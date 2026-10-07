@@ -869,11 +869,6 @@ export function ProjectBoard() {
         title={`${projectQuery.data?.name ?? "Project"} updates`}
         size="lg"
       >
-        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-          {canLead
-            ? "Everything shared in this project, from every task. Send to all assignees, or @mention people to send it only to them."
-            : "Everything shared in this project that you can see. Send to all assignees, or @mention people to send it only to them."}
-        </p>
         <ActivityFeed
           orgId={orgId}
           scope={{ kind: "project", id: projectId }}

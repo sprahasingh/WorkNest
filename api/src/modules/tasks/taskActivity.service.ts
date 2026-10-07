@@ -297,9 +297,9 @@ function sameId(left: Id | null | undefined, right: Id): boolean {
   return !!left && String(left) === String(right);
 }
 
-async function openTaskAssigneeIds(projectId: Id): Promise<Id[]> {
+async function openTaskAssigneeIds(projectIds: Id | Id[]): Promise<Id[]> {
   const openTasks = await Task.find({
-    projectId,
+    projectId: Array.isArray(projectIds) ? { $in: projectIds } : projectIds,
     status: { $ne: "done" },
     archivedAt: null,
     deletedAt: null,
@@ -468,13 +468,19 @@ async function createReply(
       isTaskAssignee(task, me) ||
       !!(await TaskActivity.exists({ taskId: task._id, mentionIds: meId }));
   } else {
+    const projectIds = root.projectIds?.length
+      ? root.projectIds
+      : [project!._id];
     canReply =
       isLead() ||
       participants.has(me) ||
       (root.sharedParticipantIds ?? []).some((id) => sameId(id, meId)) ||
-      !!(await Task.exists({ projectId: project!._id, assigneeIds: meId })) ||
+      !!(await Task.exists({
+        projectId: { $in: projectIds },
+        assigneeIds: meId,
+      })) ||
       !!(await TaskActivity.exists({
-        projectId: project!._id,
+        projectId: { $in: projectIds },
         taskId: null,
         mentionIds: meId,
       }));
@@ -494,7 +500,9 @@ async function createReply(
     : await getMentionRecipients(
         input,
         input.mentionRoles?.includes("assignee")
-          ? await openTaskAssigneeIds(project!._id)
+          ? await openTaskAssigneeIds(
+              root.projectIds?.length ? root.projectIds : project!._id,
+            )
           : [],
         null,
       );
@@ -908,6 +916,7 @@ export async function createWorkspaceProjectActivity(
     );
   }
   assertCanPostLeadActivity(input.type);
+  const context = getTenantContext()!;
   const projects = await Project.find({ archivedAt: null, deletedAt: null })
     .select("_id name createdBy")
     .sort({ _id: 1 })
@@ -932,6 +941,30 @@ export async function createWorkspaceProjectActivity(
   if (!targets.length) {
     throw new AppError(400, "NO_PROJECTS", "No active project has open tasks");
   }
+  if (!isLead()) {
+    const userId = new mongoose.Types.ObjectId(context.userId);
+    const targetIds = targets.map((project) => project._id);
+    const canPostHere =
+      (await Task.exists({
+        projectId: { $in: targetIds },
+        status: { $ne: "done" },
+        archivedAt: null,
+        deletedAt: null,
+        assigneeIds: userId,
+      })) ||
+      (await TaskActivity.exists({
+        projectId: { $in: targetIds },
+        taskId: null,
+        mentionIds: userId,
+      }));
+    if (!canPostHere) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "Only people working on or mentioned in these projects can post",
+      );
+    }
+  }
   const targetIdSet = new Set(targets.map((project) => String(project._id)));
   const workers = openTasks
     .filter((task) => targetIdSet.has(String(task.projectId)))
@@ -948,7 +981,6 @@ export async function createWorkspaceProjectActivity(
     ...new Map(creatorIds.map((id) => [String(id), id])).values(),
   ];
   const projectNames = targets.map((project) => project.name);
-  const context = getTenantContext()!;
   const plan = planNewMessage({
     input,
     authorId: context.userId,
@@ -977,6 +1009,36 @@ export async function createWorkspaceProjectActivity(
       ).values(),
     ],
   });
+}
+
+// Conversations created from the all-projects composer are stored once and
+// shared with each included project. Load those threads once for its inbox.
+export async function listWorkspaceProjectActivities() {
+  const context = getTenantContext()!;
+  const projects = await Project.find({ archivedAt: null, deletedAt: null })
+    .select("_id")
+    .lean();
+  const projectIds = projects.map((project) => project._id);
+  if (projectIds.length === 0) return [];
+
+  const roots = await TaskActivity.find({
+    taskId: null,
+    parentId: null,
+    projectIds: { $in: projectIds },
+  })
+    .sort({ _id: -1 })
+    .limit(PROJECT_FEED_LIMIT)
+    .lean();
+  const replies = roots.length
+    ? await TaskActivity.find({
+        parentId: { $in: roots.map((entry) => entry._id) },
+      }).lean()
+    : [];
+  const visible = withoutOthersDirectedThreads(
+    [...roots, ...replies],
+    context.userId,
+  ).sort((a, b) => String(a._id).localeCompare(String(b._id)));
+  return withAuthors(visible);
 }
 
 // Everything said in a project: project-wide posts plus every task's

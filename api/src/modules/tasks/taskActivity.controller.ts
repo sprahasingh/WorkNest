@@ -4,6 +4,7 @@ import {
   createWorkspaceProjectActivity,
   createTaskActivity,
   listProjectActivities,
+  listWorkspaceProjectActivities,
   listTaskActivities,
   markAnswer,
   remindWaiting,
@@ -44,6 +45,14 @@ export async function listProjectActivitiesController(
 ): Promise<void> {
   const { projectId } = req.params;
   const activities = await listProjectActivities(projectId as string);
+  res.status(200).json({ activities });
+}
+
+export async function listWorkspaceProjectActivitiesController(
+  _req: Request,
+  res: Response,
+): Promise<void> {
+  const activities = await listWorkspaceProjectActivities();
   res.status(200).json({ activities });
 }
 

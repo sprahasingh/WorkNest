@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { validate } from "../../middleware/validate.js";
 import { createActivitySchema } from "../tasks/tasks.schemas.js";
-import { createWorkspaceProjectActivityController } from "../tasks/taskActivity.controller.js";
+import {
+  createWorkspaceProjectActivityController,
+  listWorkspaceProjectActivitiesController,
+} from "../tasks/taskActivity.controller.js";
 import { requirePermission } from "../../auth/requirePermission.js";
 import {
   createProjectSchema,
@@ -31,6 +34,12 @@ router.post(
   requirePermission("task:comment"),
   validate({ body: createActivitySchema }),
   createWorkspaceProjectActivityController,
+);
+
+router.get(
+  "/activity/across-active",
+  requirePermission("task:read"),
+  listWorkspaceProjectActivitiesController,
 );
 
 router.post(
