@@ -394,36 +394,34 @@ export function TaskDrawer({
                 />
               </Field>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Priority" htmlFor="priority">
-                  <select
-                    id="priority"
-                    {...register("priority")}
-                    className={inputStyles}
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </Field>
+              <Field label="Priority" htmlFor="priority">
+                <select
+                  id="priority"
+                  {...register("priority")}
+                  className={inputStyles}
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </Field>
 
-                <Field label="Due date" htmlFor="dueDate">
-                  <input
-                    id="dueDate"
-                    type="date"
-                    {...register("dueDate")}
-                    className={inputStyles}
-                  />
-                  {task?.dueDate && task.dueDateIsDateOnly === false && (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Specific deadline:{" "}
-                      {formatDateTimeInTimeZone(task.dueDate, timeZone)} (
-                      {timeZone}). Changing the date resets it to an all-day
-                      deadline.
-                    </p>
-                  )}
-                </Field>
-              </div>
+              <Field label="Due date" htmlFor="dueDate">
+                <input
+                  id="dueDate"
+                  type="date"
+                  {...register("dueDate")}
+                  className={inputStyles}
+                />
+                {task?.dueDate && task.dueDateIsDateOnly === false && (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Specific deadline:{" "}
+                    {formatDateTimeInTimeZone(task.dueDate, timeZone)} (
+                    {timeZone}). Changing the date resets it to an all-day
+                    deadline.
+                  </p>
+                )}
+              </Field>
 
               <Field
                 label="Assignees"

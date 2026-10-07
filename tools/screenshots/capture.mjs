@@ -151,7 +151,10 @@ const shots = {
       .first()
       .click();
     await sleep(500);
-    await p.getByLabel(/^name/i).first().fill(DEMO.newProject.name);
+    await p
+      .getByLabel(/^title/i)
+      .first()
+      .fill(DEMO.newProject.name);
     await p.getByPlaceholder("e.g. OPS").fill(DEMO.newProject.key);
     await p.getByLabel(/^description/i).fill(DEMO.newProject.description);
     await sleep(300);

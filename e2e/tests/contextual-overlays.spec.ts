@@ -13,7 +13,7 @@ test("More menu dismisses predictably at desktop and 320px", async ({
 
   await page.goto(`/orgs/${orgId}/projects`);
   await page.getByRole("button", { name: "New project" }).click();
-  await page.getByLabel("Name", { exact: true }).fill("Overlay regression");
+  await page.getByLabel("Title", { exact: true }).fill("Overlay regression");
   await page.getByLabel("Key", { exact: true }).fill("OVR");
   await page.getByRole("button", { name: "Create project" }).click();
   const trigger = page.getByRole("button", {

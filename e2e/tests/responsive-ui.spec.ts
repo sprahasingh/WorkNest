@@ -19,7 +19,7 @@ test("core workspace pages fit common responsive viewports", async ({
 
   await page.goto(`/orgs/${orgId}/projects`);
   await page.getByRole("button", { name: "New project" }).click();
-  await page.getByLabel("Name", { exact: true }).fill("Responsive board");
+  await page.getByLabel("Title", { exact: true }).fill("Responsive board");
   await page.getByLabel("Key", { exact: true }).fill("RSP");
   await page.getByRole("button", { name: "Create project" }).click();
   const projectLink = page.getByRole("link", { name: "Responsive board" });
@@ -308,7 +308,7 @@ test("project actions and mobile task controls fit phone and desktop widths", as
   expect(orgId).toBeTruthy();
   await page.goto(`/orgs/${orgId}/projects`);
   await page.getByRole("button", { name: "New project" }).click();
-  await page.getByLabel("Name", { exact: true }).fill("Action layout");
+  await page.getByLabel("Title", { exact: true }).fill("Action layout");
   await page.getByLabel("Key", { exact: true }).fill("ACT");
   await page.getByRole("button", { name: "Create project" }).click();
   await page.getByRole("link", { name: "Action layout" }).click();
@@ -557,7 +557,7 @@ test("keyboard, retry, and lifecycle flows remain usable at phone widths", async
 
   await page.goto(`/orgs/${orgId}/projects`);
   await page.getByRole("button", { name: "New project" }).click();
-  await page.getByLabel("Name", { exact: true }).fill("Lifecycle check");
+  await page.getByLabel("Title", { exact: true }).fill("Lifecycle check");
   await page.getByLabel("Key", { exact: true }).fill("LFC");
   await page.getByRole("button", { name: "Create project" }).click();
   await page.getByRole("link", { name: "Lifecycle check" }).click();
