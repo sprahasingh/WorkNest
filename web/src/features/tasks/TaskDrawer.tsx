@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   useAccountPaused,
   useGrowthBlocked,
@@ -9,13 +9,11 @@ import { z } from "zod";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { Modal } from "@/components/Modal";
-import { cn } from "@/lib/cn";
 import { useCan } from "@/hooks/useCan";
 import { useAuth } from "@/auth/auth-context";
 import { Field, inputStyles } from "@/components/ui/Field";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
-import { ActivityConfirmation } from "./ActivityConfirmation";
 import { MeetingFormModal } from "@/features/meetings/MeetingFormModal";
 import { TaskMeetings } from "./TaskMeetings";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
@@ -23,18 +21,8 @@ import type { Member } from "@/features/members/api";
 import type { CreateTaskInput, Task, TaskView, UpdateTaskInput } from "./api";
 import { ActivityFeed } from "./ActivityFeed";
 import { MuteToggle } from "@/features/notifications/MuteToggle";
-import {
-  useArchiveTask,
-  useCreateActivity,
-  useCreateTask,
-  useDeleteTask,
-  useDeleteTaskPermanently,
-  useRestoreTask,
-  useUnarchiveTask,
-  useUpdateTask,
-} from "./queries";
+import { useCreateTask, useUpdateTask } from "./queries";
 import { useMarkReadWhenViewed } from "@/features/notifications/queries";
-import { taskViewAfterUnarchive } from "@/lib/planRestorePrompt";
 import { useOrgDetails } from "@/features/org/queries";
 import {
   dateInputValueInTimeZone,
@@ -97,7 +85,6 @@ export function TaskDrawer({
   const growthBlocked = useGrowthBlocked();
   const timeZone = organization?.timeZone ?? "UTC";
   const canAssign = useCan("task:assign");
-  const canDelete = useCan("task:delete");
   const canUpdateAny = useCan("task:update:any");
   const canUpdateOwn = useCan("task:update:own");
   const canLead = useCan("task:request-update");
@@ -106,20 +93,9 @@ export function TaskDrawer({
     "details" | "activity" | "meetings"
   >(initialTab);
   const [schedulingMeeting, setSchedulingMeeting] = useState(false);
-  const [confirmingRequest, setConfirmingRequest] = useState(false);
 
   const createTask = useCreateTask(orgId, projectId);
   const updateTask = useUpdateTask(orgId, projectId);
-  const deleteTask = useDeleteTask(orgId, projectId);
-  const deletePermanently = useDeleteTaskPermanently(orgId, projectId);
-  const restoreTaskMutation = useRestoreTask(orgId, projectId);
-  const archiveTaskMutation = useArchiveTask(orgId, projectId);
-  const unarchiveTaskMutation = useUnarchiveTask(orgId, projectId);
-  const requestUpdate = useCreateActivity(orgId, {
-    kind: "task",
-    id: task?._id ?? "",
-  });
-
   const isEditing = task !== null;
   const isCompleted = task?.status === "done";
   const isArchived = task?.archivedAt != null;
@@ -149,28 +125,6 @@ export function TaskDrawer({
     !isArchived &&
     !isBinned &&
     (canUpdateAny || (canUpdateOwn && isAssignee));
-  // Open tasks can be archived too, which is how a workspace over its plan
-  // brings its usage down without losing work.
-  const showArchive = isEditing && !isArchived && !isBinned && canDelete;
-  const showUnarchive = isArchived && !isBinned && canDelete;
-  const showRestore = isBinned && canDelete;
-  const showDelete = isEditing && canDelete && !isBinned;
-  const showDeletePermanently = isEditing && canDelete && isBinned;
-  const deleteIsPending = isBinned
-    ? deletePermanently.isPending
-    : deleteTask.isPending;
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const phoneDeleteRef = useRef<HTMLDivElement>(null);
-
-  // On phones the confirmation opens below the sticky buttons; bring it
-  // into view so both choices can be tapped without scrolling.
-  useEffect(() => {
-    if (confirmingDelete) {
-      phoneDeleteRef.current?.scrollIntoView({ block: "nearest" });
-    }
-  }, [confirmingDelete]);
-  const showRequestUpdate =
-    isEditing && !isCompleted && !isArchived && !isBinned && canLead;
   const {
     register,
     handleSubmit,
@@ -293,61 +247,6 @@ export function TaskDrawer({
     }
   };
 
-  const handleDelete = async () => {
-    if (!task) return;
-    try {
-      if (isBinned) {
-        await deletePermanently.mutateAsync(task._id);
-        toast.success("Task permanently deleted");
-      } else {
-        await deleteTask.mutateAsync(task._id);
-        setTaskView("bin");
-        toast.success("Task moved to the bin", {
-          description: "You can restore it for 30 days.",
-        });
-      }
-      onClose();
-    } catch (error) {
-      toast.error(parseApiError(error).message);
-    }
-  };
-
-  const handleLifecycleAction = async (
-    action: "archive" | "unarchive" | "restore",
-  ) => {
-    if (!task) return;
-    try {
-      if (action === "archive") {
-        await archiveTaskMutation.mutateAsync(task._id);
-        setTaskView("archived");
-        toast.success("Task archived");
-      } else if (action === "unarchive") {
-        await unarchiveTaskMutation.mutateAsync(task._id);
-        setSearchParams((previous) => {
-          const next = new URLSearchParams(previous);
-          const view = taskViewAfterUnarchive(task.status);
-          if (view === "completed") next.set("view", view);
-          else next.delete("view");
-          return next;
-        });
-        toast.success("Task unarchived");
-      } else {
-        await restoreTaskMutation.mutateAsync(task._id);
-        setTaskView(
-          task.archivedAt
-            ? "archived"
-            : task.status === "done"
-              ? "completed"
-              : "active",
-        );
-        toast.success("Task restored");
-      }
-      onClose();
-    } catch (error) {
-      toast.error(parseApiError(error).message);
-    }
-  };
-
   const handleReopen = async () => {
     if (!task) return;
     try {
@@ -362,43 +261,6 @@ export function TaskDrawer({
       toast.error(parseApiError(error).message);
     }
   };
-
-  const handleRequestUpdate = async () => {
-    if (!task) return;
-    if (!task.assigneeIds?.length) {
-      toast.error("Assign someone to this task before requesting an update");
-      return;
-    }
-    try {
-      const result = await requestUpdate.mutateAsync({
-        type: "update_request",
-      });
-      const count = result.notifiedCount;
-      setConfirmingRequest(false);
-      toast.success(
-        count === undefined
-          ? "Update request sent"
-          : `Update request sent to ${count} ${count === 1 ? "person" : "people"}`,
-      );
-    } catch (error) {
-      toast.error(parseApiError(error).message);
-    }
-  };
-
-  const openRequestConfirmation = () => {
-    if (!task) return;
-    if (!task.assigneeIds?.length) {
-      toast.error("Assign someone to this task before requesting an update");
-      return;
-    }
-    setConfirmingRequest(true);
-  };
-
-  const requestAudience =
-    members
-      .filter((member) => task?.assigneeIds.includes(member.userId.id))
-      .map((member) => `${member.userId.name} (${member.userId.email})`)
-      .join(", ") || "the task assignees";
 
   const assigneeHint = canAssign
     ? "Pick one or more people."
@@ -631,271 +493,61 @@ export function TaskDrawer({
               )}
             </fieldset>
 
-            <div className="sticky bottom-0 z-10 border-t border-slate-200 bg-white pt-4 dark:border-slate-700 dark:bg-slate-800 sm:static sm:border-0 sm:bg-transparent sm:pt-2">
-              {confirmingDelete && (
-                <div
-                  role="alert"
-                  className="hidden items-center justify-between gap-3 rounded-lg bg-red-50 px-3 py-2 dark:bg-red-950/30 sm:flex"
-                >
-                  <p className="text-sm text-red-800 dark:text-red-200">
-                    {isBinned
-                      ? "Permanently delete this task? This cannot be undone."
-                      : "Move this task to the bin? It can be restored for 30 days."}
-                  </p>
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setConfirmingDelete(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      onClick={() => void handleDelete()}
-                      disabled={deleteIsPending}
-                      loading={deleteIsPending}
-                    >
-                      {deleteIsPending
-                        ? "Deleting…"
-                        : isBinned
-                          ? "Delete permanently"
-                          : "Move to bin"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              <div className={cn("space-y-2", confirmingDelete && "sm:hidden")}>
-                {(showDelete || showDeletePermanently) && (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingDelete(true)}
-                    className="hidden whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30 sm:mr-auto sm:block"
-                  >
-                    {isBinned ? "Delete permanently" : "Move to bin"}
-                  </button>
-                )}
-                {isEditing && !isCompleted && !isArchived && !isBinned ? (
-                  <div className="space-y-2">
-                    {canEdit && (
-                      <Button
-                        type="submit"
-                        disabled={isSubmitting || paused}
-                        loading={isSubmitting}
-                        className="h-11 w-full whitespace-nowrap"
-                      >
-                        {isSubmitting ? "Saving…" : "Save changes"}
-                      </Button>
-                    )}
-                    {(showRequestUpdate || showArchive) && (
-                      <div
-                        className={cn(
-                          "grid gap-2",
-                          showRequestUpdate && showArchive
-                            ? "grid-cols-2"
-                            : "grid-cols-1",
-                        )}
-                      >
-                        {showRequestUpdate && (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={openRequestConfirmation}
-                            disabled={requestUpdate.isPending}
-                            loading={requestUpdate.isPending}
-                            className="h-11 w-full whitespace-nowrap"
-                          >
-                            Request update
-                          </Button>
-                        )}
-                        {showArchive && (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() =>
-                              void handleLifecycleAction("archive")
-                            }
-                            disabled={archiveTaskMutation.isPending}
-                            loading={archiveTaskMutation.isPending}
-                            className="h-11 w-full whitespace-nowrap border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
-                          >
-                            Archive
-                          </Button>
-                        )}
-                      </div>
-                    )}
+            {(canEdit || canReopen) && (
+              <div className="sticky bottom-0 z-10 border-t border-slate-200 bg-white pt-4 dark:border-slate-700 dark:bg-slate-800 sm:static sm:border-0 sm:bg-transparent sm:pt-2">
+                <div className="flex items-center justify-between gap-3">
+                  {canEdit && (
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={onClose}
+                      onClick={() => {
+                        reset({
+                          title: task?.title ?? "",
+                          description: task?.description ?? "",
+                          priority: task?.priority ?? "medium",
+                          assigneeIds:
+                            task?.assigneeIds ?? (canAssign ? [] : [userId]),
+                          dueDate: toDateInputValue(
+                            task?.dueDate ?? null,
+                            timeZone,
+                          ),
+                          status: task?.status ?? "todo",
+                        });
+                        setFormError(null);
+                      }}
                       disabled={isSubmitting || createTask.isPending}
-                      className="h-10 w-full whitespace-nowrap text-slate-500 dark:text-slate-400"
+                      className="px-2 text-slate-500 dark:text-slate-400"
                     >
-                      {canEdit ? "Cancel" : "Close"}
+                      Clear
                     </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {canEdit && (
-                      <Button
-                        type="submit"
-                        disabled={
-                          isSubmitting ||
-                          paused ||
-                          (!isEditing && growthBlocked)
-                        }
-                        loading={isSubmitting}
-                        className="h-11 w-full whitespace-nowrap"
-                      >
-                        {isSubmitting
-                          ? "Saving…"
-                          : isEditing
-                            ? "Save changes"
-                            : "Create Task"}
-                      </Button>
-                    )}
-                    {showRequestUpdate && (
-                      <Button
-                        type="button"
-                        onClick={openRequestConfirmation}
-                        disabled={requestUpdate.isPending}
-                        loading={requestUpdate.isPending}
-                        className="h-11 w-full whitespace-nowrap"
-                      >
-                        Request update
-                      </Button>
-                    )}
-                    {canReopen && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleReopen()}
-                        disabled={updateTask.isPending}
-                        loading={updateTask.isPending}
-                        className="h-11 w-full whitespace-nowrap"
-                      >
-                        Reopen task
-                      </Button>
-                    )}
-                    {showArchive && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleLifecycleAction("archive")}
-                        disabled={archiveTaskMutation.isPending}
-                        loading={archiveTaskMutation.isPending}
-                        className="h-11 w-full whitespace-nowrap"
-                      >
-                        Archive
-                      </Button>
-                    )}
-                    {showUnarchive && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleLifecycleAction("unarchive")}
-                        disabled={unarchiveTaskMutation.isPending}
-                        loading={unarchiveTaskMutation.isPending}
-                        className="h-11 w-full whitespace-nowrap"
-                      >
-                        Unarchive
-                      </Button>
-                    )}
-                    {showRestore && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleLifecycleAction("restore")}
-                        disabled={restoreTaskMutation.isPending}
-                        loading={restoreTaskMutation.isPending}
-                        className="h-11 w-full whitespace-nowrap"
-                      >
-                        Restore task
-                      </Button>
-                    )}
+                  )}
+                  {canEdit ? (
+                    <Button
+                      type="submit"
+                      disabled={
+                        isSubmitting || paused || (!isEditing && growthBlocked)
+                      }
+                      loading={isSubmitting}
+                      className="whitespace-nowrap"
+                    >
+                      {isSubmitting
+                        ? "Saving…"
+                        : isEditing
+                          ? "Save changes"
+                          : "Create Task"}
+                    </Button>
+                  ) : (
                     <Button
                       type="button"
-                      variant="secondary"
-                      onClick={onClose}
-                      disabled={isSubmitting || createTask.isPending}
-                      className="h-11 w-full whitespace-nowrap"
+                      onClick={() => void handleReopen()}
+                      disabled={updateTask.isPending}
+                      loading={updateTask.isPending}
+                      className="whitespace-nowrap"
                     >
-                      {canEdit ? "Cancel" : "Close"}
+                      Reopen task
                     </Button>
-                    {!isEditing && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          reset({
-                            title: "",
-                            description: "",
-                            priority: "medium",
-                            assigneeIds: canAssign ? [] : [userId],
-                            dueDate: "",
-                            status: "todo",
-                          });
-                          setFormError(null);
-                        }}
-                        disabled={isSubmitting || createTask.isPending}
-                        className="h-11 w-full whitespace-nowrap"
-                      >
-                        Clear form
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {(showDelete || showDeletePermanently) && (
-              <div
-                ref={phoneDeleteRef}
-                className="border-t border-slate-200 pt-3 dark:border-slate-700 sm:hidden"
-              >
-                {confirmingDelete ? (
-                  <div role="alert" className="space-y-2">
-                    <p className="text-center text-sm text-red-800 dark:text-red-200">
-                      {isBinned
-                        ? "Permanently delete this task? This cannot be undone."
-                        : "Move this task to the bin? It can be restored for 30 days."}
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => setConfirmingDelete(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="danger"
-                        onClick={() => void handleDelete()}
-                        disabled={deleteIsPending}
-                        loading={deleteIsPending}
-                      >
-                        {deleteIsPending
-                          ? "Deleting…"
-                          : isBinned
-                            ? "Delete permanently"
-                            : "Move to bin"}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingDelete(true)}
-                    className="w-full rounded-lg py-2 text-center text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
-                  >
-                    {isBinned ? "Delete permanently" : "Move to bin"}
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </form>
@@ -930,15 +582,6 @@ export function TaskDrawer({
           onSaved={() => setSchedulingMeeting(false)}
         />
       )}
-      <ActivityConfirmation
-        open={confirmingRequest}
-        title="Send update request?"
-        message={`This request will ask ${requestAudience} for an update.`}
-        confirmLabel="Send request"
-        isPending={requestUpdate.isPending}
-        onCancel={() => setConfirmingRequest(false)}
-        onConfirm={() => void handleRequestUpdate()}
-      />
     </>
   );
 }

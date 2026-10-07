@@ -773,34 +773,26 @@ export function ProjectsPage() {
             </select>
           </Field>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
+          <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-700">
             <Button
               type="button"
-              variant="secondary"
-              className="w-full sm:w-auto"
-              onClick={closeCreateModal}
+              variant="ghost"
+              className="px-2 text-slate-500 dark:text-slate-400"
+              onClick={() => {
+                if (editingProject) closeCreateModal();
+                else {
+                  reset(EMPTY_PROJECT_FORM);
+                  setFormError(null);
+                }
+              }}
               disabled={
                 isSubmitting ||
                 createProject.isPending ||
                 updateProject.isPending
               }
             >
-              Cancel
+              {editingProject ? "Cancel" : "Clear"}
             </Button>
-            {!editingProject && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  reset(EMPTY_PROJECT_FORM);
-                  setFormError(null);
-                }}
-                disabled={isSubmitting || createProject.isPending}
-              >
-                Clear form
-              </Button>
-            )}
             <Button
               type="submit"
               disabled={
@@ -814,7 +806,6 @@ export function ProjectsPage() {
                 createProject.isPending ||
                 updateProject.isPending
               }
-              className="w-full sm:w-auto"
             >
               {isSubmitting ||
               createProject.isPending ||
