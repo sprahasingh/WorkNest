@@ -150,6 +150,7 @@ export function ActivityFeed({
   focusId,
 }: ActivityFeedProps) {
   const isWorkspace = workspaceProjectIds !== undefined;
+  const workspaceProjectCount = workspaceProjectIds?.length ?? 0;
   const scopedActivityQuery = useActivity(orgId, isWorkspace ? null : scope);
   const workspaceActivityQuery = useWorkspaceProjectActivity(
     orgId,
@@ -762,6 +763,15 @@ export function ActivityFeed({
                 : "This feed includes questions, progress updates, update requests and replies about this task. Notify all assignees, or @mention people to notify only them. Replies stay with each conversation."}
           </p>
         </InfoPanel>
+        {isWorkspace && (
+          <div className="mt-1 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <p>
+              {workspaceProjectCount} active project
+              {workspaceProjectCount === 1 ? "" : "s"} with open tasks
+            </p>
+            <p>Replies appear in the Updates panel of each included project.</p>
+          </div>
+        )}
       </div>
       {isPending && (
         <div className="space-y-2">
