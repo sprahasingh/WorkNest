@@ -925,18 +925,7 @@ export function ActivityFeed({
                 )}
               </select>
             </label>
-            <div className="flex items-center justify-between gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={clearMessage}
-                disabled={
-                  busy || (!content && mentionCount === 0 && !contentError)
-                }
-                className="px-2 text-slate-500 dark:text-slate-400"
-              >
-                Clear
-              </Button>
+            <div className="flex flex-col gap-2">
               <Button
                 type="button"
                 onClick={() =>
@@ -955,9 +944,20 @@ export function ActivityFeed({
                     : undefined
                 }
                 loading={pendingType === messageType}
-                className="min-w-[9rem] whitespace-nowrap px-3 text-xs sm:text-sm"
+                className="w-full whitespace-nowrap px-3 text-xs sm:text-sm"
               >
                 {submitLabel}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={clearMessage}
+                disabled={
+                  busy || (!content && mentionCount === 0 && !contentError)
+                }
+                className="w-full border-0 bg-transparent px-2 text-slate-500 shadow-none hover:bg-transparent dark:text-slate-400 dark:hover:bg-transparent"
+              >
+                Clear
               </Button>
             </div>
           </div>

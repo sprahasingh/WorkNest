@@ -495,7 +495,33 @@ export function TaskDrawer({
 
             {(canEdit || canReopen) && (
               <div className="sticky bottom-0 z-10 border-t border-slate-200 bg-white pt-4 dark:border-slate-700 dark:bg-slate-800 sm:static sm:border-0 sm:bg-transparent sm:pt-2">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-2">
+                  {canEdit ? (
+                    <Button
+                      type="submit"
+                      disabled={
+                        isSubmitting || paused || (!isEditing && growthBlocked)
+                      }
+                      loading={isSubmitting}
+                      className="w-full whitespace-nowrap"
+                    >
+                      {isSubmitting
+                        ? "Saving…"
+                        : isEditing
+                          ? "Save changes"
+                          : "Create Task"}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      onClick={() => void handleReopen()}
+                      disabled={updateTask.isPending}
+                      loading={updateTask.isPending}
+                      className="w-full whitespace-nowrap"
+                    >
+                      Reopen task
+                    </Button>
+                  )}
                   {canEdit && (
                     <Button
                       type="button"
@@ -516,35 +542,9 @@ export function TaskDrawer({
                         setFormError(null);
                       }}
                       disabled={isSubmitting || createTask.isPending}
-                      className="px-2 text-slate-500 dark:text-slate-400"
+                      className="w-full border-0 bg-transparent px-2 text-slate-500 shadow-none hover:bg-transparent dark:text-slate-400 dark:hover:bg-transparent"
                     >
                       Clear
-                    </Button>
-                  )}
-                  {canEdit ? (
-                    <Button
-                      type="submit"
-                      disabled={
-                        isSubmitting || paused || (!isEditing && growthBlocked)
-                      }
-                      loading={isSubmitting}
-                      className="whitespace-nowrap"
-                    >
-                      {isSubmitting
-                        ? "Saving…"
-                        : isEditing
-                          ? "Save changes"
-                          : "Create Task"}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      onClick={() => void handleReopen()}
-                      disabled={updateTask.isPending}
-                      loading={updateTask.isPending}
-                      className="whitespace-nowrap"
-                    >
-                      Reopen task
                     </Button>
                   )}
                 </div>
