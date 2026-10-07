@@ -716,7 +716,9 @@ export function TaskDrawer({
                           <Button
                             type="button"
                             variant="secondary"
-                            onClick={() => void handleLifecycleAction("archive")}
+                            onClick={() =>
+                              void handleLifecycleAction("archive")
+                            }
                             disabled={archiveTaskMutation.isPending}
                             loading={archiveTaskMutation.isPending}
                             className="h-11 w-full whitespace-nowrap border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
@@ -742,7 +744,9 @@ export function TaskDrawer({
                       <Button
                         type="submit"
                         disabled={
-                          isSubmitting || paused || (!isEditing && growthBlocked)
+                          isSubmitting ||
+                          paused ||
+                          (!isEditing && growthBlocked)
                         }
                         loading={isSubmitting}
                         className="h-11 w-full whitespace-nowrap"

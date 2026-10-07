@@ -70,8 +70,7 @@ export const taskKeys = {
     ["orgs", orgId, "tasks", taskId] as const,
   activity: (orgId: string, scope: ActivityScope) =>
     ["orgs", orgId, scope.kind, scope.id, "activity"] as const,
-  projectActivityPrefix: (orgId: string) =>
-    ["orgs", orgId, "project"] as const,
+  projectActivityPrefix: (orgId: string) => ["orgs", orgId, "project"] as const,
   workspaceActivityPrefix: (orgId: string) =>
     ["orgs", orgId, "workspace-project-activity"] as const,
   workspaceActivity: (orgId: string) =>
