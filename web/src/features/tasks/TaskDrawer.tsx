@@ -171,14 +171,6 @@ export function TaskDrawer({
   }, [confirmingDelete]);
   const showRequestUpdate =
     isEditing && !isCompleted && !isArchived && !isBinned && canLead;
-  const lifecycleActionCount = [
-    canReopen,
-    showArchive,
-    showUnarchive,
-    showRestore,
-    showRequestUpdate,
-  ].filter(Boolean).length;
-
   const {
     register,
     handleSubmit,
@@ -677,12 +669,7 @@ export function TaskDrawer({
                 </div>
               )}
 
-              <div
-                className={cn(
-                  "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3",
-                  confirmingDelete && "sm:hidden",
-                )}
-              >
+              <div className={cn("space-y-2", confirmingDelete && "sm:hidden")}>
                 {(showDelete || showDeletePermanently) && (
                   <button
                     type="button"
@@ -692,114 +679,171 @@ export function TaskDrawer({
                     {isBinned ? "Delete permanently" : "Move to bin"}
                   </button>
                 )}
-                <div
-                  className={cn(
-                    "order-2 grid gap-2 sm:order-1 sm:flex sm:gap-3",
-                    lifecycleActionCount > 1 ? "grid-cols-2" : "grid-cols-1",
-                  )}
-                >
-                  {canReopen && (
+                {isEditing && !isCompleted && !isArchived && !isBinned ? (
+                  <div className="space-y-2">
+                    {canEdit && (
+                      <Button
+                        type="submit"
+                        disabled={isSubmitting || paused}
+                        loading={isSubmitting}
+                        className="h-11 w-full whitespace-nowrap"
+                      >
+                        {isSubmitting ? "Saving…" : "Save changes"}
+                      </Button>
+                    )}
+                    {(showRequestUpdate || showArchive) && (
+                      <div
+                        className={cn(
+                          "grid gap-2",
+                          showRequestUpdate && showArchive
+                            ? "grid-cols-2"
+                            : "grid-cols-1",
+                        )}
+                      >
+                        {showRequestUpdate && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={openRequestConfirmation}
+                            disabled={requestUpdate.isPending}
+                            loading={requestUpdate.isPending}
+                            className="h-11 w-full whitespace-nowrap"
+                          >
+                            Request update
+                          </Button>
+                        )}
+                        {showArchive && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void handleLifecycleAction("archive")}
+                            disabled={archiveTaskMutation.isPending}
+                            loading={archiveTaskMutation.isPending}
+                            className="h-11 w-full whitespace-nowrap border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                          >
+                            Archive
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={onClose}
+                      disabled={isSubmitting || createTask.isPending}
+                      className="h-10 w-full whitespace-nowrap text-slate-500 dark:text-slate-400"
+                    >
+                      {canEdit ? "Cancel" : "Close"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {canEdit && (
+                      <Button
+                        type="submit"
+                        disabled={
+                          isSubmitting || paused || (!isEditing && growthBlocked)
+                        }
+                        loading={isSubmitting}
+                        className="h-11 w-full whitespace-nowrap"
+                      >
+                        {isSubmitting
+                          ? "Saving…"
+                          : isEditing
+                            ? "Save changes"
+                            : "Create Task"}
+                      </Button>
+                    )}
+                    {showRequestUpdate && (
+                      <Button
+                        type="button"
+                        onClick={openRequestConfirmation}
+                        disabled={requestUpdate.isPending}
+                        loading={requestUpdate.isPending}
+                        className="h-11 w-full whitespace-nowrap"
+                      >
+                        Request update
+                      </Button>
+                    )}
+                    {canReopen && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleReopen()}
+                        disabled={updateTask.isPending}
+                        loading={updateTask.isPending}
+                        className="h-11 w-full whitespace-nowrap"
+                      >
+                        Reopen task
+                      </Button>
+                    )}
+                    {showArchive && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleLifecycleAction("archive")}
+                        disabled={archiveTaskMutation.isPending}
+                        loading={archiveTaskMutation.isPending}
+                        className="h-11 w-full whitespace-nowrap"
+                      >
+                        Archive
+                      </Button>
+                    )}
+                    {showUnarchive && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleLifecycleAction("unarchive")}
+                        disabled={unarchiveTaskMutation.isPending}
+                        loading={unarchiveTaskMutation.isPending}
+                        className="h-11 w-full whitespace-nowrap"
+                      >
+                        Unarchive
+                      </Button>
+                    )}
+                    {showRestore && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleLifecycleAction("restore")}
+                        disabled={restoreTaskMutation.isPending}
+                        loading={restoreTaskMutation.isPending}
+                        className="h-11 w-full whitespace-nowrap"
+                      >
+                        Restore task
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="secondary"
-                      onClick={() => void handleReopen()}
-                      disabled={updateTask.isPending}
-                      loading={updateTask.isPending}
+                      onClick={onClose}
+                      disabled={isSubmitting || createTask.isPending}
+                      className="h-11 w-full whitespace-nowrap"
                     >
-                      Reopen task
+                      {canEdit ? "Cancel" : "Close"}
                     </Button>
-                  )}
-                  {showArchive && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => void handleLifecycleAction("archive")}
-                      disabled={archiveTaskMutation.isPending}
-                      loading={archiveTaskMutation.isPending}
-                    >
-                      Archive
-                    </Button>
-                  )}
-                  {showUnarchive && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => void handleLifecycleAction("unarchive")}
-                      disabled={unarchiveTaskMutation.isPending}
-                      loading={unarchiveTaskMutation.isPending}
-                    >
-                      Unarchive
-                    </Button>
-                  )}
-                  {showRestore && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => void handleLifecycleAction("restore")}
-                      disabled={restoreTaskMutation.isPending}
-                      loading={restoreTaskMutation.isPending}
-                    >
-                      Restore task
-                    </Button>
-                  )}
-                  {showRequestUpdate && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={openRequestConfirmation}
-                      disabled={requestUpdate.isPending}
-                      loading={requestUpdate.isPending}
-                      className="whitespace-nowrap"
-                    >
-                      Request update
-                    </Button>
-                  )}
-                </div>
-                {canEdit && (
-                  <Button
-                    type="submit"
-                    disabled={
-                      isSubmitting || paused || (!isEditing && growthBlocked)
-                    }
-                    loading={isSubmitting}
-                    className="order-1 w-full whitespace-nowrap sm:order-2 sm:w-auto"
-                  >
-                    {isSubmitting
-                      ? "Saving…"
-                      : isEditing
-                        ? "Save changes"
-                        : "Create Task"}
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={onClose}
-                  disabled={isSubmitting || createTask.isPending}
-                  className="order-3 w-full whitespace-nowrap sm:order-3 sm:w-auto"
-                >
-                  {canEdit ? "Cancel" : "Close"}
-                </Button>
-                {!isEditing && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      reset({
-                        title: "",
-                        description: "",
-                        priority: "medium",
-                        assigneeIds: canAssign ? [] : [userId],
-                        dueDate: "",
-                        status: "todo",
-                      });
-                      setFormError(null);
-                    }}
-                    disabled={isSubmitting || createTask.isPending}
-                    className="order-4 w-full whitespace-nowrap sm:order-4 sm:w-auto"
-                  >
-                    Clear form
-                  </Button>
+                    {!isEditing && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          reset({
+                            title: "",
+                            description: "",
+                            priority: "medium",
+                            assigneeIds: canAssign ? [] : [userId],
+                            dueDate: "",
+                            status: "todo",
+                          });
+                          setFormError(null);
+                        }}
+                        disabled={isSubmitting || createTask.isPending}
+                        className="h-11 w-full whitespace-nowrap"
+                      >
+                        Clear form
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

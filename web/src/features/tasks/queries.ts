@@ -16,7 +16,9 @@ import {
   listTasks,
   updateTask,
   listActivities,
+  listWorkspaceProjectActivities,
   createActivity,
+  createWorkspaceProjectActivity,
   markAnswer,
   remindWaiting,
   archiveTask,
@@ -68,6 +70,12 @@ export const taskKeys = {
     ["orgs", orgId, "tasks", taskId] as const,
   activity: (orgId: string, scope: ActivityScope) =>
     ["orgs", orgId, scope.kind, scope.id, "activity"] as const,
+  projectActivityPrefix: (orgId: string) =>
+    ["orgs", orgId, "project"] as const,
+  workspaceActivityPrefix: (orgId: string) =>
+    ["orgs", orgId, "workspace-project-activity"] as const,
+  workspaceActivity: (orgId: string) =>
+    ["orgs", orgId, "workspace-project-activity"] as const,
 };
 
 // The board and its active-task counter refresh on the same beat so they
@@ -385,6 +393,139 @@ export function useActivity(orgId: string, scope: ActivityScope | null) {
     enabled: !!scope,
     // Keep an open conversation current while others post to it.
     refetchInterval: 15_000,
+  });
+}
+
+export function useWorkspaceProjectActivity(orgId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: taskKeys.workspaceActivity(orgId),
+    queryFn: () => listWorkspaceProjectActivities(orgId),
+    enabled,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useCreateWorkspaceProjectActivity(orgId: string) {
+  const queryClient = useQueryClient();
+  const workspaceKey = taskKeys.workspaceActivity(orgId);
+
+  return useMutation({
+    mutationFn: (input: CreateActivityInput) =>
+      createWorkspaceProjectActivity(orgId, input),
+    onSuccess: ({ activity }) => {
+      queryClient.setQueryData<TaskActivity[]>(workspaceKey, (current) =>
+        [...(current ?? []), activity].sort((a, b) =>
+          a._id.localeCompare(b._id),
+        ),
+      );
+      for (const projectId of activity.projectIds ?? []) {
+        void queryClient.invalidateQueries({
+          queryKey: taskKeys.activity(orgId, {
+            kind: "project",
+            id: projectId,
+          }),
+        });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.workspaceActivityPrefix(orgId),
+      });
+    },
+  });
+}
+
+export function useCreateActivityInScope(orgId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      scope,
+      input,
+    }: {
+      scope: ActivityScope;
+      input: CreateActivityInput;
+    }) => createActivity(orgId, scope, input),
+    onSuccess: (_result, { scope }) => {
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.activity(orgId, scope),
+      });
+      if (scope.kind === "project") {
+        void queryClient.invalidateQueries({
+          queryKey: taskKeys.projectActivityPrefix(orgId),
+        });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.workspaceActivityPrefix(orgId),
+      });
+    },
+  });
+}
+
+export function useMarkAnswerInScope(orgId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      scope,
+      questionId,
+      answerId,
+    }: {
+      scope: ActivityScope;
+      questionId: string;
+      answerId: string | null;
+    }) => markAnswer(orgId, scope, questionId, answerId),
+    onMutate: async ({ scope, questionId, answerId }) => {
+      const key = taskKeys.activity(orgId, scope);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<TaskActivity[]>(key);
+      queryClient.setQueryData<TaskActivity[]>(key, (current) =>
+        current?.map((entry) =>
+          entry._id === questionId ? { ...entry, answerId } : entry,
+        ),
+      );
+      return { key, previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.key, context.previous);
+      }
+    },
+    onSettled: (_result, _error, { scope }) => {
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.activity(orgId, scope),
+      });
+      if (scope.kind === "project") {
+        void queryClient.invalidateQueries({
+          queryKey: taskKeys.projectActivityPrefix(orgId),
+        });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.workspaceActivityPrefix(orgId),
+      });
+    },
+  });
+}
+
+export function useRemindWaitingInScope(orgId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      scope,
+      requestId,
+    }: {
+      scope: ActivityScope;
+      requestId: string;
+    }) => remindWaiting(orgId, scope, requestId),
+    onSettled: (_result, _error, { scope }) => {
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.activity(orgId, scope),
+      });
+      if (scope.kind === "project") {
+        void queryClient.invalidateQueries({
+          queryKey: taskKeys.projectActivityPrefix(orgId),
+        });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: taskKeys.workspaceActivityPrefix(orgId),
+      });
+    },
   });
 }
 

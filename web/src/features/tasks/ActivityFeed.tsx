@@ -1,17 +1,26 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
+import { InfoButton, InfoPanel } from "@/components/ui/InfoToggle";
 import { parseApiError } from "@/lib/apiError";
 import { cn } from "@/lib/cn";
 import { formatFullTime, formatRelativeTime } from "@/lib/time";
-import type { ActivityScope, ActivityType, TaskActivity } from "./api";
+import type {
+  ActivityScope,
+  ActivityType,
+  CreateActivityInput,
+  TaskActivity,
+} from "./api";
 import { ACTIVITY_BADGE_STYLES, ACTIVITY_LABELS } from "./activityTypes";
 import { ActivityIcon } from "./ActivityIcon";
 import {
   useActivity,
+  useWorkspaceProjectActivity,
   useCreateActivity,
-  useMarkAnswer,
-  useRemindWaiting,
+  useCreateActivityInScope,
+  useCreateWorkspaceProjectActivity,
+  useMarkAnswerInScope,
+  useRemindWaitingInScope,
 } from "./queries";
 import { useMembers } from "@/features/members/queries";
 import { useAuth } from "@/auth/auth-context";
@@ -22,6 +31,9 @@ import { ActivityConfirmation } from "./ActivityConfirmation";
 interface ActivityFeedProps {
   orgId: string;
   scope: ActivityScope;
+  // When present, show shared project-wide conversations for these projects
+  // and send new messages to all active projects together.
+  workspaceProjectIds?: string[];
   // Admins and managers: can also ask for updates.
   canLead: boolean;
   // People working on it: can post updates and ask questions.
@@ -112,6 +124,7 @@ function participantsOf(thread: Thread): string[] {
 interface ReplyTarget {
   rootId: string;
   replyToId: string;
+  scope: ActivityScope;
   // Who will be told.
   names: string[];
 }
@@ -131,18 +144,34 @@ export function ActivityFeed({
   scope,
   canLead,
   canContribute,
+  workspaceProjectIds,
   involvedNames,
   onOpenTask,
   focusId,
 }: ActivityFeedProps) {
-  const { data: activities, isPending, isError } = useActivity(orgId, scope);
+  const isWorkspace = workspaceProjectIds !== undefined;
+  const scopedActivityQuery = useActivity(orgId, isWorkspace ? null : scope);
+  const workspaceActivityQuery = useWorkspaceProjectActivity(
+    orgId,
+    (workspaceProjectIds?.length ?? 0) > 0,
+  );
+  const {
+    data: activities,
+    isPending,
+    isError,
+  } = isWorkspace ? workspaceActivityQuery : scopedActivityQuery;
   const createActivity = useCreateActivity(orgId, scope);
-  const markAnswer = useMarkAnswer(orgId, scope);
-  const remindWaiting = useRemindWaiting(orgId, scope);
+  const createActivityInScope = useCreateActivityInScope(orgId);
+  const createWorkspaceActivity = useCreateWorkspaceProjectActivity(orgId);
+  const markAnswer = useMarkAnswerInScope(orgId);
+  const remindWaiting = useRemindWaitingInScope(orgId);
   const { data: members = [] } = useMembers(orgId);
   const { user } = useAuth();
   const now = useNow();
   const [content, setContent] = useState("");
+  const [messageType, setMessageType] = useState<
+    Exclude<ActivityType, "reply">
+  >(canLead ? "update" : "question");
   const [mentions, setMentions] = useState<ActivityMentions>(NO_MENTIONS);
   // null follows the default: everyone, unless someone is @mentioned.
   const [notifyAllChoice, setNotifyAllChoice] = useState<boolean | null>(null);
@@ -157,8 +186,12 @@ export function ActivityFeed({
   const listRef = useRef<HTMLOListElement>(null);
   const focusedRef = useRef<string | null>(null);
   const checkboxId = useId();
+  const scopeInfoId = useId();
+  const [scopeInfoOpen, setScopeInfoOpen] = useState(false);
 
   const isProject = scope.kind === "project";
+  const scopeForThread = (thread: Thread): ActivityScope =>
+    isWorkspace ? { kind: "project", id: thread.root.projectId } : scope;
   const memberNames = useMemo(
     () => new Map(members.map((m) => [m.userId.id, m.userId.name])),
     [members],
@@ -246,18 +279,33 @@ export function ActivityFeed({
     setContentError(null);
     setPendingType(type);
     try {
-      const result = await createActivity.mutateAsync({
+      const input: CreateActivityInput = {
         type,
         content: content.trim() || undefined,
         mentionMemberIds: mentions.memberIds,
         mentionRoles: mentions.roles,
         notifyAll,
-      });
+      };
+      const result = isWorkspace
+        ? await createWorkspaceActivity.mutateAsync(input)
+        : await createActivity.mutateAsync(input);
       setContent("");
       setMentions(NO_MENTIONS);
       setNotifyAllChoice(null);
       setConfirmingRequest(false);
-      announce(type, result.notifiedCount, result.notifiedNames);
+      if (isWorkspace) {
+        const actionName =
+          type === "question"
+            ? "Question"
+            : type === "update"
+              ? "Update"
+              : "Update request";
+        toast.success(
+          `${actionName} sent across ${result.activity.projectIds?.length ?? workspaceProjectIds?.length ?? 0} projects to ${result.notifiedCount ?? 0} people`,
+        );
+      } else {
+        announce(type, result.notifiedCount, result.notifiedNames);
+      }
     } catch (error) {
       const parsed = parseApiError(error);
       setConfirmingRequest(false);
@@ -283,12 +331,15 @@ export function ActivityFeed({
     setReplyError(null);
     setPendingType("reply");
     try {
-      const result = await createActivity.mutateAsync({
-        type: "reply",
-        replyToId: replyTarget.replyToId,
-        content: replyContent.trim(),
-        mentionMemberIds: replyMentions.memberIds,
-        mentionRoles: replyMentions.roles,
+      const result = await createActivityInScope.mutateAsync({
+        scope: replyTarget.scope,
+        input: {
+          type: "reply",
+          replyToId: replyTarget.replyToId,
+          content: replyContent.trim(),
+          mentionMemberIds: replyMentions.memberIds,
+          mentionRoles: replyMentions.roles,
+        },
       });
       setReplyTarget(null);
       setReplyContent("");
@@ -319,7 +370,12 @@ export function ActivityFeed({
         ids.filter((id) => id !== user?.id && memberNames.has(id)).map(nameOf),
       ),
     ];
-    setReplyTarget({ rootId: thread.root._id, replyToId: target._id, names });
+    setReplyTarget({
+      rootId: thread.root._id,
+      replyToId: target._id,
+      scope: scopeForThread(thread),
+      names,
+    });
     setReplyContent("");
     setReplyMentions(NO_MENTIONS);
     setReplyError(null);
@@ -335,12 +391,17 @@ export function ActivityFeed({
   const canReplyIn = (thread: Thread) => {
     if (!user) return false;
     const inThread = participantsOf(thread).includes(user.id);
-    return isDirected(thread.root) ? inThread : canPost || inThread;
+    if (isDirected(thread.root)) return inThread;
+    return isWorkspace ? canLead || inThread : canPost || inThread;
   };
 
   const handleMarkAnswer = (thread: Thread, answerId: string | null) => {
     markAnswer.mutate(
-      { questionId: thread.root._id, answerId },
+      {
+        scope: scopeForThread(thread),
+        questionId: thread.root._id,
+        answerId,
+      },
       {
         onSuccess: () =>
           toast.success(answerId ? "Marked as the answer" : "Answer cleared"),
@@ -350,21 +411,29 @@ export function ActivityFeed({
   };
 
   const handleRemind = (thread: Thread) => {
-    remindWaiting.mutate(thread.root._id, {
-      onSuccess: (result) =>
-        toast.success(
-          `Reminder sent to ${joinNames(result.notifiedNames, result.notifiedCount)}`,
-        ),
-      onError: (error) => toast.error(parseApiError(error).message),
-    });
+    remindWaiting.mutate(
+      { scope: scopeForThread(thread), requestId: thread.root._id },
+      {
+        onSuccess: (result) =>
+          toast.success(
+            `Reminder sent to ${joinNames(result.notifiedNames, result.notifiedCount)}`,
+          ),
+        onError: (error) => toast.error(parseApiError(error).message),
+      },
+    );
   };
 
-  const busy = createActivity.isPending;
-  const everyoneLabel = isProject
-    ? "everyone working on this project"
-    : involvedNames && involvedNames.length > 0
-      ? joinNames(involvedNames)
-      : null;
+  const busy =
+    createActivity.isPending ||
+    createActivityInScope.isPending ||
+    createWorkspaceActivity.isPending;
+  const everyoneLabel = isWorkspace
+    ? "people assigned to open tasks across active projects"
+    : isProject
+      ? "everyone working on this project"
+      : involvedNames && involvedNames.length > 0
+        ? joinNames(involvedNames)
+        : null;
   let audienceLine: string;
   if (notifyAll) {
     if (everyoneLabel && mentionCount > 0) {
@@ -662,6 +731,38 @@ export function ActivityFeed({
 
   return (
     <div className="space-y-4">
+      <div>
+        <div className="flex items-start gap-1 text-sm text-slate-600 dark:text-slate-300">
+          <p className="min-w-0 flex-1">
+            {isWorkspace
+              ? "Updates and conversations across active projects."
+              : isProject
+                ? "Updates from this project and its tasks."
+                : "Updates and questions about this task."}
+          </p>
+          <InfoButton
+            open={scopeInfoOpen}
+            onToggle={() => setScopeInfoOpen((open) => !open)}
+            label={isProject ? "About project updates" : "About task updates"}
+            controls={scopeInfoId}
+          />
+        </div>
+        <InfoPanel
+          id={scopeInfoId}
+          open={scopeInfoOpen}
+          onClose={() => setScopeInfoOpen(false)}
+        >
+          <p>
+            {isWorkspace
+              ? "This feed shows shared questions, updates and requests sent across active projects, including their replies. New messages reach people assigned to open tasks in those projects."
+              : isProject
+                ? canLead
+                  ? "Everything shared in this project, from every task. Notify everyone working on the project, or @mention people to notify only them. Replies stay with each conversation."
+                  : "Updates from this project and its tasks that you can access. Notify everyone working on the project, or @mention people to notify only them. Replies stay with each conversation."
+                : "This feed includes questions, progress updates, update requests and replies about this task. Notify all assignees, or @mention people to notify only them. Replies stay with each conversation."}
+          </p>
+        </InfoPanel>
+      </div>
       {isPending && (
         <div className="space-y-2">
           {[0, 1].map((i) => (
@@ -684,7 +785,9 @@ export function ActivityFeed({
           </p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {isProject
-              ? "Update requests, progress updates and questions from this project will appear here."
+              ? isWorkspace
+                ? "Questions, updates and requests across active projects will appear here."
+                : "Update requests, progress updates and questions from this project will appear here."
               : "Update requests, progress updates and questions about this task will appear here."}
           </p>
         </div>
@@ -782,75 +885,103 @@ export function ActivityFeed({
               {audienceLine}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => void post("question")}
-              disabled={busy || !hasText}
-              loading={pendingType === "question"}
-              className="w-full px-2 text-xs sm:text-sm"
-            >
-              Ask Question
-            </Button>
-            <Button
-              type="button"
-              variant={canLead ? "secondary" : "primary"}
-              onClick={() => void post("update")}
-              disabled={busy || !hasText}
-              loading={pendingType === "update"}
-              className="w-full px-2 text-xs sm:text-sm"
-            >
-              Post Update
-            </Button>
-            {canLead && (
+          <div className="space-y-1">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1">
+              <label
+                htmlFor={`activity-type-${scope.kind}-${scope.id}`}
+                className="block min-w-0 text-xs font-medium text-slate-600 dark:text-slate-300"
+              >
+                <span className="mb-1 block">Message type</span>
+                <select
+                  id={`activity-type-${scope.kind}-${scope.id}`}
+                  value={messageType}
+                  onChange={(event) =>
+                    setMessageType(
+                      event.target.value as Exclude<ActivityType, "reply">,
+                    )
+                  }
+                  disabled={busy}
+                  className="h-11 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 focus:border-teal-500 focus:outline focus:outline-2 focus:outline-teal-500/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  <option value="question">Ask Question</option>
+                  <option value="update">Post Update</option>
+                  {canLead && (
+                    <option value="update_request">Request Update</option>
+                  )}
+                </select>
+              </label>
               <Button
                 type="button"
-                onClick={() => setConfirmingRequest(true)}
-                disabled={busy || requestNeedsSomeone}
+                onClick={() =>
+                  messageType === "update_request"
+                    ? setConfirmingRequest(true)
+                    : void post(messageType)
+                }
+                disabled={
+                  busy ||
+                  !hasText ||
+                  (messageType === "update_request" && requestNeedsSomeone)
+                }
                 title={
-                  requestNeedsSomeone
+                  messageType === "update_request" && requestNeedsSomeone
                     ? "Mention who you're asking, or tick All assignees"
                     : undefined
                 }
-                loading={pendingType === "update_request"}
-                className="w-full px-2 text-xs sm:text-sm"
+                loading={pendingType === messageType}
+                className="h-11 min-w-[7.75rem] whitespace-nowrap px-3 text-xs sm:text-sm"
               >
-                Request Update
+                {messageType === "question"
+                  ? "Ask Question"
+                  : messageType === "update"
+                    ? "Post Update"
+                    : "Request Update"}
               </Button>
-            )}
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={clearMessage}
-              disabled={
-                busy || (!content && mentionCount === 0 && !contentError)
-              }
-              className={cn(
-                "w-full px-2 text-xs sm:text-sm",
-                !canLead && "col-start-2",
-              )}
-            >
-              Clear
-            </Button>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={clearMessage}
+                disabled={
+                  busy || (!content && mentionCount === 0 && !contentError)
+                }
+                className="min-h-8 rounded px-2 text-xs font-medium text-slate-500 hover:text-slate-800 disabled:cursor-default disabled:text-slate-300 dark:text-slate-400 dark:hover:text-slate-200 dark:disabled:text-slate-600"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </div>
       ) : (
         <p className="border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          {isProject
-            ? "Only people working on this project, managers and admins can post here."
-            : "Only this task's assignees, managers and admins can post here."}
+          {isWorkspace
+            ? "Only project members, managers and admins can post across projects."
+            : isProject
+              ? "Only people working on this project, managers and admins can post here."
+              : "Only this task's assignees, managers and admins can post here."}
         </p>
       )}
       <ActivityConfirmation
         open={confirmingRequest}
         title="Send update request?"
+        summary={
+          notifyAll
+            ? `Ask ${
+                isWorkspace
+                  ? "people assigned to open tasks across active projects"
+                  : isProject
+                    ? "people assigned to open tasks in this project"
+                    : "this task's assignees"
+              } for a status update.`
+            : `Ask only ${joinNames(mentionedNames)} for a status update.`
+        }
         message={
           notifyAll
             ? `This asks ${
-                isProject
-                  ? "everyone assigned to an open task in this project"
-                  : "this task's assignees"
+                isWorkspace
+                  ? "people assigned to open tasks across active projects"
+                  : isProject
+                    ? "everyone assigned to an open task in this project"
+                    : "this task's assignees"
               }${mentionCount > 0 ? " and the people you mentioned" : ""} for an update. Each person can reply to it, and you'll see who has replied and who hasn't.`
             : `This asks only ${joinNames(mentionedNames)} for an update. You'll see who has replied and who hasn't.`
         }

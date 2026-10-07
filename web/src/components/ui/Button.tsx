@@ -1,4 +1,11 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
@@ -28,6 +35,14 @@ const SIZE_STYLES: Record<ButtonSize, string> = {
   sm: "min-h-11 min-w-11 px-3 py-2 text-sm",
   md: "min-h-11 min-w-11 px-4 py-2 text-sm",
 };
+
+let activeDisabledMessageId: string | null = null;
+const disabledMessageListeners = new Set<(activeId: string | null) => void>();
+
+function setActiveDisabledMessage(id: string | null) {
+  activeDisabledMessageId = id;
+  disabledMessageListeners.forEach((listener) => listener(id));
+}
 
 function Spinner({ className }: { className?: string }) {
   return (
@@ -61,6 +76,7 @@ export function Button({
   disabled,
   disabledReason,
   title,
+  onClick,
   className,
   children,
   ...props
@@ -78,6 +94,29 @@ export function Button({
   const { ["aria-describedby"]: describedBy, ...buttonProps } = props;
   const disabledMessage =
     disabledReason ?? title ?? "This action is unavailable right now.";
+  const hideDisabledMessage = useCallback(() => {
+    if (hideMessageTimer.current) clearTimeout(hideMessageTimer.current);
+    setShowDisabledMessage(false);
+    if (activeDisabledMessageId === tooltipId) {
+      setActiveDisabledMessage(null);
+    }
+  }, [tooltipId]);
+
+  useEffect(() => {
+    const listener = (activeId: string | null) => {
+      if (activeId === tooltipId) return;
+      if (hideMessageTimer.current) clearTimeout(hideMessageTimer.current);
+      setShowDisabledMessage(false);
+    };
+    disabledMessageListeners.add(listener);
+    return () => {
+      disabledMessageListeners.delete(listener);
+      if (hideMessageTimer.current) clearTimeout(hideMessageTimer.current);
+      if (activeDisabledMessageId === tooltipId) {
+        setActiveDisabledMessage(null);
+      }
+    };
+  }, [tooltipId]);
 
   useEffect(
     () => () => {
@@ -116,8 +155,7 @@ export function Button({
       // delayed work before hiding, so an old callback cannot reopen it.
       interactionId.current += 1;
       suppressHoverUntilLeave.current = true;
-      if (hideMessageTimer.current) clearTimeout(hideMessageTimer.current);
-      setShowDisabledMessage(false);
+      hideDisabledMessage();
     };
     const frame = requestAnimationFrame(showTooltip);
     window.addEventListener("resize", showTooltip);
@@ -127,17 +165,15 @@ export function Button({
       window.removeEventListener("resize", showTooltip);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, [isDisabled, showDisabledMessage, disabledMessage]);
+  }, [isDisabled, showDisabledMessage, disabledMessage, hideDisabledMessage]);
 
   const showMessageAfterTap = () => {
     interactionId.current += 1;
     pointerDownInteraction.current = null;
+    setActiveDisabledMessage(tooltipId);
     setShowDisabledMessage(true);
     if (hideMessageTimer.current) clearTimeout(hideMessageTimer.current);
-    hideMessageTimer.current = setTimeout(
-      () => setShowDisabledMessage(false),
-      2500,
-    );
+    hideMessageTimer.current = setTimeout(hideDisabledMessage, 2500);
   };
 
   if (isDisabled) {
@@ -157,13 +193,14 @@ export function Button({
             !suppressHoverUntilLeave.current
           ) {
             interactionId.current += 1;
+            setActiveDisabledMessage(tooltipId);
             setShowDisabledMessage(true);
           }
         }}
         onPointerLeave={(event) => {
           if (event.pointerType === "mouse") {
             suppressHoverUntilLeave.current = false;
-            setShowDisabledMessage(false);
+            hideDisabledMessage();
           }
         }}
         onClick={() => {
@@ -227,6 +264,10 @@ export function Button({
       disabled={false}
       aria-busy={loading || undefined}
       title={title}
+      onClick={(event) => {
+        setActiveDisabledMessage(null);
+        onClick?.(event);
+      }}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
         VARIANT_STYLES[variant],
