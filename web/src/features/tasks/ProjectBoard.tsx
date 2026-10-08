@@ -23,6 +23,8 @@ import { Modal } from "@/components/Modal";
 import { ViewTabs } from "@/components/ui/ViewTabs";
 import { TaskColumn } from "./TaskColumn";
 import { TaskDrawer } from "./TaskDrawer";
+import { AssignTaskPrompt } from "./AssignTaskPrompt";
+import { shouldPromptForAssignee } from "./assignmentPrompt";
 import { ActivityFeed } from "./ActivityFeed";
 import { MuteToggle } from "@/features/notifications/MuteToggle";
 import {
@@ -30,6 +32,7 @@ import {
   useTaskStats,
   useTaskViewCounts,
   useUpdateTaskStatus,
+  useUpdateTask,
   useArchiveTask,
   useUnarchiveTask,
   useRestoreTask,
@@ -82,6 +85,7 @@ export function ProjectBoard() {
   const canLead = useCan("task:request-update");
   const canManageProject = useCan("project:write");
   const canManageTasks = useCan("task:delete");
+  const canAssign = useCan("task:assign");
   const canUpdateOwnTask = useCan("task:update:own");
 
   const [drawerState, setDrawerState] = useState<DrawerState>(null);
@@ -96,6 +100,10 @@ export function ProjectBoard() {
     permanent: boolean;
   } | null>(null);
   const [keepArchivedTask, setKeepArchivedTask] = useState<Task | null>(null);
+  const [assignPromptTask, setAssignPromptTask] = useState<Task | null>(null);
+  const [assignPromptError, setAssignPromptError] = useState<string | null>(
+    null,
+  );
   const taskColumnsRef = useRef<HTMLDivElement>(null);
   const scrollTaskColumns = (direction: 1 | -1) => {
     const columns = taskColumnsRef.current;
@@ -184,6 +192,7 @@ export function ProjectBoard() {
   );
   const linkedTaskQuery = useTask(orgId, linkedTaskId);
   const updateStatus = useUpdateTaskStatus(orgId, projectId ?? "", filters);
+  const updateTask = useUpdateTask(orgId, projectId ?? "");
   const archiveTask = useArchiveTask(orgId, projectId ?? "");
   const unarchiveTask = useUnarchiveTask(orgId, projectId ?? "");
   const restoreTask = useRestoreTask(orgId, projectId ?? "");
@@ -245,8 +254,13 @@ export function ProjectBoard() {
   };
 
   const handleStatusChange = (task: Task, newStatus: TaskStatus) => {
+    if (shouldPromptForAssignee(task, newStatus, canAssign)) {
+      setAssignPromptError(null);
+      setAssignPromptTask(task);
+      return;
+    }
     updateStatus.mutate(
-      { task, newStatus },
+      { task, newStatus, expectedUpdatedAt: task.updatedAt },
       {
         onSuccess: () => {
           if (newStatus === "done") {
@@ -263,6 +277,32 @@ export function ProjectBoard() {
         },
       },
     );
+  };
+
+  const movePromptTask = async (assigneeIds?: string[]) => {
+    if (!assignPromptTask) return;
+    setAssignPromptError(null);
+    try {
+      if (assigneeIds) {
+        await updateTask.mutateAsync({
+          taskId: assignPromptTask._id,
+          input: {
+            status: "in_progress",
+            assigneeIds,
+            expectedUpdatedAt: assignPromptTask.updatedAt,
+          },
+        });
+      } else {
+        await updateStatus.mutateAsync({
+          task: assignPromptTask,
+          newStatus: "in_progress",
+          expectedUpdatedAt: assignPromptTask.updatedAt,
+        });
+      }
+      setAssignPromptTask(null);
+    } catch (error) {
+      setAssignPromptError(parseApiError(error).message);
+    }
   };
 
   // Forget the link once its task closes, so it doesn't reopen.
@@ -783,6 +823,18 @@ export function ProjectBoard() {
         task={openDrawer?.mode === "edit" ? openDrawer.task : null}
         initialTab={openDrawer?.mode === "edit" ? openDrawer.tab : undefined}
         focusActivityId={linkedTaskId ? linkedMessageId : null}
+      />
+
+      <AssignTaskPrompt
+        key={assignPromptTask?._id ?? "closed"}
+        task={assignPromptTask}
+        members={members}
+        canAssign={canAssign}
+        pending={updateStatus.isPending || updateTask.isPending}
+        error={assignPromptError}
+        onCancel={() => setAssignPromptTask(null)}
+        onMoveWithoutAssignee={() => void movePromptTask()}
+        onAssignAndMove={(assigneeIds) => void movePromptTask(assigneeIds)}
       />
 
       <Modal

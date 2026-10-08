@@ -667,8 +667,9 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
     await assertRoomForActiveTask(tenantId, String(task.projectId), "reopen");
   }
 
+  const { expectedUpdatedAt, ...requestedChanges } = input;
   const changes: UpdateTaskInput & { dueDateIsDateOnly?: boolean } = {
-    ...input,
+    ...requestedChanges,
   };
   if (Object.prototype.hasOwnProperty.call(changes, "dueDate")) {
     if (typeof changes.dueDate === "string") {
@@ -701,6 +702,16 @@ export async function updateTask(taskId: string, input: UpdateTaskInput) {
           409,
           "TASK_CHANGED",
           "This task was just changed by someone else. Refresh and try again.",
+        );
+      }
+      if (
+        expectedUpdatedAt &&
+        new Date(expectedUpdatedAt).getTime() !== fresh.updatedAt.getTime()
+      ) {
+        throw new AppError(
+          409,
+          "TASK_CHANGED",
+          "This task changed while the reminder was open. Refresh and try again.",
         );
       }
       task.set(fresh);

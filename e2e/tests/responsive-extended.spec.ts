@@ -54,6 +54,58 @@ test("extended display matrix keeps core admin pages usable", async ({
     );
   await page.getByRole("button", { name: "Create task" }).click();
 
+  const todoColumn = page.locator('[data-tour="tasks-first-card"]');
+  await todoColumn.getByRole("combobox").first().selectOption("in_progress");
+  const assignmentDialog = page.getByRole("dialog", {
+    name: "Assign this task?",
+  });
+  await expect(assignmentDialog).toBeVisible();
+  for (const viewport of RESPONSIVE_VIEWPORTS.filter(({ width }) =>
+    [320, 390, 768, 1280, 1920].includes(width),
+  )) {
+    await page.setViewportSize({ ...viewport, height: 600 });
+    await expect(assignmentDialog).toBeVisible();
+    for (const actionName of [
+      "Cancel",
+      "Move without assignee",
+      "Assign & Move",
+    ]) {
+      const action = assignmentDialog.getByRole("button", {
+        name: actionName,
+      });
+      await expect(action).toBeVisible();
+      await action.scrollIntoViewIfNeeded();
+      const actionBounds = await action.boundingBox();
+      expect(actionBounds, `${actionName} at ${viewport.name}`).toBeTruthy();
+      expect(actionBounds!.x).toBeGreaterThanOrEqual(0);
+      expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(
+        viewport.width,
+      );
+    }
+    const dialogBounds = await assignmentDialog.boundingBox();
+    expect(dialogBounds, viewport.name).toBeTruthy();
+    expect(dialogBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(dialogBounds!.x + dialogBounds!.width).toBeLessThanOrEqual(
+      viewport.width,
+    );
+    await expectNoHorizontalOverflow(
+      page,
+      `assignment prompt at ${viewport.name}`,
+    );
+  }
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page
+    .getByText(
+      "A long task title used to check wrapping and reachable actions on boards",
+      { exact: true },
+    )
+    .click();
+  await page.getByLabel("Status", { exact: true }).selectOption("in_progress");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(assignmentDialog).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+
   const routes = [
     { path: "dashboard", heading: "Dashboard" },
     { path: "audit", heading: "Audit log" },

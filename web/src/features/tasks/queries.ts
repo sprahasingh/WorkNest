@@ -270,11 +270,11 @@ export function useUpdateTaskStatus(
   return useMutation<
     Task,
     unknown,
-    { task: Task; newStatus: TaskStatus },
+    { task: Task; newStatus: TaskStatus; expectedUpdatedAt?: string },
     UpdateStatusContext
   >({
-    mutationFn: ({ task, newStatus }) =>
-      updateTask(orgId, task._id, { status: newStatus }),
+    mutationFn: ({ task, newStatus, expectedUpdatedAt }) =>
+      updateTask(orgId, task._id, { status: newStatus, expectedUpdatedAt }),
 
     onMutate: async ({ task, newStatus }) => {
       const sourceView: TaskView =
