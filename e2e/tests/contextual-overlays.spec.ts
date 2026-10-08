@@ -107,3 +107,79 @@ test("More menu dismisses predictably at desktop and 320px", async ({
     await expect(menu).toBeHidden();
   }
 });
+
+test("information panels stay readable, positioned, and within responsive viewports", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await signUpAndConfirm(page, uniqueEmail("contextual-info"));
+  const orgId = page.url().match(/\/orgs\/([^/]+)/)?.[1];
+  expect(orgId).toBeTruthy();
+  await page.goto(`/orgs/${orgId}/settings`);
+
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const trigger = page.getByRole("button", {
+      name: "About payments and plan changes",
+    });
+    await trigger.click();
+    const panel = page.getByRole("note");
+    await expect(panel).toContainText("Nothing renews by itself");
+    const bounds = await panel.boundingBox();
+    expect(bounds).toBeTruthy();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height);
+    const close = panel.getByRole("button", { name: "Close information" });
+    expect((await close.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      )
+      .toBe(true);
+
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+    await page.evaluate(() => window.scrollBy(0, 24));
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(scrollBefore);
+    await expect(panel).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const triggerBox = document
+            .querySelector('[aria-label="About payments and plan changes"]')!
+            .getBoundingClientRect();
+          const panelBox = document
+            .querySelector('[role="note"]')!
+            .getBoundingClientRect();
+          return Math.min(
+            Math.abs(panelBox.top - triggerBox.bottom - 8),
+            Math.abs(panelBox.bottom - triggerBox.top + 8),
+          );
+        }),
+      )
+      .toBeLessThan(2);
+
+    await panel.evaluate((element) => {
+      element
+        .querySelector<HTMLElement>(".overflow-y-auto")
+        ?.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+    await expect(panel).toBeVisible();
+
+    await page.evaluate(() =>
+      window.scrollTo(0, document.documentElement.scrollHeight),
+    );
+    await expect(panel).toBeHidden();
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+});

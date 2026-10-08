@@ -207,7 +207,6 @@ function PanelBody({ onClose }: { onClose: () => void }) {
             id={helpId}
             open={helpOpen}
             onClose={() => setHelpOpen(false)}
-            className="mx-4 mb-2 mt-3"
           >
             Reminders stay unread until you dismiss them. Opening any other
             notification marks it as read. Dismiss (×) removes one from your

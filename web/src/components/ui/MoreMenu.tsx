@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { useContextualOverlay } from "@/hooks/useContextualOverlay";
 
@@ -16,9 +17,48 @@ export function MoreMenu({
   triggerText,
 }: MoreMenuProps) {
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+    maxHeight: number;
+  } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   useContextualOverlay(open, triggerRef, menuRef, () => setOpen(false));
+  useLayoutEffect(() => {
+    if (!open) return;
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      const menu = menuRef.current;
+      if (!trigger || !menu) return;
+      const anchor = trigger.getBoundingClientRect();
+      const bounds = menu.getBoundingClientRect();
+      const margin = 8;
+      const gap = 4;
+      const below = window.innerHeight - anchor.bottom - margin - gap;
+      const above = anchor.top - margin - gap;
+      const openAbove = below < Math.min(bounds.height, 180) && above > below;
+      const maxHeight = Math.max(80, openAbove ? above : below);
+      const height = Math.min(bounds.height, maxHeight);
+      setPosition({
+        top: openAbove
+          ? Math.max(margin, anchor.top - height - gap)
+          : Math.min(anchor.bottom + gap, window.innerHeight - height - margin),
+        left: Math.min(
+          Math.max(margin, anchor.right - bounds.width),
+          window.innerWidth - bounds.width - margin,
+        ),
+        maxHeight,
+      });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
   return (
     <div className={cn("relative", className)}>
       <button
@@ -48,19 +88,27 @@ export function MoreMenu({
           </svg>
         )}
       </button>
-      {open && (
-        <div
-          ref={menuRef}
-          role="menu"
-          className="absolute right-0 z-30 mt-1 min-w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
-          onClick={(event) => {
-            if ((event.target as HTMLElement).closest("button, a"))
-              setOpen(false);
-          }}
-        >
-          {children}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            className="fixed z-[80] min-w-40 overflow-y-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+            style={{
+              top: position?.top ?? 0,
+              left: position?.left ?? 0,
+              maxHeight: position?.maxHeight ?? "calc(100dvh - 1rem)",
+              visibility: position ? "visible" : "hidden",
+            }}
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest("button, a"))
+                setOpen(false);
+            }}
+          >
+            {children}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

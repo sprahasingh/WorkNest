@@ -304,21 +304,15 @@ describe("Settings upgrade restore flow", () => {
       }),
     );
     expect(
-      within(dialog).getByText(
+      screen.getByText(
         /A paid downgrade does not itself archive or delete resources/i,
       ),
     ).toBeTruthy();
+    expect(screen.getByText(/Premium access continues until/i)).toBeTruthy();
+    expect(screen.getByText(/10-day grace starts at that expiry/i)).toBeTruthy();
+    expect(screen.getByText(/verified Pro payment stays pending/i)).toBeTruthy();
     expect(
-      within(dialog).getByText(/Premium access continues until/i),
-    ).toBeTruthy();
-    expect(
-      within(dialog).getByText(/10-day grace starts at that expiry/i),
-    ).toBeTruthy();
-    expect(
-      within(dialog).getByText(/verified Pro payment stays pending/i),
-    ).toBeTruthy();
-    expect(
-      within(dialog).getByText(/reviewed for restoration after usage fits/i),
+      screen.getByText(/reviewed for restoration after usage fits/i),
     ).toBeTruthy();
     expect(
       within(dialog).getByRole("button", { name: "Continue to Payment" }),

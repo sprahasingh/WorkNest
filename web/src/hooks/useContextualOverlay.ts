@@ -5,6 +5,8 @@ type Entry = {
   trigger: () => HTMLElement | null;
   overlay: () => HTMLElement | null;
   close: (reason: ContextualOverlayCloseReason) => void;
+  dismissOnScroll: boolean;
+  onScroll?: () => void;
 };
 
 export type ContextualOverlayCloseReason =
@@ -15,12 +17,13 @@ let generation = 0;
 let listening = false;
 let scrollListening = false;
 let clickListening = false;
-let lastPointerDown: { path: EventTarget[]; generation: number } | null = null;
+let lastPointerDown: { target: EventTarget | null; generation: number } | null =
+  null;
 const scrollDismissals = new Set<() => void>();
 
 function onPointerDown(event: PointerEvent) {
   const path = event.composedPath();
-  lastPointerDown = { path, generation };
+  lastPointerDown = { target: event.target, generation };
   const entry = active;
   if (!entry) return;
   if (
@@ -33,7 +36,8 @@ function onPointerDown(event: PointerEvent) {
 function onScroll() {
   generation += 1;
   const entry = active;
-  entry?.close("scroll");
+  if (entry?.dismissOnScroll) entry.close("scroll");
+  else entry?.onScroll?.();
   for (const dismiss of scrollDismissals) dismiss();
 }
 
@@ -50,21 +54,30 @@ function stopScrollListeningIfIdle() {
 }
 
 function onClick(event: MouseEvent) {
-  if (
-    lastPointerDown &&
-    lastPointerDown.generation !== generation &&
-    event
-      .composedPath()
-      .some((target) => lastPointerDown?.path.includes(target))
-  ) {
-    lastPointerDown = null;
+  const pointerDown = lastPointerDown;
+  if (!pointerDown) return;
+  lastPointerDown = null;
+  if (pointerDown.generation === generation) return;
+
+  const interactiveControl = (target: EventTarget | null) =>
+    target instanceof Element
+      ? target.closest(
+          "button, a, input, select, textarea, [role='button'], [role='menuitem']",
+        )
+      : null;
+  const pointerControl = interactiveControl(pointerDown.target);
+  const clickControl = interactiveControl(event.target);
+  if (pointerControl && pointerControl === clickControl) {
     event.preventDefault();
     event.stopImmediatePropagation();
   }
 }
 
 function onKeyDown(event: KeyboardEvent) {
-  if (event.key === "Escape") active?.close("escape");
+  if (event.key !== "Escape" || !active) return;
+  active.close("escape");
+  event.preventDefault();
+  event.stopPropagation();
 }
 
 function startListening() {
@@ -76,14 +89,14 @@ function startListening() {
     document.addEventListener("click", onClick, true);
   }
   startScrollListening();
-  window.addEventListener("keydown", onKeyDown);
+  document.addEventListener("keydown", onKeyDown, true);
 }
 
 function stopListening() {
   if (!listening || active) return;
   listening = false;
   stopScrollListeningIfIdle();
-  window.removeEventListener("keydown", onKeyDown);
+  document.removeEventListener("keydown", onKeyDown, true);
 }
 
 export function useContextualOverlay(
@@ -91,13 +104,18 @@ export function useContextualOverlay(
   triggerRef: { current: HTMLElement | null },
   overlayRef: { current: HTMLElement | null },
   onClose: (reason: ContextualOverlayCloseReason) => void,
+  options: { dismissOnScroll?: boolean; onScroll?: () => void } = {},
 ) {
   const location = useLocation();
   const closeRef = useRef(onClose);
+  const scrollRef = useRef(options.onScroll);
   const previousPath = useRef(location.pathname);
   useLayoutEffect(() => {
     closeRef.current = onClose;
   }, [onClose]);
+  useLayoutEffect(() => {
+    scrollRef.current = options.onScroll;
+  }, [options.onScroll]);
 
   useEffect(() => {
     if (!open) return;
@@ -105,6 +123,8 @@ export function useContextualOverlay(
       trigger: () => triggerRef.current,
       overlay: () => overlayRef.current,
       close: (reason) => closeRef.current(reason),
+      dismissOnScroll: options.dismissOnScroll ?? true,
+      onScroll: () => scrollRef.current?.(),
     };
     if (active && active !== entry) active.close("replaced");
     active = entry;
@@ -114,7 +134,7 @@ export function useContextualOverlay(
       stopScrollListeningIfIdle();
       stopListening();
     };
-  }, [open, triggerRef, overlayRef]);
+  }, [open, triggerRef, overlayRef, options.dismissOnScroll]);
 
   useEffect(() => {
     if (previousPath.current !== location.pathname && open)

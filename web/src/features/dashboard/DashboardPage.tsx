@@ -325,12 +325,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <InfoPanel
-          id={keyId}
-          open={keyOpen}
-          onClose={() => setKeyOpen(false)}
-          className="-mt-3"
-        >
+        <InfoPanel id={keyId} open={keyOpen} onClose={() => setKeyOpen(false)}>
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             Each card is tagged with the time it covers.
             <ScopeTag scope={{ now: true }} />
