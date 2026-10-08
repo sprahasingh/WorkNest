@@ -5,6 +5,7 @@ export const createOrderSchema = z
   .object({
     plan: z.enum(["pro", "premium"]),
     billingCycle: z.enum(BILLING_CYCLES).default("monthly"),
+    quoteToken: z.string().min(1).max(4096).optional(),
   })
   .strict();
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
@@ -15,6 +16,10 @@ export const verifyPaymentSchema = z
     paymentId: z.string().min(1).max(100),
     signature: z.string().min(1).max(200),
   })
+  .strict();
+
+export const scheduleFreeDowngradeSchema = z
+  .object({ impactFingerprint: z.string().min(32).max(128) })
   .strict();
 export type VerifyPaymentInput = z.infer<typeof verifyPaymentSchema>;
 

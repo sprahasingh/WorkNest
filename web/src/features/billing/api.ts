@@ -6,14 +6,25 @@ export interface BillingConfig {
   // True for the demo and test accounts that may move a plan's end date.
   testControls: boolean;
   enabled: boolean;
+  simulationAllowed: boolean;
   keyId: string | null;
   prices: Record<Plan, Record<BillingCycle, number>>;
   // What buying each plan costs this organization right now, in paise. Null
   // where it can't be bought (a lower plan).
-  quotes: Record<
-    "pro" | "premium",
-    Record<BillingCycle, { amount: number } | null>
-  >;
+  quotes: Record<"pro" | "premium", Record<BillingCycle, PlanQuote | null>>;
+  impacts: Partial<Record<Plan, PlanImpact>>;
+  current: {
+    plan: Plan;
+    billingCycle: BillingCycle | null;
+    planExpiresAt: string | null;
+  };
+  scheduledChange: null | {
+    plan: Plan;
+    billingCycle: BillingCycle | null;
+    startsAt: string;
+    expiresAt: string | null;
+    prepaid: boolean;
+  };
   payments: {
     id: string;
     plan: Plan;
@@ -23,13 +34,48 @@ export interface BillingConfig {
   }[];
 }
 
+export interface PlanImpact {
+  plan: Plan;
+  capturedAt: string;
+  seats: { used: number; limit: number; exceeded: boolean };
+  projects: { active: number; limit: number; exceeded: boolean };
+  tasks: {
+    limit: number | null;
+    exceededProjectCount: number;
+    overages: {
+      projectId: string;
+      projectName: string;
+      activeCount: number;
+      limit: number;
+    }[];
+  };
+  withinLimits: boolean;
+  fingerprint: string;
+}
+
+export interface PlanQuote {
+  amount: number;
+  expiresAt: string;
+  startsAt: string;
+  originalPricePaise: number;
+  unusedCreditPaise: number;
+  creditAppliedPaise: number;
+  proratedChargePaise: number;
+  completePeriods: number;
+  partialPeriodMs: number;
+  scheduled: boolean;
+  impact: PlanImpact | null;
+  quoteToken: string;
+}
+
 export interface PaymentOrder {
-  orderId: string;
+  orderId: string | null;
   amount: number;
   currency: string;
-  keyId: string;
+  keyId: string | null;
   plan: Plan;
   billingCycle: BillingCycle;
+  paidByCredit?: boolean;
 }
 
 export async function getBillingConfig(orgId: string): Promise<BillingConfig> {
@@ -37,14 +83,28 @@ export async function getBillingConfig(orgId: string): Promise<BillingConfig> {
   return response.data;
 }
 
+export async function scheduleFreeDowngrade(
+  orgId: string,
+  impactFingerprint: string,
+): Promise<void> {
+  await apiClient.post(`/orgs/${orgId}/billing/schedule-free`, {
+    impactFingerprint,
+  });
+}
+
+export async function cancelScheduledChange(orgId: string): Promise<void> {
+  await apiClient.delete(`/orgs/${orgId}/billing/scheduled-change`);
+}
+
 export async function createPaymentOrder(
   orgId: string,
   plan: Exclude<Plan, "free">,
   billingCycle: BillingCycle,
+  quoteToken?: string,
 ): Promise<PaymentOrder> {
   const response = await apiClient.post<PaymentOrder>(
     `/orgs/${orgId}/billing/order`,
-    { plan, billingCycle },
+    { plan, billingCycle, quoteToken },
   );
   return response.data;
 }

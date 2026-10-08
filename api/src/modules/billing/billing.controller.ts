@@ -6,6 +6,8 @@ import {
   applyPaidOrder,
   confirmPayment,
   createOrder,
+  scheduleFreeDowngrade,
+  cancelScheduledChange,
   getBillingConfig,
   setTestPlanDates,
 } from "./billing.service.js";
@@ -27,7 +29,26 @@ export async function createOrderController(
   res: Response,
 ): Promise<void> {
   const input = req.validated!.body as CreateOrderInput;
-  res.status(201).json(await createOrder(input.plan, input.billingCycle));
+  res
+    .status(201)
+    .json(await createOrder(input.plan, input.billingCycle, input.quoteToken));
+}
+
+export async function scheduleFreeDowngradeController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as { impactFingerprint: string };
+  res.status(200).json({
+    organization: await scheduleFreeDowngrade(input.impactFingerprint),
+  });
+}
+
+export async function cancelScheduledChangeController(
+  _req: Request,
+  res: Response,
+): Promise<void> {
+  res.status(200).json({ organization: await cancelScheduledChange() });
 }
 
 export async function verifyPaymentController(

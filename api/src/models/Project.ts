@@ -1,4 +1,9 @@
-import { Schema, model, type InferSchemaType } from "mongoose";
+import {
+  Schema,
+  model,
+  type ClientSession,
+  type InferSchemaType,
+} from "mongoose";
 import { tenantPlugin } from "../tenancy/plugin.js";
 
 const projectSchema = new Schema(
@@ -64,6 +69,8 @@ export const Project = model("Project", projectSchema);
 
 // Ids of this org's projects in the bin, to leave their tasks and
 // notifications out of counts and lists.
-export async function binnedProjectIds() {
-  return Project.find({ deletedAt: { $ne: null } }).distinct("_id");
+export async function binnedProjectIds(session?: ClientSession) {
+  return Project.find({ deletedAt: { $ne: null } })
+    .session(session ?? null)
+    .distinct("_id");
 }

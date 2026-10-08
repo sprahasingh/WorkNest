@@ -59,12 +59,20 @@ export async function payForPlan(
   plan: Exclude<Plan, "free">,
   billingCycle: BillingCycle,
   prefill: { name?: string; email?: string },
+  quoteToken?: string,
 ): Promise<PaymentResult> {
   const order: PaymentOrder = await createPaymentOrder(
     orgId,
     plan,
     billingCycle,
+    quoteToken,
   );
+  if (order.paidByCredit) return { status: "paid" };
+  const orderId = order.orderId;
+  const keyId = order.keyId;
+  if (!orderId || !keyId) {
+    throw new Error("The payment order couldn't be created.");
+  }
   await loadCheckoutScript();
   const Razorpay = window.Razorpay;
   if (!Razorpay) throw new Error("The payment window couldn't be loaded.");
@@ -72,10 +80,10 @@ export async function payForPlan(
   return new Promise<PaymentResult>((resolve, reject) => {
     let lastFailure: string | undefined;
     const checkout = new Razorpay({
-      key: order.keyId,
+      key: keyId,
       amount: order.amount,
       currency: order.currency,
-      order_id: order.orderId,
+      order_id: orderId,
       name: "WorkNest",
       description: `${plan === "pro" ? "Pro" : "Premium"} plan, ${billingCycle}`,
       prefill,

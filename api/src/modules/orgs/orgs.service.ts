@@ -233,7 +233,19 @@ export async function updateOrg(input: UpdateOrgInput) {
 export async function changePlan(
   newPlan: Plan,
   payment?: { paymentId: string; orderId: string; amount: number },
-  period: { expiresAt: Date; cycle: BillingCycle } | null = null,
+  period: {
+    expiresAt: Date;
+    cycle: BillingCycle;
+    creditStartedAt: Date;
+    creditValuePaise: number;
+  } | null = null,
+  expectedState?: {
+    plan: Plan;
+    planExpiresAt: string | null;
+    billingCycle: BillingCycle | null;
+    planCreditStartedAt: string | null;
+    planCreditValuePaise: number | null;
+  },
 ) {
   const tenantId = requireTenantId();
   const limits = PLAN_LIMITS[newPlan];
@@ -246,6 +258,37 @@ export async function changePlan(
       const previous = await Organization.findById(tenantId)
         .session(dbSession)
         .setOptions({ skipTenant: true });
+      const previousExpiresAt = previous?.get("planExpiresAt") as
+        Date | null | undefined;
+      const previousCreditStartedAt = previous?.get("planCreditStartedAt") as
+        Date | null | undefined;
+
+      if (previous?.get("scheduledPlan")) {
+        throw new AppError(
+          409,
+          "PENDING_PLAN_CHANGE",
+          "Cancel the scheduled plan change before starting another billing action.",
+        );
+      }
+
+      if (
+        expectedState &&
+        (!previous ||
+          previous.plan !== expectedState.plan ||
+          (previousExpiresAt?.toISOString() ?? null) !==
+            expectedState.planExpiresAt ||
+          (previous.billingCycle ?? null) !== expectedState.billingCycle ||
+          (previousCreditStartedAt?.toISOString() ?? null) !==
+            expectedState.planCreditStartedAt ||
+          (previous.planCreditValuePaise ?? null) !==
+            expectedState.planCreditValuePaise)
+      ) {
+        throw new AppError(
+          409,
+          "QUOTE_EXPIRED",
+          "Your subscription changed. Refresh the quote.",
+        );
+      }
 
       // Projects already holding more open tasks than the new plan allows.
       // Same rule as the check after a plan ends (see taskUsage.ts).
@@ -291,9 +334,19 @@ export async function changePlan(
           // Moving down to another paid plan keeps the period already paid
           // for; only Free clears it.
           ...(newPlan === "free"
-            ? { planExpiresAt: null, billingCycle: null }
+            ? {
+                planExpiresAt: null,
+                billingCycle: null,
+                planCreditStartedAt: null,
+                planCreditValuePaise: null,
+              }
             : period
-              ? { planExpiresAt: period.expiresAt, billingCycle: period.cycle }
+              ? {
+                  planExpiresAt: period.expiresAt,
+                  billingCycle: period.cycle,
+                  planCreditStartedAt: period.creditStartedAt,
+                  planCreditValuePaise: period.creditValuePaise,
+                }
               : {}),
           // A fresh plan change replaces the "your plan expired" notice.
           ...(newPlan === "free"

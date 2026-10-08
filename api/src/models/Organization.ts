@@ -11,6 +11,25 @@ const organizationSchema = new Schema(
     // paid plan from before plans expired).
     planExpiresAt: { type: Date, default: null },
     billingCycle: { type: String, enum: BILLING_CYCLES, default: null },
+    // Value paid for the coverage between this date and planExpiresAt. This
+    // lets cycle changes credit the unused portion of early renewals too.
+    planCreditStartedAt: { type: Date, default: null },
+    planCreditValuePaise: { type: Number, default: null },
+    // A future selection never changes current entitlements. Paid selections
+    // point to the verified payment that funds the future term.
+    scheduledPlan: { type: String, enum: [...PLANS, null], default: null },
+    scheduledBillingCycle: {
+      type: String,
+      enum: [...BILLING_CYCLES, null],
+      default: null,
+    },
+    scheduledStartsAt: { type: Date, default: null },
+    scheduledExpiresAt: { type: Date, default: null },
+    scheduledPaymentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Payment",
+      default: null,
+    },
     // Set when a paid plan ran out and the organization went back to Free, so
     // the app can tell people why. Cleared on the next upgrade.
     planExpiredAt: { type: Date, default: null },

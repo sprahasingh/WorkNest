@@ -4,12 +4,14 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Organization } from "../src/features/org/api";
 import type { ListProjectsResponse } from "../src/features/projects/api";
+import { AxiosError } from "axios";
 
 const mocks = vi.hoisted(() => ({
   plan: "free" as "free" | "pro" | "premium",
@@ -19,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   getOrg: vi.fn(),
   changePlan: vi.fn(),
   payForPlan: vi.fn(),
+  billingImpact: null as unknown,
 }));
 
 vi.mock("../src/hooks/useOrg", () => ({
@@ -58,12 +61,47 @@ vi.mock("../src/features/billing/queries", () => ({
     queryKey: ["billing-test"],
     queryFn: async () => ({
       enabled: mocks.paymentsEnabled,
+      simulationAllowed: !mocks.paymentsEnabled,
       testControls: false,
+      current: {
+        plan: mocks.plan,
+        billingCycle: "monthly",
+        planExpiresAt: null,
+      },
+      impacts: mocks.billingImpact
+        ? { free: mocks.billingImpact, pro: mocks.billingImpact }
+        : {},
+      quotes: mocks.paymentsEnabled
+        ? {
+            pro: {
+              monthly: {
+                amount: 44900,
+                originalPricePaise: 44900,
+                unusedCreditPaise: 0,
+                creditAppliedPaise: 0,
+                proratedChargePaise: 44900,
+                completePeriods: 1,
+                partialPeriodMs: 0,
+                scheduled: true,
+                startsAt: "2026-11-01T00:00:00.000Z",
+                expiresAt: "2026-12-01T00:00:00.000Z",
+                impact: mocks.billingImpact,
+                quoteToken: "quote-test",
+              },
+              yearly: null,
+            },
+            premium: { monthly: null, yearly: null },
+          }
+        : {},
     }),
   }),
 }));
 vi.mock("../src/features/billing/razorpay", () => ({
   payForPlan: mocks.payForPlan,
+}));
+vi.mock("../src/features/billing/api", () => ({
+  cancelScheduledChange: vi.fn(),
+  scheduleFreeDowngrade: vi.fn(),
 }));
 vi.mock("../src/features/settings/ChatRetentionCard", () => ({
   ChatRetentionCard: () => null,
@@ -176,6 +214,7 @@ beforeEach(() => {
   localStorage.clear();
   mocks.plan = "free";
   mocks.paymentsEnabled = false;
+  mocks.billingImpact = null;
   mocks.getOrg.mockImplementation(async () => makeOrg());
   mocks.listProjects.mockResolvedValue(archivedResponse);
   mocks.listPlanArchivedRestoreTasks.mockResolvedValue([]);
@@ -197,6 +236,187 @@ afterEach(() => {
 });
 
 describe("Settings upgrade restore flow", () => {
+  it("shows server-calculated downgrade impact, explanations, and affected projects in the review", async () => {
+    mocks.plan = "premium";
+    mocks.paymentsEnabled = true;
+    mocks.billingImpact = {
+      plan: "pro",
+      capturedAt: "2026-10-08T10:00:00.000Z",
+      seats: { used: 42, limit: 30, exceeded: true },
+      projects: { active: 31, limit: 25, exceeded: true },
+      tasks: {
+        limit: 50,
+        exceededProjectCount: 2,
+        overages: [
+          {
+            projectId: "p1",
+            projectName: "Project A",
+            activeCount: 68,
+            limit: 50,
+          },
+          {
+            projectId: "p2",
+            projectName: "Project B",
+            activeCount: 55,
+            limit: 50,
+          },
+        ],
+      },
+      withinLimits: false,
+      fingerprint: "a".repeat(64),
+    };
+    mocks.getOrg.mockResolvedValue({
+      ...baseOrg,
+      plan: "premium",
+      planExpiresAt: "2026-11-01T00:00:00.000Z",
+      planExpiredAt: null,
+      graceEnforcedAt: null,
+      seatLimit: 100,
+      projectLimit: 50,
+    });
+    mountSettings();
+    await waitForInitialSettings();
+    fireEvent.click(screen.getByRole("button", { name: /Switch to Pro/ }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Review subscription change",
+    });
+    expect(
+      within(dialog).getByText(/Review usage above the Pro plan limits/),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByText("Your Pro subscription may start later"),
+    ).toBeTruthy();
+    expect(within(dialog).getByText("Members: 42 / 30 allowed")).toBeTruthy();
+    expect(
+      within(dialog).getByText("Active projects: 31 / 25 allowed"),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByText(
+        "2 active projects exceed 50 open tasks per project",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(within(dialog).getByText("Show affected projects (2)"));
+    expect(within(dialog).getByText("Project A: 68 / 50 allowed")).toBeTruthy();
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "How downgrade limits affect this workspace",
+      }),
+    );
+    expect(
+      within(dialog).getByText(
+        /A paid downgrade does not itself archive or delete resources/i,
+      ),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByText(/Premium access continues until/i),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByText(/10-day grace starts at that expiry/i),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByText(/verified Pro payment stays pending/i),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByText(/reviewed for restoration after usage fits/i),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByRole("button", { name: "Continue to Payment" }),
+    ).toBeTruthy();
+    expect(mocks.payForPlan).not.toHaveBeenCalled();
+    const refreshedImpact = {
+      ...(mocks.billingImpact as Record<string, unknown>),
+      seats: { used: 20, limit: 30, exceeded: false },
+      projects: { active: 4, limit: 25, exceeded: false },
+      tasks: { limit: 50, exceededProjectCount: 0, overages: [] },
+      withinLimits: true,
+      fingerprint: "b".repeat(64),
+    };
+    mocks.payForPlan.mockImplementationOnce(async () => {
+      mocks.billingImpact = refreshedImpact;
+      throw new AxiosError(
+        "Usage changed",
+        "USAGE_CHANGED",
+        undefined,
+        undefined,
+        {
+          data: {
+            error: {
+              code: "USAGE_CHANGED",
+              message: "Workspace usage changed",
+              details: [refreshedImpact],
+            },
+          },
+          status: 409,
+          statusText: "Conflict",
+          headers: {},
+          config: {} as never,
+        },
+      );
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Continue to Payment" }),
+    );
+    expect(
+      await within(dialog).findByText("Members: 20 / 30 allowed"),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByText(
+        /Workspace usage changed\. The impact above has been refreshed/,
+      ),
+    ).toBeTruthy();
+    expect(
+      within(dialog).getByText("Current usage fits the Pro plan limits"),
+    ).toBeTruthy();
+    expect(
+      within(dialog).queryByText("Your Pro subscription may start later"),
+    ).toBeNull();
+    expect(mocks.payForPlan).toHaveBeenCalledWith(
+      "org-1",
+      "pro",
+      "monthly",
+      expect.any(Object),
+      "quote-test",
+    );
+  });
+
+  it("does not show the temporary-Free warning when Premium usage fits Pro", async () => {
+    mocks.plan = "premium";
+    mocks.paymentsEnabled = true;
+    mocks.billingImpact = {
+      plan: "pro",
+      capturedAt: "2026-10-08T10:00:00.000Z",
+      seats: { used: 12, limit: 30, exceeded: false },
+      projects: { active: 8, limit: 25, exceeded: false },
+      tasks: { limit: 50, exceededProjectCount: 0, overages: [] },
+      withinLimits: true,
+      fingerprint: "c".repeat(64),
+    };
+    mocks.getOrg.mockResolvedValue({
+      ...baseOrg,
+      plan: "premium",
+      planExpiresAt: "2026-11-01T00:00:00.000Z",
+      planExpiredAt: null,
+      graceEnforcedAt: null,
+      seatLimit: 100,
+      projectLimit: 50,
+    });
+    mountSettings();
+    await waitForInitialSettings();
+    fireEvent.click(screen.getByRole("button", { name: /Switch to Pro/ }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Review subscription change",
+    });
+    expect(
+      within(dialog).getByText("Current usage fits the Pro plan limits"),
+    ).toBeTruthy();
+    expect(
+      within(dialog).queryByText("Your Pro subscription may start later"),
+    ).toBeNull();
+    expect(mocks.payForPlan).not.toHaveBeenCalled();
+  });
+
   it("does not show a prompt for existing archived resources on a normal Settings visit", async () => {
     mocks.plan = "pro";
     mocks.listProjects.mockResolvedValue({
@@ -222,6 +442,13 @@ describe("Settings upgrade restore flow", () => {
     await waitForInitialSettings();
 
     fireEvent.click(screen.getByRole("button", { name: /Upgrade to Pro/ }));
+    const review = await screen.findByRole("dialog", {
+      name: "Review subscription change",
+    });
+    expect(mocks.payForPlan).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(review).getByRole("button", { name: "Continue to Payment" }),
+    );
 
     await waitFor(() => expect(mocks.payForPlan).toHaveBeenCalled());
     await waitFor(() =>
@@ -239,6 +466,13 @@ describe("Settings upgrade restore flow", () => {
     await waitForInitialSettings();
 
     fireEvent.click(screen.getByRole("button", { name: /Upgrade to Pro/ }));
+    const review = await screen.findByRole("dialog", {
+      name: "Review subscription change",
+    });
+    expect(mocks.changePlan).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(review).getByRole("button", { name: "Confirm Change" }),
+    );
 
     await waitFor(() =>
       expect(mocks.changePlan).toHaveBeenCalledWith("org-1", "pro"),

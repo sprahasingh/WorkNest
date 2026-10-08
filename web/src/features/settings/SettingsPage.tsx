@@ -45,6 +45,10 @@ import { LeaveOrganizationCard } from "./LeaveOrganizationCard";
 import { SessionsCard } from "./SessionsCard";
 import { billingQuery } from "@/features/billing/queries";
 import { payForPlan } from "@/features/billing/razorpay";
+import {
+  cancelScheduledChange,
+  scheduleFreeDowngrade,
+} from "@/features/billing/api";
 import { TestPaymentBox } from "@/features/billing/TestPaymentBox";
 import { TestPlanDatesBox } from "@/features/billing/TestPlanDatesBox";
 import { copyTestCard } from "@/features/billing/testDetails";
@@ -859,6 +863,22 @@ export function SettingsPage() {
   const [switchNotice, setSwitchNotice] = useState<Plan | null>(null);
   const [planInfoOpen, setPlanInfoOpen] = useState(false);
   const [payingFor, setPayingFor] = useState<Plan | null>(null);
+  const [planReview, setPlanReview] = useState<Plan | null>(null);
+  const [pendingReplacement, setPendingReplacement] = useState<Plan | null>(
+    null,
+  );
+  const [quoteExpired, setQuoteExpired] = useState(false);
+  const [impactChanged, setImpactChanged] = useState(false);
+  const [reviewHelp, setReviewHelp] = useState<string | null>(null);
+  const reviewHelpIds = {
+    credit: useId(),
+    upgrade: useId(),
+    expiry: useId(),
+    amount: useId(),
+    downgrade: useId(),
+    free: useId(),
+    impact: useId(),
+  };
   const [handledRestoreSignature, setHandledRestoreSignature] = useState(() =>
     readHandledRestoreSignature(orgId),
   );
@@ -870,6 +890,11 @@ export function SettingsPage() {
     ...billingQuery(orgId),
     enabled: canChangePlan,
   });
+  const openPlanReview = (plan: Plan) => {
+    setImpactChanged(false);
+    setQuoteExpired(false);
+    setPlanReview(plan);
+  };
   const paymentsOn = billing.data?.enabled === true;
   const testMode = billing.data?.keyId?.startsWith("rzp_test_") === true;
   const eligibleArchivedProjects = eligibleRestoreCandidates(
@@ -1016,28 +1041,30 @@ export function SettingsPage() {
       org.plan !== "free" &&
       org.planExpiresAt &&
       new Date(org.planExpiresAt) > new Date() &&
-      PLAN_ORDER.indexOf(newPlan) < PLAN_ORDER.indexOf(org.plan)
+      PLAN_ORDER.indexOf(newPlan) < PLAN_ORDER.indexOf(org.plan) &&
+      planReview !== newPlan
     ) {
-      setSwitchNotice(newPlan);
+      openPlanReview(newPlan);
       return;
     }
     // Moving up, or renewing the current plan, costs money when payments are
     // on; moving down never does.
-    if (
-      paymentsOn &&
-      newPlan !== "free" &&
-      PLAN_ORDER.indexOf(newPlan) >=
-        PLAN_ORDER.indexOf((org?.plan ?? "free") as Plan)
-    ) {
+    if (paymentsOn && newPlan !== "free") {
       setPayingFor(newPlan);
       // Razorpay's window covers the screen once it opens, so in test mode the
       // card number is already on the clipboard, ready to paste.
       if (testMode) void copyTestCard();
       try {
-        const result = await payForPlan(orgId, newPlan, cycle, {
-          name: signedInUser?.name,
-          email: signedInUser?.email,
-        });
+        const result = await payForPlan(
+          orgId,
+          newPlan,
+          cycle,
+          {
+            name: signedInUser?.name,
+            email: signedInUser?.email,
+          },
+          billing.data?.quotes?.[newPlan]?.[cycle]?.quoteToken,
+        );
         if (result.status === "dismissed" && result.reason) {
           const tryTestCard = testMode && /international/i.test(result.reason);
           toast.error("The payment didn't go through", {
@@ -1053,7 +1080,15 @@ export function SettingsPage() {
           });
         }
         if (result.status === "paid") {
-          toast.success(`Payment received. You're now on the ${name} plan`);
+          setPlanReview(null);
+          const scheduled =
+            PLAN_ORDER.indexOf(newPlan) <
+            PLAN_ORDER.indexOf(org?.plan ?? "free");
+          toast.success(
+            scheduled
+              ? `Payment received. ${name} is scheduled for ${formatPlanDate(org?.planExpiresAt)}`
+              : `Payment received. You're now on the ${name} plan`,
+          );
           void queryClient.invalidateQueries({
             queryKey: orgKeys.detail(orgId),
           });
@@ -1069,20 +1104,65 @@ export function SettingsPage() {
           });
         }
       } catch (error) {
+        const parsed = parseApiError(error);
+        if (parsed.code === "QUOTE_EXPIRED") setQuoteExpired(true);
+        if (parsed.code === "USAGE_CHANGED") {
+          setImpactChanged(true);
+          await billing.refetch();
+          return;
+        }
+        if (parsed.code === "PAYMENT_PROCESSING") {
+          setPlanReview(null);
+          toast.info("Payment verified; subscription update is processing", {
+            description:
+              "The plan change will appear in Settings once it finishes. Refresh Plans shortly.",
+          });
+          void billing.refetch();
+          void queryClient.invalidateQueries({
+            queryKey: orgKeys.detail(orgId),
+          });
+          return;
+        }
         toast.error("The payment didn't go through", {
-          description: parseApiError(error).message,
+          description: parsed.message,
         });
       } finally {
         setPayingFor(null);
       }
       return;
     }
+    if (newPlan === "free") {
+      try {
+        const fingerprint = billing.data?.impacts.free?.fingerprint;
+        if (!fingerprint) {
+          await billing.refetch();
+          setImpactChanged(true);
+          return;
+        }
+        await scheduleFreeDowngrade(orgId, fingerprint);
+        setPlanReview(null);
+        toast.success("Free is scheduled for your plan expiry");
+        await billing.refetch();
+        void queryClient.invalidateQueries({ queryKey: orgKeys.detail(orgId) });
+      } catch (error) {
+        const parsed = parseApiError(error);
+        if (parsed.code === "USAGE_CHANGED") {
+          setImpactChanged(true);
+          await billing.refetch();
+          return;
+        }
+        toast.error(parsed.message);
+      }
+      return;
+    }
     try {
       await changePlan.mutateAsync(newPlan);
+      setPlanReview(null);
       toast.success(`You're now on the ${name} plan`);
       void refreshRestoreCandidates(queryClient, orgId);
     } catch (error) {
       const parsed = parseApiError(error);
+      if (parsed.code === "QUOTE_EXPIRED") setQuoteExpired(true);
 
       if (parsed.code === "PLAN_ACTIVE_UNTIL_END") {
         setSwitchNotice(newPlan);
@@ -1162,10 +1242,36 @@ export function SettingsPage() {
     const amount =
       billing.data?.quotes?.[plan]?.[cycle]?.amount ??
       PLAN_PRICE_PAISE[plan][cycle];
+    if (amount === 0) return " · Covered by plan credit";
     return ` \u00B7 ${formatRupees(amount)}`;
   };
   const planEndsAt = org.planExpiresAt ? new Date(org.planExpiresAt) : null;
   const pendingPlan = changePlan.isPending ? changePlan.variables : null;
+  const selectedQuote =
+    planReview && planReview !== "free"
+      ? billing.data?.quotes?.[planReview]?.[cycle]
+      : null;
+  const selectedImpact = planReview
+    ? (billing.data?.impacts?.[planReview] ?? selectedQuote?.impact ?? null)
+    : null;
+  const premiumToProOverLimit =
+    planReview === "pro" &&
+    currentPlan === "premium" &&
+    selectedImpact !== null &&
+    !selectedImpact.withinLimits;
+  const pendingChange = billing.data?.scheduledChange ?? null;
+  const formatPlanDate = (value: string | Date | null | undefined) => {
+    if (!value) return "No expiry date";
+    return `${new Intl.DateTimeFormat(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: org.timeZone ?? "UTC",
+      timeZoneName: "short",
+    }).format(new Date(value))} (${org.timeZone ?? "UTC"})`;
+  };
 
   return (
     <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
@@ -1427,16 +1533,17 @@ export function SettingsPage() {
                   Nothing renews by itself: when the time is up the workspace
                   goes back to Free, and you can renew any time before that.
                   Going from Pro to Premium on the same billing period costs
-                  only the difference. The plan changes once the payment is
-                  confirmed.
+                  only the remaining price difference. Changing monthly and
+                  yearly cycles credits the unused value of the current plan.
+                  The plan changes once the payment is confirmed.
                 </p>
                 <p className="mt-2">
-                  A paid plan can&apos;t be switched or cancelled before it
-                  ends, since that period is already paid for. When it ends you
-                  move to Free by yourself, and you can buy a smaller plan then.
+                  Downgrades take effect when the paid period ends. Free is
+                  scheduled at no cost; a lower paid plan must be paid in
+                  advance. A pending change can be cancelled before that date.
                 </p>
               </>
-            ) : (
+            ) : billing.data?.simulationAllowed ? (
               <>
                 <p>
                   Payments are not switched on for this app, so upgrades are
@@ -1449,6 +1556,12 @@ export function SettingsPage() {
                   change the plan.
                 </p>
               </>
+            ) : (
+              <p>
+                Payments are not switched on for this app. Paid plans cannot be
+                activated until a payment is verified; Free changes remain
+                available.
+              </p>
             )}
           </InfoPanel>
 
@@ -1564,7 +1677,11 @@ export function SettingsPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => void handlePlanChange(plan)}
+                        onClick={() =>
+                          pendingChange
+                            ? setPendingReplacement(plan)
+                            : openPlanReview(plan)
+                        }
                         disabled={changePlan.isPending || payingFor !== null}
                         loading={payingFor === plan}
                         className="mt-4 w-full"
@@ -1576,8 +1693,18 @@ export function SettingsPage() {
                     <Button
                       size="sm"
                       variant={isUpgrade ? "primary" : "secondary"}
-                      onClick={() => void handlePlanChange(plan)}
-                      disabled={changePlan.isPending || payingFor !== null}
+                      onClick={() =>
+                        pendingChange
+                          ? setPendingReplacement(plan)
+                          : openPlanReview(plan)
+                      }
+                      disabled={
+                        changePlan.isPending ||
+                        payingFor !== null ||
+                        (plan !== "free" &&
+                          !paymentsOn &&
+                          !billing.data?.simulationAllowed)
+                      }
                       loading={pendingPlan === plan || payingFor === plan}
                       className="mt-4 w-full"
                     >
@@ -1590,6 +1717,48 @@ export function SettingsPage() {
               );
             })}
           </ul>
+
+          {pendingChange && (
+            <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+              <p className="font-medium text-slate-900 dark:text-slate-100">
+                {PLAN_NAMES[pendingChange.plan]} is scheduled for{" "}
+                {formatPlanDate(pendingChange.startsAt)}
+                {pendingChange.billingCycle
+                  ? ` · ${pendingChange.billingCycle}`
+                  : ""}
+              </p>
+              {pendingChange.prepaid && pendingChange.expiresAt && (
+                <p className="mt-1 text-slate-600 dark:text-slate-300">
+                  Payment is verified. The prepaid plan expires{" "}
+                  {formatPlanDate(pendingChange.expiresAt)}. Cancelling returns
+                  the full payment to the original payment method.
+                </p>
+              )}
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-3"
+                onClick={async () => {
+                  try {
+                    await cancelScheduledChange(orgId);
+                    await billing.refetch();
+                    void queryClient.invalidateQueries({
+                      queryKey: orgKeys.detail(orgId),
+                    });
+                    toast.success(
+                      pendingChange.prepaid
+                        ? "Scheduled change cancelled and payment refunded"
+                        : "Scheduled change cancelled",
+                    );
+                  } catch (error) {
+                    toast.error(parseApiError(error).message);
+                  }
+                }}
+              >
+                Cancel Scheduled Change
+              </Button>
+            </div>
+          )}
 
           {testMode && canChangePlan && <TestPaymentBox />}
 
@@ -1606,6 +1775,528 @@ export function SettingsPage() {
             </p>
           )}
         </Card>
+
+        <Modal
+          open={planReview !== null}
+          onClose={() => {
+            if (payingFor === null && !changePlan.isPending)
+              setPlanReview(null);
+          }}
+          title="Review subscription change"
+          size="lg"
+        >
+          {planReview && (
+            <div className="space-y-5 text-sm">
+              <section
+                aria-label="Subscription dates"
+                className="grid gap-3 sm:grid-cols-2"
+              >
+                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/60">
+                  <h3 className="font-medium text-slate-800 dark:text-slate-100">
+                    Current subscription
+                  </h3>
+                  <p className="mt-1 text-slate-600 dark:text-slate-300">
+                    {PLAN_NAMES[org.plan]}
+                    {billing.data?.current?.billingCycle
+                      ? ` · ${billing.data.current.billingCycle}`
+                      : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Expires {formatPlanDate(org.planExpiresAt)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-teal-50 p-3 dark:bg-teal-950/30">
+                  <h3 className="font-medium text-slate-800 dark:text-slate-100">
+                    Selected subscription
+                  </h3>
+                  <p className="mt-1 text-slate-600 dark:text-slate-300">
+                    {PLAN_NAMES[planReview]}
+                    {planReview === "free" ? "" : ` · ${cycle}`}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {planReview === "free" ? "Effective " : "Starts "}
+                    {formatPlanDate(
+                      planReview === "free"
+                        ? org.planExpiresAt
+                        : (selectedQuote?.startsAt ?? new Date()),
+                    )}
+                  </p>
+                  {planReview !== "free" && selectedQuote && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {PLAN_LIMITS[planReview].seatLimit} seats ·{" "}
+                      {PLAN_LIMITS[planReview].projectLimit} active projects ·{" "}
+                      {formatTaskLimit(PLAN_LIMITS[planReview].activeTaskLimit)}{" "}
+                      active tasks per project
+                    </p>
+                  )}
+                  {planReview === "free" && (
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Pay today: ₹0. Current paid features remain active until
+                      expiry.
+                      <span className="block mt-1">
+                        Free limits: 5 seats · 3 active projects · 10 active
+                        tasks per project.
+                      </span>
+                      <InfoButton
+                        open={reviewHelp === "free"}
+                        onToggle={() =>
+                          setReviewHelp(reviewHelp === "free" ? null : "free")
+                        }
+                        label="Free downgrade details"
+                        controls={reviewHelpIds.free}
+                      />
+                      <InfoPanel
+                        id={reviewHelpIds.free}
+                        open={reviewHelp === "free"}
+                        onClose={() => setReviewHelp(null)}
+                      >
+                        Free limits apply after expiry. The existing 10-day
+                        grace period gives you time to reduce usage; extra
+                        projects and tasks are archived after grace ends and may
+                        be restored if they become eligible again. You can
+                        cancel this scheduled change before it takes effect.
+                      </InfoPanel>
+                    </div>
+                  )}
+                  {planReview !== "free" && selectedQuote?.scheduled && (
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Pay the full {cycle} price now. Pro starts only after
+                      payment is verified and at the current plan expiry.
+                      <InfoButton
+                        open={reviewHelp === "downgrade"}
+                        onToggle={() =>
+                          setReviewHelp(
+                            reviewHelp === "downgrade" ? null : "downgrade",
+                          )
+                        }
+                        label="About scheduling a paid downgrade"
+                        controls={reviewHelpIds.downgrade}
+                      />
+                      <InfoPanel
+                        id={reviewHelpIds.downgrade}
+                        open={reviewHelp === "downgrade"}
+                        onClose={() => setReviewHelp(null)}
+                      >
+                        Premium features remain available through the paid
+                        expiry. Unused Premium time stays with Premium and is
+                        not converted into Pro credit. If payment is not
+                        verified, Pro is not scheduled; expiry then follows the
+                        existing Free and grace-period rules. You can cancel a
+                        verified prepaid schedule for a full refund before it
+                        starts.
+                      </InfoPanel>
+                    </div>
+                  )}
+                  {selectedQuote && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                      Expires {formatPlanDate(selectedQuote.expiresAt)}
+                      <InfoButton
+                        open={reviewHelp === "expiry"}
+                        onToggle={() =>
+                          setReviewHelp(
+                            reviewHelp === "expiry" ? null : "expiry",
+                          )
+                        }
+                        label="About the new expiry date"
+                        controls={reviewHelpIds.expiry}
+                      />
+                    </p>
+                  )}
+                  {selectedQuote && (
+                    <InfoPanel
+                      id={reviewHelpIds.expiry}
+                      open={reviewHelp === "expiry"}
+                      onClose={() => setReviewHelp(null)}
+                    >
+                      Credit conversion can produce an expiry partway through a
+                      billing period, so the date may differ from a standard
+                      monthly or yearly term.
+                    </InfoPanel>
+                  )}
+                </div>
+              </section>
+
+              {planReview !== "free" && selectedQuote && (
+                <section aria-label="Price breakdown" className="space-y-2">
+                  <h3 className="font-medium text-slate-800 dark:text-slate-100">
+                    Price breakdown
+                  </h3>
+                  <dl className="space-y-2">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-slate-600 dark:text-slate-300">
+                        New subscription price
+                      </dt>
+                      <dd>{formatRupees(selectedQuote.originalPricePaise)}</dd>
+                    </div>
+                    {selectedQuote.unusedCreditPaise > 0 && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                          Unused subscription credit
+                          <InfoButton
+                            open={reviewHelp === "credit"}
+                            onToggle={() =>
+                              setReviewHelp(
+                                reviewHelp === "credit" ? null : "credit",
+                              )
+                            }
+                            label="About unused subscription credit"
+                            controls={reviewHelpIds.credit}
+                          />
+                        </dt>
+                        <dd>
+                          −{formatRupees(selectedQuote.unusedCreditPaise)}
+                        </dd>
+                      </div>
+                    )}
+                    {selectedQuote.unusedCreditPaise > 0 && (
+                      <InfoPanel
+                        id={reviewHelpIds.credit}
+                        open={reviewHelp === "credit"}
+                        onClose={() => setReviewHelp(null)}
+                      >
+                        We value the unused portion of your prepaid plan using
+                        the paid coverage dates and original subscription value,
+                        then deduct it from this change.
+                      </InfoPanel>
+                    )}
+                    {selectedQuote.proratedChargePaise !==
+                      selectedQuote.amount && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                          Prorated upgrade charge
+                          <InfoButton
+                            open={reviewHelp === "upgrade"}
+                            onToggle={() =>
+                              setReviewHelp(
+                                reviewHelp === "upgrade" ? null : "upgrade",
+                              )
+                            }
+                            label="About prorated upgrade charge"
+                            controls={reviewHelpIds.upgrade}
+                          />
+                        </dt>
+                        <dd>
+                          {formatRupees(selectedQuote.proratedChargePaise)}
+                        </dd>
+                      </div>
+                    )}
+                    {selectedQuote.proratedChargePaise !==
+                      selectedQuote.amount && (
+                      <InfoPanel
+                        id={reviewHelpIds.upgrade}
+                        open={reviewHelp === "upgrade"}
+                        onClose={() => setReviewHelp(null)}
+                      >
+                        This is the plan price difference for the unused part of
+                        your current subscription period.
+                      </InfoPanel>
+                    )}
+                    {selectedQuote.creditAppliedPaise > 0 && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-slate-600 dark:text-slate-300">
+                          Credit applied
+                        </dt>
+                        <dd>
+                          −{formatRupees(selectedQuote.creditAppliedPaise)}
+                        </dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between gap-3 border-t border-slate-200 pt-2 font-semibold dark:border-slate-700">
+                      <dt className="flex items-center gap-1">
+                        Pay today
+                        <InfoButton
+                          open={reviewHelp === "amount"}
+                          onToggle={() =>
+                            setReviewHelp(
+                              reviewHelp === "amount" ? null : "amount",
+                            )
+                          }
+                          label="About the amount payable today"
+                          controls={reviewHelpIds.amount}
+                        />
+                      </dt>
+                      <dd>
+                        {selectedQuote.amount === 0
+                          ? "₹0 · Covered by plan credit"
+                          : formatRupees(selectedQuote.amount)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <InfoPanel
+                    id={reviewHelpIds.amount}
+                    open={reviewHelp === "amount"}
+                    onClose={() => setReviewHelp(null)}
+                  >
+                    The amount payable is the quoted subscription price after
+                    any eligible credit or prorated upgrade adjustment.
+                  </InfoPanel>
+                  {selectedQuote.completePeriods > 1 && (
+                    <p className="rounded-lg bg-slate-50 p-3 text-slate-600 dark:bg-slate-900/60 dark:text-slate-300">
+                      Your credit covers {selectedQuote.completePeriods}{" "}
+                      complete billing periods
+                      {selectedQuote.partialPeriodMs > 0
+                        ? " plus additional partial coverage"
+                        : ""}
+                      . Prepaid through{" "}
+                      {formatPlanDate(selectedQuote.expiresAt)}. No unused
+                      credit is discarded.
+                      {selectedQuote.partialPeriodMs > 0 &&
+                        " The final remainder funds proportional additional time."}
+                    </p>
+                  )}
+                  {quoteExpired && (
+                    <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-slate-700 dark:border-amber-700 dark:bg-amber-950/30 dark:text-slate-200 sm:flex-row sm:items-center sm:justify-between">
+                      <p>
+                        The quote expired or your plan changed. Refresh the
+                        breakdown before continuing.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          void billing
+                            .refetch()
+                            .then(() => setQuoteExpired(false));
+                        }}
+                      >
+                        Refresh quote
+                      </Button>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {selectedImpact &&
+                PLAN_ORDER.indexOf(planReview) < currentRank && (
+                  <section
+                    aria-label="Plan limit impact"
+                    aria-live="polite"
+                    className={`rounded-lg border p-3 ${
+                      selectedImpact.withinLimits
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100"
+                        : "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-1 font-medium">
+                      {selectedImpact.withinLimits
+                        ? `Current usage fits the ${PLAN_NAMES[planReview]} plan limits`
+                        : `Review usage above the ${PLAN_NAMES[planReview]} plan limits`}
+                      <InfoButton
+                        open={reviewHelp === "impact"}
+                        onToggle={() =>
+                          setReviewHelp(
+                            reviewHelp === "impact" ? null : "impact",
+                          )
+                        }
+                        label="How downgrade limits affect this workspace"
+                        controls={reviewHelpIds.impact}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs opacity-80">
+                      Snapshot {formatPlanDate(selectedImpact.capturedAt)}.
+                      Usage may change before the effective date.
+                    </p>
+                    <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+                      <li>
+                        Members: {selectedImpact.seats.used} /{" "}
+                        {selectedImpact.seats.limit} allowed
+                      </li>
+                      <li>
+                        Active projects: {selectedImpact.projects.active} /{" "}
+                        {selectedImpact.projects.limit} allowed
+                      </li>
+                      <li className="sm:col-span-2">
+                        {selectedImpact.tasks.limit === null
+                          ? "Active tasks: no per-project limit"
+                          : selectedImpact.tasks.exceededProjectCount > 0
+                            ? `${selectedImpact.tasks.exceededProjectCount} active ${selectedImpact.tasks.exceededProjectCount === 1 ? "project exceeds" : "projects exceed"} ${selectedImpact.tasks.limit} open tasks per project`
+                            : `Open tasks: no active project exceeds ${selectedImpact.tasks.limit} per project`}
+                      </li>
+                    </ul>
+                    {premiumToProOverLimit && (
+                      <div className="mt-3 rounded-md border border-amber-300 bg-white/70 p-3 dark:border-amber-800 dark:bg-slate-950/40">
+                        <h4 className="font-semibold">
+                          Your Pro subscription may start later
+                        </h4>
+                        <p className="mt-1 text-sm leading-relaxed">
+                          Your organization currently exceeds Pro limits. If it
+                          still exceeds those limits when Premium expires, your
+                          workspace will temporarily move to Free. Free&apos;s
+                          10-day grace period and automatic archiving rules may
+                          apply. Your prepaid Pro subscription will remain
+                          available and its paid period will begin once your
+                          organization meets Pro limits.
+                        </p>
+                      </div>
+                    )}
+                    {selectedImpact.tasks.overages.length > 0 && (
+                      <details className="mt-2 text-sm">
+                        <summary className="cursor-pointer font-medium underline underline-offset-2">
+                          Show affected projects (
+                          {selectedImpact.tasks.overages.length})
+                        </summary>
+                        <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto break-words pl-4">
+                          {selectedImpact.tasks.overages.map((overage) => (
+                            <li key={overage.projectId}>
+                              {overage.projectName}: {overage.activeCount} /{" "}
+                              {overage.limit} allowed
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    <InfoPanel
+                      id={reviewHelpIds.impact}
+                      open={reviewHelp === "impact"}
+                      onClose={() => setReviewHelp(null)}
+                    >
+                      {premiumToProOverLimit ? (
+                        <>
+                          <p>
+                            This server snapshot counts organization members,
+                            active projects, and open tasks (not done, archived,
+                            or binned) in active projects. Premium access
+                            continues until {formatPlanDate(org.planExpiresAt)}.
+                            A paid downgrade does not itself archive or delete
+                            resources.
+                          </p>
+                          <p className="mt-2">
+                            Pro activates only when members, active projects,
+                            and every project&apos;s open tasks fit Pro limits.
+                            If they do not fit when Premium expires, the
+                            existing expiry flow moves the organization to Free.
+                            Its 10-day grace starts at that expiry; when grace
+                            ends, excess active projects and open tasks are
+                            archived by the existing Free enforcement. Members
+                            are never automatically removed and resources are
+                            not deleted.
+                          </p>
+                          <p className="mt-2">
+                            The verified Pro payment stays pending. Activation
+                            is retried after usage changes and by the lifecycle
+                            job; the full paid monthly or yearly period begins
+                            only when Pro activates. Eligible items archived by
+                            plan limits can be reviewed for restoration after
+                            usage fits the active plan. Project restoration
+                            restores eligible tasks while capacity remains;
+                            tasks that do not fit stay archived. Manually
+                            archived items are not included.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          This is a server calculated snapshot using current
+                          organization member and active project counts, plus
+                          open tasks in active projects. Premium benefits
+                          continue until {formatPlanDate(org.planExpiresAt)}. At
+                          a paid downgrade, existing resources are not deleted
+                          or automatically archived. If usage is over Pro limits
+                          when Pro activates, the workspace is paused for
+                          changes except deleting or archiving resources and
+                          billing or plan actions until it fits. If a verified
+                          prepaid Pro schedule is still over limits at expiry,
+                          the existing expiry flow moves the workspace to Free
+                          and its normal 10-day grace and archiving rules apply;
+                          the paid Pro term remains pending and starts when
+                          usage fits and it activates. For Free, existing Free
+                          expiry and grace rules archive excess active projects
+                          and open tasks after 10 days; members are never
+                          removed automatically. Nothing is deleted.
+                        </>
+                      )}
+                    </InfoPanel>
+                  </section>
+                )}
+
+              {impactChanged && (
+                <p
+                  role="status"
+                  className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100"
+                >
+                  Workspace usage changed. The impact above has been refreshed;
+                  review it before continuing.
+                </p>
+              )}
+
+              {planReview !== "free" && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Payment is one-time. WorkNest does not automatically renew
+                  plans. Dates use your organization time zone (
+                  {org.timeZone ?? "UTC"}).
+                </p>
+              )}
+              <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end dark:border-slate-700">
+                <Button
+                  variant="ghost"
+                  onClick={() => setPlanReview(null)}
+                  disabled={
+                    payingFor !== null || changePlan.isPending || quoteExpired
+                  }
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    const plan = planReview;
+                    if (plan) void handlePlanChange(plan);
+                  }}
+                  disabled={payingFor !== null || changePlan.isPending}
+                >
+                  {planReview === "free"
+                    ? "Schedule Downgrade"
+                    : selectedQuote?.scheduled
+                      ? "Continue to Payment"
+                      : selectedQuote?.amount === 0
+                        ? "Confirm Change"
+                        : paymentsOn
+                          ? "Continue to Payment"
+                          : "Confirm Change"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        <Modal
+          open={pendingReplacement !== null && pendingChange !== null}
+          onClose={() => setPendingReplacement(null)}
+          title="Change the scheduled plan?"
+        >
+          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+            This will cancel the pending{" "}
+            {PLAN_NAMES[pendingChange?.plan ?? "free"]} change before reviewing{" "}
+            {PLAN_NAMES[pendingReplacement ?? "free"]}.
+            {pendingChange?.prepaid
+              ? " The advance payment will be fully refunded to the original payment method before the new change is reviewed."
+              : " No payment is involved in the current schedule."}
+          </p>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="ghost" onClick={() => setPendingReplacement(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                const replacement = pendingReplacement;
+                try {
+                  await cancelScheduledChange(orgId);
+                  await billing.refetch();
+                  void queryClient.invalidateQueries({
+                    queryKey: orgKeys.detail(orgId),
+                  });
+                  setPendingReplacement(null);
+                  if (replacement) openPlanReview(replacement);
+                  toast.success(
+                    "Scheduled change cancelled. Review the new selection.",
+                  );
+                } catch (error) {
+                  toast.error(parseApiError(error).message);
+                }
+              }}
+            >
+              Cancel Schedule and Continue
+            </Button>
+          </div>
+        </Modal>
 
         {canReopenRestore && (
           <Card>
