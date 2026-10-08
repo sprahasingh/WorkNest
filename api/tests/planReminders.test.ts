@@ -144,6 +144,8 @@ describe("plan renewal reminders", () => {
         changePlan("pro", undefined, {
           expiresAt: new Date(Date.now() + 30 * DAY),
           cycle: "monthly",
+          creditStartedAt: new Date(),
+          creditValuePaise: 44900,
         }),
     );
     expect(await notices(orgId)).toHaveLength(0);

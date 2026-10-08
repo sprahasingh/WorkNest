@@ -6,6 +6,8 @@ import {
   applyPaidOrder,
   confirmPayment,
   createOrder,
+  scheduleFreeDowngrade,
+  cancelScheduledChange,
   getBillingConfig,
   setTestPlanDates,
 } from "./billing.service.js";
@@ -13,6 +15,10 @@ import type {
   CreateOrderInput,
   TestPlanDatesInput,
   VerifyPaymentInput,
+} from "./billing.schemas.js";
+import {
+  razorpayOrderIdSchema,
+  razorpayPaymentIdSchema,
 } from "./billing.schemas.js";
 
 export async function billingConfigController(
@@ -27,7 +33,26 @@ export async function createOrderController(
   res: Response,
 ): Promise<void> {
   const input = req.validated!.body as CreateOrderInput;
-  res.status(201).json(await createOrder(input.plan, input.billingCycle));
+  res
+    .status(201)
+    .json(await createOrder(input.plan, input.billingCycle, input.quoteToken));
+}
+
+export async function scheduleFreeDowngradeController(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const input = req.validated!.body as { impactFingerprint: string };
+  res.status(200).json({
+    organization: await scheduleFreeDowngrade(input.impactFingerprint),
+  });
+}
+
+export async function cancelScheduledChangeController(
+  _req: Request,
+  res: Response,
+): Promise<void> {
+  res.status(200).json({ organization: await cancelScheduledChange() });
 }
 
 export async function verifyPaymentController(
@@ -69,9 +94,20 @@ export async function webhookController(
   if (body.event === "payment.captured" || body.event === "order.paid") {
     const payment = body.payload?.payment?.entity;
     const orderId = payment?.order_id ?? body.payload?.order?.entity?.id;
-    if (orderId && payment?.id) {
+    if (orderId !== undefined && payment?.id !== undefined) {
+      const identifiers = {
+        orderId: razorpayOrderIdSchema.safeParse(orderId),
+        paymentId: razorpayPaymentIdSchema.safeParse(payment.id),
+      };
+      if (!identifiers.orderId.success || !identifiers.paymentId.success) {
+        throw new AppError(400, "INVALID_BODY", "Invalid payment identifiers");
+      }
       try {
-        await applyPaidOrder(orderId, payment.id, payment.amount);
+        await applyPaidOrder(
+          identifiers.orderId.data,
+          identifiers.paymentId.data,
+          payment.amount,
+        );
       } catch (error) {
         // An unknown order isn't ours to retry. Anything else should be.
         if (error instanceof AppError && error.code === "AMOUNT_MISMATCH") {

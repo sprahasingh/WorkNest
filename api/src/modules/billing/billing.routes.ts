@@ -5,12 +5,15 @@ import { validate } from "../../middleware/validate.js";
 import { requirePermission } from "../../auth/requirePermission.js";
 import {
   createOrderSchema,
+  scheduleFreeDowngradeSchema,
   testPlanDatesSchema,
   verifyPaymentSchema,
 } from "./billing.schemas.js";
 import {
   billingConfigController,
   createOrderController,
+  scheduleFreeDowngradeController,
+  cancelScheduledChangeController,
   testPlanDatesController,
   verifyPaymentController,
 } from "./billing.controller.js";
@@ -39,6 +42,18 @@ router.post(
   requirePermission("plan:change"),
   validate({ body: verifyPaymentSchema }),
   verifyPaymentController,
+);
+
+router.post(
+  "/schedule-free",
+  requirePermission("plan:change"),
+  validate({ body: scheduleFreeDowngradeSchema }),
+  scheduleFreeDowngradeController,
+);
+router.delete(
+  "/scheduled-change",
+  requirePermission("plan:change"),
+  cancelScheduledChangeController,
 );
 
 // Test accounts only (EMAIL_VERIFICATION_BYPASS_EMAILS), checked in the

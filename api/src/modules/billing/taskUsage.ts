@@ -23,7 +23,7 @@ export async function findProjectsOverTaskLimit(
 ): Promise<TaskLimitOverage[]> {
   if (limit === null) return [];
   const unused = [
-    ...(await binnedProjectIds()),
+    ...(await binnedProjectIds(dbSession)),
     ...(await Project.find({ archivedAt: { $ne: null } })
       .session(dbSession ?? null)
       .distinct("_id")),

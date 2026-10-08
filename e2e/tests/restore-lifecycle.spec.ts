@@ -54,6 +54,11 @@ async function purchasePlan(
   await page
     .getByRole("button", { name: new RegExp(`Upgrade to ${plan}`) })
     .click();
+  const review = page.getByRole("dialog", {
+    name: "Review subscription change",
+  });
+  await expect(review).toBeVisible();
+  await review.getByRole("button", { name: "Continue to Payment" }).click();
   await page.waitForFunction(() => Boolean((window as never)["__checkout"]));
   const { order_id: orderId } = await page.evaluate(
     () => (window as never as { __checkout: { order_id: string } }).__checkout,
@@ -97,13 +102,23 @@ test("restoration section, both entry points, archived actions, and responsive l
     route.fulfill({ contentType: "text/javascript", body: FAKE_CHECKOUT }),
   );
   await page.setViewportSize({ width: 320, height: 780 });
-  await page.goto("/register");
-  await page.getByLabel("Your name").fill("Restore E2E");
-  await page.getByLabel("Email").fill(RESTORE_EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-  await page.getByLabel("Type your password again").fill(PASSWORD);
-  await page.getByLabel("Organization name").fill("Restore Lifecycle");
-  await page.getByRole("button", { name: "Create account" }).click();
+  const existingAccount = await request.post("/api/auth/login", {
+    data: { email: RESTORE_EMAIL, password: PASSWORD },
+  });
+  if (existingAccount.ok()) {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(RESTORE_EMAIL);
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await page.getByRole("button", { name: "Log in" }).click();
+  } else {
+    await page.goto("/register");
+    await page.getByLabel("Your name").fill("Restore E2E");
+    await page.getByLabel("Email").fill(RESTORE_EMAIL);
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await page.getByLabel("Type your password again").fill(PASSWORD);
+    await page.getByLabel("Organization name").fill("Restore Lifecycle");
+    await page.getByRole("button", { name: "Create account" }).click();
+  }
   await expect(page).toHaveURL(/\/orgs\/\w+\/dashboard/);
   await page
     .getByRole("button", { name: /Skip/ })

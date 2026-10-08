@@ -9,7 +9,9 @@ export function isRazorpayConfigured(): boolean {
 // Upgrading without paying only works when explicitly allowed, or in
 // development and tests. In production, missing keys must not mean free plans.
 export function simulatedUpgradesAllowed(): boolean {
-  return env.ALLOW_SIMULATED_UPGRADES ?? env.NODE_ENV !== "production";
+  // Simulation exists only inside the test harness. It cannot grant paid
+  // entitlements in development or production without verified payment.
+  return env.NODE_ENV === "test" && env.ALLOW_SIMULATED_UPGRADES === true;
 }
 
 function hmacHex(value: string | Buffer, secret: string): string {
@@ -89,4 +91,56 @@ export async function createRazorpayOrder(input: {
     );
   }
   return (await response.json()) as RazorpayOrder;
+}
+
+export async function refundRazorpayPayment(input: {
+  paymentId: string;
+  amount: number;
+  receipt: string;
+}): Promise<{ id: string }> {
+  if (!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) {
+    throw new AppError(
+      503,
+      "PAYMENTS_DISABLED",
+      "Payments are not switched on for this app.",
+    );
+  }
+  const auth = Buffer.from(
+    `${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`,
+  ).toString("base64");
+  const url = `https://api.razorpay.com/v1/payments/${encodeURIComponent(input.paymentId)}/refund`;
+  try {
+    const prior = await fetch(`${url}s`, {
+      headers: { Authorization: `Basic ${auth}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!prior.ok) throw new Error("Could not verify prior refunds");
+    const body = (await prior.json()) as {
+      items?: { id: string; notes?: Record<string, string> }[];
+    };
+    const found = body.items?.find(
+      (refund) => refund.notes?.worknest_refund_key === input.receipt,
+    );
+    if (found) return { id: found.id };
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: input.amount,
+        notes: { worknest_refund_key: input.receipt },
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error("Razorpay refund rejected");
+    return (await response.json()) as { id: string };
+  } catch {
+    throw new AppError(
+      503,
+      "REFUND_PENDING",
+      "The refund could not be confirmed. The scheduled plan remains in place; retry cancellation shortly.",
+    );
+  }
 }

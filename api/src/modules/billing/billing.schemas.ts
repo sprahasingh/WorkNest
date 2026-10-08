@@ -1,20 +1,35 @@
 import { z } from "zod";
 import { BILLING_CYCLES } from "../../constants/plans.js";
 
+// Razorpay identifiers are opaque strings with provider-specific prefixes.
+// Restrict them to the characters used by the provider and our test fixtures
+// before they can be used in Mongo filters or persisted to payment records.
+export const razorpayOrderIdSchema = z
+  .string()
+  .regex(/^order_[A-Za-z0-9_-]{1,95}$/);
+export const razorpayPaymentIdSchema = z
+  .string()
+  .regex(/^pay_[A-Za-z0-9_-]{1,96}$/);
+
 export const createOrderSchema = z
   .object({
     plan: z.enum(["pro", "premium"]),
     billingCycle: z.enum(BILLING_CYCLES).default("monthly"),
+    quoteToken: z.string().min(1).max(4096).optional(),
   })
   .strict();
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
 export const verifyPaymentSchema = z
   .object({
-    orderId: z.string().min(1).max(100),
-    paymentId: z.string().min(1).max(100),
+    orderId: razorpayOrderIdSchema,
+    paymentId: razorpayPaymentIdSchema,
     signature: z.string().min(1).max(200),
   })
+  .strict();
+
+export const scheduleFreeDowngradeSchema = z
+  .object({ impactFingerprint: z.string().min(32).max(128) })
   .strict();
 export type VerifyPaymentInput = z.infer<typeof verifyPaymentSchema>;
 

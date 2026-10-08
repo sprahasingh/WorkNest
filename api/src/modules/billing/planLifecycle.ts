@@ -1,11 +1,23 @@
 import type { NextFunction, Request, Response } from "express";
-import { PLAN_LIMITS, graceEndsAt, type Plan } from "../../constants/plans.js";
+import { createHash } from "node:crypto";
+import {
+  PLAN_LIMITS,
+  addBillingPeriod,
+  graceEndsAt,
+  type BillingCycle,
+  type Plan,
+} from "../../constants/plans.js";
 import { AppError } from "../../lib/errors.js";
 import { logger } from "../../lib/logger.js";
 import { Organization } from "../../models/Organization.js";
+import { Payment } from "../../models/Payment.js";
 import { requireTenantId } from "../../tenancy/context.js";
-import { findProjectsOverTaskLimit } from "./taskUsage.js";
+import {
+  countProjectsOverTaskLimit,
+  findProjectsOverTaskLimit,
+} from "./taskUsage.js";
 import { enforceGraceIfDue } from "./gracePeriod.service.js";
+import { runWithTenant } from "../../tenancy/context.js";
 
 // An organization whose paid plan has run out goes back to Free. This runs on
 // the first request after the date passes, so it works even when the server
@@ -16,6 +28,34 @@ export async function expirePlanIfDue(
   now = new Date(),
 ): Promise<boolean> {
   const free = PLAN_LIMITS.free;
+  if (await activateScheduledPaidPlan(tenantId, now)) return true;
+  const due = await Organization.findOne({
+    _id: tenantId,
+    plan: { $ne: "free" },
+    planExpiresAt: { $lte: now },
+  })
+    .setOptions({ skipTenant: true })
+    .lean();
+  if (!due) return false;
+  let preservePaidSchedule = false;
+  if (
+    due.scheduledPlan &&
+    due.scheduledPlan !== "free" &&
+    due.scheduledPaymentId
+  ) {
+    const payment = await Payment.findOne({
+      _id: due.scheduledPaymentId,
+      tenantId,
+      plan: due.scheduledPlan,
+      billingCycle: due.scheduledBillingCycle,
+      status: "paid",
+      appliedAt: { $ne: null },
+      refundStatus: "none",
+    })
+      .setOptions({ skipTenant: true })
+      .lean();
+    preservePaidSchedule = Boolean(payment && due.scheduledStartsAt);
+  }
   const org = await Organization.findOneAndUpdate(
     { _id: tenantId, plan: { $ne: "free" }, planExpiresAt: { $lte: now } },
     [
@@ -25,6 +65,18 @@ export async function expirePlanIfDue(
           planExpiredAt: now,
           plan: "free",
           planExpiresAt: null,
+          billingCycle: null,
+          planCreditStartedAt: null,
+          planCreditValuePaise: null,
+          ...(preservePaidSchedule
+            ? {}
+            : {
+                scheduledPlan: null,
+                scheduledBillingCycle: null,
+                scheduledStartsAt: null,
+                scheduledExpiresAt: null,
+                scheduledPaymentId: null,
+              }),
           seatLimit: free.seatLimit,
           projectLimit: free.projectLimit,
           // A new expiry starts a new grace period.
@@ -43,19 +95,164 @@ export async function expirePlanIfDue(
   return org !== null;
 }
 
+async function activateScheduledPaidPlan(
+  tenantId: string,
+  now: Date,
+): Promise<boolean> {
+  const scheduled = await Organization.findOne({
+    _id: tenantId,
+    scheduledPlan: { $in: ["pro", "premium"] },
+    scheduledStartsAt: { $lte: now },
+  })
+    .select(
+      "plan planExpiresAt scheduledPlan scheduledBillingCycle scheduledStartsAt scheduledPaymentId",
+    )
+    .setOptions({ skipTenant: true })
+    .lean();
+  if (!scheduled) return false;
+  if (
+    scheduled.plan !== "free" &&
+    (!scheduled.planExpiresAt || scheduled.planExpiresAt > now)
+  ) {
+    return false;
+  }
+  const payment = await Payment.findOne({
+    _id: scheduled.scheduledPaymentId,
+    tenantId,
+    plan: scheduled.scheduledPlan,
+    billingCycle: scheduled.scheduledBillingCycle,
+    status: "paid",
+    appliedAt: { $ne: null },
+    refundStatus: "none",
+  })
+    .setOptions({ skipTenant: true })
+    .lean();
+  if (!payment) return false;
+
+  const session = await Organization.startSession();
+  let activated = false;
+  try {
+    await session.withTransaction(async () => {
+      const current = await Organization.findOne({
+        _id: tenantId,
+        scheduledPlan: scheduled.scheduledPlan,
+        scheduledPaymentId: scheduled.scheduledPaymentId,
+        scheduledStartsAt: { $lte: now },
+        $or: [
+          { plan: "free" },
+          { plan: { $ne: "free" }, planExpiresAt: { $lte: now } },
+        ],
+      })
+        .select("plan seatsUsed projectCount")
+        .session(session)
+        .setOptions({ skipTenant: true })
+        .lean();
+      if (!current) return;
+      const limits = PLAN_LIMITS[scheduled.scheduledPlan as Plan];
+      const taskOverages = await countProjectsOverTaskLimit(
+        limits.activeTaskLimit,
+        session,
+      );
+      if (
+        current.seatsUsed > limits.seatLimit ||
+        current.projectCount > limits.projectLimit ||
+        taskOverages > 0
+      ) {
+        return;
+      }
+      const cycle = (scheduled.scheduledBillingCycle ??
+        "monthly") as BillingCycle;
+      const activatedAt =
+        now > scheduled.scheduledStartsAt! ? now : scheduled.scheduledStartsAt!;
+      const activatedExpiresAt = addBillingPeriod(activatedAt, cycle);
+      const result = await Organization.findOneAndUpdate(
+        {
+          _id: tenantId,
+          plan: current.plan,
+          scheduledPlan: scheduled.scheduledPlan,
+          scheduledPaymentId: scheduled.scheduledPaymentId,
+          scheduledStartsAt: { $lte: now },
+          $expr: {
+            $and: [
+              { $lte: ["$seatsUsed", limits.seatLimit] },
+              { $lte: ["$projectCount", limits.projectLimit] },
+            ],
+          },
+        },
+        {
+          plan: scheduled.scheduledPlan,
+          billingCycle: cycle,
+          planExpiresAt: activatedExpiresAt,
+          planCreditStartedAt: activatedAt,
+          planCreditValuePaise: payment.amount,
+          seatLimit: limits.seatLimit,
+          projectLimit: limits.projectLimit,
+          planExpiredAt: null,
+          planExpiredFrom: null,
+          graceEnforcedAt: null,
+          graceEnforcingAt: null,
+          graceArchived: null,
+          scheduledPlan: null,
+          scheduledBillingCycle: null,
+          scheduledStartsAt: null,
+          scheduledExpiresAt: null,
+          scheduledPaymentId: null,
+        },
+        { returnDocument: "after", session },
+      ).setOptions({ skipTenant: true });
+      if (!result) return;
+      const paymentUpdate = await Payment.updateOne(
+        { _id: payment._id, status: "paid", refundStatus: "none" },
+        {
+          quotedCreditStartedAt: activatedAt,
+          quotedExpiresAt: activatedExpiresAt,
+          quotedCreditValuePaise: payment.amount,
+        },
+        { session },
+      ).setOptions({ skipTenant: true });
+      if (paymentUpdate.matchedCount !== 1) {
+        throw new Error(
+          "Scheduled downgrade payment changed during activation",
+        );
+      }
+      activated = true;
+    });
+  } finally {
+    await session.endSession();
+  }
+  if (activated) {
+    logger.info(
+      { tenantId, to: scheduled.scheduledPlan },
+      "Scheduled paid plan activated",
+    );
+  }
+  return activated;
+}
+
 // Moves every organization whose paid plan has ended back to Free, so a plan
 // doesn't stay paid just because nobody has opened the app since.
 export async function expireDuePlans(now = new Date()): Promise<number> {
   const due = await Organization.find({
-    plan: { $ne: "free" },
-    planExpiresAt: { $lte: now },
+    $or: [
+      { plan: { $ne: "free" }, planExpiresAt: { $lte: now } },
+      {
+        plan: "free",
+        scheduledPlan: { $in: ["pro", "premium"] },
+        scheduledStartsAt: { $lte: now },
+      },
+    ],
   })
     .select("_id")
     .setOptions({ skipTenant: true })
     .lean();
   let expired = 0;
   for (const org of due) {
-    if (await expirePlanIfDue(String(org._id), now)) expired += 1;
+    const tenantId = String(org._id);
+    const ran = await runWithTenant(
+      { tenantId, userId: "billing-lifecycle" },
+      () => expirePlanIfDue(tenantId, now),
+    );
+    if (ran) expired += 1;
   }
   return expired;
 }
@@ -90,6 +287,69 @@ export interface PlanUsage {
   restricted: boolean;
   // Over the plan with no grace left (seats): changes are refused.
   paused: boolean;
+}
+
+export interface PlanImpact {
+  plan: Plan;
+  capturedAt: string;
+  seats: { used: number; limit: number; exceeded: boolean };
+  projects: { active: number; limit: number; exceeded: boolean };
+  tasks: {
+    limit: number | null;
+    exceededProjectCount: number;
+    overages: {
+      projectId: string;
+      projectName: string;
+      activeCount: number;
+      limit: number;
+    }[];
+  };
+  withinLimits: boolean;
+  fingerprint: string;
+}
+
+// Uses the same organization counters and active-task definition as plan
+// enforcement and immediate paid downgrades.
+export async function getPlanImpact(
+  tenantId: string,
+  targetPlan: Plan,
+): Promise<PlanImpact> {
+  const org = await Organization.findById(tenantId)
+    .select("seatsUsed projectCount")
+    .setOptions({ skipTenant: true })
+    .lean();
+  if (!org) throw new AppError(404, "NOT_FOUND", "Organization not found");
+  const limits = PLAN_LIMITS[targetPlan];
+  const overages = (
+    await findProjectsOverTaskLimit(limits.activeTaskLimit)
+  ).sort((a, b) => a.projectId.localeCompare(b.projectId));
+  const seatsExceeded = org.seatsUsed > limits.seatLimit;
+  const projectsExceeded = org.projectCount > limits.projectLimit;
+  const withinLimits =
+    !seatsExceeded && !projectsExceeded && overages.length === 0;
+  const snapshot = {
+    plan: targetPlan,
+    seats: {
+      used: org.seatsUsed,
+      limit: limits.seatLimit,
+      exceeded: seatsExceeded,
+    },
+    projects: {
+      active: org.projectCount,
+      limit: limits.projectLimit,
+      exceeded: projectsExceeded,
+    },
+    tasks: {
+      limit: limits.activeTaskLimit,
+      exceededProjectCount: overages.length,
+      overages,
+    },
+    withinLimits,
+  };
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify(snapshot))
+    .digest("hex");
+  return { ...snapshot, capturedAt: new Date().toISOString(), fingerprint };
 }
 
 export async function getPlanUsage(tenantId: string): Promise<PlanUsage> {

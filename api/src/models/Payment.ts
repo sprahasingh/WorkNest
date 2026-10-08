@@ -2,8 +2,8 @@ import { Schema, model, type InferSchemaType } from "mongoose";
 import { BILLING_CYCLES, PLANS } from "../constants/plans.js";
 import { tenantPlugin } from "../tenancy/plugin.js";
 
-// One row per attempt to pay for a plan upgrade. Only the ids Razorpay gives
-// us are kept. Card details never reach this server.
+// One row per subscription purchase attempt. Only the ids Razorpay gives us
+// are kept. Card details never reach this server.
 const paymentSchema = new Schema(
   {
     tenantId: {
@@ -19,6 +19,10 @@ const paymentSchema = new Schema(
     billingCycle: { type: String, enum: BILLING_CYCLES, default: "monthly" },
     // In paise.
     amount: { type: Number, required: true },
+    quotedExpiresAt: { type: Date, default: null },
+    quotedCreditStartedAt: { type: Date, default: null },
+    quotedCreditValuePaise: { type: Number, default: null },
+    quoteToken: { type: String, default: null },
     currency: { type: String, default: "INR" },
     razorpayOrderId: { type: String, required: true, unique: true },
     razorpayPaymentId: { type: String, default: null },
@@ -32,6 +36,15 @@ const paymentSchema = new Schema(
     // should finish the job.
     applyingAt: { type: Date, default: null },
     appliedAt: { type: Date, default: null },
+    refundStatus: {
+      type: String,
+      enum: ["none", "processing", "refunded"],
+      default: "none",
+    },
+    refundId: { type: String, default: null },
+    refundReceipt: { type: String, default: null },
+    refundProcessingAt: { type: Date, default: null },
+    refundedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

@@ -3,6 +3,11 @@ import "./emailDeliveryMock.js";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 
+// Legacy endpoint tests opt into simulated plan changes. Production always
+// rejects this flag, even when it is explicitly enabled.
+process.env.NODE_ENV ??= "test";
+process.env.ALLOW_SIMULATED_UPGRADES ??= "true";
+
 let replSet: MongoMemoryReplSet;
 
 beforeAll(async () => {

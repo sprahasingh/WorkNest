@@ -51,6 +51,7 @@ describe("upgrading without payments", () => {
   it("is refused when it is not explicitly allowed, but downgrading still works", async () => {
     const { orgId, admin } = await setupOrg(app, "sim1.test");
     const original = env.ALLOW_SIMULATED_UPGRADES;
+    const originalNodeEnv = env.NODE_ENV;
     try {
       env.ALLOW_SIMULATED_UPGRADES = false;
       const refused = await request(app)
@@ -73,8 +74,18 @@ describe("upgrading without payments", () => {
         .set(auth(admin.token))
         .send({ plan: "free" });
       expect(down.status).toBe(200);
+
+      env.NODE_ENV = "production";
+      env.ALLOW_SIMULATED_UPGRADES = true;
+      const productionRefused = await request(app)
+        .post(`/api/orgs/${orgId}/plan`)
+        .set(auth(admin.token))
+        .send({ plan: "pro" });
+      expect(productionRefused.status).toBe(503);
+      expect(productionRefused.body.error.code).toBe("PAYMENTS_DISABLED");
     } finally {
       env.ALLOW_SIMULATED_UPGRADES = original;
+      env.NODE_ENV = originalNodeEnv;
     }
   });
 });
