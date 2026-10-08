@@ -10,6 +10,32 @@ export interface TourViewport {
   height: number;
 }
 
+/** Scroll the tour's section heading below sticky navigation and restore its inline style later. */
+export function scrollTourSectionToStart(
+  target: HTMLElement,
+  sectionStart?: HTMLElement | null,
+) {
+  const heading =
+    sectionStart ??
+    (target.matches("h1, h2, h3")
+      ? target
+      : target
+          .closest("section, article")
+          ?.querySelector<HTMLElement>("h1, h2, h3")) ??
+    target.querySelector<HTMLElement>("h1, h2, h3") ??
+    target;
+  const previousScrollMarginTop = heading.style.scrollMarginTop;
+  heading.style.scrollMarginTop = "calc(env(safe-area-inset-top) + 5rem)";
+  heading.scrollIntoView({
+    behavior: "instant",
+    block: "start",
+    inline: "nearest",
+  });
+  return () => {
+    heading.style.scrollMarginTop = previousScrollMarginTop;
+  };
+}
+
 export function calculateTourPosition(
   target: TourRect | null,
   card: Pick<TourRect, "width" | "height">,

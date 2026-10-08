@@ -1,10 +1,49 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import { OnboardingTour } from "./OnboardingTour";
-import { calculateTourPosition } from "./onboardingTourPosition";
+import {
+  calculateTourPosition,
+  scrollTourSectionToStart,
+} from "./onboardingTourPosition";
 
 describe("onboarding tour positioning", () => {
+  it("starts at the section heading below sticky navigation and restores its style", () => {
+    const section = document.createElement("section");
+    const heading = document.createElement("h2");
+    const target = document.createElement("button");
+    section.append(heading, target);
+    document.body.append(section);
+    const scrollIntoView = vi.fn();
+    heading.scrollIntoView = scrollIntoView;
+
+    const restore = scrollTourSectionToStart(target);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "instant",
+      block: "start",
+      inline: "nearest",
+    });
+    expect(heading.style.scrollMarginTop).toContain("5rem");
+    expect(heading.style.scrollMarginTop).toContain("env(safe-area-inset-top)");
+    restore();
+    expect(heading.style.scrollMarginTop).toBe("");
+    section.remove();
+  });
+
+  it("uses an explicit section heading when the highlighted target is deep inside it", () => {
+    const heading = document.createElement("h2");
+    const target = document.createElement("button");
+    const scrollIntoView = vi.fn();
+    heading.scrollIntoView = scrollIntoView;
+
+    const restore = scrollTourSectionToStart(target, heading);
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(target.style.scrollMarginTop).toBe("");
+    restore();
+  });
+
   it("keeps a phone callout inside the visual viewport near the left edge", () => {
     const position = calculateTourPosition(
       { top: 72, left: 0, right: 48, bottom: 112, width: 48, height: 40 },
@@ -69,22 +108,74 @@ describe("role-aware onboarding tour", () => {
     ).toBe(true);
   });
 
-  it("shows managers their dashboard but not the admin audit log", () => {
+  it("shows managers their dashboard but not admin organization tours", () => {
     renderTour("manager");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("Explore dashboard →")).toBeTruthy();
-    expect(screen.queryByText("Explore audit log →")).toBeNull();
+    expect(screen.queryByText("Explore organization activity →")).toBeNull();
+    expect(screen.queryByText("Explore Organization Settings →")).toBeNull();
   });
 
-  it("shows dashboard and audit access to admins", () => {
+  it("orders admin activity, organization settings, and Settings tours", () => {
     renderTour("admin");
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText("Explore dashboard →")).toBeTruthy();
-    for (let index = 0; index < 6; index += 1) {
-      if (screen.queryByText("Explore audit log →")) break;
+    for (let index = 0; index < 6; index += 1)
       fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    }
-    expect(screen.getByText("Explore audit log →")).toBeTruthy();
+    expect(screen.getByText("Explore organization activity →")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Explore Organization Settings →")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Explore Settings →")).toBeTruthy();
+  });
+
+  it.each([
+    ["manager", 6],
+    ["member", 5],
+  ] as const)(
+    "gives %s the general Settings tour without admin tours",
+    (role, steps) => {
+      renderTour(role);
+      for (let index = 0; index < steps; index += 1)
+        fireEvent.click(screen.getByRole("button", { name: "Next" }));
+      expect(screen.getByText("Explore Settings →")).toBeTruthy();
+      expect(screen.queryByText("Explore organization activity →")).toBeNull();
+      expect(screen.queryByText("Explore Organization Settings →")).toBeNull();
+    },
+  );
+
+  it("covers Organization Settings in page order", () => {
+    renderTour("admin");
+    for (let index = 0; index < 7; index += 1)
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByText("Explore Organization Settings →"));
+    expect(
+      screen.getByRole("heading", {
+        name: "Organization details and retention",
+      }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(
+      screen.getByRole("heading", { name: "Plans, limits, and billing" }),
+    ).toBeTruthy();
+  });
+
+  it("covers the general Settings profile and email sections with Back navigation", () => {
+    renderTour("member");
+    for (let index = 0; index < 5; index += 1)
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByText("Explore Settings →"));
+    expect(
+      screen.getByRole("heading", {
+        name: "Personal information and security",
+      }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Email address" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Back/ }));
+    expect(
+      screen.getByRole("heading", {
+        name: "Personal information and security",
+      }),
+    ).toBeTruthy();
   });
 
   it("supports going back within a page tour", () => {

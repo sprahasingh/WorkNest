@@ -4,15 +4,19 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import type { Role } from "@/api/auth";
 import { roleVisibleSteps } from "@/lib/planRestorePrompt";
-import { calculateTourPosition } from "./onboardingTourPosition";
+import {
+  calculateTourPosition,
+  scrollTourSectionToStart,
+} from "./onboardingTourPosition";
 
 interface Step {
   title: string;
   description: string;
-  action?: { label: string; to: string };
+  action?: { label: string; to: string; tourKey?: string };
 }
 interface PageStep {
   target: string;
+  sectionStart?: string;
   title: string;
   description: string;
   roles?: Role[];
@@ -180,25 +184,40 @@ const pageTours: Record<string, PageStep[]> = {
       roles: ["admin"],
     },
   ],
-  settings: [
+  organizationSettings: [
     {
       target: "settings-organization",
-      title: "Organization details",
+      title: "Organization details and retention",
       description:
-        "Edit the organization name, time zone, and chat-history retention.",
+        "Review the organization name and time zone, and manage how long chat history is kept. Admins can edit these values and choose whether date-only due dates move with a time-zone change.",
       roles: ["admin"],
     },
     {
-      target: "settings-content",
-      title: "Organization settings",
+      target: "settings-plan",
+      title: "Plans, limits, and billing",
       description:
-        "Admins can update organization details, time zone, retention, and plan settings.",
+        "Review the current plan and workspace usage, compare monthly and yearly plans, and manage renewals or scheduled changes. The usage counts show how seats, projects, and task limits are being used.",
       roles: ["admin"],
+    },
+  ],
+  settings: [
+    {
+      target: "settings-personal",
+      title: "Personal information and security",
+      description:
+        "Review your name and edit it when needed. The edit form also lets you change your password; your current password verifies the update.",
+    },
+    {
+      target: "settings-email",
+      title: "Email address",
+      description:
+        "Review your sign-in email or start an email change. A new address becomes active after you confirm its verification link.",
     },
   ],
   audit: [
     {
       target: "audit-content",
+      sectionStart: "audit-heading",
       title: "Audit history",
       description:
         "Review recorded organization changes, including who made each change and when.",
@@ -206,6 +225,7 @@ const pageTours: Record<string, PageStep[]> = {
     },
     {
       target: "audit-entries",
+      sectionStart: "audit-heading",
       title: "Review changes",
       description: "Browse the audit history and load older events as needed.",
       roles: ["admin"],
@@ -264,29 +284,69 @@ function stepsFor(role: Role, orgId: string, orgName: string): Step[] {
         action: { label: "Explore people", to: path("members") },
       },
       {
-        title: "Organization settings",
-        description: "Manage organization details, retention and plans.",
-        action: { label: "Explore settings", to: path("settings") },
+        title: "Organization Activity",
+        description: "Review important changes and when they happened.",
+        action: { label: "Explore organization activity", to: path("audit") },
       },
       {
-        title: "Organization activity",
-        description: "Review important changes and when they happened.",
-        action: { label: "Explore audit log", to: path("audit") },
+        title: "Organization Settings",
+        description:
+          "Manage organization details, time zone, chat retention, plans, and billing.",
+        action: {
+          label: "Explore Organization Settings",
+          to: path("settings"),
+          tourKey: "organizationSettings",
+        },
+      },
+      {
+        title: "Settings",
+        description:
+          "Manage your personal information, password, and sign-in email.",
+        action: {
+          label: "Explore Settings",
+          to: path("settings"),
+          tourKey: "settings",
+        },
       },
     );
   else if (role === "manager")
-    common.push({
-      title: "Find your teammates",
-      description:
-        "View organization members and their roles. Admins manage invitations and billing.",
-      action: { label: "Explore people", to: path("members") },
-    });
-  else
-    common.push({
-      title: "Your organization",
-      description:
-        "See who is in the organization and check your personal settings.",
-    });
+    common.push(
+      {
+        title: "Find your teammates",
+        description:
+          "View organization members and their roles. Admins manage invitations and billing.",
+        action: { label: "Explore people", to: path("members") },
+      },
+      {
+        title: "Settings",
+        description:
+          "Manage your personal information, password, and sign-in email.",
+        action: {
+          label: "Explore Settings",
+          to: path("settings"),
+          tourKey: "settings",
+        },
+      },
+    );
+  else {
+    common.push(
+      {
+        title: "Your organization",
+        description:
+          "See who is in the organization and check your personal settings.",
+      },
+      {
+        title: "Settings",
+        description:
+          "Manage your personal information, password, and sign-in email.",
+        action: {
+          label: "Explore Settings",
+          to: path("settings"),
+          tourKey: "settings",
+        },
+      },
+    );
+  }
   return common;
 }
 
@@ -328,15 +388,18 @@ export function OnboardingTour({
     zIndex: string;
     scrollMarginTop: string;
   } | null>(null);
+  const restoreScrollAnchorRef = useRef<(() => void) | null>(null);
   const isLastStep = stepIndex === steps.length - 1;
   const step = steps[stepIndex]!;
   const currentPage = pageKey(location.pathname);
   const activePageKey =
-    pageMode?.key === currentPage
-      ? currentPage
-      : pageMode?.key === "projects" && currentPage === "tasks"
-        ? "tasks"
-        : null;
+    pageMode?.key === "organizationSettings" && currentPage === "settings"
+      ? "organizationSettings"
+      : pageMode?.key === currentPage
+        ? currentPage
+        : pageMode?.key === "projects" && currentPage === "tasks"
+          ? "tasks"
+          : null;
   const pageIndex = activePageKey ? (pageIndexes[activePageKey] ?? 0) : 0;
   const availablePageSteps = roleVisibleSteps(
     activePageKey ? (pageTours[activePageKey] ?? []) : [],
@@ -383,11 +446,17 @@ export function OnboardingTour({
         zIndex: target.style.zIndex,
         scrollMarginTop: target.style.scrollMarginTop,
       };
-      target.scrollIntoView({
-        behavior: "instant",
-        block: "center",
-        inline: "nearest",
-      });
+      const sectionStart = pageStep?.sectionStart
+        ? (Array.from(
+            document.querySelectorAll<HTMLElement>(
+              `[data-tour="${pageStep.sectionStart}"]`,
+            ),
+          ).find((candidate) => candidate.getClientRects().length > 0) ?? null)
+        : null;
+      restoreScrollAnchorRef.current = scrollTourSectionToStart(
+        target,
+        sectionStart,
+      );
       if ((window.visualViewport?.width ?? window.innerWidth) < 640) {
         const viewportHeight =
           window.visualViewport?.height ?? window.innerHeight;
@@ -398,11 +467,9 @@ export function OnboardingTour({
           rect.height < viewportHeight - compactCardHeight - 32 &&
           rect.bottom > viewportTop + viewportHeight - compactCardHeight - 24
         ) {
-          target.style.scrollMarginTop =
-            "calc(env(safe-area-inset-top) + 5rem)";
           target.scrollIntoView({
             behavior: "instant",
-            block: "start",
+            block: "nearest",
             inline: "nearest",
           });
         }
@@ -430,6 +497,8 @@ export function OnboardingTour({
       window.visualViewport?.removeEventListener("resize", update);
       window.visualViewport?.removeEventListener("scroll", update);
       observer?.disconnect();
+      restoreScrollAnchorRef.current?.();
+      restoreScrollAnchorRef.current = null;
       if (target) {
         const previous = targetStylesRef.current;
         if (previous) {
@@ -451,11 +520,10 @@ export function OnboardingTour({
     return () => window.clearTimeout(timer);
   }, [location.pathname, pageStep]);
 
-  const startPageTour = (to: string, index: number) => {
+  const startPageTour = (to: string, index: number, requestedKey?: string) => {
+    const routePage = to.split("/").filter(Boolean).at(-1)!;
     const key =
-      to.split("/").filter(Boolean).at(-1) === "projects"
-        ? "projects"
-        : to.split("/").filter(Boolean).at(-1)!;
+      requestedKey ?? (routePage === "projects" ? "projects" : routePage);
     if (key in pageTours) {
       setPageMode({ key, returnStep: index });
       setPageIndexes((indexes) => ({ ...indexes, [key]: 0 }));
@@ -619,7 +687,9 @@ export function OnboardingTour({
           {step.action && (
             <Link
               to={step.action.to}
-              onClick={() => startPageTour(step.action!.to, stepIndex)}
+              onClick={() =>
+                startPageTour(step.action!.to, stepIndex, step.action!.tourKey)
+              }
               className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-teal-700 hover:underline dark:text-teal-400"
             >
               {step.action.label} →
