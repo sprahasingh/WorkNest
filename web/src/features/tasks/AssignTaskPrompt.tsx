@@ -107,6 +107,7 @@ export function AssignTaskPrompt({
               onClick={() => onAssignAndMove(selected)}
               disabled={selected.length === 0 || pending}
               loading={pending}
+              className="w-full"
             >
               Assign &amp; Move
             </Button>
