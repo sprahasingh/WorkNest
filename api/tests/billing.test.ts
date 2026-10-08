@@ -56,6 +56,34 @@ async function freeImpactFingerprint(orgId: string, token: string) {
 }
 
 describe("paying for a plan", () => {
+  it("rejects malformed provider identifiers before payment updates", async () => {
+    stubRazorpay();
+    const { orgId, admin } = await setupOrg(app, "payment-ids.test");
+    const order = await request(app)
+      .post(`/api/orgs/${orgId}/billing/order`)
+      .set(auth(admin.token))
+      .send({ plan: "pro" });
+    expect(order.status).toBe(201);
+
+    const malformed = await request(app)
+      .post(`/api/orgs/${orgId}/billing/verify`)
+      .set(auth(admin.token))
+      .send({
+        orderId: { $ne: null },
+        paymentId: "pay_valid_1",
+        signature: "not-a-signature",
+      });
+    expect(malformed.status).toBe(400);
+
+    const payment = await Payment.findOne({
+      razorpayOrderId: order.body.orderId,
+    })
+      .setOptions({ skipTenant: true })
+      .lean();
+    expect(payment?.status).toBe("created");
+    expect(payment?.razorpayPaymentId ?? null).toBeNull();
+  });
+
   it("reports server plan impact and rejects a stale usage snapshot", async () => {
     stubRazorpay();
     const { orgId, admin, addMember } = await setupOrg(app, "plan-impact.test");

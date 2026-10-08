@@ -18,6 +18,10 @@ import { isTestControlEmail } from "../../lib/testControls.js";
 import { User } from "../../models/User.js";
 import { recordAudit } from "../audit/audit.service.js";
 import type { TestPlanDatesInput } from "./billing.schemas.js";
+import {
+  razorpayOrderIdSchema,
+  razorpayPaymentIdSchema,
+} from "./billing.schemas.js";
 import { AppError } from "../../lib/errors.js";
 import {
   createRazorpayOrder,
@@ -609,6 +613,15 @@ export async function applyPaidOrder(
   paymentId: string,
   capturedAmount?: number,
 ): Promise<{ applied: boolean }> {
+  // This function is called by both the signed webhook and the browser
+  // confirmation route. Keep the boundary safe even if a future caller skips
+  // request schema validation.
+  if (
+    !razorpayOrderIdSchema.safeParse(orderId).success ||
+    !razorpayPaymentIdSchema.safeParse(paymentId).success
+  ) {
+    throw new AppError(400, "INVALID_PAYMENT", "Invalid payment identifier");
+  }
   // The webhook says how much was really paid. If that isn't what the order
   // was for, nothing is applied.
   if (capturedAmount !== undefined) {
