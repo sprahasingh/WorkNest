@@ -16,6 +16,8 @@ import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { Button } from "@/components/ui/Button";
 import { MeetingFormModal } from "@/features/meetings/MeetingFormModal";
 import { TaskMeetings } from "./TaskMeetings";
+import { AssignTaskPrompt } from "./AssignTaskPrompt";
+import { shouldPromptForAssignee } from "./assignmentPrompt";
 import { applyFieldErrors, parseApiError } from "@/lib/apiError";
 import type { Member } from "@/features/members/api";
 import type { CreateTaskInput, Task, TaskView, UpdateTaskInput } from "./api";
@@ -93,6 +95,11 @@ export function TaskDrawer({
     "details" | "activity" | "meetings"
   >(initialTab);
   const [schedulingMeeting, setSchedulingMeeting] = useState(false);
+  const [assignmentPromptInput, setAssignmentPromptInput] =
+    useState<UpdateTaskInput | null>(null);
+  const [assignmentPromptError, setAssignmentPromptError] = useState<
+    string | null
+  >(null);
 
   const createTask = useCreateTask(orgId, projectId);
   const updateTask = useUpdateTask(orgId, projectId);
@@ -196,6 +203,15 @@ export function TaskDrawer({
         if (canAssign) {
           input.assigneeIds = values.assigneeIds;
         }
+        if (
+          shouldPromptForAssignee(task, values.status, canAssign) &&
+          values.assigneeIds.length === 0
+        ) {
+          input.expectedUpdatedAt = task.updatedAt;
+          setAssignmentPromptError(null);
+          setAssignmentPromptInput(input);
+          return;
+        }
         await updateTask.mutateAsync({ taskId: task._id, input });
         if (values.status === "done" && task.status !== "done") {
           setTaskView("completed");
@@ -244,6 +260,24 @@ export function TaskDrawer({
       if (unmatched.length > 0) {
         setFormError(unmatched.join(" "));
       }
+    }
+  };
+
+  const completeAssignmentPrompt = async (assigneeIds?: string[]) => {
+    if (!task || !assignmentPromptInput) return;
+    setAssignmentPromptError(null);
+    try {
+      await updateTask.mutateAsync({
+        taskId: task._id,
+        input: assigneeIds
+          ? { ...assignmentPromptInput, assigneeIds }
+          : assignmentPromptInput,
+      });
+      setAssignmentPromptInput(null);
+      toast.success("Task saved");
+      onClose();
+    } catch (error) {
+      setAssignmentPromptError(parseApiError(error).message);
     }
   };
 
@@ -570,6 +604,22 @@ export function TaskDrawer({
           />
         )}
       </Modal>
+      <AssignTaskPrompt
+        key={assignmentPromptInput ? task?._id : "closed"}
+        task={assignmentPromptInput ? task : null}
+        members={members}
+        canAssign={canAssign}
+        pending={updateTask.isPending}
+        error={assignmentPromptError}
+        onCancel={() => {
+          setAssignmentPromptInput(null);
+          setValue("status", task?.status ?? "todo");
+        }}
+        onMoveWithoutAssignee={() => void completeAssignmentPrompt()}
+        onAssignAndMove={(assigneeIds) =>
+          void completeAssignmentPrompt(assigneeIds)
+        }
+      />
       {task && user && (
         <MeetingFormModal
           open={open && schedulingMeeting}

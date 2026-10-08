@@ -73,6 +73,43 @@ describe("cross-tenant task reference checks", () => {
   });
 });
 
+describe("task update version checks", () => {
+  it("does not overwrite assignments made while an assignment reminder is open", async () => {
+    const org = await registerOrg("task-version@example.com", "Version Org");
+    const projectId = await createProject(org.orgId, org.accessToken, "TV");
+    const created = await request(app)
+      .post(`/api/orgs/${org.orgId}/projects/${projectId}/tasks`)
+      .set("Authorization", `Bearer ${org.accessToken}`)
+      .send({ title: "Unassigned task" });
+    const taskId = created.body.task._id as string;
+    const staleUpdatedAt = created.body.task.updatedAt as string;
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const concurrentAssignment = await request(app)
+      .patch(`/api/orgs/${org.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${org.accessToken}`)
+      .send({ assigneeIds: [org.userId] });
+    expect(concurrentAssignment.status).toBe(200);
+
+    const staleMove = await request(app)
+      .patch(`/api/orgs/${org.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${org.accessToken}`)
+      .send({
+        status: "in_progress",
+        assigneeIds: [],
+        expectedUpdatedAt: staleUpdatedAt,
+      });
+    expect(staleMove.status).toBe(409);
+    expect(staleMove.body.error.code).toBe("TASK_CHANGED");
+
+    const current = await request(app)
+      .get(`/api/orgs/${org.orgId}/tasks/${taskId}`)
+      .set("Authorization", `Bearer ${org.accessToken}`);
+    expect(current.body.task.assigneeIds).toContain(org.userId);
+    expect(current.body.task.status).toBe("todo");
+  });
+});
+
 describe("task ownership rules", () => {
   it("lets a member edit their own task but not someone else's, and blocks reassignment", async () => {
     const admin = await registerOrg("owner-admin@example.com", "Owner Org");

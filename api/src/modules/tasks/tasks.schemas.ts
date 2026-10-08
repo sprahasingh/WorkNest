@@ -22,6 +22,7 @@ export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 
 export const updateTaskSchema = z
   .object({
+    expectedUpdatedAt: z.iso.datetime().optional(),
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().max(2000).optional(),
     status: z.enum(["todo", "in_progress", "done"]).optional(),

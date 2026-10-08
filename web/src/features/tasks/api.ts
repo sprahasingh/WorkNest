@@ -77,6 +77,7 @@ export interface CreateTaskInput {
 }
 
 export interface UpdateTaskInput {
+  expectedUpdatedAt?: string;
   title?: string;
   description?: string;
   status?: TaskStatus;
