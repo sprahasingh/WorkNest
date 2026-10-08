@@ -1,15 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { signUpAndConfirm, uniqueEmail } from "./helpers";
+import {
+  expectNoHorizontalOverflow as expectNoPageOverflow,
+  RESPONSIVE_SMOKE_VIEWPORTS,
+} from "./support/responsive";
 
-const VIEWPORTS = [
-  { name: "narrow phone", width: 320, height: 568 },
-  { name: "phone", width: 390, height: 844 },
-  { name: "tablet", width: 768, height: 1024 },
-  { name: "laptop", width: 1280, height: 800 },
-  { name: "desktop", width: 1920, height: 1080 },
-];
-
-test("core workspace pages fit common responsive viewports", async ({
+test("@responsive-smoke core workspace pages fit common responsive viewports", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -31,7 +27,7 @@ test("core workspace pages fit common responsive viewports", async ({
   await page.getByRole("button", { name: "Create task" }).click();
   const boardUrl = page.url();
 
-  for (const viewport of VIEWPORTS) {
+  for (const viewport of RESPONSIVE_SMOKE_VIEWPORTS) {
     await page.setViewportSize(viewport);
 
     await page.goto(`/orgs/${orgId}/projects`);
@@ -591,16 +587,3 @@ test("keyboard, retry, and lifecycle flows remain usable at phone widths", async
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
 });
-
-async function expectNoPageOverflow(
-  page: import("@playwright/test").Page,
-  viewportName: string,
-) {
-  const dimensions = await page.evaluate(() => ({
-    viewport: document.documentElement.clientWidth,
-    page: document.documentElement.scrollWidth,
-  }));
-  expect(dimensions.page, `${viewportName} page overflow`).toBeLessThanOrEqual(
-    dimensions.viewport,
-  );
-}

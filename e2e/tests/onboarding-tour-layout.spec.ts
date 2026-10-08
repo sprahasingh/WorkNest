@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { signUpAndConfirm, uniqueEmail } from "./helpers";
+import { RESPONSIVE_SMOKE_VIEWPORTS } from "./support/responsive";
 
 test("page tour stays clear of its target across responsive viewports", async ({
   page,
@@ -20,12 +21,9 @@ test("page tour stays clear of its target across responsive viewports", async ({
   await expect(tour).toBeVisible();
   await expect(target).toBeVisible();
 
-  for (const viewport of [
-    { width: 320, height: 568 },
-    { width: 390, height: 844 },
-    { width: 768, height: 1024 },
-    { width: 1280, height: 800 },
-  ]) {
+  for (const viewport of RESPONSIVE_SMOKE_VIEWPORTS.filter(
+    ({ width }) => width < 1920,
+  )) {
     await page.setViewportSize(viewport);
     await expect(tour).toBeVisible();
     const boxes = await Promise.all([tour.boundingBox(), target.boundingBox()]);

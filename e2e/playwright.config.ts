@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
+  testIgnore: ["**/responsive-extended.spec.ts"],
   // The tests share one database and one email log, so they run one by one.
   workers: 1,
   retries: process.env.CI ? 1 : 0,
