@@ -1,4 +1,11 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { lockScroll } from "@/lib/scrollLock";
@@ -9,6 +16,8 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   size?: "md" | "lg";
+  placement?: "responsive" | "bottom";
+  contentClassName?: string;
 }
 
 const FOCUSABLE =
@@ -23,6 +32,8 @@ export function Modal({
   title,
   children,
   size = "md",
+  placement = "responsive",
+  contentClassName,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState(() => ({
@@ -41,7 +52,7 @@ export function Modal({
     onCloseRef.current = onClose;
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     const viewport = window.visualViewport;
     const update = () => {
@@ -55,6 +66,7 @@ export function Modal({
           : next,
       );
     };
+    update();
     window.addEventListener("resize", update);
     viewport?.addEventListener("resize", update);
     viewport?.addEventListener("scroll", update);
@@ -119,13 +131,19 @@ export function Modal({
   }, [open, modalId]);
 
   if (!open) return null;
+  const bottomAligned = placement === "bottom";
 
   // Drawn on the page itself, not inside whatever opened it. Inside a spaced
   // layout (space-y-*) or a clipped or stacked parent, the dimmed layer was
   // pushed out of place and left a strip of the page sharp at the edge.
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-3 py-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-sm sm:items-center sm:px-4 sm:py-3"
+      className={cn(
+        "fixed inset-0 z-50 flex justify-center bg-slate-900/40 backdrop-blur-sm",
+        bottomAligned
+          ? "items-end px-0 py-0"
+          : "items-end px-3 py-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] sm:items-center sm:px-4 sm:py-3",
+      )}
       style={{
         top: viewport.top,
         height: viewport.height,
@@ -147,7 +165,9 @@ export function Modal({
       <div
         ref={dialogRef}
         style={{
-          maxHeight: `min(90dvh, ${Math.max(viewport.height - 24, 160)}px)`,
+          maxHeight: bottomAligned
+            ? `${Math.max(viewport.height, 0)}px`
+            : `min(90dvh, ${Math.max(viewport.height - 24, 160)}px)`,
         }}
         tabIndex={-1}
         role="dialog"
@@ -155,7 +175,11 @@ export function Modal({
         aria-labelledby={`${modalId}-title`}
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          "flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] min-h-0 w-full flex-col rounded-2xl bg-white p-4 shadow-xl outline-none sm:max-h-[90dvh] sm:p-6 dark:bg-slate-800",
+          "flex min-h-0 w-full flex-col bg-white p-4 shadow-xl outline-none sm:p-6 dark:bg-slate-800",
+          bottomAligned &&
+            "rounded-t-2xl rounded-b-none pb-[max(1rem,env(safe-area-inset-bottom))] sm:rounded-2xl",
+          !bottomAligned &&
+            "max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem)] rounded-2xl sm:max-h-[90dvh]",
           size === "lg" ? "sm:max-w-2xl" : "sm:max-w-md",
         )}
       >
@@ -187,7 +211,12 @@ export function Modal({
             </svg>
           </button>
         </div>
-        <div className="mt-4 min-h-0 overflow-y-auto overscroll-contain">
+        <div
+          className={cn(
+            "mt-4 min-h-0 overflow-y-auto overscroll-contain",
+            contentClassName,
+          )}
+        >
           {children}
         </div>
       </div>

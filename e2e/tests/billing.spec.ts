@@ -176,33 +176,93 @@ test("upgrading a plan goes through a payment that the server verifies", async (
   ).toBeVisible();
 
   for (const viewport of [
-    { width: 320, height: 720 },
+    { width: 320, height: 360 },
+    { width: 320, height: 568 },
     { width: 390, height: 844 },
+    { width: 768, height: 1024 },
     { width: 1280, height: 900 },
   ]) {
     await page.setViewportSize(viewport);
-    await page.getByRole("button", { name: "Switch to Pro" }).click();
-    const review = page.getByRole("dialog", {
-      name: "Review subscription change",
-    });
-    await expect(review).toContainText("Your Pro subscription may start later");
-    await expect(review).toContainText("Members: 42 / 30 allowed");
-    await expect(review).toContainText("Active projects: 31 / 25 allowed");
-    await review.getByText("Show affected projects (1)").click();
-    await expect(review).toContainText("Project A: 68 / 50 allowed");
-    await expect(
-      review.getByRole("button", { name: "Continue to Payment" }),
-    ).toBeVisible();
-    const bounds = await review.boundingBox();
-    expect(bounds).toBeTruthy();
-    expect(bounds!.x).toBeGreaterThanOrEqual(0);
-    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
-    expect(
-      await review.evaluate(
-        (element) => element.scrollWidth > element.clientWidth,
-      ),
-    ).toBe(false);
-    await review.getByRole("button", { name: "Cancel", exact: true }).click();
+    for (const scrollPosition of ["top", "middle", "bottom"] as const) {
+      await page.evaluate((position) => {
+        const maxScroll =
+          document.documentElement.scrollHeight - window.innerHeight;
+        const top =
+          position === "top"
+            ? 0
+            : position === "middle"
+              ? maxScroll / 2
+              : maxScroll;
+        window.scrollTo(0, top);
+      }, scrollPosition);
+      // Trigger at the current page scroll position without Playwright scrolling
+      // the button into view first.
+      await page
+        .getByRole("button", { name: "Switch to Pro" })
+        .evaluate((button: HTMLButtonElement) => button.click());
+      const review = page.getByRole("dialog", {
+        name: "Review subscription change",
+      });
+      await expect(review).toContainText(
+        "Your Pro subscription may start later",
+      );
+      await expect(review).toContainText("Members: 42 / 30 allowed");
+      await expect(review).toContainText("Active projects: 31 / 25 allowed");
+      await review.getByText("Show affected projects (1)").click();
+      await expect(review).toContainText("Project A: 68 / 50 allowed");
+      const continuePayment = review.getByRole("button", {
+        name: "Continue to Payment",
+      });
+      await expect(continuePayment).toBeVisible();
+      await expect(continuePayment).toBeInViewport();
+      expect(
+        await page.locator("body").evaluate((body) => body.style.overflow),
+      ).toBe("hidden");
+      const reviewScroller = review.locator("div.overflow-y-auto").first();
+      if (viewport.width === 320 && viewport.height === 360) {
+        await reviewScroller.evaluate((element) => {
+          const firstSection = element.firstElementChild as HTMLElement | null;
+          if (firstSection) firstSection.style.minHeight = "700px";
+        });
+      }
+      const scrollMetrics = await reviewScroller.evaluate((element) => ({
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+        overflowY: getComputedStyle(element).overflowY,
+      }));
+      expect(scrollMetrics.overflowY).toBe("auto");
+      if (viewport.width === 320 && viewport.height === 360) {
+        expect(scrollMetrics.scrollHeight).toBeGreaterThan(
+          scrollMetrics.clientHeight,
+        );
+      }
+      await reviewScroller.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+      await expect(continuePayment).toBeInViewport();
+      const bounds = await review.boundingBox();
+      expect(bounds).toBeTruthy();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+      expect(bounds!.y + bounds!.height).toBe(viewport.height);
+      const backdrop = review.locator("xpath=..");
+      const backdropBounds = await backdrop.boundingBox();
+      expect(backdropBounds?.x).toBe(0);
+      expect(backdropBounds?.y).toBe(0);
+      expect(backdropBounds?.width).toBe(viewport.width);
+      expect(backdropBounds?.height).toBe(viewport.height);
+      expect(
+        await backdrop.evaluate(
+          (element) => getComputedStyle(element).backdropFilter,
+        ),
+      ).toContain("blur");
+      expect(
+        await review.evaluate(
+          (element) => element.scrollWidth > element.clientWidth,
+        ),
+      ).toBe(false);
+      await review.getByRole("button", { name: "Cancel", exact: true }).click();
+    }
   }
   await page.unroute(billingRoute);
   await page.unroute(orgRoute);
