@@ -485,7 +485,10 @@ function PersonalInformationCard() {
     <Card>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h2 className="font-medium text-slate-800 dark:text-slate-100">
+          <h2
+            data-tour="settings-personal"
+            className="font-medium text-slate-800 dark:text-slate-100"
+          >
             Personal information
           </h2>
           {!isEditing && (
@@ -693,7 +696,10 @@ function EmailAddressSection() {
     <section className="mt-5 border-t border-slate-200 pt-5 dark:border-slate-700">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h3 className="text-sm font-medium text-slate-800 dark:text-slate-100">
+          <h3
+            data-tour="settings-email"
+            className="text-sm font-medium text-slate-800 dark:text-slate-100"
+          >
             Email address
           </h3>
           <p className="mt-1 break-all text-sm font-medium text-slate-800 dark:text-slate-200">
@@ -1282,8 +1288,11 @@ export function SettingsPage() {
 
         <PersonalInformationCard />
 
-        <Card data-tour="settings-organization">
-          <h2 className="font-medium text-slate-800 dark:text-slate-100">
+        <Card>
+          <h2
+            data-tour="settings-organization"
+            className="font-medium text-slate-800 dark:text-slate-100"
+          >
             Organization settings
           </h2>
 
@@ -1505,9 +1514,12 @@ export function SettingsPage() {
           </div>
         </Modal>
 
-        <Card id="plan" data-tour="settings-content" className="scroll-mt-24">
+        <Card id="plan" className="scroll-mt-24">
           <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-100">
+            <h2
+              data-tour="settings-plan"
+              className="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-100"
+            >
               Plan
               <InfoButton
                 open={planInfoOpen}

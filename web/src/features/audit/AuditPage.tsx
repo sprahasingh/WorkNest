@@ -57,7 +57,10 @@ export function AuditPage() {
   return (
     <div className="bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+        <h1
+          data-tour="audit-heading"
+          className="text-2xl font-bold text-slate-900 dark:text-slate-50"
+        >
           Audit log
         </h1>
 
