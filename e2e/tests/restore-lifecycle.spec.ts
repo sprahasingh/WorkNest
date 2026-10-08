@@ -232,7 +232,9 @@ test("restoration section, both entry points, archived actions, and responsive l
     name: "About items archived after plan changes",
   });
   await restoreInfoButton.click();
-  const restoreInfoPanel = restoreSection.getByRole("note");
+  // InfoToggle portals information panels to the document body so they cannot
+  // be clipped by the restoration card or its scroll containers.
+  const restoreInfoPanel = page.getByRole("note");
   await expect(restoreInfoPanel).toContainText(
     "Items over your previous plan limits were archived automatically.",
   );
@@ -243,7 +245,12 @@ test("restoration section, both entry points, archived actions, and responsive l
   await expect(restoreInfoPanel).toBeHidden();
   await restoreInfoButton.click();
   await expect(restoreInfoPanel).toBeVisible();
-  await page.evaluate(() => window.scrollBy(0, 80));
+  await page.evaluate(() => window.scrollBy(0, 20));
+  await expect(restoreInfoButton).toBeInViewport();
+  await expect(restoreInfoPanel).toBeVisible();
+  await page.evaluate(() =>
+    window.scrollTo(0, document.documentElement.scrollHeight),
+  );
   await expect(restoreInfoPanel).toBeHidden();
 
   // Project archived card: indicator, menu action, confirmation and durable conversion.

@@ -66,7 +66,7 @@ const pageTours: Record<string, PageStep[]> = {
       description:
         "See how open tasks are distributed across teammates and spot unassigned work.",
     },
-  ],
+  ].map((step) => ({ ...step, roles: ["admin", "manager"] as Role[] })),
   projects: [
     {
       target: "projects-create",
@@ -232,14 +232,18 @@ function stepsFor(role: Role, orgId: string, orgName: string): Step[] {
       action: { label: "Explore Meetings", to: path("meetings") },
     },
   };
-  const common = [
+  const common: Step[] = [
     welcome,
-    {
-      title: "Your dashboard",
-      description:
-        "Review task workload, project progress and activity over a date range.",
-      action: { label: "Explore dashboard", to: path("dashboard") },
-    },
+    ...(role === "member"
+      ? []
+      : [
+          {
+            title: "Your dashboard",
+            description:
+              "Review task workload, project progress and activity over a date range.",
+            action: { label: "Explore dashboard", to: path("dashboard") },
+          },
+        ]),
     {
       title: role === "member" ? "Find your work" : "Projects and tasks",
       description:
@@ -453,6 +457,17 @@ export function OnboardingTour({
       }));
     }
   };
+  const backPage = () => {
+    if (pageIndex > 0 && activePageKey) {
+      setPageIndexes((indexes) => ({
+        ...indexes,
+        [activePageKey]: pageIndex - 1,
+      }));
+      return;
+    }
+    setStepIndex(pageMode?.returnStep ?? stepIndex);
+    setPageMode(null);
+  };
 
   if (activePageKey && availablePageSteps.length) {
     const active = pageStep!;
@@ -488,7 +503,7 @@ export function OnboardingTour({
               onClick={returnToMain}
               className="min-h-9 rounded-lg px-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-teal-300 dark:hover:bg-teal-900/30"
             >
-              Back to main tour
+              Continue main tour
             </button>
           </div>
           <h2
@@ -509,15 +524,25 @@ export function OnboardingTour({
               >
                 Skip this page tour
               </button>
-              <Button
-                size="sm"
-                className="min-h-10 sm:min-h-9"
-                onClick={finishPage}
-              >
-                {pageIndex === availablePageSteps.length - 1
-                  ? "Continue main tour"
-                  : "Next"}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-10 sm:min-h-9"
+                  onClick={backPage}
+                >
+                  <span aria-hidden="true">← </span>Back
+                </Button>
+                <Button
+                  size="sm"
+                  className="min-h-10 sm:min-h-9"
+                  onClick={finishPage}
+                >
+                  {pageIndex === availablePageSteps.length - 1
+                    ? "Continue main tour"
+                    : "Next"}
+                </Button>
+              </div>
             </div>
             <button
               type="button"
@@ -606,15 +631,15 @@ export function OnboardingTour({
             ))}
           </div>
           <div className="flex shrink-0 gap-2">
-            {stepIndex > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setStepIndex((index) => index - 1)}
-              >
-                Back
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={stepIndex === 0}
+              aria-label="Go to previous tour step"
+              onClick={() => setStepIndex((index) => Math.max(0, index - 1))}
+            >
+              <span aria-hidden="true">← </span>Back
+            </Button>
             <Button
               size="sm"
               onClick={() =>

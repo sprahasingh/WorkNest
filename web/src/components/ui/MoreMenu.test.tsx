@@ -27,7 +27,7 @@ describe("MoreMenu contextual dismissal", () => {
     fireEvent.click(trigger);
     expect(screen.queryByText("First action")).toBeNull();
     fireEvent.click(trigger);
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByText("First action")).toBeNull();
     fireEvent.click(trigger);
     fireEvent.click(screen.getByText("First action"));
@@ -44,6 +44,22 @@ describe("MoreMenu contextual dismissal", () => {
       pointerType: "touch",
     });
     expect(screen.queryByText("Second action")).toBeNull();
+  });
+
+  it("renders the menu outside clipping containers", () => {
+    render(
+      <MemoryRouter>
+        <div className="overflow-hidden">
+          <MoreMenu label="Clipped card">
+            <MoreMenuItem>Visible action</MoreMenuItem>
+          </MoreMenu>
+        </div>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByLabelText("Clipped card actions"));
+    const menu = screen.getByRole("menu");
+    expect(menu.parentElement).toBe(document.body);
+    expect(screen.getByText("Visible action")).toBeTruthy();
   });
 
   it("stays closed after scroll and ignores the following synthetic click", () => {

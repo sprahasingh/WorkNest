@@ -915,7 +915,6 @@ export function ActivityFeed({
               id={audienceInfoId}
               open={audienceInfoOpen}
               onClose={() => setAudienceInfoOpen(false)}
-              className="basis-full"
             >
               {audienceLine}
             </InfoPanel>
