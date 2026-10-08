@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { signUpAndConfirm, uniqueEmail } from "./helpers";
+import { RESPONSIVE_SMOKE_VIEWPORTS } from "./support/responsive";
 
-test("admin settings tours follow page order and keep section headings visible responsively", async ({
+test("@responsive-smoke admin settings tours follow page order and keep section headings visible responsively", async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -31,12 +32,9 @@ test("admin settings tours follow page order and keep section headings visible r
     '[data-tour="settings-organization"]',
   );
   await expect(organizationTour).toBeVisible();
-  for (const viewport of [
-    { width: 320, height: 640 },
-    { width: 390, height: 844 },
-    { width: 768, height: 1024 },
-    { width: 1280, height: 800 },
-  ]) {
+  for (const viewport of RESPONSIVE_SMOKE_VIEWPORTS.filter(
+    ({ width }) => width < 1920,
+  )) {
     await page.setViewportSize(viewport);
     await expect(organizationHeading).toBeInViewport();
     const [card, heading] = await Promise.all([

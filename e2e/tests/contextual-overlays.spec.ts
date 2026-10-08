@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { signUpAndConfirm, uniqueEmail } from "./helpers";
+import {
+  RESPONSIVE_SMOKE_VIEWPORTS,
+  responsiveViewport,
+} from "./support/responsive";
 
 test.use({ hasTouch: true });
 
@@ -21,10 +25,7 @@ test("More menu dismisses predictably at desktop and 320px", async ({
   });
   await expect(trigger).toBeVisible();
 
-  for (const viewport of [
-    { width: 1280, height: 800 },
-    { width: 320, height: 568 },
-  ]) {
+  for (const viewport of [responsiveViewport(1280), responsiveViewport(320)]) {
     await page.setViewportSize(viewport);
     await trigger.click();
     const menu = page.getByRole("menu");
@@ -108,7 +109,7 @@ test("More menu dismisses predictably at desktop and 320px", async ({
   }
 });
 
-test("information panels stay readable, positioned, and within responsive viewports", async ({
+test("@responsive-smoke information panels stay readable, positioned, and within responsive viewports", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -117,11 +118,9 @@ test("information panels stay readable, positioned, and within responsive viewpo
   expect(orgId).toBeTruthy();
   await page.goto(`/orgs/${orgId}/settings`);
 
-  for (const viewport of [
-    { width: 320, height: 568 },
-    { width: 390, height: 844 },
-    { width: 1280, height: 800 },
-  ]) {
+  for (const viewport of RESPONSIVE_SMOKE_VIEWPORTS.filter(({ width }) =>
+    [320, 390, 1280].includes(width),
+  )) {
     await page.setViewportSize(viewport);
     await page.evaluate(() => window.scrollTo(0, 0));
     const trigger = page.getByRole("button", {

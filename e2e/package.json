@@ -5,6 +5,8 @@
   "description": "Browser tests for sign-up, sign-in and account screens",
   "scripts": {
     "test": "playwright test",
+    "test:responsive:smoke": "playwright test --grep @responsive-smoke",
+    "test:responsive:extended": "playwright test --config=playwright.extended.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
