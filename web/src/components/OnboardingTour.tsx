@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import type { Role } from "@/api/auth";
 import { roleVisibleSteps } from "@/lib/planRestorePrompt";
+import { calculateTourPosition } from "./onboardingTourPosition";
 
 interface Step {
   title: string;
@@ -313,7 +314,11 @@ export function OnboardingTour({
     key: string;
     returnStep: number;
   } | null>(null);
-  const [position, setPosition] = useState({ top: 12, left: 12 });
+  const [position, setPosition] = useState({
+    top: 12,
+    left: 12,
+    maxHeight: 480,
+  });
   const targetRef = useRef<HTMLElement | null>(null);
   const cardRef = useRef<HTMLElement>(null);
   const targetStylesRef = useRef<{
@@ -321,6 +326,7 @@ export function OnboardingTour({
     outlineOffset: string;
     position: string;
     zIndex: string;
+    scrollMarginTop: string;
   } | null>(null);
   const isLastStep = stepIndex === steps.length - 1;
   const step = steps[stepIndex]!;
@@ -343,31 +349,20 @@ export function OnboardingTour({
     const card = cardRef.current;
     if (!card) return;
     const box = card.getBoundingClientRect();
-    if (!target) {
-      setPosition({
-        top: Math.max(12, (window.innerHeight - box.height) / 2),
-        left: Math.max(12, (window.innerWidth - box.width) / 2),
-      });
-      return;
-    }
-    const rect = target.getBoundingClientRect();
-    const margin = 12;
-    const left =
-      window.innerWidth < 640
-        ? margin
-        : Math.min(
-            Math.max(margin, rect.left + rect.width / 2 - box.width / 2),
-            window.innerWidth - box.width - margin,
-          );
-    const below = rect.bottom + margin;
-    const top =
-      below + box.height <= window.innerHeight - margin
-        ? below
-        : Math.max(margin, rect.top - box.height - margin);
-    setPosition({
-      top: Math.min(top, window.innerHeight - box.height - margin),
-      left,
-    });
+    const visualViewport = window.visualViewport;
+    const viewport = {
+      top: visualViewport?.offsetTop ?? 0,
+      left: visualViewport?.offsetLeft ?? 0,
+      width: visualViewport?.width ?? window.innerWidth,
+      height: visualViewport?.height ?? window.innerHeight,
+    };
+    setPosition(
+      calculateTourPosition(
+        target?.getBoundingClientRect() ?? null,
+        box,
+        viewport,
+      ),
+    );
   };
 
   useLayoutEffect(() => {
@@ -381,26 +376,48 @@ export function OnboardingTour({
       : null;
     targetRef.current = target;
     if (target) {
-      target.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "nearest",
-      });
       targetStylesRef.current = {
         outline: target.style.outline,
         outlineOffset: target.style.outlineOffset,
         position: target.style.position,
         zIndex: target.style.zIndex,
+        scrollMarginTop: target.style.scrollMarginTop,
       };
+      target.scrollIntoView({
+        behavior: "instant",
+        block: "center",
+        inline: "nearest",
+      });
+      if ((window.visualViewport?.width ?? window.innerWidth) < 640) {
+        const viewportHeight =
+          window.visualViewport?.height ?? window.innerHeight;
+        const viewportTop = window.visualViewport?.offsetTop ?? 0;
+        const rect = target.getBoundingClientRect();
+        const compactCardHeight = Math.min(viewportHeight * 0.5, 360);
+        if (
+          rect.height < viewportHeight - compactCardHeight - 32 &&
+          rect.bottom > viewportTop + viewportHeight - compactCardHeight - 24
+        ) {
+          target.style.scrollMarginTop =
+            "calc(env(safe-area-inset-top) + 5rem)";
+          target.scrollIntoView({
+            behavior: "instant",
+            block: "start",
+            inline: "nearest",
+          });
+        }
+      }
       target.style.setProperty("outline", "3px solid rgb(13 148 136)");
       target.style.setProperty("outline-offset", "4px");
       target.style.setProperty("position", "relative");
       target.style.setProperty("z-index", "51");
     }
     const update = () => positionCard();
-    const frame = requestAnimationFrame(update);
+    update();
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
     const observer =
       card && typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(update)
@@ -408,9 +425,10 @@ export function OnboardingTour({
     if (card) observer?.observe(card);
     if (target) observer?.observe(target);
     return () => {
-      cancelAnimationFrame(frame);
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
+      window.visualViewport?.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("scroll", update);
       observer?.disconnect();
       if (target) {
         const previous = targetStylesRef.current;
@@ -419,6 +437,7 @@ export function OnboardingTour({
           target.style.outlineOffset = previous.outlineOffset;
           target.style.position = previous.position;
           target.style.zIndex = previous.zIndex;
+          target.style.scrollMarginTop = previous.scrollMarginTop;
         }
         targetStylesRef.current = null;
       }
@@ -482,11 +501,11 @@ export function OnboardingTour({
           role="dialog"
           aria-modal="true"
           aria-labelledby="page-tour-title"
-          className="fixed z-[60] w-[calc(100vw-24px)] max-w-sm overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-800 sm:p-5"
+          className="fixed z-[60] flex w-[calc(100vw-24px)] max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-800 sm:p-5"
           style={{
             top: position.top,
             left: position.left,
-            maxHeight: "min(70dvh, 30rem)",
+            maxHeight: position.maxHeight,
           }}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -501,26 +520,28 @@ export function OnboardingTour({
             <button
               type="button"
               onClick={returnToMain}
-              className="min-h-9 rounded-lg px-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-teal-300 dark:hover:bg-teal-900/30"
+              className="min-h-11 rounded-lg px-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-teal-300 dark:hover:bg-teal-900/30"
             >
               Continue main tour
             </button>
           </div>
-          <h2
-            id="page-tour-title"
-            className="mt-2 text-lg font-bold text-slate-900 dark:text-slate-50"
-          >
-            {active.title}
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-            {active.description}
-          </p>
-          <div className="mt-5 border-t border-slate-200 pt-3 dark:border-slate-700">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <h2
+              id="page-tour-title"
+              className="mt-1 text-base font-bold text-slate-900 dark:text-slate-50 sm:text-lg"
+            >
+              {active.title}
+            </h2>
+            <p className="mt-1.5 text-sm leading-snug text-slate-600 dark:text-slate-300">
+              {active.description}
+            </p>
+          </div>
+          <div className="mt-3 shrink-0 border-t border-slate-200 pt-2 dark:border-slate-700">
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
                 onClick={returnToMain}
-                className="min-h-10 rounded-lg px-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                className="min-h-11 rounded-lg px-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Skip this page tour
               </button>
@@ -547,7 +568,7 @@ export function OnboardingTour({
             <button
               type="button"
               onClick={onClose}
-              className="mt-2 min-h-9 w-full rounded-lg px-3 text-left text-xs font-medium text-red-600 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-950/30"
+              className="mt-1 min-h-11 w-full rounded-lg px-3 text-left text-xs font-medium text-red-600 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-950/30"
             >
               Skip entire tour
             </button>
@@ -563,7 +584,7 @@ export function OnboardingTour({
         role="dialog"
         aria-modal="true"
         aria-labelledby="onboarding-title"
-        className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-4 shadow-xl dark:bg-slate-800 sm:p-6"
+        className="my-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white p-3 shadow-xl dark:bg-slate-800 sm:p-6"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -577,52 +598,54 @@ export function OnboardingTour({
           <button
             type="button"
             onClick={onClose}
-            className="text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400"
+            className="min-h-11 rounded-lg px-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700"
           >
             Skip entire tour
           </button>
         </div>
-        <p className="mt-5 text-xs font-medium text-slate-500 dark:text-slate-400">
-          Step {stepIndex + 1} of {steps.length} · {orgName}
-        </p>
-        <h2
-          id="onboarding-title"
-          className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-50"
-        >
-          {step.title}
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-          {step.description}
-        </p>
-        {step.action && (
-          <Link
-            to={step.action.to}
-            onClick={() => startPageTour(step.action!.to, stepIndex)}
-            className="mt-4 inline-flex text-sm font-semibold text-teal-700 hover:underline dark:text-teal-400"
-          >
-            {step.action.label} →
-          </Link>
-        )}
-        {isLastStep && (
-          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-            Need more detail? Open the{" "}
-            <Link
-              to="/how-to-use"
-              target="_blank"
-              className="font-medium text-teal-700 hover:underline dark:text-teal-400"
-            >
-              how-to-use guide
-            </Link>{" "}
-            any time.
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <p className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-400 sm:mt-5">
+            Step {stepIndex + 1} of {steps.length} · {orgName}
           </p>
-        )}
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <h2
+            id="onboarding-title"
+            className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-50 sm:text-xl"
+          >
+            {step.title}
+          </h2>
+          <p className="mt-1.5 text-sm leading-snug text-slate-600 dark:text-slate-400">
+            {step.description}
+          </p>
+          {step.action && (
+            <Link
+              to={step.action.to}
+              onClick={() => startPageTour(step.action!.to, stepIndex)}
+              className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-teal-700 hover:underline dark:text-teal-400"
+            >
+              {step.action.label} →
+            </Link>
+          )}
+          {isLastStep && (
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Need more detail? Open the{" "}
+              <Link
+                to="/how-to-use"
+                target="_blank"
+                className="font-medium text-teal-700 hover:underline dark:text-teal-400"
+              >
+                how-to-use guide
+              </Link>{" "}
+              any time.
+            </p>
+          )}
+        </div>
+        <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-2 dark:border-slate-700 sm:mt-6 sm:border-0 sm:pt-0">
           <div className="flex min-w-0 gap-1.5" aria-hidden="true">
             {steps.map((item, index) => (
               <span
                 key={item.title}
                 className={cn(
-                  "h-1.5 w-3 rounded-full transition-colors sm:w-4",
+                  "h-1.5 w-2.5 rounded-full sm:w-4",
                   index === stepIndex
                     ? "bg-teal-600"
                     : "bg-slate-200 dark:bg-slate-700",
